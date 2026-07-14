@@ -2,10 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Mail, Plus } from "lucide-react";
+import { Loader2, Mail, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge, Field, Modal } from "@/components/ui-kit";
-import { useCompanyInvites, useCompanyMembers, useCurrentCompany } from "@/lib/data";
+import { useCompanyInvites, useCompanyMembers, useCurrentCompany, useDelete } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/equipe")({
@@ -24,8 +24,10 @@ function Equipe() {
   const { data: members = [] } = useCompanyMembers();
   const { data: invites = [] } = useCompanyInvites();
   const queryClient = useQueryClient();
+  const deleteInvite = useDelete("company_invites", ["company_invites"]);
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
 
   async function sendInvite(row: { nome: string | null; email: string; role: string }) {
     if (!company.data?.id) {
@@ -53,6 +55,19 @@ function Equipe() {
     } finally {
       setSending(false);
     }
+  }
+
+  function cancelInvite(invite: { id: string; email: string }) {
+    if (!window.confirm(`Cancelar o convite de ${invite.email}?`)) return;
+    setCancelingId(invite.id);
+    deleteInvite.mutate(invite.id, {
+      onSuccess: async () => {
+        toast.success("Convite cancelado");
+        await queryClient.invalidateQueries({ queryKey: ["company_invites"] });
+      },
+      onError: (err) => toast.error(err.message),
+      onSettled: () => setCancelingId(null),
+    });
   }
 
   return (
@@ -117,6 +132,7 @@ function Equipe() {
                 <th className="p-3">Email</th>
                 <th className="p-3">Perfil</th>
                 <th className="p-3">Status</th>
+                <th className="p-3 text-right">Acoes</th>
               </tr>
             </thead>
             <tbody>
@@ -125,6 +141,22 @@ function Equipe() {
                   <td className="p-3">{invite.email}</td>
                   <td className="p-3"><Badge tone="brass">{invite.role}</Badge></td>
                   <td className="p-3">{invite.status}</td>
+                  <td className="p-3 text-right">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                      onClick={() => cancelInvite(invite)}
+                      disabled={cancelingId === invite.id}
+                      title="Cancelar convite"
+                    >
+                      {cancelingId === invite.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                      Cancelar
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
