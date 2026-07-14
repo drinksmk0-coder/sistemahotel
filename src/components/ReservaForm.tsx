@@ -54,6 +54,18 @@ export function ReservaForm({
   onClose: () => void;
   onSave: (row: ReservaRow) => void;
 }) {
+  const numberInput = (value: number | null | undefined, fallback = "") =>
+    value == null || Number(value) === 0 ? fallback : String(value);
+  const parseNumber = (value: string) => {
+    const normalized = value.replace(",", ".");
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const parseIntNumber = (value: string, fallback = 0) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
   const initRoom = editing?.quarto ?? fixedRoom ?? rooms[0]?.numero ?? 0;
   const [quarto, setQuarto] = useState<number>(initRoom);
   const [clienteId, setClienteId] = useState(editing?.cliente_id ?? "");
@@ -65,31 +77,42 @@ export function ReservaForm({
   );
   const [horarioCheckin, setHorarioCheckin] = useState(editing?.horario_checkin?.slice(0, 5) ?? "14:00");
   const [horarioCheckout, setHorarioCheckout] = useState(editing?.horario_checkout?.slice(0, 5) ?? "12:00");
-  const [valorDiaria, setValorDiaria] = useState<number>(
-    editing?.valor_diaria ?? rooms.find((r) => r.numero === initRoom)?.preco ?? 0,
+  const [diarias, setDiarias] = useState<string>(
+    String(editing?.diarias ?? nightsBetween(editing?.checkin ?? todayISO(), editing?.checkout ?? "")),
+  );
+  const [valorDiaria, setValorDiaria] = useState<string>(
+    numberInput(editing?.valor_diaria ?? rooms.find((r) => r.numero === initRoom)?.preco ?? 0),
   );
   const [pagamento, setPagamento] = useState<string>(editing?.pagamento ?? PAYMENT_METHODS[0]);
-  const [valorPago, setValorPago] = useState<number>(editing?.valor_pago ?? 0);
-  const [desconto, setDesconto] = useState<number>(editing?.desconto ?? 0);
-  const [pessoas, setPessoas] = useState<number>(editing?.pessoas ?? 1);
+  const [valorPago, setValorPago] = useState<string>(numberInput(editing?.valor_pago));
+  const [desconto, setDesconto] = useState<string>(numberInput(editing?.desconto));
+  const [pessoas, setPessoas] = useState<string>(String(editing?.pessoas ?? 1));
   const [canal, setCanal] = useState<string>(editing?.canal ?? SALES_CHANNELS[0]);
   const [override, setOverride] = useState(false);
 
-  const nights = nightsBetween(checkin, checkout);
-  const bruto = nights * valorDiaria;
-  const total = Math.max(0, bruto - (Number(desconto) || 0));
+  const nights = Math.max(0, parseIntNumber(diarias));
+  const diariaValor = parseNumber(valorDiaria);
+  const descontoValor = parseNumber(desconto);
+  const valorPagoNumber = parseNumber(valorPago);
+  const bruto = nights * diariaValor;
+  const total = Math.max(0, bruto - descontoValor);
   const overlap =
     quarto && checkin && checkout && hasPaidOverlap(reservations, quarto, checkin, checkout, editing?.id);
   const block = roomBlock(complaints, quarto);
   const blocked = !!block && !override;
-  const status = statusFromPayment(total, valorPago);
+  const status = statusFromPayment(total, valorPagoNumber);
+
+  function applyDateChange(nextCheckin: string, nextCheckout: string) {
+    const calculated = nightsBetween(nextCheckin, nextCheckout);
+    setDiarias(calculated > 0 ? String(calculated) : "");
+  }
 
   function setPaymentShortcut(amount: number, label: string) {
     if (!checkout || nights <= 0 || total <= 0) {
       toast.error("Informe check-in, check-out e valor da diária antes de aplicar pagamento.");
       return;
     }
-    setValorPago(Math.min(total, Math.max(0, amount)));
+    setValorPago(String(Math.min(total, Math.max(0, amount))));
     toast.success(label);
   }
 
@@ -110,14 +133,14 @@ export function ReservaForm({
       horario_checkin: horarioCheckin || null,
       horario_checkout: horarioCheckout || null,
       diarias: nights,
-      valor_diaria: valorDiaria,
+      valor_diaria: diariaValor,
       valor_total: total,
-      valor_pago: valorPago,
-      desconto: Number(desconto) || 0,
-      pessoas: Math.max(1, Number(pessoas) || 1),
+      valor_pago: valorPagoNumber,
+      desconto: descontoValor,
+      pessoas: Math.max(1, parseIntNumber(pessoas, 1)),
       canal,
       pagamento,
-      pago: total > 0 && valorPago >= total,
+      pago: total > 0 && valorPagoNumber >= total,
       status,
       checkin_at:
         status === "ocupado"
@@ -140,7 +163,7 @@ export function ReservaForm({
                 setQuarto(num);
                 setOverride(false);
                 const room = rooms.find((r) => r.numero === num);
-                if (room) setValorDiaria(room.preco);
+                if (room) setValorDiaria(numberInput(room.preco));
               }}
             >
               {rooms.map((r) => (
@@ -152,11 +175,12 @@ export function ReservaForm({
           </Field>
           <Field label="Valor da diária">
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               className="field"
               value={valorDiaria}
-              min={0}
-              onChange={(e) => setValorDiaria(Number(e.target.value))}
+              placeholder="0,00"
+              onChange={(e) => setValorDiaria(e.target.value.replace(/[^\d,.]/g, ""))}
             />
           </Field>
         </div>
@@ -179,10 +203,28 @@ export function ReservaForm({
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Check-in">
-            <input type="date" className="field" value={checkin} onChange={(e) => setCheckin(e.target.value)} required />
+            <input
+              type="date"
+              className="field"
+              value={checkin}
+              onChange={(e) => {
+                setCheckin(e.target.value);
+                applyDateChange(e.target.value, checkout);
+              }}
+              required
+            />
           </Field>
           <Field label="Check-out">
-            <input type="date" className="field" value={checkout} onChange={(e) => setCheckout(e.target.value)} required />
+            <input
+              type="date"
+              className="field"
+              value={checkout}
+              onChange={(e) => {
+                setCheckout(e.target.value);
+                applyDateChange(checkin, e.target.value);
+              }}
+              required
+            />
           </Field>
         </div>
 
@@ -213,23 +255,34 @@ export function ReservaForm({
           </Field>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
+          <Field label="Diárias">
+            <input
+              type="text"
+              inputMode="numeric"
+              className="field"
+              value={diarias}
+              placeholder="0"
+              onChange={(e) => setDiarias(e.target.value.replace(/\D/g, ""))}
+            />
+          </Field>
           <Field label="Pessoas">
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               className="field"
               value={pessoas}
-              min={1}
-              onChange={(e) => setPessoas(Number(e.target.value))}
+              onChange={(e) => setPessoas(e.target.value.replace(/\D/g, ""))}
             />
           </Field>
           <Field label="Desconto (R$)">
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               className="field"
               value={desconto}
-              min={0}
-              onChange={(e) => setDesconto(Number(e.target.value))}
+              placeholder="0,00"
+              onChange={(e) => setDesconto(e.target.value.replace(/[^\d,.]/g, ""))}
             />
           </Field>
           <Field label="Canal de vendas">
@@ -255,12 +308,12 @@ export function ReservaForm({
           </Field>
           <Field label="Valor já pago">
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               className="field"
               value={valorPago}
-              min={0}
-              max={total || undefined}
-              onChange={(e) => setValorPago(Number(e.target.value))}
+              placeholder="0,00"
+              onChange={(e) => setValorPago(e.target.value.replace(/[^\d,.]/g, ""))}
             />
           </Field>
         </div>
@@ -316,10 +369,13 @@ export function ReservaForm({
 
         <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
           <span className="text-sm text-muted-foreground">
-            {nights} diária(s){Number(desconto) > 0 ? ` · desconto ${fmtBRL(Number(desconto))}` : ""} ·{" "}
+            {nights} diária(s){descontoValor > 0 ? ` · desconto ${fmtBRL(descontoValor)}` : ""} ·{" "}
             {status === "ocupado" ? "ficará ocupado" : "ficará reservado"}
           </span>
-          <span className="font-serif text-lg font-bold">{fmtBRL(total)}</span>
+          <span className="font-serif text-lg font-bold">
+            {fmtBRL(diariaValor)} x {nights} = {fmtBRL(bruto)}
+            {descontoValor > 0 ? ` · Total ${fmtBRL(total)}` : ""}
+          </span>
         </div>
 
         <div className="flex justify-end gap-2 pt-1">

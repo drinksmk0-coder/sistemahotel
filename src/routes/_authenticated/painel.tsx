@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { BedDouble, DollarSign, MessageSquareWarning, Star, Wifi, AlertTriangle } from "lucide-react";
+import { BedDouble, DollarSign, MessageSquareWarning, Star, Wifi, AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -13,6 +13,7 @@ import {
   Tooltip,
   CartesianGrid,
   Legend,
+  Cell,
 } from "recharts";
 import {
   useRooms,
@@ -24,6 +25,8 @@ import {
   roomStatusToday,
   type Reservation,
   type Sale,
+  type Expense,
+  type Feedback,
 } from "@/lib/data";
 import { fmtBRL, todayISO } from "@/lib/format";
 import { complaintLabel } from "@/lib/constants";
@@ -37,6 +40,8 @@ export const Route = createFileRoute("/_authenticated/painel")({
 function Painel() {
   const today = todayISO();
   const month = today.slice(0, 7);
+  const previousMonth = addMonths(month, -1);
+  const previousYearMonth = addYears(month, -1);
   const { data: rooms = [] } = useRooms();
   const { data: reservations = [] } = useReservations();
   const { data: sales = [] } = useSales();
@@ -84,6 +89,19 @@ function Painel() {
   const notas = feedbacks.map((f) => f.nota_geral).filter((n): n is number => n != null);
   const media = notas.length ? notas.reduce((a, b) => a + b, 0) / notas.length : 0;
 
+  const currentMetrics = useMemo(
+    () => buildMonthMetrics(month, reservations, sales, expenses, feedbacks, rooms.length),
+    [month, reservations, sales, expenses, feedbacks, rooms.length],
+  );
+  const previousMonthMetrics = useMemo(
+    () => buildMonthMetrics(previousMonth, reservations, sales, expenses, feedbacks, rooms.length),
+    [previousMonth, reservations, sales, expenses, feedbacks, rooms.length],
+  );
+  const previousYearMetrics = useMemo(
+    () => buildMonthMetrics(previousYearMonth, reservations, sales, expenses, feedbacks, rooms.length),
+    [previousYearMonth, reservations, sales, expenses, feedbacks, rooms.length],
+  );
+
   const byRoom = new Map<number, number>();
   complaints
     .filter((c) => c.status !== "resolvido")
@@ -110,6 +128,14 @@ function Painel() {
     [series],
   );
   const alerta = totals.cancelamentos > totals.comparecimento && totals.cancelamentos > 0;
+  const dailyAverage = series.length ? series.reduce((sum, day) => sum + day.receita, 0) / series.length : 0;
+  const monthlySeries = useMemo(
+    () => buildMonthlySeries(month, reservations, sales, expenses),
+    [month, reservations, sales, expenses],
+  );
+  const monthlyAverage = monthlySeries.length
+    ? monthlySeries.reduce((sum, item) => sum + item.receita, 0) / monthlySeries.length
+    : 0;
 
   const receitaPorQuarto = useMemo(() => {
     const m = new Map<number, number>();
@@ -155,17 +181,53 @@ function Painel() {
         <Stat icon={<DollarSign />} label="Despesas" value={fmtBRL(despesasMes)} hint={`Margem: ${fmtBRL(margemMes)}`} />
       </div>
 
+      <div className="mt-4 grid gap-3 lg:grid-cols-4">
+        <ComparisonStat
+          icon={<DollarSign />}
+          label="Receitas totais"
+          value={fmtBRL(currentMetrics.receita)}
+          monthDelta={delta(currentMetrics.receita, previousMonthMetrics.receita)}
+          yearDelta={delta(currentMetrics.receita, previousYearMetrics.receita)}
+        />
+        <ComparisonStat
+          icon={<DollarSign />}
+          label="Despesas"
+          value={fmtBRL(currentMetrics.despesas)}
+          monthDelta={delta(currentMetrics.despesas, previousMonthMetrics.despesas)}
+          yearDelta={delta(currentMetrics.despesas, previousYearMetrics.despesas)}
+          lowerIsBetter
+        />
+        <ComparisonStat
+          icon={<BedDouble />}
+          label="Ocupação mensal"
+          value={`${currentMetrics.ocupacao}%`}
+          monthDelta={delta(currentMetrics.ocupacao, previousMonthMetrics.ocupacao)}
+          yearDelta={delta(currentMetrics.ocupacao, previousYearMetrics.ocupacao)}
+        />
+        <ComparisonStat
+          icon={<Star />}
+          label="Avaliação"
+          value={currentMetrics.avaliacao ? currentMetrics.avaliacao.toFixed(1) : "—"}
+          monthDelta={delta(currentMetrics.avaliacao, previousMonthMetrics.avaliacao)}
+          yearDelta={delta(currentMetrics.avaliacao, previousYearMetrics.avaliacao)}
+        />
+      </div>
+
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <div className="card-surface p-5">
           <h3 className="section-title mb-3 text-lg">Receita ao longo do tempo (30 dias)</h3>
           <ResponsiveContainer width="100%" height={240}>
-            <LineChart data={series} margin={{ left: -10, right: 8, top: 4 }}>
+            <BarChart data={series} margin={{ left: -10, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number) => fmtBRL(v)} />
-              <Line type="monotone" dataKey="receita" name="Receita" stroke="var(--pine)" strokeWidth={2} dot={false} />
-            </LineChart>
+              <Bar dataKey="receita" name="Receita" radius={[4, 4, 0, 0]}>
+                {series.map((entry) => (
+                  <Cell key={entry.key} fill={performanceColor(entry.receita, dailyAverage)} />
+                ))}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </div>
 
@@ -186,6 +248,25 @@ function Painel() {
       </div>
 
       <div className="mt-4 card-surface p-5">
+        <h3 className="section-title mb-3 text-lg">Receita mensal x despesas</h3>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={monthlySeries} margin={{ left: -10, right: 8, top: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(v: number) => fmtBRL(v)} />
+            <Legend wrapperStyle={{ fontSize: 12 }} />
+            <Bar dataKey="receita" name="Receita" radius={[4, 4, 0, 0]}>
+              {monthlySeries.map((entry) => (
+                <Cell key={`receita-${entry.key}`} fill={performanceColor(entry.receita, monthlyAverage)} />
+              ))}
+            </Bar>
+            <Bar dataKey="despesas" name="Despesas" fill="var(--brick)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="mt-4 card-surface p-5">
         <h3 className="section-title mb-3 text-lg">Receita por quarto</h3>
         {receitaPorQuarto.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sem receita registrada ainda.</p>
@@ -196,7 +277,7 @@ function Painel() {
               <XAxis dataKey="quarto" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number) => fmtBRL(v)} />
-              <Bar dataKey="receita" name="Receita" fill="var(--brass)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="receita" name="Receita" fill="var(--pine)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         )}
@@ -280,6 +361,105 @@ function buildSeries(reservations: Reservation[], sales: Sale[], today: string) 
   return days;
 }
 
+function buildMonthlySeries(anchorMonth: string, reservations: Reservation[], sales: Sale[], expenses: Expense[]) {
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const key = addMonths(anchorMonth, -i);
+    months.push({
+      key,
+      label: monthLabel(key),
+      receita: revenueForMonth(key, reservations, sales),
+      despesas: expensesForMonth(key, expenses),
+    });
+  }
+  return months;
+}
+
+function buildMonthMetrics(
+  month: string,
+  reservations: Reservation[],
+  sales: Sale[],
+  expenses: Expense[],
+  feedbacks: Feedback[],
+  roomCount: number,
+) {
+  const reviews = feedbacks.filter((f) => (f.created_at || "").slice(0, 7) === month && f.nota_geral != null);
+  const avaliacao = reviews.length
+    ? reviews.reduce((sum, f) => sum + Number(f.nota_geral), 0) / reviews.length
+    : 0;
+  return {
+    receita: revenueForMonth(month, reservations, sales),
+    despesas: expensesForMonth(month, expenses),
+    ocupacao: occupancyForMonth(month, reservations, roomCount),
+    avaliacao,
+  };
+}
+
+function revenueForMonth(month: string, reservations: Reservation[], sales: Sale[]) {
+  return (
+    reservations
+      .filter((r) => (r.checkin || "").slice(0, 7) === month)
+      .reduce((sum, r) => sum + Number(r.valor_pago), 0) +
+    sales.filter((s) => (s.data || "").slice(0, 7) === month).reduce((sum, s) => sum + Number(s.total), 0)
+  );
+}
+
+function expensesForMonth(month: string, expenses: Expense[]) {
+  return expenses.filter((e) => (e.data || "").slice(0, 7) === month).reduce((sum, e) => sum + Number(e.valor), 0);
+}
+
+function occupancyForMonth(month: string, reservations: Reservation[], roomCount: number) {
+  if (!roomCount) return 0;
+  const [year, monthNumber] = month.split("-").map(Number);
+  const first = new Date(year, monthNumber - 1, 1);
+  const last = new Date(year, monthNumber, 0);
+  const daysInMonth = last.getDate();
+  const occupiedNights = reservations
+    .filter((r) => r.status !== "cancelado" && r.status !== "manutencao")
+    .reduce((sum, r) => sum + overlappingNights(r.checkin, r.checkout, first, last), 0);
+  return Math.round((occupiedNights / (roomCount * daysInMonth)) * 100);
+}
+
+function overlappingNights(checkin: string, checkout: string, first: Date, last: Date) {
+  if (!checkin || !checkout) return 0;
+  const start = new Date(`${checkin}T00:00:00`);
+  const end = new Date(`${checkout}T00:00:00`);
+  const monthEndExclusive = new Date(last);
+  monthEndExclusive.setDate(last.getDate() + 1);
+  const overlapStart = new Date(Math.max(start.getTime(), first.getTime()));
+  const overlapEnd = new Date(Math.min(end.getTime(), monthEndExclusive.getTime()));
+  return Math.max(0, Math.round((overlapEnd.getTime() - overlapStart.getTime()) / 86400000));
+}
+
+function addMonths(month: string, offset: number) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  const date = new Date(year, monthNumber - 1 + offset, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function addYears(month: string, offset: number) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return `${year + offset}-${String(monthNumber).padStart(2, "0")}`;
+}
+
+function monthLabel(month: string) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return new Date(year, monthNumber - 1, 1).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+}
+
+function delta(current: number, previous: number) {
+  if (!previous && !current) return 0;
+  if (!previous) return 100;
+  return ((current - previous) / previous) * 100;
+}
+
+function performanceColor(value: number, average: number) {
+  if (average <= 0) return "var(--pine)";
+  if (value < average * 0.55) return "var(--brick)";
+  if (value < average * 0.85) return "var(--brass)";
+  return "var(--pine)";
+}
+
 function Stat({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint?: string }) {
   return (
     <div className="stat-card">
@@ -289,6 +469,52 @@ function Stat({ icon, label, value, hint }: { icon: React.ReactNode; label: stri
       </div>
       <div className="font-serif text-2xl font-bold">{value}</div>
       {hint && <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>}
+    </div>
+  );
+}
+
+function ComparisonStat({
+  icon,
+  label,
+  value,
+  monthDelta,
+  yearDelta,
+  lowerIsBetter = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  monthDelta: number;
+  yearDelta: number;
+  lowerIsBetter?: boolean;
+}) {
+  return (
+    <div className="stat-card">
+      <div className="mb-2 flex items-center gap-2 text-pine">
+        <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+      </div>
+      <div className="font-serif text-2xl font-bold">{value}</div>
+      <div className="mt-2 space-y-1 text-[11px]">
+        <DeltaLine label="vs mês anterior" value={monthDelta} lowerIsBetter={lowerIsBetter} />
+        <DeltaLine label="vs ano anterior" value={yearDelta} lowerIsBetter={lowerIsBetter} />
+      </div>
+    </div>
+  );
+}
+
+function DeltaLine({ label, value, lowerIsBetter }: { label: string; value: number; lowerIsBetter: boolean }) {
+  const positive = value >= 0;
+  const good = lowerIsBetter ? !positive : positive;
+  const Icon = positive ? TrendingUp : TrendingDown;
+  return (
+    <div className={`flex items-center justify-between gap-2 ${good ? "text-pine" : "text-brick"}`}>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="flex items-center gap-1 font-semibold">
+        <Icon className="h-3 w-3" />
+        {value > 0 ? "+" : ""}
+        {value.toFixed(1)}%
+      </span>
     </div>
   );
 }

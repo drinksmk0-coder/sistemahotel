@@ -77,22 +77,24 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const sidebar = (
-    <aside className="flex h-full w-72 flex-col border-r border-border bg-card">
-      <div className="border-b border-border p-4">
+    <aside className="flex h-full w-72 flex-col border-r border-pine-dark/70 bg-pine-dark text-primary-foreground shadow-2xl">
+      <div className="border-b border-white/15 p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brass font-serif text-lg font-bold text-pine-dark">
-            PR
-          </div>
+          <img
+            src="/hotel-real-logo.png"
+            alt="Hotel Real Cruzilia"
+            className="h-12 w-12 rounded-md bg-white object-contain p-1 shadow"
+          />
           <div className="min-w-0">
-            <h1 className="truncate font-serif text-lg font-bold">Hotel Real SaaS</h1>
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Painel multiempresa</p>
+            <h1 className="truncate font-serif text-lg font-bold text-white">Hotel Real</h1>
+            <p className="text-[11px] uppercase tracking-wider text-brass">Painel multiempresa</p>
           </div>
         </div>
 
         <label className="mt-4 block">
-          <span className="mb-1 block text-[11px] font-semibold uppercase text-muted-foreground">Empresa</span>
+          <span className="mb-1 block text-[11px] font-semibold uppercase text-white/70">Empresa</span>
           <select
-            className="field text-sm"
+            className="field border-white/20 bg-white/95 text-sm text-foreground"
             value={currentCompany.data?.id ?? ""}
             onChange={(e) => setCurrentCompanyId(user?.id, e.target.value)}
           >
@@ -119,7 +121,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               to={t.to}
               onClick={() => setMenuOpen(false)}
               className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition ${
-                active ? "bg-pine text-primary-foreground" : "text-foreground hover:bg-muted"
+                active ? "bg-brass text-pine-dark shadow" : "text-white/82 hover:bg-white/10 hover:text-white"
               }`}
             >
               <Icon className="h-4 w-4" />
@@ -129,13 +131,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
         })}
       </nav>
 
-      <div className="border-t border-border p-4">
+      <div className="border-t border-white/15 p-4">
         <Clock />
         <div className="mt-3">
-          <div className="truncate text-xs font-semibold">{profile?.nome ?? user?.email}</div>
-          <div className="text-[11px] text-muted-foreground">{role ? ROLE_LABELS[role] : "Aguardando liberacao"}</div>
+          <div className="truncate text-xs font-semibold text-white">{profile?.nome ?? user?.email}</div>
+          <div className="text-[11px] text-white/65">{role ? ROLE_LABELS[role] : "Aguardando liberacao"}</div>
         </div>
-        <button onClick={signOut} className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold hover:bg-muted">
+        <button onClick={signOut} className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-white/20 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">
           <LogOut className="h-4 w-4" />
           Sair
         </button>
