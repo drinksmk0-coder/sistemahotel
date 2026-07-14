@@ -1,0 +1,4 @@
+1) Apague o arquivo server.ts da RAIZ do GitHub.
+2) Nao suba nenhum arquivo chamado server.ts na raiz.
+3) Suba apenas os arquivos deste patch mantendo as pastas.
+4) O arquivo correto e src/server.ts, dentro da pasta src.
