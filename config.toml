@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /painel
+Disallow: /mapa
+Disallow: /reservas
+Disallow: /clientes
+Disallow: /vendas
+Disallow: /reclamacoes
+Disallow: /avaliacoes
+Disallow: /qrcodes
