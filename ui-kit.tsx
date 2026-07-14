@@ -57,7 +57,7 @@ function Clock() {
     return () => clearInterval(id);
   }, []);
   return (
-    <div className="font-mono text-xs text-muted-foreground">
+    <div className="font-mono text-xs text-white/65">
       <div className="capitalize">
         {now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
       </div>
@@ -87,7 +87,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const sidebar = (
-    <aside className="flex h-full w-72 flex-col border-r border-pine-dark/70 bg-pine-dark text-primary-foreground shadow-2xl">
+    <aside className="flex h-full w-[min(18rem,84vw)] flex-col border-r border-pine-dark/70 bg-pine-dark text-primary-foreground shadow-2xl xl:w-72">
       <div className="border-b border-white/15 p-4">
         <div className="flex items-center gap-3">
           <img
@@ -163,18 +163,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       <button
-        className="fixed left-4 top-4 z-50 rounded-md bg-pine p-2 text-white shadow-lg lg:hidden"
+        className="fixed left-4 top-4 z-50 rounded-md bg-pine p-2 text-white shadow-lg xl:hidden"
         onClick={() => setMenuOpen(true)}
+        aria-label="Abrir menu"
       >
         <Menu className="h-5 w-5" />
       </button>
 
-      <div className="fixed inset-y-0 left-0 z-40 hidden lg:block">{sidebar}</div>
+      <div className="fixed inset-y-0 left-0 z-40 hidden xl:block">{sidebar}</div>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 lg:hidden" onClick={() => setMenuOpen(false)}>
+        <div className="fixed inset-0 z-50 bg-black/40 xl:hidden" onClick={() => setMenuOpen(false)}>
           <div className="h-full" onClick={(e) => e.stopPropagation()}>
-            <button className="absolute left-72 top-4 rounded-md bg-card p-2 shadow" onClick={() => setMenuOpen(false)}>
+            <button
+              className="absolute left-[min(18rem,84vw)] top-4 rounded-r-md bg-card p-2 shadow"
+              onClick={() => setMenuOpen(false)}
+              aria-label="Fechar menu"
+            >
               <X className="h-5 w-5" />
             </button>
             {sidebar}
@@ -182,7 +187,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <main className="px-4 py-6 lg:ml-72 lg:px-7">{children}</main>
+      <main className="min-w-0 px-3 pb-6 pt-16 sm:px-4 md:px-5 xl:ml-72 xl:px-7 xl:py-6">
+        <div className="mx-auto w-full max-w-[1800px]">{children}</div>
+      </main>
     </div>
   );
 }
@@ -191,7 +198,7 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 className="section-title text-2xl">{title}</h2>
+        <h2 className="section-title text-xl sm:text-2xl">{title}</h2>
         {subtitle && <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       {action}
