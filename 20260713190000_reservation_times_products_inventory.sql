@@ -1,2 +1,12 @@
-REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM anon, authenticated, PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.update_updated_at_column() FROM anon, authenticated, PUBLIC;
+-- Extended client profile fields
+ALTER TABLE public.clients
+  ADD COLUMN IF NOT EXISTS cpf text,
+  ADD COLUMN IF NOT EXISTS data_nascimento date,
+  ADD COLUMN IF NOT EXISTS profissao text,
+  ADD COLUMN IF NOT EXISTS cidade text,
+  ADD COLUMN IF NOT EXISTS estado text;
+
+-- Payment tracking + actual check-in timestamp on reservations
+ALTER TABLE public.reservations
+  ADD COLUMN IF NOT EXISTS valor_pago numeric NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS checkin_at timestamptz;
