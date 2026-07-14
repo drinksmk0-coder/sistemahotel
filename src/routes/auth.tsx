@@ -13,14 +13,16 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
-  const [convite, setConvite] = useState(false);
+  const [trocaSenha, setTrocaSenha] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function goToPanel() {
     const { data } = await supabase.auth.getSession();
-    const isInvite = typeof window !== "undefined" && window.location.search.includes("convite=1");
-    if (data.session && isInvite) {
-      setConvite(true);
+    const isPasswordFlow =
+      typeof window !== "undefined" &&
+      (window.location.search.includes("convite=1") || window.location.search.includes("redefinir=1"));
+    if (data.session && isPasswordFlow) {
+      setTrocaSenha(true);
       return;
     }
     if (data.session) {
@@ -87,9 +89,9 @@ function AuthPage() {
           <p className="text-sm text-[#CFE0D5]">Painel de operação da equipe</p>
         </div>
         <div className="card-surface p-6">
-          {convite ? (
+          {trocaSenha ? (
             <form onSubmit={finishInvite} className="space-y-3">
-              <Field label="Crie sua senha">
+              <Field label="Crie uma nova senha">
                 <input
                   type="password"
                   className="field"
@@ -104,7 +106,7 @@ function AuthPage() {
                 disabled={busy}
                 className="w-full rounded-lg bg-pine py-2.5 font-semibold text-primary-foreground transition hover:bg-pine-dark disabled:opacity-60"
               >
-                {busy ? "Confirmando..." : "Confirmar convite"}
+                {busy ? "Confirmando..." : "Salvar senha"}
               </button>
             </form>
           ) : (
@@ -138,7 +140,7 @@ function AuthPage() {
             </button>
           </form>
           )}
-          {!convite && (
+          {!trocaSenha && (
           <>
           <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" /> ou <div className="h-px flex-1 bg-border" />

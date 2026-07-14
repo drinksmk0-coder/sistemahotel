@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Mail, Plus, Trash2 } from "lucide-react";
+import { KeyRound, Loader2, Mail, Plus, Trash2, UserX } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge, Field, Modal } from "@/components/ui-kit";
 import { useCompanyInvites, useCompanyMembers, useCurrentCompany, useDelete } from "@/lib/data";
@@ -28,6 +28,7 @@ function Equipe() {
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [memberAction, setMemberAction] = useState<string | null>(null);
 
   async function sendInvite(row: { nome: string | null; email: string; role: string }) {
     if (!company.data?.id) {
@@ -70,6 +71,36 @@ function Equipe() {
     });
   }
 
+  async function manageMember(
+    member: { id: string; user_id: string; role: string },
+    action: "remove_access" | "reset_password",
+  ) {
+    if (!company.data?.id) return;
+    if (action === "remove_access" && member.role === "dono" && !window.confirm("Remover acesso de um dono?")) return;
+    if (action === "remove_access" && !window.confirm("Remover o acesso deste usuario?")) return;
+
+    setMemberAction(`${action}:${member.id}`);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-staff-access", {
+        body: {
+          action,
+          company_id: company.data.id,
+          member_id: member.id,
+          user_id: member.user_id,
+        },
+      });
+
+      if (error) throw error;
+      if (data && typeof data === "object" && "error" in data) throw new Error(String(data.error));
+      toast.success(action === "remove_access" ? "Acesso removido" : "E-mail de redefinicao enviado");
+      await queryClient.invalidateQueries({ queryKey: ["company_members"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Nao foi possivel concluir a acao");
+    } finally {
+      setMemberAction(null);
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -84,16 +115,16 @@ function Equipe() {
 
       <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
         <div className="card-surface p-4">
-          <h3 className="font-semibold text-pine-dark">1. Funcionario cria login</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Use o mesmo link do sistema e cadastre o email dele.</p>
+          <h3 className="font-semibold text-pine-dark">1. Envie o convite</h3>
+          <p className="mt-1 text-sm text-muted-foreground">O funcionario recebe um link seguro por e-mail.</p>
         </div>
         <div className="card-surface p-4">
-          <h3 className="font-semibold text-pine-dark">2. Voce registra o convite</h3>
-          <p className="mt-1 text-sm text-muted-foreground">Escolha recepcao, limpeza ou cafe.</p>
+          <h3 className="font-semibold text-pine-dark">2. Ele cria a senha</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Ao aceitar, ele define a senha no proprio sistema.</p>
         </div>
         <div className="card-surface p-4">
-          <h3 className="font-semibold text-pine-dark">3. Clique em ativar</h3>
-          <p className="mt-1 text-sm text-muted-foreground">O sistema libera a tela correta para aquele email.</p>
+          <h3 className="font-semibold text-pine-dark">3. Acesso liberado</h3>
+          <p className="mt-1 text-sm text-muted-foreground">O perfil escolhido ja fica pronto para entrar.</p>
         </div>
       </div>
 
@@ -108,6 +139,7 @@ function Equipe() {
                 <th className="p-3">Usuario</th>
                 <th className="p-3">Perfil</th>
                 <th className="p-3">Status</th>
+                <th className="p-3 text-right">Acoes</th>
               </tr>
             </thead>
             <tbody>
@@ -116,6 +148,38 @@ function Equipe() {
                   <td className="p-3 font-mono text-xs">{member.user_id}</td>
                   <td className="p-3"><Badge tone="pine">{member.role}</Badge></td>
                   <td className="p-3">{member.ativo ? "Ativo" : "Inativo"}</td>
+                  <td className="p-3">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-pine transition hover:bg-muted disabled:opacity-60"
+                        onClick={() => manageMember(member, "reset_password")}
+                        disabled={memberAction === `reset_password:${member.id}`}
+                        title="Enviar redefinicao de senha"
+                      >
+                        {memberAction === `reset_password:${member.id}` ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <KeyRound className="h-3.5 w-3.5" />
+                        )}
+                        Senha
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                        onClick={() => manageMember(member, "remove_access")}
+                        disabled={!member.ativo || memberAction === `remove_access:${member.id}`}
+                        title="Remover acesso"
+                      >
+                        {memberAction === `remove_access:${member.id}` ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <UserX className="h-3.5 w-3.5" />
+                        )}
+                        Remover
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
