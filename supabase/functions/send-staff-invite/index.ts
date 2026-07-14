@@ -15,6 +15,8 @@ type InviteBody = {
   redirect_to?: string;
 };
 
+const SYSTEM_INVITE_URL = "https://sistemahotel-three.vercel.app/auth?convite=1";
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return json({ ok: true });
   if (req.method !== "POST") return json({ error: "Metodo nao permitido" }, 405);
@@ -56,7 +58,7 @@ Deno.serve(async (req) => {
   if (ownerError) return json({ error: ownerError.message }, 500);
   if (!owner) return json({ error: "Apenas o dono pode convidar funcionarios" }, 403);
 
-  const redirectTo = body.redirect_to || `${new URL(req.url).origin}/auth?convite=1`;
+  const redirectTo = safeSystemRedirect(body.redirect_to);
   const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
     data: {
       nome: body.nome ?? "",
@@ -102,4 +104,19 @@ function json(payload: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+function safeSystemRedirect(value?: string) {
+  if (!value) return SYSTEM_INVITE_URL;
+  try {
+    const url = new URL(value);
+    if (url.hostname === "sistemahotel-three.vercel.app" || url.hostname === "sistemahotel-maivk.vercel.app") {
+      url.pathname = "/auth";
+      url.search = "?convite=1";
+      return url.toString();
+    }
+  } catch {
+    return SYSTEM_INVITE_URL;
+  }
+  return SYSTEM_INVITE_URL;
 }
