@@ -46,7 +46,7 @@ function Equipe() {
         },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error));
       toast.success("Convite enviado por e-mail. Ao aceitar, o acesso ja fica liberado.");
       setOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["company_invites"] });
@@ -90,7 +90,7 @@ function Equipe() {
         },
       });
 
-      if (error) throw error;
+      if (error) throw new Error(await getFunctionErrorMessage(error));
       if (data && typeof data === "object" && "error" in data) throw new Error(String(data.error));
       toast.success(action === "remove_access" ? "Acesso removido" : "E-mail de redefinicao enviado");
       await queryClient.invalidateQueries({ queryKey: ["company_members"] });
@@ -237,6 +237,24 @@ function Equipe() {
       )}
     </div>
   );
+}
+
+async function getFunctionErrorMessage(error: unknown) {
+  const context = (error as { context?: Response }).context;
+  if (context) {
+    try {
+      const payload = await context.clone().json();
+      if (payload?.error) return String(payload.error);
+    } catch {
+      try {
+        const text = await context.clone().text();
+        if (text) return text;
+      } catch {
+        // Ignore and fall through to the generic message.
+      }
+    }
+  }
+  return error instanceof Error ? error.message : "Erro na funcao do servidor";
 }
 
 function InviteForm({
