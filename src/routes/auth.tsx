@@ -12,10 +12,17 @@ function AuthPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [novaSenha, setNovaSenha] = useState("");
+  const [convite, setConvite] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function goToPanel() {
     const { data } = await supabase.auth.getSession();
+    const isInvite = typeof window !== "undefined" && window.location.search.includes("convite=1");
+    if (data.session && isInvite) {
+      setConvite(true);
+      return;
+    }
     if (data.session) {
       navigate({ to: "/painel", replace: true });
     }
@@ -34,6 +41,21 @@ function AuthPage() {
       await goToPanel();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao autenticar");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function finishInvite(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: novaSenha });
+      if (error) throw error;
+      toast.success("Senha criada. Acesso liberado.");
+      navigate({ to: "/painel", replace: true });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao confirmar convite");
     } finally {
       setBusy(false);
     }
@@ -65,6 +87,27 @@ function AuthPage() {
           <p className="text-sm text-[#CFE0D5]">Painel de operação da equipe</p>
         </div>
         <div className="card-surface p-6">
+          {convite ? (
+            <form onSubmit={finishInvite} className="space-y-3">
+              <Field label="Crie sua senha">
+                <input
+                  type="password"
+                  className="field"
+                  value={novaSenha}
+                  onChange={(e) => setNovaSenha(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </Field>
+              <button
+                type="submit"
+                disabled={busy}
+                className="w-full rounded-lg bg-pine py-2.5 font-semibold text-primary-foreground transition hover:bg-pine-dark disabled:opacity-60"
+              >
+                {busy ? "Confirmando..." : "Confirmar convite"}
+              </button>
+            </form>
+          ) : (
           <form onSubmit={submit} className="space-y-3">
             <Field label="E-mail">
               <input
@@ -94,6 +137,9 @@ function AuthPage() {
               {busy ? "Aguarde…" : "Entrar"}
             </button>
           </form>
+          )}
+          {!convite && (
+          <>
           <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
             <div className="h-px flex-1 bg-border" /> ou <div className="h-px flex-1 bg-border" />
           </div>
@@ -115,6 +161,8 @@ function AuthPage() {
               Criar conta para minha empresa
             </a>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CheckCircle2, Plus } from "lucide-react";
+import { Loader2, Mail, Plus } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge, Field, Modal } from "@/components/ui-kit";
-import { useCompanyInvites, useCompanyMembers, useInsert } from "@/lib/data";
+import { useCompanyInvites, useCompanyMembers, useCurrentCompany } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/equipe")({
@@ -19,36 +20,39 @@ const ROLES = [
 ] as const;
 
 function Equipe() {
+  const company = useCurrentCompany();
   const { data: members = [] } = useCompanyMembers();
   const { data: invites = [] } = useCompanyInvites();
-  const insertInvite = useInsert("company_invites", ["company_invites"]);
-  const insertMember = useInsert("company_members", ["company_members"]);
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [sending, setSending] = useState(false);
 
-  async function activateInvite(invite: { email: string; role: string }) {
-    const { data: profile, error } = await supabase
-      .from("profiles")
-      .select("id, email")
-      .eq("email", invite.email)
-      .maybeSingle();
-
-    if (error) {
-      toast.error(error.message);
+  async function sendInvite(row: { nome: string | null; email: string; role: string }) {
+    if (!company.data?.id) {
+      toast.error("Selecione uma empresa antes de convidar.");
       return;
     }
 
-    if (!profile?.id) {
-      toast.error("Esse email ainda nao criou login. Peca para o funcionario criar a conta primeiro.");
-      return;
-    }
+    setSending(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-staff-invite", {
+        body: {
+          ...row,
+          company_id: company.data.id,
+          redirect_to: `${window.location.origin}/auth?convite=1`,
+        },
+      });
 
-    insertMember.mutate(
-      { user_id: profile.id, role: invite.role, ativo: true },
-      {
-        onSuccess: () => toast.success("Funcionario ativado com esse perfil"),
-        onError: (e) => toast.error(e.message),
-      },
-    );
+      if (error) throw error;
+      toast.success("Convite enviado por e-mail. Ao aceitar, o acesso ja fica liberado.");
+      setOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["company_invites"] });
+      await queryClient.invalidateQueries({ queryKey: ["company_members"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Nao foi possivel enviar o convite.");
+    } finally {
+      setSending(false);
+    }
   }
 
   return (
@@ -113,7 +117,6 @@ function Equipe() {
                 <th className="p-3">Email</th>
                 <th className="p-3">Perfil</th>
                 <th className="p-3">Status</th>
-                <th className="p-3">Acesso</th>
               </tr>
             </thead>
             <tbody>
@@ -122,16 +125,6 @@ function Equipe() {
                   <td className="p-3">{invite.email}</td>
                   <td className="p-3"><Badge tone="brass">{invite.role}</Badge></td>
                   <td className="p-3">{invite.status}</td>
-                  <td className="p-3">
-                    <button
-                      className="btn-primary inline-flex items-center gap-1.5 text-xs"
-                      onClick={() => activateInvite(invite)}
-                      disabled={insertMember.isPending}
-                    >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Ativar
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -142,22 +135,23 @@ function Equipe() {
       {open && (
         <InviteForm
           onClose={() => setOpen(false)}
-          onSave={(row) =>
-            insertInvite.mutate(row, {
-              onSuccess: () => {
-                toast.success("Convite registrado");
-                setOpen(false);
-              },
-              onError: (e) => toast.error(e.message),
-            })
-          }
+          onSave={sendInvite}
+          sending={sending}
         />
       )}
     </div>
   );
 }
 
-function InviteForm({ onClose, onSave }: { onClose: () => void; onSave: (row: Record<string, unknown>) => void }) {
+function InviteForm({
+  onClose,
+  onSave,
+  sending,
+}: {
+  onClose: () => void;
+  onSave: (row: { nome: string | null; email: string; role: string }) => void;
+  sending: boolean;
+}) {
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<(typeof ROLES)[number]["value"]>("recepcao");
@@ -168,7 +162,7 @@ function InviteForm({ onClose, onSave }: { onClose: () => void; onSave: (row: Re
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          onSave({ nome: nome || null, email, role, status: "pendente" });
+          onSave({ nome: nome || null, email, role });
         }}
       >
         <Field label="Nome">
@@ -185,11 +179,14 @@ function InviteForm({ onClose, onSave }: { onClose: () => void; onSave: (row: Re
           </select>
         </Field>
         <div className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-          Depois que o funcionario criar login com esse email, clique em Ativar na lista de convites.
+          O funcionario recebe um e-mail de convite. Ao aceitar, ele ja entra com o perfil escolhido.
         </div>
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
-          <button type="submit" className="btn-primary">Salvar convite</button>
+          <button type="button" onClick={onClose} className="btn-ghost" disabled={sending}>Cancelar</button>
+          <button type="submit" className="btn-primary inline-flex items-center gap-2" disabled={sending}>
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+            Enviar convite
+          </button>
         </div>
       </form>
     </Modal>
