@@ -1,7 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { BedDouble, DollarSign, MessageSquareWarning, Star, Wifi, AlertTriangle, TrendingDown, TrendingUp } from "lucide-react";
+import {
+  BedDouble,
+  CalendarClock,
+  ClipboardCheck,
+  Coffee,
+  DollarSign,
+  DoorOpen,
+  MessageSquareWarning,
+  Star,
+  Wifi,
+  AlertTriangle,
+  TrendingDown,
+  TrendingUp,
+} from "lucide-react";
 import {
   ResponsiveContainer,
   LineChart,
@@ -23,6 +36,7 @@ import {
   useFeedbacks,
   useExpenses,
   roomStatusToday,
+  type Room,
   type Reservation,
   type Sale,
   type Expense,
@@ -32,12 +46,15 @@ import { fmtBRL, todayISO } from "@/lib/format";
 import { complaintLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge } from "@/components/ui-kit";
+import { useRole, useSession } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_authenticated/painel")({
   component: Painel,
 });
 
 function Painel() {
+  const { user } = useSession();
+  const { data: role } = useRole(user);
   const today = todayISO();
   const month = today.slice(0, 7);
   const previousMonth = addMonths(month, -1);
@@ -148,6 +165,40 @@ function Painel() {
       .map(([quarto, receita]) => ({ quarto: `Q${quarto}`, receita }));
   }, [reservations, sales]);
 
+  const arrivalsToday = reservations.filter((r) => r.status !== "cancelado" && r.checkin === today);
+  const departuresToday = reservations.filter((r) => r.status !== "cancelado" && r.checkout === today);
+
+  if (role === "limpeza") {
+    return (
+      <LimpezaPainel
+        rooms={rooms}
+        reservations={reservations}
+        today={today}
+        departuresToday={departuresToday}
+      />
+    );
+  }
+
+  if (role === "cafe") {
+    return <CafePainel activeToday={activeToday} ocupantesHoje={ocupantesHoje} capacidadeTotal={capacidadeTotal} />;
+  }
+
+  if (role === "recepcao") {
+    return (
+      <RecepcaoPainel
+        ocupacao={ocupacao}
+        ocupados={ocupados}
+        reservados={reservados}
+        livres={livres}
+        arrivalsToday={arrivalsToday}
+        departuresToday={departuresToday}
+        aReceber={aReceber}
+        abertas={abertas.length}
+        ocupantesHoje={ocupantesHoje}
+      />
+    );
+  }
+
   return (
     <div>
       <PageHeader
@@ -168,20 +219,20 @@ function Painel() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
         <Stat icon={<BedDouble />} label="Ocupação hoje" value={`${ocupacao}%`} hint={`${ocupados} ocupados · ${reservados} reservados · ${livres} livres`} />
         <Stat icon={<DollarSign />} label="Receita do mês" value={fmtBRL(receitaMes)} hint={`A receber: ${fmtBRL(aReceber)}`} />
         <Stat icon={<MessageSquareWarning />} label="Reclamações abertas" value={String(abertas.length)} hint={`${wifiCount} sobre Wi-Fi`} />
         <Stat icon={<Star />} label="Avaliação média" value={media ? media.toFixed(1) : "—"} hint={`${feedbacks.length} avaliações`} />
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={<DollarSign />} label="Diaria media" value={fmtBRL(diariaMedia)} hint="Reservas e quartos" />
         <Stat icon={<BedDouble />} label="Ocupantes" value={String(ocupantesHoje)} hint={`Capacidade: ${capacidadeTotal}`} />
         <Stat icon={<DollarSign />} label="Despesas" value={fmtBRL(despesasMes)} hint={`Margem: ${fmtBRL(margemMes)}`} />
       </div>
 
-      <div className="mt-4 grid gap-3 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <ComparisonStat
           icon={<DollarSign />}
           label="Receitas totais"
@@ -213,10 +264,10 @@ function Painel() {
         />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-4 2xl:grid-cols-2">
         <div className="card-surface p-5">
           <h3 className="section-title mb-3 text-lg">Receita ao longo do tempo (30 dias)</h3>
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={260}>
             <BarChart data={series} margin={{ left: -10, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -233,7 +284,7 @@ function Painel() {
 
         <div className="card-surface p-5">
           <h3 className="section-title mb-3 text-lg">Comparecimento x cancelamentos</h3>
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height={260}>
             <LineChart data={series} margin={{ left: -20, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -249,7 +300,7 @@ function Painel() {
 
       <div className="mt-4 card-surface p-5">
         <h3 className="section-title mb-3 text-lg">Receita mensal x despesas</h3>
-        <ResponsiveContainer width="100%" height={260}>
+        <ResponsiveContainer width="100%" height={280}>
           <BarChart data={monthlySeries} margin={{ left: -10, right: 8, top: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="label" tick={{ fontSize: 11 }} />
@@ -271,7 +322,7 @@ function Painel() {
         {receitaPorQuarto.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sem receita registrada ainda.</p>
         ) : (
-          <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={280}>
             <BarChart data={receitaPorQuarto} margin={{ left: -10, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="quarto" tick={{ fontSize: 11 }} />
@@ -283,7 +334,7 @@ function Painel() {
         )}
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+      <div className="mt-6 grid grid-cols-1 gap-4 2xl:grid-cols-2">
         <div className="card-surface p-5">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="section-title text-lg">Quartos com problema recorrente</h3>
@@ -328,6 +379,232 @@ function Painel() {
         </div>
       </div>
     </div>
+  );
+}
+
+function RecepcaoPainel({
+  ocupacao,
+  ocupados,
+  reservados,
+  livres,
+  arrivalsToday,
+  departuresToday,
+  aReceber,
+  abertas,
+  ocupantesHoje,
+}: {
+  ocupacao: number;
+  ocupados: number;
+  reservados: number;
+  livres: number;
+  arrivalsToday: Reservation[];
+  departuresToday: Reservation[];
+  aReceber: number;
+  abertas: number;
+  ocupantesHoje: number;
+}) {
+  return (
+    <div>
+      <PageHeader
+        title="Recepcao"
+        subtitle="Entradas, saidas, quartos e cobrancas de hoje."
+      />
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+        <Stat icon={<BedDouble />} label="Ocupacao" value={`${ocupacao}%`} hint={`${ocupados} ocupados · ${reservados} reservados · ${livres} livres`} />
+        <Stat icon={<CalendarClock />} label="Entradas hoje" value={String(arrivalsToday.length)} hint="Reservas com check-in hoje" />
+        <Stat icon={<DoorOpen />} label="Saidas hoje" value={String(departuresToday.length)} hint="Reservas com check-out hoje" />
+        <Stat icon={<DollarSign />} label="A receber" value={fmtBRL(aReceber)} hint="Reservas em aberto" />
+        <Stat icon={<MessageSquareWarning />} label="Alertas" value={String(abertas)} hint={`${ocupantesHoje} ocupantes no hotel`} />
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <TodayList title="Check-ins de hoje" empty="Nenhuma entrada prevista." reservations={arrivalsToday} />
+        <TodayList title="Check-outs de hoje" empty="Nenhuma saida prevista." reservations={departuresToday} />
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <QuickLink to="/mapa" icon={<BedDouble />} label="Abrir mapa de quartos" />
+        <QuickLink to="/reservas" icon={<CalendarClock />} label="Cadastrar reserva" />
+        <QuickLink to="/clientes" icon={<ClipboardCheck />} label="Consultar clientes" />
+        <QuickLink to="/vendas" icon={<DollarSign />} label="Lancar venda" />
+      </div>
+    </div>
+  );
+}
+
+function LimpezaPainel({
+  rooms,
+  reservations,
+  today,
+  departuresToday,
+}: {
+  rooms: Room[];
+  reservations: Reservation[];
+  today: string;
+  departuresToday: Reservation[];
+}) {
+  const checkoutRooms = new Set(departuresToday.map((r) => r.quarto));
+  const cleaningRooms = rooms
+    .filter((room) => {
+      const situacao = String((room as { situacao?: string | null }).situacao ?? "");
+      return situacao === "limpeza" || checkoutRooms.has(room.numero);
+    })
+    .sort((a, b) => a.numero - b.numero);
+  const maintenanceRooms = rooms
+    .filter((room) => roomStatusToday(reservations, room.numero, today, (room as { situacao?: string | null }).situacao) === "manutencao")
+    .sort((a, b) => a.numero - b.numero);
+
+  return (
+    <div>
+      <PageHeader
+        title="Limpeza"
+        subtitle="Somente os quartos que precisam de atencao hoje."
+      />
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <Stat icon={<ClipboardCheck />} label="Para limpar" value={String(cleaningRooms.length)} hint="Inclui check-outs de hoje" />
+        <Stat icon={<DoorOpen />} label="Saidas hoje" value={String(departuresToday.length)} hint="Quartos liberando" />
+        <Stat icon={<AlertTriangle />} label="Manutencao" value={String(maintenanceRooms.length)} hint="Nao liberar para hospede" />
+      </div>
+
+      <section className="mt-5 card-surface p-5">
+        <h3 className="section-title mb-3 text-lg">Quartos para limpeza</h3>
+        {cleaningRooms.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum quarto pendente agora.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-8 2xl:grid-cols-10">
+            {cleaningRooms.map((room) => (
+              <div key={room.numero} className="rounded-md border border-brass/45 bg-brass/10 px-3 py-4 text-center">
+                <div className="font-serif text-2xl font-bold text-pine-dark">{room.numero}</div>
+                <div className="mt-1 text-[11px] uppercase text-muted-foreground">Quarto</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {maintenanceRooms.length > 0 && (
+        <section className="mt-4 card-surface p-5">
+          <h3 className="section-title mb-3 text-lg">Quartos em manutencao</h3>
+          <div className="flex flex-wrap gap-2">
+            {maintenanceRooms.map((room) => (
+              <Badge key={room.numero} tone="brick">Quarto {room.numero}</Badge>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function CafePainel({
+  activeToday,
+  ocupantesHoje,
+  capacidadeTotal,
+}: {
+  activeToday: Reservation[];
+  ocupantesHoje: number;
+  capacidadeTotal: number;
+}) {
+  const rooms = activeToday
+    .map((reservation) => ({
+      quarto: reservation.quarto,
+      pessoas: Number(reservation.pessoas ?? 1),
+      hospede: reservationGuestName(reservation),
+    }))
+    .sort((a, b) => a.quarto - b.quarto);
+
+  return (
+    <div>
+      <PageHeader
+        title="Cafe da manha"
+        subtitle="Quantidade de pessoas hospedadas hoje."
+      />
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <Stat icon={<Coffee />} label="Pessoas hoje" value={String(ocupantesHoje)} hint="Total para o cafe" />
+        <Stat icon={<BedDouble />} label="Quartos ocupados" value={String(activeToday.length)} hint={`Capacidade total: ${capacidadeTotal}`} />
+        <Stat icon={<ClipboardCheck />} label="Media por quarto" value={rooms.length ? (ocupantesHoje / rooms.length).toFixed(1) : "0"} hint="Ajuda no preparo" />
+      </div>
+
+      <section className="mt-5 card-surface p-5">
+        <h3 className="section-title mb-3 text-lg">Quartos com hospedes</h3>
+        {rooms.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum hospede ativo agora.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                  <th className="p-3">Quarto</th>
+                  <th className="p-3">Pessoas</th>
+                  <th className="p-3">Hospede</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rooms.map((row) => (
+                  <tr key={row.quarto} className="border-b border-border/50">
+                    <td className="p-3 font-semibold">Quarto {row.quarto}</td>
+                    <td className="p-3">{row.pessoas}</td>
+                    <td className="p-3 text-muted-foreground">{row.hospede}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function TodayList({
+  title,
+  empty,
+  reservations,
+}: {
+  title: string;
+  empty: string;
+  reservations: Reservation[];
+}) {
+  return (
+    <section className="card-surface p-5">
+      <h3 className="section-title mb-3 text-lg">{title}</h3>
+      {reservations.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <div className="space-y-2">
+          {reservations.slice(0, 8).map((reservation) => (
+            <div key={reservation.id} className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2">
+              <div>
+                <p className="font-semibold">Quarto {reservation.quarto}</p>
+                <p className="text-xs text-muted-foreground">{reservationGuestName(reservation)}</p>
+              </div>
+              <Badge tone={reservation.pago ? "pine" : "brass"}>{reservation.pago ? "Pago" : "Pendente"}</Badge>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function QuickLink({ to, icon, label }: { to: "/mapa" | "/reservas" | "/clientes" | "/vendas"; icon: React.ReactNode; label: string }) {
+  return (
+    <Link to={to} className="card-surface flex items-center gap-3 p-4 text-sm font-semibold text-pine-dark transition hover:border-pine/40 hover:bg-sage-bg/50">
+      <span className="rounded-md bg-sage-bg p-2 text-pine [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
+      {label}
+    </Link>
+  );
+}
+
+function reservationGuestName(reservation: Reservation) {
+  return String(
+    (reservation as { hospede?: string | null; hospede_nome?: string | null; nome?: string | null }).hospede ??
+      (reservation as { hospede_nome?: string | null }).hospede_nome ??
+      (reservation as { nome?: string | null }).nome ??
+      "Hospede",
   );
 }
 
@@ -462,12 +739,12 @@ function performanceColor(value: number, average: number) {
 
 function Stat({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint?: string }) {
   return (
-    <div className="stat-card">
-      <div className="mb-2 flex items-center gap-2 text-pine">
+    <div className="stat-card min-w-0">
+      <div className="mb-2 flex min-w-0 items-center gap-2 text-pine">
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="min-w-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
       </div>
-      <div className="font-serif text-2xl font-bold">{value}</div>
+      <div className="min-w-0 break-words font-serif text-[clamp(1.45rem,2.4vw,2rem)] font-bold leading-tight">{value}</div>
       {hint && <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>}
     </div>
   );
@@ -489,12 +766,12 @@ function ComparisonStat({
   lowerIsBetter?: boolean;
 }) {
   return (
-    <div className="stat-card">
-      <div className="mb-2 flex items-center gap-2 text-pine">
+    <div className="stat-card min-w-0">
+      <div className="mb-2 flex min-w-0 items-center gap-2 text-pine">
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="min-w-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
       </div>
-      <div className="font-serif text-2xl font-bold">{value}</div>
+      <div className="min-w-0 break-words font-serif text-[clamp(1.45rem,2.4vw,2rem)] font-bold leading-tight">{value}</div>
       <div className="mt-2 space-y-1 text-[11px]">
         <DeltaLine label="vs mês anterior" value={monthDelta} lowerIsBetter={lowerIsBetter} />
         <DeltaLine label="vs ano anterior" value={yearDelta} lowerIsBetter={lowerIsBetter} />
