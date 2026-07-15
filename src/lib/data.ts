@@ -9,6 +9,8 @@ export type Client = Tables<"clients"> & TenantRow;
 export type Reservation = Tables<"reservations"> & TenantRow;
 export type Sale = Tables<"sales"> & TenantRow;
 export type Product = Tables<"products"> & TenantRow;
+export type KitchenItem = Tables<"kitchen_items"> & TenantRow;
+export type KitchenProduction = Tables<"kitchen_productions"> & TenantRow;
 export type Complaint = Tables<"complaints"> & Partial<TenantRow>;
 export type Feedback = Tables<"feedbacks"> & Partial<TenantRow>;
 export type IntegrationEvent = Tables<"integration_events"> & Partial<TenantRow>;
@@ -88,6 +90,8 @@ const TENANT_TABLES = new Set([
   "complaints",
   "feedbacks",
   "products",
+  "kitchen_items",
+  "kitchen_productions",
   "integration_events",
   "whatsapp_reservation_sessions",
   "company_integrations",
@@ -180,6 +184,14 @@ export function useProducts() {
   return useTenantQuery<Product>("products", "nome");
 }
 
+export function useKitchenItems() {
+  return useTenantQuery<KitchenItem>("kitchen_items", "nome");
+}
+
+export function useKitchenProductions() {
+  return useTenantQuery<KitchenProduction>("kitchen_productions", "data", { ascending: false, limit: 120 });
+}
+
 export function useComplaints() {
   return useTenantQuery<Complaint>("complaints", "created_at", { ascending: false });
 }
@@ -226,6 +238,8 @@ type TableName =
   | "rooms"
   | "feedbacks"
   | "products"
+  | "kitchen_items"
+  | "kitchen_productions"
   | "integration_events"
   | "whatsapp_reservation_sessions";
 

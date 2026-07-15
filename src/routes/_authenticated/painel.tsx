@@ -35,7 +35,8 @@ import {
   useReservations,
   useSales,
   useClients,
-  useProducts,
+  useKitchenItems,
+  useKitchenProductions,
   useComplaints,
   useFeedbacks,
   useExpenses,
@@ -46,7 +47,8 @@ import {
   type Reservation,
   type Sale,
   type Client,
-  type Product,
+  type KitchenItem,
+  type KitchenProduction,
   type Expense,
   type Feedback,
 } from "@/lib/data";
@@ -72,12 +74,16 @@ function Painel() {
   const { data: reservations = [] } = useReservations();
   const { data: sales = [] } = useSales();
   const { data: clients = [] } = useClients();
-  const { data: products = [] } = useProducts();
+  const { data: kitchenItems = [] } = useKitchenItems();
+  const { data: kitchenProductions = [] } = useKitchenProductions();
   const { data: complaints = [] } = useComplaints();
   const { data: feedbacks = [] } = useFeedbacks();
   const { data: expenses = [] } = useExpenses();
   const updateRoom = useUpdate("rooms", ["rooms"]);
   const insertComplaint = useInsert("complaints", ["complaints"]);
+  const insertKitchenItem = useInsert("kitchen_items", ["kitchen_items"]);
+  const updateKitchenItem = useUpdate("kitchen_items", ["kitchen_items"]);
+  const insertKitchenProduction = useInsert("kitchen_productions", ["kitchen_productions"]);
 
   const statuses = rooms.map((r) => roomStatusToday(reservations, r.numero, today));
   const ocupados = statuses.filter((s) => s === "ocupado").length;
@@ -202,7 +208,19 @@ function Painel() {
   }
 
   if (role === "cafe") {
-    return <CafePainel activeToday={activeToday} ocupantesHoje={ocupantesHoje} capacidadeTotal={capacidadeTotal} products={products} />;
+    return (
+      <CafePainel
+        activeToday={activeToday}
+        ocupantesHoje={ocupantesHoje}
+        capacidadeTotal={capacidadeTotal}
+        today={today}
+        kitchenItems={kitchenItems}
+        kitchenProductions={kitchenProductions}
+        insertKitchenItem={insertKitchenItem}
+        updateKitchenItem={updateKitchenItem}
+        insertKitchenProduction={insertKitchenProduction}
+      />
+    );
   }
 
   if (role === "recepcao") {
@@ -588,13 +606,24 @@ function CafePainel({
   activeToday,
   ocupantesHoje,
   capacidadeTotal,
-  products,
+  today,
+  kitchenItems,
+  kitchenProductions,
+  insertKitchenItem,
+  updateKitchenItem,
+  insertKitchenProduction,
 }: {
   activeToday: Reservation[];
   ocupantesHoje: number;
   capacidadeTotal: number;
-  products: Product[];
+  today: string;
+  kitchenItems: KitchenItem[];
+  kitchenProductions: KitchenProduction[];
+  insertKitchenItem: ReturnType<typeof useInsert>;
+  updateKitchenItem: ReturnType<typeof useUpdate>;
+  insertKitchenProduction: ReturnType<typeof useInsert>;
 }) {
+  const [showItemForm, setShowItemForm] = useState(false);
   const rooms = activeToday
     .map((reservation) => ({
       quarto: reservation.quarto,
@@ -602,37 +631,46 @@ function CafePainel({
       hospede: reservationGuestName(reservation),
     }))
     .sort((a, b) => a.quarto - b.quarto);
-  const cafeProducts = products.filter((p) => p.ativo && normalizeText(p.categoria).includes("cafe"));
-  const prepItems = breakfastPrep(ocupantesHoje, cafeProducts);
-  const lowItems = prepItems.filter((item) => item.estoque < item.necessario);
+
+  const activeItems = kitchenItems.filter((item) => item.ativo);
+  const todayProductions = kitchenProductions.filter((row) => row.data === today);
+  const lowItems = activeItems.filter((item) => Number(item.estoque_atual ?? 0) <= Number(item.estoque_minimo ?? 0));
+  const todayLeftover = todayProductions.reduce((sum, row) => sum + Number(row.sobra ?? 0), 0);
+  const todayLoss = todayProductions.reduce((sum, row) => sum + Number(row.perda ?? 0), 0);
+  const latestProductions = kitchenProductions.slice(0, 12);
   const shoppingText = lowItems
-    .map((item) => `- ${item.nome}: precisa ${item.necessario} ${item.unidade}, estoque ${item.estoque}, comprar ${item.comprar}`)
+    .map((item) => `- ${item.nome}: estoque ${formatQty(item.estoque_atual)} ${item.unidade}, mínimo ${formatQty(item.estoque_minimo)} ${item.unidade}`)
     .join("\n");
 
   return (
     <div>
       <PageHeader
-        title="Cafe da manha"
-        subtitle="Quantidade de pessoas hospedadas hoje."
+        title="Café e cozinha"
+        subtitle="Preparo, consumo, sobras e estoque da cozinha."
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat icon={<Coffee />} label="Pessoas hoje" value={String(ocupantesHoje)} hint="Total para o cafe" />
+        <Stat icon={<Coffee />} label="Pessoas hoje" value={String(ocupantesHoje)} hint="Base para preparo" />
         <Stat icon={<BedDouble />} label="Quartos ocupados" value={String(activeToday.length)} hint={`Capacidade total: ${capacidadeTotal}`} />
-        <Stat icon={<ClipboardCheck />} label="Media por quarto" value={rooms.length ? (ocupantesHoje / rooms.length).toFixed(1) : "0"} hint="Ajuda no preparo" />
-        <Stat icon={<AlertTriangle />} label="Reposição" value={String(lowItems.length)} hint="Itens abaixo do necessário" />
+        <Stat icon={<ClipboardCheck />} label="Itens ativos" value={String(activeItems.length)} hint="Cadastrados na cozinha" />
+        <Stat icon={<AlertTriangle />} label="Reposição" value={String(lowItems.length)} hint="Estoque abaixo do mínimo" />
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Stat icon={<Coffee />} label="Sobra hoje" value={formatQty(todayLeftover)} hint="Registrado pela equipe" />
+        <Stat icon={<AlertTriangle />} label="Perda hoje" value={formatQty(todayLoss)} hint="Quebrou, venceu ou não aproveitou" />
       </div>
 
       <section className="mt-5 card-surface p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="section-title text-lg">Preparo e compra do café</h3>
-            <p className="text-sm text-muted-foreground">Estimativa simples por hóspede, usando produtos da categoria Café.</p>
+            <h3 className="section-title text-lg">Lançar preparo do dia</h3>
+            <p className="text-sm text-muted-foreground">Registre o que foi preparado, servido, sobrou e perdeu.</p>
           </div>
           {lowItems.length > 0 && (
             <a
               className="rounded-md bg-brick px-3 py-2 text-xs font-semibold text-white"
-              href={`https://wa.me/553588001372?text=${encodeURIComponent(`Reposição para o café de hoje:\n${shoppingText}`)}`}
+              href={`https://wa.me/553588001372?text=${encodeURIComponent(`Itens da cozinha para repor:\n${shoppingText}`)}`}
               target="_blank"
               rel="noopener"
             >
@@ -640,32 +678,270 @@ function CafePainel({
             </a>
           )}
         </div>
-        {prepItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Cadastre produtos em Vendas com categoria “Café” para aparecer aqui. Ex.: pão, leite, café, queijo, ovos.
+        {activeItems.length === 0 ? (
+          <p className="rounded-lg border border-border/70 p-3 text-sm text-muted-foreground">
+            Cadastre os itens da cozinha primeiro. Exemplos: pão, café, leite, suco, molho, frutas, ovos.
           </p>
+        ) : (
+          <form
+            className="grid gap-3 md:grid-cols-6"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = event.currentTarget;
+              const data = new FormData(form);
+              const itemId = String(data.get("item_id") || activeItems[0]?.id || "");
+              if (!itemId) return;
+              insertKitchenProduction.mutate(
+                {
+                  item_id: itemId,
+                  data: String(data.get("data") || today),
+                  turno: String(data.get("turno") || "cafe"),
+                  produzido: Number(data.get("produzido") || 0),
+                  servido: Number(data.get("servido") || 0),
+                  sobra: Number(data.get("sobra") || 0),
+                  perda: Number(data.get("perda") || 0),
+                  pessoas_servidas: Number(data.get("pessoas_servidas") || ocupantesHoje || 0),
+                  observacoes: String(data.get("observacoes") || "") || null,
+                },
+                { onSuccess: () => form.reset() },
+              );
+            }}
+          >
+            <label className="md:col-span-2 text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Item</span>
+              <select name="item_id" className="w-full rounded-md border border-border bg-background px-3 py-2">
+                {activeItems.map((item) => (
+                  <option key={item.id} value={item.id}>{item.nome}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Data</span>
+              <input name="data" type="date" defaultValue={today} className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Turno</span>
+              <select name="turno" className="w-full rounded-md border border-border bg-background px-3 py-2">
+                <option value="cafe">Café</option>
+                <option value="almoco">Almoço</option>
+                <option value="jantar">Jantar</option>
+                <option value="outro">Outro</option>
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Pessoas</span>
+              <input name="pessoas_servidas" type="number" min="0" defaultValue={ocupantesHoje} className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Produzido</span>
+              <input name="produzido" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Servido</span>
+              <input name="servido" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Sobra</span>
+              <input name="sobra" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Perda</span>
+              <input name="perda" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="md:col-span-4 text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Observação</span>
+              <input name="observacoes" placeholder="Ex.: sobrou meia jarra de suco" className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <div className="md:col-span-2 flex items-end">
+              <button type="submit" className="w-full rounded-md bg-pine px-4 py-2 font-semibold text-white" disabled={insertKitchenProduction.isPending}>
+                Salvar preparo
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
+
+      <section className="mt-5 card-surface p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="section-title text-lg">Itens da cozinha</h3>
+            <p className="text-sm text-muted-foreground">Estoque, consumo por pessoa e alerta de reposição.</p>
+          </div>
+          <button type="button" className="rounded-md bg-brass px-3 py-2 text-xs font-semibold text-pine-dark" onClick={() => setShowItemForm((v) => !v)}>
+            {showItemForm ? "Fechar" : "Novo item"}
+          </button>
+        </div>
+
+        {showItemForm && (
+          <form
+            className="mb-4 grid gap-3 rounded-lg border border-border/70 bg-sage-bg/40 p-3 md:grid-cols-6"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const form = event.currentTarget;
+              const data = new FormData(form);
+              insertKitchenItem.mutate(
+                {
+                  nome: String(data.get("nome") || "").trim(),
+                  categoria: String(data.get("categoria") || "Café da manhã"),
+                  unidade: String(data.get("unidade") || "un"),
+                  estoque_atual: Number(data.get("estoque_atual") || 0),
+                  estoque_minimo: Number(data.get("estoque_minimo") || 0),
+                  consumo_por_pessoa: Number(data.get("consumo_por_pessoa") || 0),
+                  observacoes: String(data.get("observacoes") || "") || null,
+                  ativo: true,
+                },
+                { onSuccess: () => form.reset() },
+              );
+            }}
+          >
+            <label className="md:col-span-2 text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Nome</span>
+              <input name="nome" required placeholder="Pão, leite, café..." className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Categoria</span>
+              <input name="categoria" defaultValue="Café da manhã" className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Unidade</span>
+              <select name="unidade" className="w-full rounded-md border border-border bg-background px-3 py-2">
+                <option value="un">un</option>
+                <option value="L">L</option>
+                <option value="ml">ml</option>
+                <option value="kg">kg</option>
+                <option value="g">g</option>
+                <option value="pct">pct</option>
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Estoque</span>
+              <input name="estoque_atual" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Mínimo</span>
+              <input name="estoque_minimo" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Por pessoa</span>
+              <input name="consumo_por_pessoa" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <label className="md:col-span-4 text-sm">
+              <span className="mb-1 block font-semibold text-muted-foreground">Observação</span>
+              <input name="observacoes" placeholder="Ex.: usar no café; comprar toda segunda" className="w-full rounded-md border border-border bg-background px-3 py-2" />
+            </label>
+            <div className="md:col-span-2 flex items-end">
+              <button type="submit" className="w-full rounded-md bg-pine px-4 py-2 font-semibold text-white" disabled={insertKitchenItem.isPending}>
+                Cadastrar item
+              </button>
+            </div>
+          </form>
+        )}
+
+        {activeItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum item cadastrado ainda.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                   <th className="p-3">Item</th>
-                  <th className="p-3">Por pessoa</th>
-                  <th className="p-3">Necessário</th>
+                  <th className="p-3">Esperado hoje</th>
+                  <th className="p-3">Preparo hoje</th>
                   <th className="p-3">Estoque</th>
-                  <th className="p-3">Comprar</th>
+                  <th className="p-3">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {prepItems.map((item) => (
-                  <tr key={item.id} className="border-b border-border/50">
-                    <td className="p-3 font-semibold">{item.nome}</td>
-                    <td className="p-3 text-muted-foreground">{item.porPessoa} {item.unidade}</td>
-                    <td className="p-3">{item.necessario} {item.unidade}</td>
-                    <td className={`p-3 font-semibold ${item.estoque < item.necessario ? "text-brick" : "text-pine"}`}>{item.estoque}</td>
-                    <td className="p-3">{item.comprar > 0 ? `${item.comprar} ${item.unidade}` : "ok"}</td>
-                  </tr>
-                ))}
+                {activeItems.map((item) => {
+                  const rows = todayProductions.filter((row) => row.item_id === item.id);
+                  const totals = sumKitchenRows(rows);
+                  const expected = Number(item.consumo_por_pessoa ?? 0) * ocupantesHoje;
+                  const status = kitchenStatus(item, totals, expected);
+                  return (
+                    <tr key={item.id} className="border-b border-border/50 align-top">
+                      <td className="p-3">
+                        <p className="font-semibold">{item.nome}</p>
+                        <p className="text-xs text-muted-foreground">{item.categoria} · {formatQty(item.consumo_por_pessoa)} {item.unidade}/pessoa</p>
+                      </td>
+                      <td className="p-3">{formatQty(expected)} {item.unidade}</td>
+                      <td className="p-3 text-xs text-muted-foreground">
+                        <p>Produzido: <span className="font-semibold text-foreground">{formatQty(totals.produzido)} {item.unidade}</span></p>
+                        <p>Servido: <span className="font-semibold text-foreground">{formatQty(totals.servido)} {item.unidade}</span></p>
+                        <p>Sobra: <span className="font-semibold text-foreground">{formatQty(totals.sobra)} {item.unidade}</span></p>
+                        <p>Perda: <span className="font-semibold text-foreground">{formatQty(totals.perda)} {item.unidade}</span></p>
+                      </td>
+                      <td className="p-3">
+                        <form
+                          className="flex min-w-[150px] gap-2"
+                          onSubmit={(event) => {
+                            event.preventDefault();
+                            const data = new FormData(event.currentTarget);
+                            updateKitchenItem.mutate({
+                              id: item.id,
+                              patch: { estoque_atual: Number(data.get("estoque_atual") || 0) },
+                            });
+                          }}
+                        >
+                          <input
+                            name="estoque_atual"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            defaultValue={Number(item.estoque_atual ?? 0)}
+                            className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                          />
+                          <button type="submit" className="rounded-md border border-border px-2 py-1 text-xs font-semibold text-pine">
+                            Salvar
+                          </button>
+                        </form>
+                        <p className="mt-1 text-xs text-muted-foreground">Mín: {formatQty(item.estoque_minimo)} {item.unidade}</p>
+                      </td>
+                      <td className="p-3">
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                        <p className="mt-1 max-w-[220px] text-xs text-muted-foreground">{status.hint}</p>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="mt-5 card-surface p-5">
+        <h3 className="section-title mb-3 text-lg">Histórico recente da cozinha</h3>
+        {latestProductions.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhum preparo lançado ainda.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                  <th className="p-3">Data</th>
+                  <th className="p-3">Item</th>
+                  <th className="p-3">Pessoas</th>
+                  <th className="p-3">Produzido</th>
+                  <th className="p-3">Servido</th>
+                  <th className="p-3">Sobra</th>
+                  <th className="p-3">Perda</th>
+                </tr>
+              </thead>
+              <tbody>
+                {latestProductions.map((row) => {
+                  const item = kitchenItems.find((i) => i.id === row.item_id);
+                  return (
+                    <tr key={row.id} className="border-b border-border/50">
+                      <td className="p-3">{row.data}</td>
+                      <td className="p-3 font-semibold">{item?.nome ?? "Item"}</td>
+                      <td className="p-3">{row.pessoas_servidas}</td>
+                      <td className="p-3">{formatQty(row.produzido)} {item?.unidade ?? ""}</td>
+                      <td className="p-3">{formatQty(row.servido)} {item?.unidade ?? ""}</td>
+                      <td className="p-3">{formatQty(row.sobra)} {item?.unidade ?? ""}</td>
+                      <td className="p-3">{formatQty(row.perda)} {item?.unidade ?? ""}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -703,33 +979,36 @@ function CafePainel({
   );
 }
 
-function breakfastPrep(people: number, products: Product[]) {
-  return products.map((product) => {
-    const rule = breakfastRule(product.nome);
-    const necessario = Math.ceil(people * rule.qty);
-    const estoque = Number(product.estoque_atual ?? 0);
-    return {
-      id: product.id,
-      nome: product.nome,
-      porPessoa: rule.qty,
-      unidade: rule.unit,
-      necessario,
-      estoque,
-      comprar: Math.max(0, necessario - estoque),
-    };
-  });
+function sumKitchenRows(rows: KitchenProduction[]) {
+  return rows.reduce(
+    (acc, row) => {
+      acc.produzido += Number(row.produzido ?? 0);
+      acc.servido += Number(row.servido ?? 0);
+      acc.sobra += Number(row.sobra ?? 0);
+      acc.perda += Number(row.perda ?? 0);
+      return acc;
+    },
+    { produzido: 0, servido: 0, sobra: 0, perda: 0 },
+  );
 }
 
-function breakfastRule(name: string) {
-  const text = normalizeText(name);
-  if (text.includes("pao")) return { qty: 2, unit: "un" };
-  if (text.includes("leite")) return { qty: 0.25, unit: "L" };
-  if (text.includes("cafe")) return { qty: 0.02, unit: "kg" };
-  if (text.includes("queijo")) return { qty: 0.08, unit: "kg" };
-  if (text.includes("ovo")) return { qty: 1, unit: "un" };
-  if (text.includes("manteiga")) return { qty: 0.02, unit: "kg" };
-  if (text.includes("fruta")) return { qty: 1, unit: "un" };
-  return { qty: 1, unit: "un" };
+function kitchenStatus(item: KitchenItem, totals: ReturnType<typeof sumKitchenRows>, expected: number): { label: string; hint: string; tone: "pine" | "brass" | "brick" | "muted" } {
+  const stock = Number(item.estoque_atual ?? 0);
+  const minimum = Number(item.estoque_minimo ?? 0);
+  if (stock <= minimum) return { label: "Repor", hint: "Estoque no mínimo ou abaixo do mínimo.", tone: "brick" };
+  if (totals.produzido > 0 && totals.sobra > totals.produzido * 0.25) {
+    return { label: "Sobra alta", hint: "Sobrou mais de 25% do preparado. Pode reduzir na próxima vez.", tone: "brass" };
+  }
+  if (expected > 0 && totals.servido > expected * 1.2) {
+    return { label: "Consumo alto", hint: "Consumo acima do esperado por pessoa.", tone: "brass" };
+  }
+  return { label: "Ok", hint: "Sem alerta para hoje.", tone: "pine" };
+}
+
+function formatQty(value: number | string | null | undefined) {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return "0";
+  return Number.isInteger(n) ? String(n) : n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 }
 
 function normalizeText(value: string) {

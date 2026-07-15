@@ -228,6 +228,113 @@ export type Database = {
           },
         ]
       }
+      kitchen_items: {
+        Row: {
+          ativo: boolean
+          categoria: string
+          company_id: string
+          consumo_por_pessoa: number
+          created_at: string
+          created_by: string | null
+          estoque_atual: number
+          estoque_minimo: number
+          id: string
+          nome: string
+          observacoes: string | null
+          unidade: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          categoria?: string
+          company_id: string
+          consumo_por_pessoa?: number
+          created_at?: string
+          created_by?: string | null
+          estoque_atual?: number
+          estoque_minimo?: number
+          id?: string
+          nome: string
+          observacoes?: string | null
+          unidade?: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          categoria?: string
+          company_id?: string
+          consumo_por_pessoa?: number
+          created_at?: string
+          created_by?: string | null
+          estoque_atual?: number
+          estoque_minimo?: number
+          id?: string
+          nome?: string
+          observacoes?: string | null
+          unidade?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      kitchen_productions: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          data: string
+          id: string
+          item_id: string
+          observacoes: string | null
+          perda: number
+          pessoas_servidas: number
+          produzido: number
+          servido: number
+          sobra: number
+          turno: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          id?: string
+          item_id: string
+          observacoes?: string | null
+          perda?: number
+          pessoas_servidas?: number
+          produzido?: number
+          servido?: number
+          sobra?: number
+          turno?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          id?: string
+          item_id?: string
+          observacoes?: string | null
+          perda?: number
+          pessoas_servidas?: number
+          produzido?: number
+          servido?: number
+          sobra?: number
+          turno?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kitchen_productions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "kitchen_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
