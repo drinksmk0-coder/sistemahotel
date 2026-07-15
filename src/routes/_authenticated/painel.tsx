@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   BedDouble,
   CalendarClock,
@@ -21,6 +21,8 @@ import {
   Line,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
   XAxis,
   YAxis,
   Tooltip,
@@ -32,6 +34,7 @@ import {
   useRooms,
   useReservations,
   useSales,
+  useClients,
   useProducts,
   useComplaints,
   useFeedbacks,
@@ -42,6 +45,7 @@ import {
   type Room,
   type Reservation,
   type Sale,
+  type Client,
   type Product,
   type Expense,
   type Feedback,
@@ -59,6 +63,7 @@ export const Route = createFileRoute("/_authenticated/painel")({
 function Painel() {
   const { user } = useSession();
   const { data: role } = useRole(user);
+  const [period, setPeriod] = useState<"dia" | "mes" | "ano">("mes");
   const today = todayISO();
   const month = today.slice(0, 7);
   const previousMonth = addMonths(month, -1);
@@ -66,6 +71,7 @@ function Painel() {
   const { data: rooms = [] } = useRooms();
   const { data: reservations = [] } = useReservations();
   const { data: sales = [] } = useSales();
+  const { data: clients = [] } = useClients();
   const { data: products = [] } = useProducts();
   const { data: complaints = [] } = useComplaints();
   const { data: feedbacks = [] } = useFeedbacks();
@@ -160,6 +166,13 @@ function Painel() {
   const monthlyAverage = monthlySeries.length
     ? monthlySeries.reduce((sum, item) => sum + item.receita, 0) / monthlySeries.length
     : 0;
+  const decisionSeries = useMemo(
+    () => buildDecisionSeries(period, today, month, reservations, sales, expenses),
+    [period, today, month, reservations, sales, expenses],
+  );
+  const decisionAverage = decisionSeries.length
+    ? decisionSeries.reduce((sum, item) => sum + item.receita, 0) / decisionSeries.length
+    : 0;
 
   const receitaPorQuarto = useMemo(() => {
     const m = new Map<number, number>();
@@ -211,8 +224,8 @@ function Painel() {
   return (
     <div>
       <PageHeader
-        title="Painel de operação"
-        subtitle="Visão geral de hoje, análise temporal e problemas recorrentes por quarto."
+        title="Painel do dono"
+        subtitle="Indicadores, canais, clientes e tendências para decidir preço, venda e operação."
       />
 
       {alerta && (
@@ -228,20 +241,42 @@ function Painel() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
+        <div>
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Filtros do dashboard</p>
+          <p className="text-sm text-pine-dark">Alterna a leitura principal entre hoje, mês e ano.</p>
+        </div>
+        <div className="flex rounded-md border border-border bg-background p-1">
+          {[
+            ["dia", "Dia"],
+            ["mes", "Mês"],
+            ["ano", "Ano"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={`rounded px-3 py-1.5 text-xs font-semibold transition ${
+                period === value ? "bg-pine text-white" : "text-muted-foreground hover:bg-sage-bg"
+              }`}
+              onClick={() => setPeriod(value as "dia" | "mes" | "ano")}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
         <Stat icon={<BedDouble />} label="Ocupação hoje" value={`${ocupacao}%`} hint={`${ocupados} ocupados · ${reservados} reservados · ${livres} livres`} />
         <Stat icon={<DollarSign />} label="Receita do mês" value={fmtBRL(receitaMes)} hint={`A receber: ${fmtBRL(aReceber)}`} />
         <Stat icon={<MessageSquareWarning />} label="Reclamações abertas" value={String(abertas.length)} hint={`${wifiCount} sobre Wi-Fi`} />
         <Stat icon={<Star />} label="Avaliação média" value={media ? media.toFixed(1) : "—"} hint={`${feedbacks.length} avaliações`} />
-      </div>
-
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={<DollarSign />} label="Diaria media" value={fmtBRL(diariaMedia)} hint="Reservas e quartos" />
         <Stat icon={<BedDouble />} label="Ocupantes" value={String(ocupantesHoje)} hint={`Capacidade: ${capacidadeTotal}`} />
         <Stat icon={<DollarSign />} label="Despesas" value={fmtBRL(despesasMes)} hint={`Margem: ${fmtBRL(margemMes)}`} />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
         <ComparisonStat
           icon={<DollarSign />}
           label="Receitas totais"
@@ -273,27 +308,27 @@ function Painel() {
         />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 2xl:grid-cols-2">
-        <div className="card-surface p-5">
-          <h3 className="section-title mb-3 text-lg">Receita ao longo do tempo (30 dias)</h3>
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={series} margin={{ left: -10, right: 8, top: 4 }}>
+      <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-2">
+        <div className="card-surface p-4">
+          <h3 className="section-title mb-3 text-base">Receita por {period === "dia" ? "hora" : period === "mes" ? "dia do mês" : "mês"}</h3>
+          <ResponsiveContainer width="100%" height={230}>
+            <BarChart data={decisionSeries} margin={{ left: -10, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip formatter={(v: number) => fmtBRL(v)} />
               <Bar dataKey="receita" name="Receita" radius={[4, 4, 0, 0]}>
-                {series.map((entry) => (
-                  <Cell key={entry.key} fill={performanceColor(entry.receita, dailyAverage)} />
+                {decisionSeries.map((entry) => (
+                  <Cell key={entry.key} fill={performanceColor(entry.receita, decisionAverage)} />
                 ))}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="card-surface p-5">
-          <h3 className="section-title mb-3 text-lg">Comparecimento x cancelamentos</h3>
-          <ResponsiveContainer width="100%" height={260}>
+        <div className="card-surface p-4">
+          <h3 className="section-title mb-3 text-base">Comparecimento x cancelamentos</h3>
+          <ResponsiveContainer width="100%" height={230}>
             <LineChart data={series} margin={{ left: -20, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -312,9 +347,14 @@ function Painel() {
         <PricingSuggestion reservations={reservations} rooms={rooms} today={today} />
       </div>
 
-      <div className="mt-4 card-surface p-5">
-        <h3 className="section-title mb-3 text-lg">Receita mensal x despesas</h3>
-        <ResponsiveContainer width="100%" height={280}>
+      <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-2">
+        <GuestDemographics clients={clients} />
+        <CustomerRetention clients={clients} reservations={reservations} today={today} />
+      </div>
+
+      <div className="mt-4 card-surface p-4">
+        <h3 className="section-title mb-3 text-base">Receita mensal x despesas</h3>
+        <ResponsiveContainer width="100%" height={230}>
           <BarChart data={monthlySeries} margin={{ left: -10, right: 8, top: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="label" tick={{ fontSize: 11 }} />
@@ -331,12 +371,12 @@ function Painel() {
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-4 card-surface p-5">
-        <h3 className="section-title mb-3 text-lg">Receita por quarto</h3>
+      <div className="mt-4 card-surface p-4">
+        <h3 className="section-title mb-3 text-base">Receita por quarto</h3>
         {receitaPorQuarto.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sem receita registrada ainda.</p>
         ) : (
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={230}>
             <BarChart data={receitaPorQuarto} margin={{ left: -10, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="quarto" tick={{ fontSize: 11 }} />
@@ -696,35 +736,49 @@ function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+const CHART_COLORS = ["var(--pine)", "var(--brass)", "var(--sage)", "var(--brick)", "oklch(0.48 0.08 190)", "oklch(0.55 0.11 300)"];
+
 function ChannelStrategy({ reservations, sales }: { reservations: Reservation[]; sales: Sale[] }) {
   const rows = channelMetrics(reservations, sales);
   return (
-    <section className="card-surface p-5">
-      <h3 className="section-title mb-3 text-lg">Canais de venda</h3>
+    <section className="card-surface p-4">
+      <h3 className="section-title mb-3 text-base">Canais de venda</h3>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sem canais registrados ainda.</p>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                <th className="p-3">Canal</th>
-                <th className="p-3">Bruto</th>
-                <th className="p-3">Comissão</th>
-                <th className="p-3">Líquido</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.canal} className="border-b border-border/50">
-                  <td className="p-3 font-semibold">{row.canal}</td>
-                  <td className="p-3">{fmtBRL(row.bruto)}</td>
-                  <td className="p-3 text-brick">{fmtBRL(row.comissao)}</td>
-                  <td className="p-3 font-semibold text-pine">{fmtBRL(row.liquido)}</td>
+        <div className="grid gap-3 xl:grid-cols-[220px_1fr]">
+          <ResponsiveContainer width="100%" height={190}>
+            <PieChart>
+              <Pie data={rows} dataKey="liquido" nameKey="canal" innerRadius={44} outerRadius={78} paddingAngle={2}>
+                {rows.map((row, index) => (
+                  <Cell key={row.canal} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(v: number) => fmtBRL(v)} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                  <th className="p-2">Canal</th>
+                  <th className="p-2">Bruto</th>
+                  <th className="p-2">Comissão</th>
+                  <th className="p-2">Líquido</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.canal} className="border-b border-border/50">
+                    <td className="p-2 font-semibold">{row.canal}</td>
+                    <td className="p-2">{fmtBRL(row.bruto)}</td>
+                    <td className="p-2 text-brick">{fmtBRL(row.comissao)}</td>
+                    <td className="p-2 font-semibold text-pine">{fmtBRL(row.liquido)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </section>
@@ -749,6 +803,121 @@ function channelMetrics(reservations: Reservation[], sales: Sale[]) {
       map.set(canal, current);
     });
   return [...map.values()].sort((a, b) => b.liquido - a.liquido);
+}
+
+function GuestDemographics({ clients }: { clients: Client[] }) {
+  const genderRows = pieRows(clients, "sexo", "Não informado");
+  const civilRows = pieRows(clients, "estado_civil", "Não informado");
+  const ages = clients.map((client) => ageFromBirthdate(client.data_nascimento)).filter((age): age is number => age != null);
+  const avgAge = ages.length ? Math.round(ages.reduce((sum, age) => sum + age, 0) / ages.length) : 0;
+
+  return (
+    <section className="card-surface p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="section-title text-base">Perfil dos hóspedes</h3>
+        <div className="text-right text-xs text-muted-foreground">
+          <span className="block font-semibold text-pine-dark">{clients.length} clientes</span>
+          {avgAge ? `idade média ${avgAge} anos` : "idade média sem dados"}
+        </div>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <MiniPie title="Gênero" rows={genderRows} />
+        <MiniPie title="Estado civil" rows={civilRows} />
+      </div>
+    </section>
+  );
+}
+
+function MiniPie({ title, rows }: { title: string; rows: { name: string; value: number }[] }) {
+  return (
+    <div className="rounded-lg border border-border/70 p-3">
+      <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{title}</p>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sem dados.</p>
+      ) : (
+        <div className="grid grid-cols-[130px_1fr] items-center gap-2">
+          <ResponsiveContainer width="100%" height={130}>
+            <PieChart>
+              <Pie data={rows} dataKey="value" nameKey="name" innerRadius={32} outerRadius={55} paddingAngle={2}>
+                {rows.map((row, index) => (
+                  <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="space-y-1 text-xs">
+            {rows.slice(0, 5).map((row, index) => (
+              <div key={row.name} className="flex items-center justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-1">
+                  <span className="h-2 w-2 rounded-full" style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
+                  <span className="truncate">{row.name}</span>
+                </span>
+                <span className="font-semibold">{row.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CustomerRetention({ clients, reservations, today }: { clients: Client[]; reservations: Reservation[]; today: string }) {
+  const rows = retentionRows(clients, reservations, today);
+  const fixedClients = rows.filter((row) => normalizeText(row.tipo).includes("fixo")).slice(0, 7);
+  const companies = rows.filter((row) => normalizeText(row.tipo).includes("empresa")).slice(0, 7);
+  return (
+    <section className="card-surface p-4">
+      <h3 className="section-title mb-3 text-base">Retenção e recorrência</h3>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <RetentionTable title="Clientes fixos" rows={fixedClients} empty="Marque clientes como fixos no cadastro." />
+        <RetentionTable title="Empresas" rows={companies} empty="Cadastre empresas/clientes empresa para acompanhar receita." />
+      </div>
+    </section>
+  );
+}
+
+function RetentionTable({ title, rows, empty }: { title: string; rows: RetentionRow[]; empty: string }) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{title}</p>
+      {rows.length === 0 ? (
+        <p className="rounded-lg border border-border/70 p-3 text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border text-left uppercase text-muted-foreground">
+                <th className="p-2">Nome</th>
+                <th className="p-2">Receita</th>
+                <th className="p-2">Volta a cada</th>
+                <th className="p-2">Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id} className="border-b border-border/50">
+                  <td className="p-2 font-semibold">{row.nome}</td>
+                  <td className="p-2">{fmtBRL(row.receita)}</td>
+                  <td className="p-2">{row.intervaloMedio ? `${row.intervaloMedio} dias` : "novo"}</td>
+                  <td className="p-2">
+                    {row.whatsappUrl ? (
+                      <a className={row.atrasado ? "font-semibold text-brick hover:underline" : "text-pine hover:underline"} href={row.whatsappUrl} target="_blank" rel="noopener">
+                        {row.atrasado ? "Chamar" : "WhatsApp"}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">sem telefone</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function PricingSuggestion({ reservations, rooms, today }: { reservations: Reservation[]; rooms: Room[]; today: string }) {
@@ -832,6 +1001,110 @@ function reservationGuestName(reservation: Reservation) {
   );
 }
 
+type RetentionRow = {
+  id: string;
+  nome: string;
+  tipo: string;
+  receita: number;
+  intervaloMedio: number;
+  atrasado: boolean;
+  whatsappUrl: string | null;
+};
+
+function pieRows<T extends Record<string, unknown>>(items: T[], key: keyof T, emptyLabel: string) {
+  const map = new Map<string, number>();
+  items.forEach((item) => {
+    const raw = String(item[key] ?? "").trim();
+    const label = raw ? labelize(raw) : emptyLabel;
+    map.set(label, (map.get(label) ?? 0) + 1);
+  });
+  return [...map.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function retentionRows(clients: Client[], reservations: Reservation[], today: string): RetentionRow[] {
+  const reservationByClient = new Map<string, Reservation[]>();
+  reservations
+    .filter((reservation) => reservation.status !== "cancelado" && reservation.status !== "manutencao")
+    .forEach((reservation) => {
+      const clientId = (reservation as { cliente_id?: string | null }).cliente_id;
+      if (!clientId) return;
+      const list = reservationByClient.get(clientId) ?? [];
+      list.push(reservation);
+      reservationByClient.set(clientId, list);
+    });
+
+  return clients
+    .map((client) => {
+      const list = (reservationByClient.get(client.id) ?? []).sort((a, b) => a.checkin.localeCompare(b.checkin));
+      const receita = list.reduce((sum, reservation) => sum + Number(reservation.valor_total ?? reservation.valor_pago ?? 0), 0);
+      const intervaloMedio = averageIntervalDays(list);
+      const last = list.at(-1)?.checkout || list.at(-1)?.checkin || null;
+      const daysSinceLast = last ? diffDays(last, today) : 0;
+      const atrasado = !!last && daysSinceLast > Math.max(30, Math.round(intervaloMedio * 1.5 || 30));
+      return {
+        id: client.id,
+        nome: client.nome,
+        tipo: client.tipo ?? "",
+        receita,
+        intervaloMedio,
+        atrasado,
+        whatsappUrl: whatsappRetentionUrl(client, atrasado),
+      };
+    })
+    .filter((row) => row.receita > 0 || normalizeText(row.tipo).includes("fixo") || normalizeText(row.tipo).includes("empresa"))
+    .sort((a, b) => b.receita - a.receita);
+}
+
+function whatsappRetentionUrl(client: Client, atrasado: boolean) {
+  const phone = onlyDigits(String(client.telefone ?? ""));
+  if (!phone) return null;
+  const message = atrasado
+    ? `Olá, ${client.nome}! Aqui é do Hotel Real Cruzília. Lembramos de você e sentimos sua falta por aqui. Quando voltar a Cruzília, será um prazer te receber de novo. Posso consultar uma condição especial para sua próxima estadia?`
+    : `Olá, ${client.nome}! Aqui é do Hotel Real Cruzília. Estamos à disposição quando precisar se hospedar em Cruzília novamente.`;
+  return `https://wa.me/55${phone.startsWith("55") ? phone.slice(2) : phone}?text=${encodeURIComponent(message)}`;
+}
+
+function averageIntervalDays(reservations: Reservation[]) {
+  if (reservations.length < 2) return 0;
+  const intervals: number[] = [];
+  for (let i = 1; i < reservations.length; i++) {
+    intervals.push(diffDays(reservations[i - 1].checkout || reservations[i - 1].checkin, reservations[i].checkin));
+  }
+  return Math.round(intervals.reduce((sum, days) => sum + days, 0) / intervals.length);
+}
+
+function ageFromBirthdate(value: string | null) {
+  if (!value) return null;
+  const birth = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(birth.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - birth.getFullYear();
+  const hadBirthday =
+    now.getMonth() > birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() >= birth.getDate());
+  if (!hadBirthday) age -= 1;
+  return age >= 0 && age < 120 ? age : null;
+}
+
+function diffDays(from: string, to: string) {
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 86400000));
+}
+
+function onlyDigits(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function labelize(value: string) {
+  return value
+    .split(/[_\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function buildSeries(reservations: Reservation[], sales: Sale[], today: string) {
   const days: { key: string; label: string; receita: number; cancelamentos: number; comparecimento: number }[] = [];
   const base = new Date(today + "T00:00:00");
@@ -858,6 +1131,65 @@ function buildSeries(reservations: Reservation[], sales: Sale[], today: string) 
   sales.forEach((s) => {
     const day = idx.get((s.data || "").slice(0, 10));
     if (day) day.receita += Number(s.total);
+  });
+  return days;
+}
+
+function buildDecisionSeries(
+  period: "dia" | "mes" | "ano",
+  today: string,
+  anchorMonth: string,
+  reservations: Reservation[],
+  sales: Sale[],
+  expenses: Expense[],
+) {
+  if (period === "ano") return buildMonthlySeries(anchorMonth, reservations, sales, expenses);
+
+  if (period === "dia") {
+    const hours = Array.from({ length: 24 }, (_, hour) => ({
+      key: String(hour).padStart(2, "0"),
+      label: `${String(hour).padStart(2, "0")}h`,
+      receita: 0,
+      despesas: 0,
+    }));
+    reservations
+      .filter((reservation) => String(reservation.created_at ?? reservation.checkin).slice(0, 10) === today)
+      .forEach((reservation) => {
+        const hour = new Date(String(reservation.created_at ?? `${today}T12:00:00`)).getHours();
+        hours[hour].receita += Number(reservation.valor_pago ?? 0);
+      });
+    sales
+      .filter((sale) => String((sale as { created_at?: string | null }).created_at ?? sale.data).slice(0, 10) === today)
+      .forEach((sale) => {
+        const hour = new Date(String((sale as { created_at?: string | null }).created_at ?? `${today}T12:00:00`)).getHours();
+        hours[hour].receita += Number(sale.total ?? 0);
+      });
+    expenses
+      .filter((expense) => expense.data === today)
+      .forEach((expense) => {
+        hours[12].despesas += Number(expense.valor ?? 0);
+      });
+    return hours;
+  }
+
+  const [year, monthNumber] = anchorMonth.split("-").map(Number);
+  const daysInMonth = new Date(year, monthNumber, 0).getDate();
+  const days = Array.from({ length: daysInMonth }, (_, index) => {
+    const day = String(index + 1).padStart(2, "0");
+    return { key: `${anchorMonth}-${day}`, label: day, receita: 0, despesas: 0 };
+  });
+  const idx = new Map(days.map((day) => [day.key, day]));
+  reservations.forEach((reservation) => {
+    const day = idx.get((reservation.checkin || "").slice(0, 10));
+    if (day) day.receita += Number(reservation.valor_pago ?? 0);
+  });
+  sales.forEach((sale) => {
+    const day = idx.get((sale.data || "").slice(0, 10));
+    if (day) day.receita += Number(sale.total ?? 0);
+  });
+  expenses.forEach((expense) => {
+    const day = idx.get((expense.data || "").slice(0, 10));
+    if (day) day.despesas += Number(expense.valor ?? 0);
   });
   return days;
 }
