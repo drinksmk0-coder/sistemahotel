@@ -309,9 +309,7 @@ function RowActions({
   const done = ["finalizado", "cancelado"].includes(reservation.status);
   const total = Number(reservation.valor_total);
   const phone = client?.telefone?.replace(/\D/g, "");
-  const receiptText = encodeURIComponent(
-    `Recibo Hotel Real Cruzília\nCliente: ${reservation.cliente_nome}\nQuarto: ${reservation.quarto}\nPeríodo: ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}\nDiárias: ${reservation.diarias}\nTotal: ${fmtBRL(reservation.valor_total)}\nPago: ${fmtBRL(reservation.valor_pago)}\nStatus: ${reservation.pago ? "Quitado" : "Pendente"}`
-  );
+  const receiptUrl = `/imprimir?tipo=recibo&cliente=${encodeURIComponent(reservation.cliente_nome)}&quarto=${reservation.quarto}&periodo=${encodeURIComponent(`${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`)}&diarias=${reservation.diarias}&total=${encodeURIComponent(fmtBRL(reservation.valor_total))}&pago=${encodeURIComponent(fmtBRL(reservation.valor_pago))}&status=${encodeURIComponent(reservation.pago ? "Quitado" : "Pendente")}&telefone=${phone || ""}`;
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
       {!done && !reservation.pago && (
@@ -422,10 +420,10 @@ function RowActions({
       </button>
       <a
         className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
-        href={`https://wa.me/${phone || ""}?text=${receiptText}`}
+        href={receiptUrl}
         target="_blank"
         rel="noopener"
-        title={phone ? "Enviar nota/recibo no WhatsApp" : "Abrir recibo para WhatsApp"}
+        title="Abrir recibo bonito"
       >
         <FileText className="h-3.5 w-3.5" />
       </a>

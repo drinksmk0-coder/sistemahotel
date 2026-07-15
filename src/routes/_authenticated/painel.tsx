@@ -32,6 +32,7 @@ import {
   useRooms,
   useReservations,
   useSales,
+  useProducts,
   useComplaints,
   useFeedbacks,
   useExpenses,
@@ -41,6 +42,7 @@ import {
   type Room,
   type Reservation,
   type Sale,
+  type Product,
   type Expense,
   type Feedback,
 } from "@/lib/data";
@@ -64,6 +66,7 @@ function Painel() {
   const { data: rooms = [] } = useRooms();
   const { data: reservations = [] } = useReservations();
   const { data: sales = [] } = useSales();
+  const { data: products = [] } = useProducts();
   const { data: complaints = [] } = useComplaints();
   const { data: feedbacks = [] } = useFeedbacks();
   const { data: expenses = [] } = useExpenses();
@@ -186,7 +189,7 @@ function Painel() {
   }
 
   if (role === "cafe") {
-    return <CafePainel activeToday={activeToday} ocupantesHoje={ocupantesHoje} capacidadeTotal={capacidadeTotal} />;
+    return <CafePainel activeToday={activeToday} ocupantesHoje={ocupantesHoje} capacidadeTotal={capacidadeTotal} products={products} />;
   }
 
   if (role === "recepcao") {
@@ -302,6 +305,11 @@ function Painel() {
             </LineChart>
           </ResponsiveContainer>
         </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-2">
+        <ChannelStrategy reservations={reservations} sales={sales} />
+        <PricingSuggestion reservations={reservations} rooms={rooms} today={today} />
       </div>
 
       <div className="mt-4 card-surface p-5">
@@ -540,10 +548,12 @@ function CafePainel({
   activeToday,
   ocupantesHoje,
   capacidadeTotal,
+  products,
 }: {
   activeToday: Reservation[];
   ocupantesHoje: number;
   capacidadeTotal: number;
+  products: Product[];
 }) {
   const rooms = activeToday
     .map((reservation) => ({
@@ -552,6 +562,12 @@ function CafePainel({
       hospede: reservationGuestName(reservation),
     }))
     .sort((a, b) => a.quarto - b.quarto);
+  const cafeProducts = products.filter((p) => p.ativo && normalizeText(p.categoria).includes("cafe"));
+  const prepItems = breakfastPrep(ocupantesHoje, cafeProducts);
+  const lowItems = prepItems.filter((item) => item.estoque < item.necessario);
+  const shoppingText = lowItems
+    .map((item) => `- ${item.nome}: precisa ${item.necessario} ${item.unidade}, estoque ${item.estoque}, comprar ${item.comprar}`)
+    .join("\n");
 
   return (
     <div>
@@ -560,11 +576,61 @@ function CafePainel({
         subtitle="Quantidade de pessoas hospedadas hoje."
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={<Coffee />} label="Pessoas hoje" value={String(ocupantesHoje)} hint="Total para o cafe" />
         <Stat icon={<BedDouble />} label="Quartos ocupados" value={String(activeToday.length)} hint={`Capacidade total: ${capacidadeTotal}`} />
         <Stat icon={<ClipboardCheck />} label="Media por quarto" value={rooms.length ? (ocupantesHoje / rooms.length).toFixed(1) : "0"} hint="Ajuda no preparo" />
+        <Stat icon={<AlertTriangle />} label="Reposição" value={String(lowItems.length)} hint="Itens abaixo do necessário" />
       </div>
+
+      <section className="mt-5 card-surface p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="section-title text-lg">Preparo e compra do café</h3>
+            <p className="text-sm text-muted-foreground">Estimativa simples por hóspede, usando produtos da categoria Café.</p>
+          </div>
+          {lowItems.length > 0 && (
+            <a
+              className="rounded-md bg-brick px-3 py-2 text-xs font-semibold text-white"
+              href={`https://wa.me/553588001372?text=${encodeURIComponent(`Reposição para o café de hoje:\n${shoppingText}`)}`}
+              target="_blank"
+              rel="noopener"
+            >
+              Avisar dono
+            </a>
+          )}
+        </div>
+        {prepItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Cadastre produtos em Vendas com categoria “Café” para aparecer aqui. Ex.: pão, leite, café, queijo, ovos.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                  <th className="p-3">Item</th>
+                  <th className="p-3">Por pessoa</th>
+                  <th className="p-3">Necessário</th>
+                  <th className="p-3">Estoque</th>
+                  <th className="p-3">Comprar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {prepItems.map((item) => (
+                  <tr key={item.id} className="border-b border-border/50">
+                    <td className="p-3 font-semibold">{item.nome}</td>
+                    <td className="p-3 text-muted-foreground">{item.porPessoa} {item.unidade}</td>
+                    <td className="p-3">{item.necessario} {item.unidade}</td>
+                    <td className={`p-3 font-semibold ${item.estoque < item.necessario ? "text-brick" : "text-pine"}`}>{item.estoque}</td>
+                    <td className="p-3">{item.comprar > 0 ? `${item.comprar} ${item.unidade}` : "ok"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <section className="mt-5 card-surface p-5">
         <h3 className="section-title mb-3 text-lg">Quartos com hospedes</h3>
@@ -595,6 +661,126 @@ function CafePainel({
       </section>
     </div>
   );
+}
+
+function breakfastPrep(people: number, products: Product[]) {
+  return products.map((product) => {
+    const rule = breakfastRule(product.nome);
+    const necessario = Math.ceil(people * rule.qty);
+    const estoque = Number(product.estoque_atual ?? 0);
+    return {
+      id: product.id,
+      nome: product.nome,
+      porPessoa: rule.qty,
+      unidade: rule.unit,
+      necessario,
+      estoque,
+      comprar: Math.max(0, necessario - estoque),
+    };
+  });
+}
+
+function breakfastRule(name: string) {
+  const text = normalizeText(name);
+  if (text.includes("pao")) return { qty: 2, unit: "un" };
+  if (text.includes("leite")) return { qty: 0.25, unit: "L" };
+  if (text.includes("cafe")) return { qty: 0.02, unit: "kg" };
+  if (text.includes("queijo")) return { qty: 0.08, unit: "kg" };
+  if (text.includes("ovo")) return { qty: 1, unit: "un" };
+  if (text.includes("manteiga")) return { qty: 0.02, unit: "kg" };
+  if (text.includes("fruta")) return { qty: 1, unit: "un" };
+  return { qty: 1, unit: "un" };
+}
+
+function normalizeText(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+function ChannelStrategy({ reservations, sales }: { reservations: Reservation[]; sales: Sale[] }) {
+  const rows = channelMetrics(reservations, sales);
+  return (
+    <section className="card-surface p-5">
+      <h3 className="section-title mb-3 text-lg">Canais de venda</h3>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Sem canais registrados ainda.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                <th className="p-3">Canal</th>
+                <th className="p-3">Bruto</th>
+                <th className="p-3">Comissão</th>
+                <th className="p-3">Líquido</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.canal} className="border-b border-border/50">
+                  <td className="p-3 font-semibold">{row.canal}</td>
+                  <td className="p-3">{fmtBRL(row.bruto)}</td>
+                  <td className="p-3 text-brick">{fmtBRL(row.comissao)}</td>
+                  <td className="p-3 font-semibold text-pine">{fmtBRL(row.liquido)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function channelMetrics(reservations: Reservation[], sales: Sale[]) {
+  const byReservation = new Map<string, number>();
+  sales.forEach((sale) => sale.reserva_id && byReservation.set(sale.reserva_id, (byReservation.get(sale.reserva_id) ?? 0) + Number(sale.total)));
+  const map = new Map<string, { canal: string; bruto: number; comissao: number; liquido: number }>();
+  reservations
+    .filter((r) => r.status !== "cancelado")
+    .forEach((reservation) => {
+      const canal = reservation.canal || "Direto";
+      const bruto = Number(reservation.valor_total) + (byReservation.get(reservation.id) ?? 0);
+      const taxa = normalizeText(canal).includes("booking") ? 0.15 : normalizeText(canal).includes("airbnb") ? 0.12 : 0;
+      const comissao = bruto * taxa;
+      const current = map.get(canal) ?? { canal, bruto: 0, comissao: 0, liquido: 0 };
+      current.bruto += bruto;
+      current.comissao += comissao;
+      current.liquido += bruto - comissao;
+      map.set(canal, current);
+    });
+  return [...map.values()].sort((a, b) => b.liquido - a.liquido);
+}
+
+function PricingSuggestion({ reservations, rooms, today }: { reservations: Reservation[]; rooms: Room[]; today: string }) {
+  const next7 = futureOccupancy(reservations, rooms.length, today, 7);
+  const next14 = futureOccupancy(reservations, rooms.length, today, 14);
+  const suggestion =
+    next7 >= 80
+      ? "Alta procura nos próximos 7 dias: sugerir aumento de 10% a 15% nas novas reservas."
+      : next14 >= 65
+        ? "Procura boa nos próximos 14 dias: segurar descontos e priorizar reserva direta."
+        : "Procura normal: manter preço base e divulgar reserva direta.";
+  return (
+    <section className="card-surface p-5">
+      <h3 className="section-title mb-3 text-lg">Preço dinâmico simples</h3>
+      <div className="grid grid-cols-2 gap-3">
+        <Stat icon={<BedDouble />} label="Ocup. 7 dias" value={`${next7}%`} hint="Reservas futuras" />
+        <Stat icon={<CalendarClock />} label="Ocup. 14 dias" value={`${next14}%`} hint="Tendência próxima" />
+      </div>
+      <p className="mt-3 rounded-lg bg-sage-bg/60 px-3 py-2 text-sm font-semibold text-pine-dark">{suggestion}</p>
+    </section>
+  );
+}
+
+function futureOccupancy(reservations: Reservation[], roomCount: number, today: string, days: number) {
+  if (!roomCount) return 0;
+  const start = new Date(`${today}T00:00:00`);
+  const end = new Date(start);
+  end.setDate(start.getDate() + days - 1);
+  const occupied = reservations
+    .filter((r) => r.status !== "cancelado" && r.status !== "manutencao")
+    .reduce((sum, r) => sum + overlappingNights(r.checkin, r.checkout, start, end), 0);
+  return Math.round((occupied / (roomCount * days)) * 100);
 }
 
 function TodayList({

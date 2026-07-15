@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Printer } from "lucide-react";
+import { MessageCircle, Printer } from "lucide-react";
 
 export const Route = createFileRoute("/imprimir")({
   ssr: false,
@@ -26,6 +26,9 @@ function Line({ label }: { label: string }) {
 }
 
 function Imprimir() {
+  const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  if (params.get("tipo") === "recibo") return <Recibo params={params} />;
+
   return (
     <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
       <div className="mx-auto mb-4 flex max-w-2xl justify-end px-4 no-print">
@@ -92,6 +95,102 @@ function Imprimir() {
           Obrigado por ajudar a Pousada Real Cruzília a melhorar! Entregue este formulário na recepção.
         </p>
       </div>
+    </div>
+  );
+}
+
+function Recibo({ params }: { params: URLSearchParams }) {
+  const nome = params.get("cliente") || "Cliente";
+  const quarto = params.get("quarto") || "-";
+  const periodo = params.get("periodo") || "-";
+  const diarias = params.get("diarias") || "-";
+  const total = params.get("total") || "R$ 0,00";
+  const pago = params.get("pago") || "R$ 0,00";
+  const status = params.get("status") || "Pendente";
+  const telefone = (params.get("telefone") || "").replace(/\D/g, "");
+  const hoje = new Date().toLocaleDateString("pt-BR");
+  const whatsappText = encodeURIComponent(
+    `Recibo Hotel Real Cruzília\nCliente: ${nome}\nQuarto: ${quarto}\nPeríodo: ${periodo}\nDiárias: ${diarias}\nTotal: ${total}\nPago: ${pago}\nStatus: ${status}`,
+  );
+
+  return (
+    <div className="min-h-screen bg-[#f3efe5] py-8 print:bg-white print:py-0">
+      <div className="mx-auto mb-4 flex max-w-3xl flex-wrap justify-end gap-2 px-4 no-print">
+        {telefone && (
+          <a
+            href={`https://wa.me/${telefone}?text=${whatsappText}`}
+            target="_blank"
+            rel="noopener"
+            className="btn-ghost flex items-center gap-1.5"
+          >
+            <MessageCircle className="h-4 w-4" /> WhatsApp
+          </a>
+        )}
+        <button onClick={() => window.print()} className="btn-primary flex items-center gap-1.5">
+          <Printer className="h-4 w-4" /> Imprimir recibo
+        </button>
+      </div>
+
+      <div className="mx-auto max-w-3xl overflow-hidden rounded-lg bg-white shadow-xl print:max-w-none print:rounded-none print:shadow-none">
+        <div className="bg-pine px-10 py-7 text-white">
+          <div className="flex items-center gap-4">
+            <img src="/hotel-real-logo.png" alt="Hotel Real" className="h-16 w-16 rounded bg-white object-contain p-1" />
+            <div>
+              <h1 className="font-serif text-3xl font-bold">Hotel Real Cruzília</h1>
+              <p className="text-sm text-white/80">Rua Capitão Pinto, 70 - Centro, Cruzília - MG</p>
+              <p className="text-sm text-white/80">WhatsApp: (35) 8800-1372</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-10">
+          <div className="mb-8 flex items-start justify-between gap-6 border-b border-neutral-200 pb-5">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-pine">Recibo de hospedagem</p>
+              <h2 className="mt-2 font-serif text-2xl font-bold">{nome}</h2>
+            </div>
+            <div className="text-right text-sm text-neutral-500">
+              <p>Emitido em</p>
+              <strong className="text-neutral-900">{hoje}</strong>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Info label="Quarto" value={quarto} />
+            <Info label="Período" value={periodo} />
+            <Info label="Diárias" value={diarias} />
+            <Info label="Status" value={status} />
+          </div>
+
+          <div className="mt-8 rounded-lg border border-pine/20 bg-sage-bg/40 p-5">
+            <div className="flex justify-between border-b border-pine/15 pb-3 text-sm">
+              <span>Total da hospedagem</span>
+              <strong>{total}</strong>
+            </div>
+            <div className="flex justify-between border-b border-pine/15 py-3 text-sm">
+              <span>Valor pago</span>
+              <strong>{pago}</strong>
+            </div>
+            <div className="flex justify-between pt-3 font-serif text-xl font-bold text-pine-dark">
+              <span>Comprovante</span>
+              <span>{status}</span>
+            </div>
+          </div>
+
+          <p className="mt-8 text-center text-xs text-neutral-500">
+            Este documento é um recibo operacional de hospedagem. Para nota fiscal, consulte a recepção.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-neutral-200 p-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{label}</p>
+      <p className="mt-1 font-semibold text-neutral-950">{value}</p>
     </div>
   );
 }
