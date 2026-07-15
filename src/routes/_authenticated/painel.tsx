@@ -270,7 +270,7 @@ function Painel() {
         <PipelineCard tone="pine" title="Experiência" value={media ? media.toFixed(1) : "—"} label="avaliação média" hint={`${feedbacks.length} avaliações`} />
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <ComparisonStat
           icon={<DollarSign />}
           label="Receitas totais"
@@ -302,10 +302,13 @@ function Painel() {
         />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-2">
-        <div className="card-surface p-4">
-          <h3 className="section-title mb-3 text-base">Receita por {period === "dia" ? "hora" : period === "mes" ? "dia do mês" : "mês"}</h3>
-          <ResponsiveContainer width="100%" height={230}>
+      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <div className="card-surface p-3">
+          <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+            <h3 className="section-title text-sm">Receita por {period === "dia" ? "hora" : period === "mes" ? "dia do mês" : "mês"}</h3>
+            <PerformanceLegend />
+          </div>
+          <ResponsiveContainer width="100%" height={176}>
             <BarChart data={decisionSeries} margin={{ left: -10, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -320,15 +323,34 @@ function Painel() {
           </ResponsiveContainer>
         </div>
 
-        <div className="card-surface p-4">
-          <h3 className="section-title mb-3 text-base">Comparecimento x cancelamentos</h3>
-          <ResponsiveContainer width="100%" height={230}>
+        <div className="card-surface p-3">
+          <h3 className="section-title mb-2 text-sm">Receita mensal x despesas</h3>
+          <ResponsiveContainer width="100%" height={176}>
+            <BarChart data={monthlySeries} margin={{ left: -10, right: 8, top: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v: number) => fmtBRL(v)} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="receita" name="Receita" radius={[4, 4, 0, 0]}>
+                {monthlySeries.map((entry) => (
+                  <Cell key={`receita-${entry.key}`} fill={performanceColor(entry.receita, monthlyAverage)} />
+                ))}
+              </Bar>
+              <Bar dataKey="despesas" name="Despesas" fill="var(--brick)" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="card-surface p-3">
+          <h3 className="section-title mb-2 text-sm">Comparecimento x cancelamentos</h3>
+          <ResponsiveContainer width="100%" height={176}>
             <LineChart data={series} margin={{ left: -20, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line type="monotone" dataKey="comparecimento" name="Comparecimento" stroke="var(--sage)" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="cancelamentos" name="Cancelamentos" stroke="var(--brick)" strokeWidth={2} dot={false} />
             </LineChart>
@@ -336,40 +358,21 @@ function Painel() {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
         <ChannelStrategy reservations={reservations} sales={sales} />
         <PricingSuggestion reservations={reservations} rooms={rooms} today={today} />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-2">
+      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
         <GuestDemographics clients={clients} />
         <ClientStateMap clients={clients} />
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4">
+      <div className="mt-3 grid grid-cols-1 gap-3">
         <CustomerRetention clients={clients} reservations={reservations} today={today} />
       </div>
 
-      <div className="mt-4 card-surface p-4">
-        <h3 className="section-title mb-3 text-base">Receita mensal x despesas</h3>
-        <ResponsiveContainer width="100%" height={230}>
-          <BarChart data={monthlySeries} margin={{ left: -10, right: 8, top: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v: number) => fmtBRL(v)} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Bar dataKey="receita" name="Receita" radius={[4, 4, 0, 0]}>
-              {monthlySeries.map((entry) => (
-                <Cell key={`receita-${entry.key}`} fill={performanceColor(entry.receita, monthlyAverage)} />
-              ))}
-            </Bar>
-            <Bar dataKey="despesas" name="Despesas" fill="var(--brick)" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[1.15fr_0.85fr]">
         <RevenueExpenseHighlights reservations={reservations} sales={sales} expenses={expenses} />
         <OperationalReports
           kitchenItems={kitchenItems}
@@ -380,12 +383,12 @@ function Painel() {
         />
       </div>
 
-      <div className="mt-4 card-surface p-4">
-        <h3 className="section-title mb-3 text-base">Receita por quarto</h3>
+      <div className="mt-3 card-surface p-3">
+        <h3 className="section-title mb-2 text-sm">Receita por quarto</h3>
         {receitaPorQuarto.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sem receita registrada ainda.</p>
         ) : (
-            <ResponsiveContainer width="100%" height={230}>
+            <ResponsiveContainer width="100%" height={188}>
             <BarChart data={receitaPorQuarto} margin={{ left: -10, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="quarto" tick={{ fontSize: 11 }} />
@@ -538,17 +541,17 @@ function OwnerDashboardHero({
   today: string;
 }) {
   return (
-    <section className="mb-4 overflow-hidden rounded-lg border border-pine/20 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine),var(--brass))] text-white shadow-sm">
-      <div className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+    <section className="mb-3 overflow-hidden rounded-md border border-pine/20 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine),var(--brass))] text-white shadow-sm">
+      <div className="flex flex-col gap-2 px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Hotel Real Cruzilia</p>
-          <h1 className="mt-1 font-serif text-xl font-bold md:text-2xl">Dashboard de operação</h1>
-          <p className="mt-1 max-w-2xl text-xs text-white/80 md:text-sm">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">Hotel Real Cruzilia</p>
+          <h1 className="font-serif text-lg font-bold md:text-xl">Dashboard de operação</h1>
+          <p className="mt-0.5 max-w-2xl text-[11px] text-white/80 md:text-xs">
             Ocupação, receita, clientes, canais e operação em uma visão de decisão.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="rounded-md bg-white/12 px-3 py-1.5 text-xs font-semibold text-white/85">
+          <div className="rounded-md bg-white/12 px-2.5 py-1 text-[11px] font-semibold text-white/85">
             Referência: {new Date(`${today}T00:00:00`).toLocaleDateString("pt-BR")}
           </div>
           <div className="flex rounded-md bg-black/15 p-1">
@@ -572,6 +575,25 @@ function OwnerDashboardHero({
         </div>
       </div>
     </section>
+  );
+}
+
+function PerformanceLegend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-muted-foreground">
+      <span className="inline-flex items-center gap-1">
+        <span className="h-2 w-2 rounded-sm bg-pine" />
+        bom
+      </span>
+      <span className="inline-flex items-center gap-1">
+        <span className="h-2 w-2 rounded-sm bg-brass" />
+        atenção
+      </span>
+      <span className="inline-flex items-center gap-1">
+        <span className="h-2 w-2 rounded-sm bg-brick" />
+        baixo
+      </span>
+    </div>
   );
 }
 
@@ -602,7 +624,7 @@ function PipelineCard({
       </div>
       <div className="min-h-[44px] px-2 py-1.5">
         <div className="min-w-0">
-          <p className="whitespace-nowrap font-serif text-[clamp(0.9rem,1.25vw,1.12rem)] font-bold leading-none text-pine-dark">{value}</p>
+          <p className="break-words font-serif text-[clamp(0.82rem,1vw,1.02rem)] font-bold leading-tight text-pine-dark">{value}</p>
           <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight text-foreground">{label}</p>
           <p className="mt-0.5 truncate text-[9px] leading-tight text-muted-foreground">{hint}</p>
         </div>
@@ -1596,15 +1618,15 @@ const CHART_COLORS = ["var(--pine)", "var(--brass)", "var(--sage)", "var(--brick
 function ChannelStrategy({ reservations, sales }: { reservations: Reservation[]; sales: Sale[] }) {
   const rows = channelMetrics(reservations, sales);
   return (
-    <section className="card-surface p-4">
-      <h3 className="section-title mb-3 text-base">Canais de venda</h3>
+    <section className="card-surface p-3">
+      <h3 className="section-title mb-2 text-sm">Canais de venda</h3>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sem canais registrados ainda.</p>
       ) : (
-        <div className="grid gap-3 xl:grid-cols-[220px_1fr]">
-          <ResponsiveContainer width="100%" height={190}>
+        <div className="grid gap-2 xl:grid-cols-[160px_1fr]">
+          <ResponsiveContainer width="100%" height={150}>
             <PieChart>
-              <Pie data={rows} dataKey="liquido" nameKey="canal" innerRadius={44} outerRadius={78} paddingAngle={2}>
+              <Pie data={rows} dataKey="liquido" nameKey="canal" innerRadius={34} outerRadius={62} paddingAngle={2}>
                 {rows.map((row, index) => (
                   <Cell key={row.canal} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                 ))}
@@ -1613,7 +1635,7 @@ function ChannelStrategy({ reservations, sales }: { reservations: Reservation[];
             </PieChart>
           </ResponsiveContainer>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                   <th className="p-2">Canal</th>
@@ -1667,15 +1689,15 @@ function GuestDemographics({ clients }: { clients: Client[] }) {
   const avgAge = ages.length ? Math.round(ages.reduce((sum, age) => sum + age, 0) / ages.length) : 0;
 
   return (
-    <section className="card-surface p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="section-title text-base">Perfil dos hóspedes</h3>
+    <section className="card-surface p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 className="section-title text-sm">Perfil dos hóspedes</h3>
         <div className="text-right text-xs text-muted-foreground">
           <span className="block font-semibold text-pine-dark">{clients.length} clientes</span>
           {avgAge ? `idade média ${avgAge} anos` : "idade média sem dados"}
         </div>
       </div>
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-2 md:grid-cols-2">
         <MiniPie title="Gênero" rows={genderRows} />
         <MiniPie title="Estado civil" rows={civilRows} />
       </div>
@@ -1685,15 +1707,15 @@ function GuestDemographics({ clients }: { clients: Client[] }) {
 
 function MiniPie({ title, rows }: { title: string; rows: { name: string; value: number }[] }) {
   return (
-    <div className="rounded-lg border border-border/70 p-3">
+    <div className="rounded-md border border-border/70 p-2">
       <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{title}</p>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sem dados.</p>
       ) : (
-        <div className="grid grid-cols-[130px_1fr] items-center gap-2">
-          <ResponsiveContainer width="100%" height={130}>
+        <div className="grid grid-cols-[100px_1fr] items-center gap-2">
+          <ResponsiveContainer width="100%" height={100}>
             <PieChart>
-              <Pie data={rows} dataKey="value" nameKey="name" innerRadius={32} outerRadius={55} paddingAngle={2}>
+              <Pie data={rows} dataKey="value" nameKey="name" innerRadius={24} outerRadius={42} paddingAngle={2}>
                 {rows.map((row, index) => (
                   <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                 ))}
@@ -1726,10 +1748,10 @@ function ClientStateMap({ clients }: { clients: Client[] }) {
   const unknown = clients.length - total;
 
   return (
-    <section className="card-surface p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+    <section className="card-surface p-3">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="section-title text-base">Mapa de clientes por estado</h3>
+          <h3 className="section-title text-sm">Mapa de clientes por estado</h3>
           <p className="text-xs text-muted-foreground">Origem dos hóspedes cadastrados no hotel.</p>
         </div>
         <Badge tone="pine">{total} com estado</Badge>
@@ -1739,8 +1761,8 @@ function ClientStateMap({ clients }: { clients: Client[] }) {
           Nenhum cliente com estado preenchido ainda.
         </p>
       ) : (
-        <div className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr]">
-          <div className="relative min-h-[300px] overflow-hidden rounded-lg border border-border bg-[radial-gradient(circle_at_35%_30%,rgba(208,178,91,0.18),transparent_28%),linear-gradient(135deg,rgba(35,77,56,0.08),rgba(35,77,56,0.02))]">
+        <div className="grid gap-3 xl:grid-cols-[1.25fr_0.9fr]">
+          <div className="relative min-h-[230px] overflow-hidden rounded-lg border border-border bg-[radial-gradient(circle_at_35%_30%,rgba(208,178,91,0.18),transparent_28%),linear-gradient(135deg,rgba(35,77,56,0.08),rgba(35,77,56,0.02))]">
             <div className="absolute inset-5 rounded-[45%_55%_52%_48%] border border-pine/20 bg-white/45" />
             <div className="absolute left-[36%] top-[18%] h-[58%] w-[42%] rounded-[50%_35%_45%_55%] border border-pine/25 bg-sage-bg/60" />
             <div className="absolute left-[24%] top-[22%] h-[38%] w-[34%] rounded-[42%_58%_45%_55%] border border-pine/15 bg-white/40" />
@@ -1860,13 +1882,13 @@ function PricingSuggestion({ reservations, rooms, today }: { reservations: Reser
         ? "Procura boa nos próximos 14 dias: segurar descontos e priorizar reserva direta."
         : "Procura normal: manter preço base e divulgar reserva direta.";
   return (
-    <section className="card-surface p-5">
-      <h3 className="section-title mb-3 text-lg">Preço dinâmico simples</h3>
-      <div className="grid grid-cols-2 gap-3">
+    <section className="card-surface p-3">
+      <h3 className="section-title mb-2 text-sm">Preço dinâmico simples</h3>
+      <div className="grid grid-cols-2 gap-2">
         <Stat icon={<BedDouble />} label="Ocup. 7 dias" value={`${next7}%`} hint="Reservas futuras" />
         <Stat icon={<CalendarClock />} label="Ocup. 14 dias" value={`${next14}%`} hint="Tendência próxima" />
       </div>
-      <p className="mt-3 rounded-lg bg-sage-bg/60 px-3 py-2 text-sm font-semibold text-pine-dark">{suggestion}</p>
+      <p className="mt-2 rounded-md bg-sage-bg/60 px-3 py-2 text-xs font-semibold text-pine-dark">{suggestion}</p>
     </section>
   );
 }
@@ -2337,13 +2359,13 @@ function ComparisonStat({
   lowerIsBetter?: boolean;
 }) {
   return (
-    <div className="stat-card min-w-0">
-      <div className="mb-1.5 flex min-w-0 items-center gap-2 text-pine">
-        <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-        <span className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+    <div className="relative min-w-0 overflow-hidden rounded-md border border-border bg-card px-2 py-1.5 shadow-sm">
+      <div className="mb-1 flex min-w-0 items-center gap-1.5 text-pine">
+        <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
+        <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
       </div>
-      <div className="min-w-0 break-words font-serif text-[clamp(0.98rem,1.15vw,1.18rem)] font-bold leading-tight">{value}</div>
-      <div className="mt-2 space-y-1 text-[10px]">
+      <div className="min-w-0 break-words font-serif text-[clamp(0.86rem,1.05vw,1.02rem)] font-bold leading-tight">{value}</div>
+      <div className="mt-1 space-y-0.5 text-[9px]">
         <DeltaLine label="vs mês anterior" value={monthDelta} lowerIsBetter={lowerIsBetter} />
         <DeltaLine label="vs ano anterior" value={yearDelta} lowerIsBetter={lowerIsBetter} />
       </div>

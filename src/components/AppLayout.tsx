@@ -87,7 +87,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const sidebar = (
-    <aside className="flex h-full w-[min(18rem,84vw)] flex-col border-r border-pine-dark/70 bg-pine-dark text-primary-foreground shadow-2xl xl:w-72">
+    <aside className="flex h-full w-[min(15rem,84vw)] flex-col border-r border-pine-dark/70 bg-pine-dark text-primary-foreground shadow-2xl xl:w-60">
       <div className="border-b border-white/15 p-4">
         <div className="flex items-center gap-3">
           <img
@@ -176,7 +176,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-50 bg-black/40 xl:hidden" onClick={() => setMenuOpen(false)}>
           <div className="h-full" onClick={(e) => e.stopPropagation()}>
             <button
-              className="absolute left-[min(18rem,84vw)] top-4 rounded-r-md bg-card p-2 shadow"
+              className="absolute left-[min(15rem,84vw)] top-4 rounded-r-md bg-card p-2 shadow"
               onClick={() => setMenuOpen(false)}
               aria-label="Fechar menu"
             >
@@ -187,7 +187,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <main className="min-w-0 px-3 pb-6 pt-16 sm:px-4 md:px-5 xl:ml-72 xl:px-7 xl:py-6">
+      <main className="min-w-0 px-3 pb-6 pt-16 sm:px-4 md:px-5 xl:ml-60 xl:px-5 xl:py-5">
         <div className="mx-auto w-full max-w-[1800px]">{children}</div>
       </main>
     </div>
