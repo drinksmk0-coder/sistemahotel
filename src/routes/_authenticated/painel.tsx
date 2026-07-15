@@ -241,10 +241,7 @@ function Painel() {
 
   return (
     <div>
-      <PageHeader
-        title="Painel do dono"
-        subtitle="Indicadores, canais, clientes e tendências para decidir preço, venda e operação."
-      />
+      <OwnerDashboardHero period={period} setPeriod={setPeriod} today={today} />
 
       {alerta && (
         <div className="mb-4 flex items-start gap-3 rounded-lg border border-brick/40 bg-brick-bg px-4 py-3 text-sm text-brick">
@@ -259,42 +256,15 @@ function Painel() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/70 bg-card/70 px-3 py-2">
-        <div>
-          <p className="text-xs font-semibold uppercase text-muted-foreground">Filtros do dashboard</p>
-          <p className="text-sm text-pine-dark">Alterna a leitura principal entre hoje, mês e ano.</p>
-        </div>
-        <div className="flex rounded-md border border-border bg-background p-1">
-          {[
-            ["dia", "Dia"],
-            ["mes", "Mês"],
-            ["ano", "Ano"],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              className={`rounded px-3 py-1.5 text-xs font-semibold transition ${
-                period === value ? "bg-pine text-white" : "text-muted-foreground hover:bg-sage-bg"
-              }`}
-              onClick={() => setPeriod(value as "dia" | "mes" | "ano")}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      <div className="mb-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+        <PipelineCard tone="brass" title="Disponibilidade" value={`${livres}`} label="quartos livres" hint={`${ocupados} ocupados · ${reservados} reservados`} />
+        <PipelineCard tone="pine" title="Hospedagem" value={`${ocupacao}%`} label="ocupação hoje" hint={`${ocupantesHoje} ocupantes · capacidade ${capacidadeTotal}`} />
+        <PipelineCard tone="sage" title="Receita" value={compactBRL(receitaMes)} label="receita do mês" hint={`A receber: ${fmtBRL(aReceber)}`} />
+        <PipelineCard tone="brick" title="Operação" value={String(abertas.length)} label="reclamações abertas" hint={`${wifiCount} sobre Wi-Fi`} />
+        <PipelineCard tone="pine" title="Experiência" value={media ? media.toFixed(1) : "—"} label="avaliação média" hint={`${feedbacks.length} avaliações`} />
       </div>
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
-        <Stat icon={<BedDouble />} label="Ocupação hoje" value={`${ocupacao}%`} hint={`${ocupados} ocupados · ${reservados} reservados · ${livres} livres`} />
-        <Stat icon={<DollarSign />} label="Receita do mês" value={fmtBRL(receitaMes)} hint={`A receber: ${fmtBRL(aReceber)}`} />
-        <Stat icon={<MessageSquareWarning />} label="Reclamações abertas" value={String(abertas.length)} hint={`${wifiCount} sobre Wi-Fi`} />
-        <Stat icon={<Star />} label="Avaliação média" value={media ? media.toFixed(1) : "—"} hint={`${feedbacks.length} avaliações`} />
-        <Stat icon={<DollarSign />} label="Diaria media" value={fmtBRL(diariaMedia)} hint="Reservas e quartos" />
-        <Stat icon={<BedDouble />} label="Ocupantes" value={String(ocupantesHoje)} hint={`Capacidade: ${capacidadeTotal}`} />
-        <Stat icon={<DollarSign />} label="Despesas" value={fmtBRL(despesasMes)} hint={`Margem: ${fmtBRL(margemMes)}`} />
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2 xl:grid-cols-4">
+      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
         <ComparisonStat
           icon={<DollarSign />}
           label="Receitas totais"
@@ -367,6 +337,10 @@ function Painel() {
 
       <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-2">
         <GuestDemographics clients={clients} />
+        <ClientStateMap clients={clients} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4">
         <CustomerRetention clients={clients} reservations={reservations} today={today} />
       </div>
 
@@ -502,6 +476,105 @@ function RecepcaoPainel({
         <QuickLink to="/vendas" icon={<DollarSign />} label="Lancar venda" />
       </div>
     </div>
+  );
+}
+
+function OwnerDashboardHero({
+  period,
+  setPeriod,
+  today,
+}: {
+  period: "dia" | "mes" | "ano";
+  setPeriod: (period: "dia" | "mes" | "ano") => void;
+  today: string;
+}) {
+  return (
+    <section className="mb-4 overflow-hidden rounded-lg border border-pine/20 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine),var(--brass))] text-white shadow-sm">
+      <div className="flex flex-col gap-3 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/70">Hotel Real Cruzilia</p>
+          <h1 className="mt-1 font-serif text-xl font-bold md:text-2xl">Dashboard de operação</h1>
+          <p className="mt-1 max-w-2xl text-xs text-white/80 md:text-sm">
+            Ocupação, receita, clientes, canais e operação em uma visão de decisão.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="rounded-md bg-white/12 px-3 py-1.5 text-xs font-semibold text-white/85">
+            Referência: {new Date(`${today}T00:00:00`).toLocaleDateString("pt-BR")}
+          </div>
+          <div className="flex rounded-md bg-black/15 p-1">
+            {[
+              ["dia", "Dia"],
+              ["mes", "Mês"],
+              ["ano", "Ano"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={`rounded px-3 py-1.5 text-xs font-semibold transition ${
+                  period === value ? "bg-white text-pine-dark" : "text-white/75 hover:bg-white/10"
+                }`}
+                onClick={() => setPeriod(value as "dia" | "mes" | "ano")}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PipelineCard({
+  tone,
+  title,
+  value,
+  label,
+  hint,
+}: {
+  tone: "pine" | "brass" | "sage" | "brick";
+  title: string;
+  value: string;
+  label: string;
+  hint: string;
+}) {
+  const toneClass = {
+    pine: "from-pine to-pine-dark border-pine/25",
+    brass: "from-brass to-[oklch(0.58_0.09_74)] border-brass/35",
+    sage: "from-sage to-pine border-sage/35",
+    brick: "from-brick to-[oklch(0.43_0.1_38)] border-brick/30",
+  }[tone];
+
+  return (
+    <section className="relative min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className={`bg-gradient-to-r ${toneClass} px-3 py-1.5 text-center text-[11px] font-bold uppercase text-white`}>
+        {title}
+      </div>
+      <div className="grid min-h-[88px] grid-cols-[1fr_48px] items-center gap-2 p-3">
+        <div className="min-w-0">
+          <p className="truncate font-serif text-[clamp(1.25rem,1.8vw,1.65rem)] font-bold leading-tight text-pine-dark">{value}</p>
+          <p className="truncate text-xs font-semibold text-foreground">{label}</p>
+          <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-muted-foreground">{hint}</p>
+        </div>
+        <MiniSpark tone={tone} />
+      </div>
+    </section>
+  );
+}
+
+function MiniSpark({ tone }: { tone: "pine" | "brass" | "sage" | "brick" }) {
+  const stroke = {
+    pine: "var(--pine)",
+    brass: "var(--brass)",
+    sage: "var(--sage)",
+    brick: "var(--brick)",
+  }[tone];
+  return (
+    <svg viewBox="0 0 90 54" className="h-14 w-full" aria-hidden="true">
+      <path d="M4 48 L4 24 L16 34 L28 14 L42 22 L54 18 L68 38 L84 12 L84 48 Z" fill={stroke} opacity="0.16" />
+      <path d="M4 24 L16 34 L28 14 L42 22 L54 18 L68 38 L84 12" fill="none" stroke={stroke} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
@@ -1011,6 +1084,13 @@ function formatQty(value: number | string | null | undefined) {
   return Number.isInteger(n) ? String(n) : n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 }
 
+function compactBRL(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) return `R$ ${(value / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
+  if (abs >= 10_000) return `R$ ${(value / 1_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;
+  return fmtBRL(value);
+}
+
 function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
@@ -1139,6 +1219,81 @@ function MiniPie({ title, rows }: { title: string; rows: { name: string; value: 
         </div>
       )}
     </div>
+  );
+}
+
+function ClientStateMap({ clients }: { clients: Client[] }) {
+  const rows = clientStateRows(clients);
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+  const max = Math.max(1, ...rows.map((row) => row.value));
+  const mapped = rows.filter((row) => BRAZIL_STATE_POINTS[row.uf]);
+  const unknown = clients.length - total;
+
+  return (
+    <section className="card-surface p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="section-title text-base">Mapa de clientes por estado</h3>
+          <p className="text-xs text-muted-foreground">Origem dos hóspedes cadastrados no hotel.</p>
+        </div>
+        <Badge tone="pine">{total} com estado</Badge>
+      </div>
+      {rows.length === 0 ? (
+        <p className="rounded-lg border border-border/70 p-3 text-sm text-muted-foreground">
+          Nenhum cliente com estado preenchido ainda.
+        </p>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[1.35fr_0.9fr]">
+          <div className="relative min-h-[300px] overflow-hidden rounded-lg border border-border bg-[radial-gradient(circle_at_35%_30%,rgba(208,178,91,0.18),transparent_28%),linear-gradient(135deg,rgba(35,77,56,0.08),rgba(35,77,56,0.02))]">
+            <div className="absolute inset-5 rounded-[45%_55%_52%_48%] border border-pine/20 bg-white/45" />
+            <div className="absolute left-[36%] top-[18%] h-[58%] w-[42%] rounded-[50%_35%_45%_55%] border border-pine/25 bg-sage-bg/60" />
+            <div className="absolute left-[24%] top-[22%] h-[38%] w-[34%] rounded-[42%_58%_45%_55%] border border-pine/15 bg-white/40" />
+            <div className="absolute left-[48%] top-[58%] h-[28%] w-[20%] rotate-[-18deg] rounded-[40%_60%_55%_45%] border border-pine/20 bg-white/55" />
+            {mapped.map((row) => {
+              const point = BRAZIL_STATE_POINTS[row.uf];
+              const size = 34 + (row.value / max) * 46;
+              return (
+                <div
+                  key={row.uf}
+                  className="absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-4 border-white/85 bg-pine text-center text-white shadow-lg"
+                  style={{ left: `${point.x}%`, top: `${point.y}%`, width: size, height: size }}
+                  title={`${row.label}: ${row.value} cliente(s)`}
+                >
+                  <span className="text-[11px] font-bold leading-none">{row.uf}</span>
+                  <span className="text-[10px] leading-none">{row.value}</span>
+                </div>
+              );
+            })}
+            <div className="absolute bottom-3 left-3 rounded-md bg-white/85 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+              Bolha maior = mais clientes
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {rows.slice(0, 8).map((row) => {
+              const pct = total ? Math.round((row.value / total) * 100) : 0;
+              return (
+                <div key={row.uf} className="rounded-md border border-border/70 px-3 py-2">
+                  <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+                    <span className="font-semibold text-pine-dark">{row.label}</span>
+                    <span className="font-bold">{row.value}</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-sage-bg">
+                    <div className="h-full rounded-full bg-brass" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="mt-1 text-[11px] text-muted-foreground">{pct}% dos clientes com estado</p>
+                </div>
+              );
+            })}
+            {unknown > 0 && (
+              <p className="rounded-md bg-brick-bg px-3 py-2 text-xs text-brick">
+                {unknown} cliente(s) ainda sem estado preenchido no cadastro.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -1300,6 +1455,91 @@ function pieRows<T extends Record<string, unknown>>(items: T[], key: keyof T, em
   return [...map.entries()]
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
+}
+
+const BRAZIL_STATE_NAMES: Record<string, string> = {
+  AC: "Acre",
+  AL: "Alagoas",
+  AP: "Amapá",
+  AM: "Amazonas",
+  BA: "Bahia",
+  CE: "Ceará",
+  DF: "Distrito Federal",
+  ES: "Espírito Santo",
+  GO: "Goiás",
+  MA: "Maranhão",
+  MT: "Mato Grosso",
+  MS: "Mato Grosso do Sul",
+  MG: "Minas Gerais",
+  PA: "Pará",
+  PB: "Paraíba",
+  PR: "Paraná",
+  PE: "Pernambuco",
+  PI: "Piauí",
+  RJ: "Rio de Janeiro",
+  RN: "Rio Grande do Norte",
+  RS: "Rio Grande do Sul",
+  RO: "Rondônia",
+  RR: "Roraima",
+  SC: "Santa Catarina",
+  SP: "São Paulo",
+  SE: "Sergipe",
+  TO: "Tocantins",
+};
+
+const BRAZIL_STATE_POINTS: Record<string, { x: number; y: number }> = {
+  AC: { x: 20, y: 54 },
+  AM: { x: 32, y: 32 },
+  RR: { x: 41, y: 13 },
+  RO: { x: 34, y: 56 },
+  PA: { x: 51, y: 28 },
+  AP: { x: 58, y: 16 },
+  TO: { x: 56, y: 48 },
+  MA: { x: 67, y: 34 },
+  PI: { x: 70, y: 43 },
+  CE: { x: 78, y: 39 },
+  RN: { x: 84, y: 42 },
+  PB: { x: 83, y: 47 },
+  PE: { x: 80, y: 51 },
+  AL: { x: 79, y: 56 },
+  SE: { x: 76, y: 60 },
+  BA: { x: 69, y: 62 },
+  MT: { x: 48, y: 58 },
+  MS: { x: 50, y: 73 },
+  GO: { x: 59, y: 62 },
+  DF: { x: 62, y: 59 },
+  MG: { x: 65, y: 72 },
+  ES: { x: 76, y: 73 },
+  RJ: { x: 72, y: 79 },
+  SP: { x: 61, y: 80 },
+  PR: { x: 57, y: 87 },
+  SC: { x: 59, y: 92 },
+  RS: { x: 55, y: 97 },
+};
+
+function clientStateRows(clients: Client[]) {
+  const map = new Map<string, number>();
+  clients.forEach((client) => {
+    const uf = normalizeState(String(client.estado ?? ""));
+    if (!uf) return;
+    map.set(uf, (map.get(uf) ?? 0) + 1);
+  });
+  return [...map.entries()]
+    .map(([uf, value]) => ({ uf, label: BRAZIL_STATE_NAMES[uf] ?? uf, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function normalizeState(value: string) {
+  const text = normalizeText(value).replace(/[^a-z]/g, "");
+  if (!text) return "";
+  const raw = value.trim().toUpperCase();
+  if (BRAZIL_STATE_NAMES[raw]) return raw;
+  const found = Object.entries(BRAZIL_STATE_NAMES).find(([, name]) => normalizeText(name).replace(/[^a-z]/g, "") === text);
+  if (found) return found[0];
+  if (text === "minas" || text === "minasgeraismg") return "MG";
+  if (text === "saopaulo" || text === "sp") return "SP";
+  if (text === "riodejaneiro" || text === "rj") return "RJ";
+  return "";
 }
 
 function retentionRows(clients: Client[], reservations: Reservation[], today: string): RetentionRow[] {
@@ -1575,12 +1815,12 @@ function performanceColor(value: number, average: number) {
 function Stat({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint?: string }) {
   return (
     <div className="stat-card min-w-0">
-      <div className="mb-2 flex min-w-0 items-center gap-2 text-pine">
+      <div className="mb-1.5 flex min-w-0 items-center gap-2 text-pine">
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-        <span className="min-w-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
       </div>
-      <div className="min-w-0 break-words font-serif text-[clamp(1.45rem,2.4vw,2rem)] font-bold leading-tight">{value}</div>
-      {hint && <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>}
+      <div className="min-w-0 truncate font-serif text-[clamp(1.2rem,1.7vw,1.55rem)] font-bold leading-tight">{value}</div>
+      {hint && <div className="mt-1 line-clamp-2 text-[10px] leading-snug text-muted-foreground">{hint}</div>}
     </div>
   );
 }
@@ -1602,12 +1842,12 @@ function ComparisonStat({
 }) {
   return (
     <div className="stat-card min-w-0">
-      <div className="mb-2 flex min-w-0 items-center gap-2 text-pine">
+      <div className="mb-1.5 flex min-w-0 items-center gap-2 text-pine">
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-        <span className="min-w-0 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
       </div>
-      <div className="min-w-0 break-words font-serif text-[clamp(1.45rem,2.4vw,2rem)] font-bold leading-tight">{value}</div>
-      <div className="mt-2 space-y-1 text-[11px]">
+      <div className="min-w-0 truncate font-serif text-[clamp(1.2rem,1.7vw,1.55rem)] font-bold leading-tight">{value}</div>
+      <div className="mt-2 space-y-1 text-[10px]">
         <DeltaLine label="vs mês anterior" value={monthDelta} lowerIsBetter={lowerIsBetter} />
         <DeltaLine label="vs ano anterior" value={yearDelta} lowerIsBetter={lowerIsBetter} />
       </div>
