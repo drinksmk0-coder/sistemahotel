@@ -1,0 +1,39 @@
+{
+  "name": "Hotel Real SaaS",
+  "short_name": "Hotel Real",
+  "description": "Gestao de reservas, quartos, equipe e operacao do Hotel Real.",
+  "start_url": "/painel",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f2ecdf",
+  "theme_color": "#234d38",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/hotel-real-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/hotel-real-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mapa de quartos",
+      "short_name": "Mapa",
+      "url": "/mapa",
+      "icons": [{ "src": "/hotel-real-logo.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Reservas",
+      "short_name": "Reservas",
+      "url": "/reservas",
+      "icons": [{ "src": "/hotel-real-logo.png", "sizes": "192x192" }]
+    }
+  ]
+}
