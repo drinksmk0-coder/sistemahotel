@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Download, Pencil, ArrowLeftRight, Trash2 } from "lucide-react";
+import { Plus, Download, Pencil, ArrowLeftRight, Ban, FileText } from "lucide-react";
 import {
   useRooms,
   useClients,
@@ -9,7 +9,6 @@ import {
   useComplaints,
   useInsert,
   useUpdate,
-  useDelete,
   statusFromPayment,
   hasActiveOverlap,
   roomBlock,
@@ -43,7 +42,7 @@ function Reservas() {
   const insertClient = useInsert("clients", ["clients"]);
   const insertComplaint = useInsert("complaints", ["complaints"]);
   const update = useUpdate("reservations", ["reservations"]);
-  const remove = useDelete("reservations", ["reservations"]);
+  const updateRoom = useUpdate("rooms", ["rooms"]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Reservation | null>(null);
   const [moving, setMoving] = useState<Reservation | null>(null);
@@ -208,7 +207,8 @@ function Reservas() {
                     <RowActions
                       reservation={r}
                       update={update}
-                      remove={remove}
+                      updateRoom={updateRoom}
+                      client={clients.find((c) => c.id === r.cliente_id)}
                       onEdit={() => setEditing(r)}
                       onMove={() => setMoving(r)}
                     />
@@ -294,18 +294,24 @@ function Reservas() {
 function RowActions({
   reservation,
   update,
-  remove,
+  updateRoom,
+  client,
   onEdit,
   onMove,
 }: {
   reservation: Reservation;
   update: ReturnType<typeof useUpdate>;
-  remove: ReturnType<typeof useDelete>;
+  updateRoom: ReturnType<typeof useUpdate>;
+  client?: Client;
   onEdit: () => void;
   onMove: () => void;
 }) {
   const done = ["finalizado", "cancelado"].includes(reservation.status);
   const total = Number(reservation.valor_total);
+  const phone = client?.telefone?.replace(/\D/g, "");
+  const receiptText = encodeURIComponent(
+    `Recibo Hotel Real Cruzília\nCliente: ${reservation.cliente_nome}\nQuarto: ${reservation.quarto}\nPeríodo: ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}\nDiárias: ${reservation.diarias}\nTotal: ${fmtBRL(reservation.valor_total)}\nPago: ${fmtBRL(reservation.valor_pago)}\nStatus: ${reservation.pago ? "Quitado" : "Pendente"}`
+  );
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
       {!done && !reservation.pago && (
@@ -381,7 +387,15 @@ function RowActions({
             update.mutate(
               { id: reservation.id, patch: { status: "finalizado" } },
               {
-                onSuccess: () => toast.success("Check-out realizado"),
+                onSuccess: () => {
+                  updateRoom.mutate(
+                    { id: reservation.quarto, patch: { situacao: "limpeza" } },
+                    {
+                      onSuccess: () => toast.success("Check-out realizado; quarto enviado para limpeza"),
+                      onError: (e: Error) => toast.error(`Check-out feito, mas falhou ao marcar limpeza: ${e.message}`),
+                    },
+                  );
+                },
                 onError: (e: Error) => toast.error(e.message),
               },
             )
@@ -406,18 +420,30 @@ function RowActions({
       >
         <Pencil className="h-3.5 w-3.5" />
       </button>
+      <a
+        className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
+        href={`https://wa.me/${phone || ""}?text=${receiptText}`}
+        target="_blank"
+        rel="noopener"
+        title={phone ? "Enviar nota/recibo no WhatsApp" : "Abrir recibo para WhatsApp"}
+      >
+        <FileText className="h-3.5 w-3.5" />
+      </a>
       <button
         className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
         onClick={() => {
-          if (!window.confirm(`Excluir a reserva de ${reservation.cliente_nome}?`)) return;
-          remove.mutate(reservation.id, {
-            onSuccess: () => toast.success("Reserva excluída"),
+          if (!window.confirm(`Cancelar a reserva de ${reservation.cliente_nome}? O registro será mantido no histórico.`)) return;
+          update.mutate({
+            id: reservation.id,
+            patch: { status: "cancelado" },
+          }, {
+            onSuccess: () => toast.success("Reserva cancelada"),
             onError: (e: Error) => toast.error(e.message),
           });
         }}
-        title="Excluir reserva"
+        title="Cancelar reserva"
       >
-        <Trash2 className="h-3.5 w-3.5" />
+        <Ban className="h-3.5 w-3.5" />
       </button>
     </div>
   );

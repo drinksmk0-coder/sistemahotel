@@ -47,13 +47,31 @@ function Vendas() {
     return [...m.entries()].sort((a, b) => b[1] - a[1]);
   }, [sales]);
   const lowStock = products.filter((p) => p.ativo && p.estoque_atual <= p.estoque_minimo);
+  const totalPendente = sales.reduce((a, s) => a + Math.max(0, Number(s.total) - Number(s.valor_pago ?? s.total)), 0);
+  const cafeStock = products.filter((p) => p.ativo && p.categoria.toLowerCase().includes("café"));
 
   function exportCSV() {
     downloadCSV(`vendas-${today}.csv`, [
-      ["Data", "Quarto", "Categoria", "Item", "Qtd", "Unitário", "Total", "Pagamento"],
-      ...sales.map((s) => [s.data, s.quarto, s.categoria ?? "Geral", s.item, s.qtd, s.valor_unit, s.total, s.pagamento]),
+      ["Data", "Quarto", "Categoria", "Item", "Qtd", "Unitário", "Total", "Pago", "Pendente", "Status", "Pagamento"],
+      ...sales.map((s) => [
+        s.data,
+        s.quarto,
+        s.categoria ?? "Geral",
+        s.item,
+        s.qtd,
+        s.valor_unit,
+        s.total,
+        s.valor_pago ?? s.total,
+        Math.max(0, Number(s.total) - Number(s.valor_pago ?? s.total)),
+        s.status ?? "pago",
+        s.pagamento,
+      ]),
     ]);
   }
+
+  const lowStockText = lowStock
+    .map((p) => `- ${p.nome} (${p.categoria}): estoque ${p.estoque_atual}, mínimo ${p.estoque_minimo}`)
+    .join("\n");
 
   return (
     <div>
@@ -92,7 +110,28 @@ function Vendas() {
           <p className="text-xs uppercase text-muted-foreground">Estoque baixo</p>
           <p className="font-serif text-xl font-bold">{lowStock.length}</p>
         </div>
+        <div className="stat-card">
+          <p className="text-xs uppercase text-muted-foreground">A receber</p>
+          <p className="font-serif text-xl font-bold">{fmtBRL(totalPendente)}</p>
+        </div>
       </div>
+
+      {lowStock.length > 0 && (
+        <div className="mb-4 rounded-lg border border-brick/35 bg-brick-bg px-4 py-3 text-sm text-brick">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <strong>Produtos para repor: {lowStock.length}</strong>
+            <a
+              className="rounded-md bg-brick px-3 py-1.5 text-xs font-semibold text-white"
+              href={`https://wa.me/553588001372?text=${encodeURIComponent(`Lista de reposição do hotel:\n${lowStockText}`)}`}
+              target="_blank"
+              rel="noopener"
+            >
+              Avisar dono no WhatsApp
+            </a>
+          </div>
+          <p className="mt-1 whitespace-pre-line">{lowStockText}</p>
+        </div>
+      )}
 
       <div className="mb-4 grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
         <div className="card-surface overflow-x-auto">
@@ -159,6 +198,24 @@ function Vendas() {
         </div>
       </div>
 
+      <div className="mb-4 card-surface p-4">
+        <h3 className="font-semibold">Estoque do café</h3>
+        {cafeStock.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">Cadastre produtos com categoria “Café” para acompanhar consumo e compra.</p>
+        ) : (
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            {cafeStock.map((p) => (
+              <div key={p.id} className="rounded-md border border-border p-3 text-sm">
+                <strong>{p.nome}</strong>
+                <p className={p.estoque_atual <= p.estoque_minimo ? "text-brick" : "text-muted-foreground"}>
+                  Estoque {p.estoque_atual} · mínimo {p.estoque_minimo}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {sales.length === 0 ? (
         <EmptyState text="Nenhuma venda registrada." />
       ) : (
@@ -172,6 +229,8 @@ function Vendas() {
                 <th className="p-3">Item</th>
                 <th className="p-3">Qtd</th>
                 <th className="p-3">Total</th>
+                <th className="p-3">Pago</th>
+                <th className="p-3">Pendente</th>
                 <th className="p-3">Pgto</th>
               </tr>
             </thead>
@@ -184,6 +243,10 @@ function Vendas() {
                   <td className="p-3">{s.item}</td>
                   <td className="p-3">{s.qtd}</td>
                   <td className="p-3">{fmtBRL(s.total)}</td>
+                  <td className="p-3">{fmtBRL(s.valor_pago ?? s.total)}</td>
+                  <td className={`p-3 font-semibold ${Number(s.total) > Number(s.valor_pago ?? s.total) ? "text-brick" : "text-muted-foreground"}`}>
+                    {fmtBRL(Math.max(0, Number(s.total) - Number(s.valor_pago ?? s.total)))}
+                  </td>
                   <td className="p-3 text-muted-foreground">{s.pagamento}</td>
                 </tr>
               ))}
@@ -267,6 +330,8 @@ function SaleForm({
       qtd: number;
       valor_unit: number;
       total: number;
+      valor_pago: number;
+      status: string;
       pagamento: string;
       data: string;
     },
@@ -278,9 +343,12 @@ function SaleForm({
   const [categoria, setCategoria] = useState("Geral");
   const [qtd, setQtd] = useState(1);
   const [valor, setValor] = useState(0);
+  const [valorPago, setValorPago] = useState<number | "">("");
   const [pagamento, setPagamento] = useState<string>(PAYMENT_METHODS[0]);
   const selectedProduct = products.find((p) => p.id === produtoId);
   const total = qtd * valor;
+  const paid = valorPago === "" ? total : Math.min(total, Math.max(0, Number(valorPago) || 0));
+  const saleStatus = paid >= total ? "pago" : paid > 0 ? "parcial" : "pendente";
 
   return (
     <Modal open onClose={onClose} title="Nova venda">
@@ -298,6 +366,8 @@ function SaleForm({
             qtd,
             valor_unit: valor,
             total,
+            valor_pago: paid,
+            status: saleStatus,
             pagamento,
             data: todayISO(),
           });
@@ -385,8 +455,21 @@ function SaleForm({
             ))}
           </select>
         </Field>
+        <Field label="Valor pago agora">
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="field"
+            value={valorPago}
+            placeholder={String(total)}
+            onChange={(e) => setValorPago(e.target.value === "" ? "" : Number(e.target.value))}
+          />
+        </Field>
         <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
-          <span className="text-sm text-muted-foreground">Total</span>
+          <span className="text-sm text-muted-foreground">
+            Total · pago {fmtBRL(paid)} · pendente {fmtBRL(Math.max(0, total - paid))}
+          </span>
           <span className="font-serif text-lg font-bold">{fmtBRL(total)}</span>
         </div>
         <div className="flex justify-end gap-2 pt-1">

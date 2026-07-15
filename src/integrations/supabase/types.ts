@@ -417,11 +417,14 @@ export type Database = {
           id: string
           item: string
           pagamento: string
+          observacoes: string | null
           produto_id: string | null
           qtd: number
           quarto: number
           reserva_id: string | null
+          status: string
           total: number
+          valor_pago: number
           valor_unit: number
         }
         Insert: {
@@ -432,11 +435,14 @@ export type Database = {
           id?: string
           item: string
           pagamento?: string
+          observacoes?: string | null
           produto_id?: string | null
           qtd?: number
           quarto: number
           reserva_id?: string | null
+          status?: string
           total?: number
+          valor_pago?: number
           valor_unit?: number
         }
         Update: {
@@ -447,11 +453,14 @@ export type Database = {
           id?: string
           item?: string
           pagamento?: string
+          observacoes?: string | null
           produto_id?: string | null
           qtd?: number
           quarto?: number
           reserva_id?: string | null
+          status?: string
           total?: number
+          valor_pago?: number
           valor_unit?: number
         }
         Relationships: [

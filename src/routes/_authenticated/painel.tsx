@@ -35,6 +35,8 @@ import {
   useComplaints,
   useFeedbacks,
   useExpenses,
+  useInsert,
+  useUpdate,
   roomStatusToday,
   type Room,
   type Reservation,
@@ -65,6 +67,8 @@ function Painel() {
   const { data: complaints = [] } = useComplaints();
   const { data: feedbacks = [] } = useFeedbacks();
   const { data: expenses = [] } = useExpenses();
+  const updateRoom = useUpdate("rooms", ["rooms"]);
+  const insertComplaint = useInsert("complaints", ["complaints"]);
 
   const statuses = rooms.map((r) => roomStatusToday(reservations, r.numero, today));
   const ocupados = statuses.filter((s) => s === "ocupado").length;
@@ -175,6 +179,8 @@ function Painel() {
         reservations={reservations}
         today={today}
         departuresToday={departuresToday}
+        updateRoom={updateRoom}
+        insertComplaint={insertComplaint}
       />
     );
   }
@@ -438,17 +444,21 @@ function LimpezaPainel({
   reservations,
   today,
   departuresToday,
+  updateRoom,
+  insertComplaint,
 }: {
   rooms: Room[];
   reservations: Reservation[];
   today: string;
   departuresToday: Reservation[];
+  updateRoom: ReturnType<typeof useUpdate>;
+  insertComplaint: ReturnType<typeof useInsert>;
 }) {
   const checkoutRooms = new Set(departuresToday.map((r) => r.quarto));
   const cleaningRooms = rooms
     .filter((room) => {
       const situacao = String((room as { situacao?: string | null }).situacao ?? "");
-      return situacao === "limpeza" || checkoutRooms.has(room.numero);
+      return situacao !== "limpo" && (situacao === "limpeza" || checkoutRooms.has(room.numero));
     })
     .sort((a, b) => a.numero - b.numero);
   const maintenanceRooms = rooms
@@ -478,6 +488,34 @@ function LimpezaPainel({
               <div key={room.numero} className="rounded-md border border-brass/45 bg-brass/10 px-3 py-4 text-center">
                 <div className="font-serif text-2xl font-bold text-pine-dark">{room.numero}</div>
                 <div className="mt-1 text-[11px] uppercase text-muted-foreground">Quarto</div>
+                <div className="mt-3 grid gap-1">
+                  <button
+                    className="rounded-md bg-pine px-2 py-1 text-[11px] font-semibold text-white"
+                    onClick={() =>
+                      updateRoom.mutate(
+                        { id: room.numero, patch: { situacao: "limpo" } },
+                        { onSuccess: () => undefined },
+                      )
+                    }
+                  >
+                    Liberar quarto
+                  </button>
+                  <button
+                    className="rounded-md bg-brass-bg px-2 py-1 text-[11px] font-semibold text-[oklch(0.4_0.06_74)]"
+                    onClick={() =>
+                      insertComplaint.mutate({
+                        quarto: room.numero,
+                        categoria: "papel_higienico",
+                        gravidade: "media",
+                        descricao: "Reposição de papel higiênico solicitada pela limpeza.",
+                        origem: "limpeza",
+                        status: "aberto",
+                      } as never)
+                    }
+                  >
+                    Pedir papel
+                  </button>
+                </div>
               </div>
             ))}
           </div>

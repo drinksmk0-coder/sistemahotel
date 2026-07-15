@@ -294,6 +294,7 @@ export function roomStatusToday(
   today: string,
   roomSituacao?: string | null,
 ): string {
+  if (roomSituacao === "limpo") return "livre";
   if (roomSituacao === "limpeza" || roomSituacao === "manutencao") return roomSituacao;
   const maint = reservations.find((r) => r.quarto === numero && r.status === "manutencao");
   if (maint) return "manutencao";

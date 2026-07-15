@@ -29,6 +29,7 @@ export const COMPLAINT_CATEGORIES = [
   { value: "cama_colchao", label: "Cama / colchão" },
   { value: "cheiro_mofo", label: "Cheiro / mofo / umidade" },
   { value: "tv", label: "TV / controle" },
+  { value: "papel_higienico", label: "Papel higiênico / reposição" },
   { value: "atendimento", label: "Atendimento" },
   { value: "outros", label: "Outros" },
 ] as const;
