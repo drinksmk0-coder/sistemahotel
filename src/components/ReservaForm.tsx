@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import {
-  hasPaidOverlap,
+  hasActiveOverlap,
   roomBlock,
   statusFromPayment,
   type Reservation,
@@ -10,13 +10,23 @@ import {
   type Complaint,
 } from "@/lib/data";
 import { fmtBRL, todayISO, nightsBetween } from "@/lib/format";
-import { PAYMENT_METHODS, SALES_CHANNELS, complaintLabel } from "@/lib/constants";
+import { BR_STATES, CLIENT_TYPES, PAYMENT_METHODS, SALES_CHANNELS, complaintLabel } from "@/lib/constants";
 import { Modal, Field } from "@/components/ui-kit";
 
 export type ReservaRow = {
   quarto: number;
   cliente_id: string | null;
   cliente_nome: string;
+  cliente_telefone?: string | null;
+  cliente_tipo?: string | null;
+  cliente_data_nascimento?: string | null;
+  cliente_sexo?: string | null;
+  cliente_cidade?: string | null;
+  cliente_estado?: string | null;
+  cliente_bairro?: string | null;
+  cliente_estado_civil?: string | null;
+  cliente_tem_filhos?: boolean | null;
+  cliente_quantidade_filhos?: number | null;
   checkin: string;
   checkout: string;
   horario_reserva: string | null;
@@ -29,6 +39,7 @@ export type ReservaRow = {
   desconto: number;
   pessoas: number;
   canal: string;
+  motivo_estadia: string | null;
   pagamento: string;
   pago: boolean;
   status: string;
@@ -70,6 +81,16 @@ export function ReservaForm({
   const [quarto, setQuarto] = useState<number>(initRoom);
   const [clienteId, setClienteId] = useState(editing?.cliente_id ?? "");
   const [nome, setNome] = useState(editing && !editing.cliente_id ? editing.cliente_nome : "");
+  const [telefone, setTelefone] = useState("");
+  const [tipoCliente, setTipoCliente] = useState<string>("hóspede normal");
+  const [nascimento, setNascimento] = useState("");
+  const [sexo, setSexo] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [estado, setEstado] = useState("MG");
+  const [bairro, setBairro] = useState("");
+  const [estadoCivil, setEstadoCivil] = useState("");
+  const [temFilhos, setTemFilhos] = useState(false);
+  const [quantidadeFilhos, setQuantidadeFilhos] = useState("0");
   const [checkin, setCheckin] = useState(editing?.checkin ?? todayISO());
   const [checkout, setCheckout] = useState(editing?.checkout ?? "");
   const [horarioReserva, setHorarioReserva] = useState(
@@ -88,6 +109,7 @@ export function ReservaForm({
   const [desconto, setDesconto] = useState<string>(numberInput(editing?.desconto));
   const [pessoas, setPessoas] = useState<string>(String(editing?.pessoas ?? 1));
   const [canal, setCanal] = useState<string>(editing?.canal ?? SALES_CHANNELS[0]);
+  const [motivoEstadia, setMotivoEstadia] = useState(editing?.motivo_estadia ?? "");
   const [override, setOverride] = useState(false);
 
   const nights = Math.max(0, parseIntNumber(diarias));
@@ -97,7 +119,7 @@ export function ReservaForm({
   const bruto = nights * diariaValor;
   const total = Math.max(0, bruto - descontoValor);
   const overlap =
-    quarto && checkin && checkout && hasPaidOverlap(reservations, quarto, checkin, checkout, editing?.id);
+    quarto && checkin && checkout && hasActiveOverlap(reservations, quarto, checkin, checkout, editing?.id);
   const block = roomBlock(complaints, quarto);
   const blocked = !!block && !override;
   const status = statusFromPayment(total, valorPagoNumber);
@@ -127,6 +149,16 @@ export function ReservaForm({
       quarto,
       cliente_id: clienteId || null,
       cliente_nome: cli?.nome ?? nome.trim(),
+      cliente_telefone: clienteId ? null : telefone.trim() || null,
+      cliente_tipo: clienteId ? null : tipoCliente,
+      cliente_data_nascimento: clienteId ? null : nascimento || null,
+      cliente_sexo: clienteId ? null : sexo || null,
+      cliente_cidade: clienteId ? null : cidade.trim() || null,
+      cliente_estado: clienteId ? null : estado || null,
+      cliente_bairro: clienteId ? null : bairro.trim() || null,
+      cliente_estado_civil: clienteId ? null : estadoCivil || null,
+      cliente_tem_filhos: clienteId ? null : temFilhos,
+      cliente_quantidade_filhos: clienteId || !temFilhos ? null : parseIntNumber(quantidadeFilhos),
       checkin,
       checkout,
       horario_reserva: horarioReserva || null,
@@ -139,6 +171,7 @@ export function ReservaForm({
       desconto: descontoValor,
       pessoas: Math.max(1, parseIntNumber(pessoas, 1)),
       canal,
+      motivo_estadia: motivoEstadia.trim() || null,
       pagamento,
       pago: total > 0 && valorPagoNumber >= total,
       status,
@@ -196,9 +229,78 @@ export function ReservaForm({
           </select>
         </Field>
         {!clienteId && (
-          <Field label="Nome do hóspede">
-            <input className="field" value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={80} />
-          </Field>
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Nome do hóspede">
+                <input className="field" value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={80} />
+              </Field>
+              <Field label="Telefone">
+                <input className="field" value={telefone} onChange={(e) => setTelefone(e.target.value)} maxLength={30} />
+              </Field>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Tipo de hóspede">
+                <select className="field" value={tipoCliente} onChange={(e) => setTipoCliente(e.target.value)}>
+                  {CLIENT_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Nascimento">
+                <input type="date" className="field" value={nascimento} onChange={(e) => setNascimento(e.target.value)} />
+              </Field>
+              <Field label="Sexo">
+                <select className="field" value={sexo} onChange={(e) => setSexo(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="feminino">Feminino</option>
+                  <option value="masculino">Masculino</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </Field>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Cidade">
+                <input className="field" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={60} />
+              </Field>
+              <Field label="UF">
+                <select className="field" value={estado} onChange={(e) => setEstado(e.target.value)}>
+                  {BR_STATES.map((uf) => (
+                    <option key={uf} value={uf}>{uf}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Bairro">
+                <input className="field" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={80} />
+              </Field>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Estado civil">
+                <select className="field" value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)}>
+                  <option value="">—</option>
+                  <option value="solteiro">Solteiro(a)</option>
+                  <option value="casado">Casado(a)</option>
+                  <option value="divorciado">Divorciado(a)</option>
+                  <option value="viuvo">Viúvo(a)</option>
+                  <option value="uniao_estavel">União estável</option>
+                </select>
+              </Field>
+              <Field label="Tem filhos?">
+                <select className="field" value={temFilhos ? "sim" : "nao"} onChange={(e) => setTemFilhos(e.target.value === "sim")}>
+                  <option value="nao">Não</option>
+                  <option value="sim">Sim</option>
+                </select>
+              </Field>
+              <Field label="Qtd. filhos">
+                <input
+                  className="field"
+                  inputMode="numeric"
+                  value={quantidadeFilhos}
+                  disabled={!temFilhos}
+                  onChange={(e) => setQuantidadeFilhos(e.target.value.replace(/\D/g, ""))}
+                />
+              </Field>
+            </div>
+          </>
         )}
 
         <div className="grid grid-cols-2 gap-3">
@@ -317,6 +419,18 @@ export function ReservaForm({
             />
           </Field>
         </div>
+
+        <Field label="Motivo da estadia">
+          <select className="field" value={motivoEstadia} onChange={(e) => setMotivoEstadia(e.target.value)}>
+            <option value="">—</option>
+            <option value="trabalho">Trabalho</option>
+            <option value="lazer">Lazer</option>
+            <option value="familia">Família</option>
+            <option value="evento">Evento</option>
+            <option value="saude">Saúde</option>
+            <option value="outro">Outro</option>
+          </select>
+        </Field>
 
         <div className="flex flex-wrap gap-2">
           <button

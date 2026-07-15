@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       clients: {
         Row: {
+          bairro: string | null
           cidade: string | null
           cpf: string | null
           created_at: string
@@ -23,14 +24,19 @@ export type Database = {
           data_nascimento: string | null
           documento: string | null
           estado: string | null
+          estado_civil: string | null
           id: string
           nome: string
+          quantidade_filhos: number | null
           profissao: string | null
+          sexo: string | null
+          tem_filhos: boolean | null
           telefone: string | null
           tipo: string
           visitas: number
         }
         Insert: {
+          bairro?: string | null
           cidade?: string | null
           cpf?: string | null
           created_at?: string
@@ -38,14 +44,19 @@ export type Database = {
           data_nascimento?: string | null
           documento?: string | null
           estado?: string | null
+          estado_civil?: string | null
           id?: string
           nome: string
+          quantidade_filhos?: number | null
           profissao?: string | null
+          sexo?: string | null
+          tem_filhos?: boolean | null
           telefone?: string | null
           tipo?: string
           visitas?: number
         }
         Update: {
+          bairro?: string | null
           cidade?: string | null
           cpf?: string | null
           created_at?: string
@@ -53,9 +64,13 @@ export type Database = {
           data_nascimento?: string | null
           documento?: string | null
           estado?: string | null
+          estado_civil?: string | null
           id?: string
           nome?: string
+          quantidade_filhos?: number | null
           profissao?: string | null
+          sexo?: string | null
+          tem_filhos?: boolean | null
           telefone?: string | null
           tipo?: string
           visitas?: number
@@ -286,6 +301,7 @@ export type Database = {
           horario_checkout: string | null
           horario_reserva: string | null
           id: string
+          motivo_estadia: string | null
           pagamento: string
           pago: boolean
           pessoas: number
@@ -311,6 +327,7 @@ export type Database = {
           horario_checkout?: string | null
           horario_reserva?: string | null
           id?: string
+          motivo_estadia?: string | null
           pagamento?: string
           pago?: boolean
           pessoas?: number
@@ -336,6 +353,7 @@ export type Database = {
           horario_checkout?: string | null
           horario_reserva?: string | null
           id?: string
+          motivo_estadia?: string | null
           pagamento?: string
           pago?: boolean
           pessoas?: number

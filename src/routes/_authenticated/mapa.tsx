@@ -14,13 +14,14 @@ import {
   activeReservationForRoom,
   futureReservationsForRoom,
   roomBlock,
+  type Client,
   type Room,
 } from "@/lib/data";
 import { fmtBRL, fmtDate, fmtTime, todayISO } from "@/lib/format";
 import { complaintLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Badge } from "@/components/ui-kit";
-import { ReservaForm } from "@/components/ReservaForm";
+import { ReservaForm, type ReservaRow } from "@/components/ReservaForm";
 
 export const Route = createFileRoute("/_authenticated/mapa")({
   component: Mapa,
@@ -42,6 +43,7 @@ function Mapa() {
   const { data: sales = [] } = useSales();
   const { data: complaints = [] } = useComplaints();
   const insert = useInsert("reservations", ["reservations"]);
+  const insertClient = useInsert("clients", ["clients"]);
   const updateRoom = useUpdate("rooms", ["rooms"]);
   const [selected, setSelected] = useState<Room | null>(null);
   const [newFor, setNewFor] = useState<number | null>(null);
@@ -67,11 +69,59 @@ function Mapa() {
   const revenueByRoom = useMemo(() => {
     const m = new Map<number, number>();
     reservations.forEach((r) => {
-      if (r.status !== "cancelado") m.set(r.quarto, (m.get(r.quarto) ?? 0) + Number(r.valor_total));
+      if (!["cancelado", "finalizado"].includes(r.status) && r.checkout >= today) {
+        m.set(r.quarto, (m.get(r.quarto) ?? 0) + Number(r.valor_total));
+      }
     });
-    sales.forEach((s) => m.set(s.quarto, (m.get(s.quarto) ?? 0) + Number(s.total)));
+    sales
+      .filter((s) => {
+        const reservation = s.reserva_id ? reservations.find((r) => r.id === s.reserva_id) : null;
+        return !reservation || (!["cancelado", "finalizado"].includes(reservation.status) && reservation.checkout >= today);
+      })
+      .forEach((s) => m.set(s.quarto, (m.get(s.quarto) ?? 0) + Number(s.total)));
     return m;
-  }, [reservations, sales]);
+  }, [reservations, sales, today]);
+
+  const phoneDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
+
+  async function rowWithClient(row: ReservaRow) {
+    if (row.cliente_id) return row;
+    const telefoneDigits = phoneDigits(row.cliente_telefone);
+    const existing = telefoneDigits
+      ? clients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
+      : clients.find((c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase());
+
+    const cleanRow = { ...row };
+    delete cleanRow.cliente_telefone;
+    delete cleanRow.cliente_tipo;
+    delete cleanRow.cliente_data_nascimento;
+    delete cleanRow.cliente_sexo;
+    delete cleanRow.cliente_cidade;
+    delete cleanRow.cliente_estado;
+    delete cleanRow.cliente_bairro;
+    delete cleanRow.cliente_estado_civil;
+    delete cleanRow.cliente_tem_filhos;
+    delete cleanRow.cliente_quantidade_filhos;
+
+    if (existing) return { ...cleanRow, cliente_id: existing.id, cliente_nome: existing.nome };
+
+    const created = (await insertClient.mutateAsync({
+      nome: row.cliente_nome,
+      telefone: row.cliente_telefone || null,
+      tipo: row.cliente_tipo || "hóspede normal",
+      data_nascimento: row.cliente_data_nascimento || null,
+      sexo: row.cliente_sexo || null,
+      cidade: row.cliente_cidade || null,
+      estado: row.cliente_estado || null,
+      bairro: row.cliente_bairro || null,
+      estado_civil: row.cliente_estado_civil || null,
+      tem_filhos: row.cliente_tem_filhos ?? null,
+      quantidade_filhos: row.cliente_tem_filhos ? row.cliente_quantidade_filhos ?? 0 : null,
+    })) as unknown as Client[];
+
+    const client = created[0];
+    return client ? { ...cleanRow, cliente_id: client.id, cliente_nome: client.nome } : cleanRow;
+  }
 
   return (
     <div>
@@ -176,13 +226,13 @@ function Mapa() {
           fixedRoom={newFor}
           onClose={() => setNewFor(null)}
           onSave={(row) =>
-            insert.mutate(row as never, {
+            rowWithClient(row).then((prepared) => insert.mutate(prepared as never, {
               onSuccess: () => {
                 toast.success("Reserva criada");
                 setNewFor(null);
               },
               onError: (e) => toast.error(e.message),
-            })
+            })).catch((e: Error) => toast.error(e.message))
           }
         />
       )}

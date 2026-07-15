@@ -38,14 +38,33 @@ function Clientes() {
 
   function exportCSV() {
     downloadCSV(`clientes-${todayISO()}.csv`, [
-      ["Nome", "Tipo", "Telefone", "CPF", "Nascimento", "Profissão", "Cidade", "Estado", "Visitas", "Cadastrado em"],
+      [
+        "Nome",
+        "Tipo",
+        "Telefone",
+        "CPF",
+        "Sexo",
+        "Estado civil",
+        "Filhos",
+        "Nascimento",
+        "Profissão",
+        "Bairro",
+        "Cidade",
+        "Estado",
+        "Visitas",
+        "Cadastrado em",
+      ],
       ...clients.map((c) => [
         c.nome,
         c.tipo,
         c.telefone,
         c.cpf,
+        c.sexo,
+        c.estado_civil,
+        c.tem_filhos ? c.quantidade_filhos ?? 0 : "Não",
         c.data_nascimento,
         c.profissao,
+        c.bairro,
         c.cidade,
         c.estado,
         c.visitas,
@@ -96,6 +115,12 @@ function Clientes() {
               </div>
               <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
                 {c.cpf && <p>CPF: {c.cpf}</p>}
+                {c.sexo && <p>Sexo: {c.sexo}</p>}
+                {c.estado_civil && <p>Estado civil: {c.estado_civil}</p>}
+                {c.tem_filhos != null && (
+                  <p>Filhos: {c.tem_filhos ? c.quantidade_filhos ?? 0 : "Não"}</p>
+                )}
+                {c.bairro && <p>Bairro: {c.bairro}</p>}
                 {(c.cidade || c.estado) && <p>{[c.cidade, c.estado].filter(Boolean).join(" / ")}</p>}
                 {c.profissao && <p>{c.profissao}</p>}
                 {c.data_nascimento && <p>Nasc.: {fmtDate(c.data_nascimento)}</p>}
@@ -139,7 +164,20 @@ function ClientForm({
   onSave: (
     row: Pick<
       Client,
-      "nome" | "tipo" | "telefone" | "documento" | "cpf" | "data_nascimento" | "profissao" | "cidade" | "estado"
+      | "nome"
+      | "tipo"
+      | "telefone"
+      | "documento"
+      | "cpf"
+      | "data_nascimento"
+      | "profissao"
+      | "cidade"
+      | "estado"
+      | "sexo"
+      | "bairro"
+      | "estado_civil"
+      | "tem_filhos"
+      | "quantidade_filhos"
     >,
   ) => void;
 }) {
@@ -149,21 +187,30 @@ function ClientForm({
   const [cpf, setCpf] = useState("");
   const [nascimento, setNascimento] = useState("");
   const [profissao, setProfissao] = useState("");
+  const [sexo, setSexo] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [estadoCivil, setEstadoCivil] = useState("");
+  const [temFilhos, setTemFilhos] = useState(false);
+  const [quantidadeFilhos, setQuantidadeFilhos] = useState("");
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
 
   const cpfDigits = onlyDigits(cpf);
+  const telefoneDigits = onlyDigits(telefone);
   const cpfJaCadastrado =
     cpfDigits.length > 0 &&
     clients.some((client) => client.cpf && onlyDigits(client.cpf) === cpfDigits);
+  const telefoneJaCadastrado =
+    telefoneDigits.length > 0 &&
+    clients.some((client) => client.telefone && onlyDigits(client.telefone) === telefoneDigits);
 
   return (
     <Modal open onClose={onClose} title="Novo cliente">
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (cpfJaCadastrado) {
-            toast.error("Este CPF já está cadastrado.");
+          if (cpfJaCadastrado || telefoneJaCadastrado) {
+            toast.error(cpfJaCadastrado ? "Este CPF já está cadastrado." : "Este telefone já está cadastrado.");
             return;
           }
           onSave({
@@ -174,6 +221,11 @@ function ClientForm({
             cpf: cpf.trim() || null,
             data_nascimento: nascimento || null,
             profissao: profissao.trim() || null,
+            sexo: sexo || null,
+            bairro: bairro.trim() || null,
+            estado_civil: estadoCivil || null,
+            tem_filhos: temFilhos,
+            quantidade_filhos: temFilhos ? Number(quantidadeFilhos || 0) : null,
             cidade: cidade.trim() || null,
             estado: estado || null,
           });
@@ -194,7 +246,16 @@ function ClientForm({
             </select>
           </Field>
           <Field label="Telefone">
-            <input className="field" value={telefone} onChange={(e) => setTelefone(e.target.value)} maxLength={20} />
+            <input
+              className="field"
+              value={telefone}
+              onChange={(e) => setTelefone(e.target.value)}
+              maxLength={20}
+              aria-invalid={telefoneJaCadastrado}
+            />
+            {telefoneJaCadastrado && (
+              <p className="mt-1 text-xs font-semibold text-brick">Este telefone já está cadastrado.</p>
+            )}
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -218,6 +279,55 @@ function ClientForm({
           <input className="field" value={profissao} onChange={(e) => setProfissao(e.target.value)} maxLength={60} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
+          <Field label="Sexo">
+            <select className="field" value={sexo} onChange={(e) => setSexo(e.target.value)}>
+              <option value="">—</option>
+              <option value="feminino">Feminino</option>
+              <option value="masculino">Masculino</option>
+              <option value="outro">Outro</option>
+              <option value="nao_informado">Prefere não informar</option>
+            </select>
+          </Field>
+          <Field label="Estado civil">
+            <select className="field" value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)}>
+              <option value="">—</option>
+              <option value="solteiro">Solteiro(a)</option>
+              <option value="casado">Casado(a)</option>
+              <option value="divorciado">Divorciado(a)</option>
+              <option value="viuvo">Viúvo(a)</option>
+              <option value="uniao_estavel">União estável</option>
+            </select>
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Tem filhos?">
+            <select
+              className="field"
+              value={temFilhos ? "sim" : "nao"}
+              onChange={(e) => {
+                const next = e.target.value === "sim";
+                setTemFilhos(next);
+                if (!next) setQuantidadeFilhos("");
+              }}
+            >
+              <option value="nao">Não</option>
+              <option value="sim">Sim</option>
+            </select>
+          </Field>
+          <Field label="Quantidade de filhos">
+            <input
+              className="field"
+              inputMode="numeric"
+              value={quantidadeFilhos}
+              onChange={(e) => setQuantidadeFilhos(e.target.value.replace(/\D/g, ""))}
+              disabled={!temFilhos}
+            />
+          </Field>
+        </div>
+        <Field label="Bairro">
+          <input className="field" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={80} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
           <Field label="Cidade">
             <input className="field" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={60} />
           </Field>
@@ -239,7 +349,7 @@ function ClientForm({
           <button type="button" onClick={onClose} className="btn-ghost">
             Cancelar
           </button>
-          <button type="submit" className="btn-primary" disabled={cpfJaCadastrado}>
+          <button type="submit" className="btn-primary" disabled={cpfJaCadastrado || telefoneJaCadastrado}>
             Salvar
           </button>
         </div>

@@ -9,7 +9,7 @@ export const PAYMENT_METHODS = [
   "pendente/fiado",
 ] as const;
 
-export const CLIENT_TYPES = ["hóspede", "cliente fixo", "empresa"] as const;
+export const CLIENT_TYPES = ["hóspede normal", "Potencial", "empresa", "cliente fixo", "outro"] as const;
 
 export const RESERVATION_STATUS = [
   "reservado",

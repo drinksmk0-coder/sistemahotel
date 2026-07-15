@@ -366,7 +366,7 @@ export function roomBlock(complaints: Complaint[], numero: number): Complaint | 
 }
 
 
-export function hasPaidOverlap(
+export function hasActiveOverlap(
   reservations: Reservation[],
   numero: number,
   checkin: string,
