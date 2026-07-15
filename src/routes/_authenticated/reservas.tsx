@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Download, Pencil, ArrowLeftRight, Ban, FileText } from "lucide-react";
+import { Plus, Download, Pencil, ArrowLeftRight, Ban, MessageCircle } from "lucide-react";
 import {
   useRooms,
   useClients,
@@ -120,7 +120,13 @@ function Reservas() {
     delete cleanRow.cliente_tem_filhos;
     delete cleanRow.cliente_quantidade_filhos;
 
-    if (existing) return { ...cleanRow, cliente_id: existing.id, cliente_nome: existing.nome };
+    if (existing) {
+      const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();
+      if (!sameName) {
+        throw new Error(`Telefone já cadastrado para ${existing.nome}. Se for a mesma pessoa, selecione o cliente cadastrado.`);
+      }
+      return { ...cleanRow, cliente_id: existing.id, cliente_nome: existing.nome };
+    }
 
     const created = (await insertClient.mutateAsync({
       nome: row.cliente_nome,
@@ -308,8 +314,7 @@ function RowActions({
 }) {
   const done = ["finalizado", "cancelado"].includes(reservation.status);
   const total = Number(reservation.valor_total);
-  const phone = client?.telefone?.replace(/\D/g, "");
-  const receiptUrl = `/imprimir?tipo=recibo&cliente=${encodeURIComponent(reservation.cliente_nome)}&quarto=${reservation.quarto}&periodo=${encodeURIComponent(`${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`)}&diarias=${reservation.diarias}&total=${encodeURIComponent(fmtBRL(reservation.valor_total))}&pago=${encodeURIComponent(fmtBRL(reservation.valor_pago))}&status=${encodeURIComponent(reservation.pago ? "Quitado" : "Pendente")}&telefone=${phone || ""}`;
+  const receiptUrl = whatsappReceiptUrl(reservation, client);
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
       {!done && !reservation.pago && (
@@ -324,6 +329,7 @@ function RowActions({
                     valor_pago: Math.round((total / 2) * 100) / 100,
                     pago: false,
                     status: "reservado",
+                    horario_reserva: reservation.horario_reserva ?? currentTime(),
                   },
                 },
                 {
@@ -346,6 +352,8 @@ function RowActions({
                     pago: true,
                     status: "ocupado",
                     checkin_at: reservation.checkin_at ?? new Date().toISOString(),
+                    horario_reserva: reservation.horario_reserva ?? currentTime(),
+                    horario_checkin: reservation.horario_checkin ?? currentTime(),
                   },
                 },
                 {
@@ -366,7 +374,11 @@ function RowActions({
             update.mutate(
               {
                 id: reservation.id,
-                patch: { status: "ocupado", checkin_at: reservation.checkin_at ?? new Date().toISOString() },
+                patch: {
+                  status: "ocupado",
+                  checkin_at: reservation.checkin_at ?? new Date().toISOString(),
+                  horario_checkin: reservation.horario_checkin ?? currentTime(),
+                },
               },
               {
                 onSuccess: () => toast.success("Check-in realizado"),
@@ -383,7 +395,7 @@ function RowActions({
           className="rounded-md bg-slate-bg px-2 py-1 text-xs font-semibold text-slate"
           onClick={() =>
             update.mutate(
-              { id: reservation.id, patch: { status: "finalizado" } },
+              { id: reservation.id, patch: { status: "finalizado", horario_checkout: reservation.horario_checkout ?? currentTime() } },
               {
                 onSuccess: () => {
                   updateRoom.mutate(
@@ -418,15 +430,25 @@ function RowActions({
       >
         <Pencil className="h-3.5 w-3.5" />
       </button>
-      <a
-        className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
-        href={receiptUrl}
-        target="_blank"
-        rel="noopener"
-        title="Abrir recibo bonito"
-      >
-        <FileText className="h-3.5 w-3.5" />
-      </a>
+      {receiptUrl ? (
+        <a
+          className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
+          href={receiptUrl}
+          target="_blank"
+          rel="noopener"
+          title="Enviar recibo no WhatsApp"
+        >
+          <MessageCircle className="h-3.5 w-3.5" />
+        </a>
+      ) : (
+        <button
+          className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground"
+          onClick={() => toast.error("Cadastre o telefone do cliente para enviar pelo WhatsApp.")}
+          title="Cliente sem telefone"
+        >
+          <MessageCircle className="h-3.5 w-3.5" />
+        </button>
+      )}
       <button
         className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
         onClick={() => {
@@ -552,4 +574,37 @@ function MoveRoomModal({
   );
 }
 
+function whatsappReceiptUrl(reservation: Reservation, client?: Client) {
+  const phone = whatsappPhone(client?.telefone);
+  if (!phone) return "";
+  const status = reservation.pago ? "Quitado" : Number(reservation.valor_pago) > 0 ? "Sinal pago / saldo pendente" : "Pendente";
+  const balance = Math.max(0, Number(reservation.valor_total) - Number(reservation.valor_pago));
+  const message = [
+    `Olá, ${reservation.cliente_nome}! Segue o recibo da sua hospedagem no Hotel Real Cruzília.`,
+    "",
+    `Quarto: ${reservation.quarto}`,
+    `Período: ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`,
+    `Diárias: ${reservation.diarias}`,
+    `Valor total: ${fmtBRL(reservation.valor_total)}`,
+    `Valor pago: ${fmtBRL(reservation.valor_pago)}`,
+    `Saldo: ${fmtBRL(balance)}`,
+    `Status: ${status}`,
+    "",
+    "Para nota fiscal, envie os dados da empresa/CNPJ por aqui que a recepção dará continuidade.",
+  ].join("\n");
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
+function whatsappPhone(value?: string | null) {
+  const digits = (value ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("55")) return digits;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return digits;
+}
+
 void statusFromPayment;
+
+function currentTime() {
+  return new Date().toTimeString().slice(0, 5);
+}

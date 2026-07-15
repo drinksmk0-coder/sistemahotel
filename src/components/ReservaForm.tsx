@@ -53,6 +53,7 @@ export function ReservaForm({
   complaints,
   editing,
   fixedRoom,
+  initialCheckin,
   onClose,
   onSave,
 }: {
@@ -62,6 +63,7 @@ export function ReservaForm({
   complaints: Complaint[];
   editing?: Reservation | null;
   fixedRoom?: number;
+  initialCheckin?: string;
   onClose: () => void;
   onSave: (row: ReservaRow) => void;
 }) {
@@ -78,6 +80,8 @@ export function ReservaForm({
   };
 
   const initRoom = editing?.quarto ?? fixedRoom ?? rooms[0]?.numero ?? 0;
+  const initialCheckinValue = editing?.checkin ?? initialCheckin ?? todayISO();
+  const initialCheckoutValue = editing?.checkout ?? (initialCheckin ? addDaysISO(initialCheckin, 1) : "");
   const [quarto, setQuarto] = useState<number>(initRoom);
   const [clienteId, setClienteId] = useState(editing?.cliente_id ?? "");
   const [nome, setNome] = useState(editing && !editing.cliente_id ? editing.cliente_nome : "");
@@ -91,15 +95,13 @@ export function ReservaForm({
   const [estadoCivil, setEstadoCivil] = useState("");
   const [temFilhos, setTemFilhos] = useState(false);
   const [quantidadeFilhos, setQuantidadeFilhos] = useState("0");
-  const [checkin, setCheckin] = useState(editing?.checkin ?? todayISO());
-  const [checkout, setCheckout] = useState(editing?.checkout ?? "");
-  const [horarioReserva, setHorarioReserva] = useState(
-    editing?.horario_reserva?.slice(0, 5) ?? new Date().toTimeString().slice(0, 5),
-  );
-  const [horarioCheckin, setHorarioCheckin] = useState(editing?.horario_checkin?.slice(0, 5) ?? "14:00");
-  const [horarioCheckout, setHorarioCheckout] = useState(editing?.horario_checkout?.slice(0, 5) ?? "12:00");
+  const [checkin, setCheckin] = useState(initialCheckinValue);
+  const [checkout, setCheckout] = useState(initialCheckoutValue);
+  const [horarioReserva, setHorarioReserva] = useState(editing?.horario_reserva?.slice(0, 5) ?? "");
+  const [horarioCheckin, setHorarioCheckin] = useState(editing?.horario_checkin?.slice(0, 5) ?? "");
+  const [horarioCheckout, setHorarioCheckout] = useState(editing?.horario_checkout?.slice(0, 5) ?? "");
   const [diarias, setDiarias] = useState<string>(
-    String(editing?.diarias ?? nightsBetween(editing?.checkin ?? todayISO(), editing?.checkout ?? "")),
+    String(editing?.diarias ?? nightsBetween(initialCheckinValue, initialCheckoutValue)),
   );
   const [valorDiaria, setValorDiaria] = useState<string>(
     numberInput(editing?.valor_diaria ?? rooms.find((r) => r.numero === initRoom)?.preco ?? 0),
@@ -503,4 +505,10 @@ export function ReservaForm({
       </form>
     </Modal>
   );
+}
+
+function addDaysISO(date: string, days: number) {
+  const current = new Date(`${date}T00:00:00`);
+  current.setDate(current.getDate() + days);
+  return current.toISOString().slice(0, 10);
 }

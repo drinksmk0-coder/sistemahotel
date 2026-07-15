@@ -201,6 +201,9 @@ function Painel() {
         reservations={reservations}
         today={today}
         departuresToday={departuresToday}
+        kitchenItems={kitchenItems}
+        insertKitchenItem={insertKitchenItem}
+        updateKitchenItem={updateKitchenItem}
         updateRoom={updateRoom}
         insertComplaint={insertComplaint}
       />
@@ -235,6 +238,9 @@ function Painel() {
         aReceber={aReceber}
         abertas={abertas.length}
         ocupantesHoje={ocupantesHoje}
+        kitchenItems={kitchenItems}
+        insertKitchenItem={insertKitchenItem}
+        updateKitchenItem={updateKitchenItem}
       />
     );
   }
@@ -256,10 +262,10 @@ function Painel() {
         </div>
       )}
 
-      <div className="mb-4 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+      <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <PipelineCard tone="brass" title="Disponibilidade" value={`${livres}`} label="quartos livres" hint={`${ocupados} ocupados · ${reservados} reservados`} />
         <PipelineCard tone="pine" title="Hospedagem" value={`${ocupacao}%`} label="ocupação hoje" hint={`${ocupantesHoje} ocupantes · capacidade ${capacidadeTotal}`} />
-        <PipelineCard tone="sage" title="Receita" value={compactBRL(receitaMes)} label="receita do mês" hint={`A receber: ${fmtBRL(aReceber)}`} />
+        <PipelineCard tone="sage" title="Receita" value={fmtBRL(receitaMes)} label="receita do mês" hint={`A receber: ${fmtBRL(aReceber)}`} />
         <PipelineCard tone="brick" title="Operação" value={String(abertas.length)} label="reclamações abertas" hint={`${wifiCount} sobre Wi-Fi`} />
         <PipelineCard tone="pine" title="Experiência" value={media ? media.toFixed(1) : "—"} label="avaliação média" hint={`${feedbacks.length} avaliações`} />
       </div>
@@ -363,6 +369,17 @@ function Painel() {
         </ResponsiveContainer>
       </div>
 
+      <div className="mt-4 grid grid-cols-1 gap-4 2xl:grid-cols-[1.15fr_0.85fr]">
+        <RevenueExpenseHighlights reservations={reservations} sales={sales} expenses={expenses} />
+        <OperationalReports
+          kitchenItems={kitchenItems}
+          kitchenProductions={kitchenProductions}
+          cleaningRooms={rooms.filter((room) => roomStatusToday(reservations, room.numero, today, (room as { situacao?: string | null }).situacao) === "limpeza").length}
+          maintenanceRooms={rooms.filter((room) => roomStatusToday(reservations, room.numero, today, (room as { situacao?: string | null }).situacao) === "manutencao").length}
+          today={today}
+        />
+      </div>
+
       <div className="mt-4 card-surface p-4">
         <h3 className="section-title mb-3 text-base">Receita por quarto</h3>
         {receitaPorQuarto.length === 0 ? (
@@ -438,6 +455,9 @@ function RecepcaoPainel({
   aReceber,
   abertas,
   ocupantesHoje,
+  kitchenItems,
+  insertKitchenItem,
+  updateKitchenItem,
 }: {
   ocupacao: number;
   ocupados: number;
@@ -448,7 +468,13 @@ function RecepcaoPainel({
   aReceber: number;
   abertas: number;
   ocupantesHoje: number;
+  kitchenItems: KitchenItem[];
+  insertKitchenItem: ReturnType<typeof useInsert>;
+  updateKitchenItem: ReturnType<typeof useUpdate>;
 }) {
+  const receptionStock = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "recepcao"));
+  const lowReception = receptionStock.filter(isLowStock);
+
   return (
     <div>
       <PageHeader
@@ -474,6 +500,29 @@ function RecepcaoPainel({
         <QuickLink to="/reservas" icon={<CalendarClock />} label="Cadastrar reserva" />
         <QuickLink to="/clientes" icon={<ClipboardCheck />} label="Consultar clientes" />
         <QuickLink to="/vendas" icon={<DollarSign />} label="Lancar venda" />
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.2fr]">
+        <section className="card-surface p-4">
+          <h3 className="section-title mb-3 text-base">Alertas da recepção</h3>
+          <AlertList
+            items={[
+              aReceber > 0 ? `Cobrar ${fmtBRL(aReceber)} em reservas com saldo pendente.` : "",
+              arrivalsToday.length > 0 ? `${arrivalsToday.length} entrada(s) para conferir documento e pagamento.` : "",
+              departuresToday.length > 0 ? `${departuresToday.length} saída(s) para confirmar consumo e liberar limpeza.` : "",
+              lowReception.length > 0 ? `${lowReception.length} item(ns) administrativo(s) abaixo do mínimo.` : "",
+            ]}
+          />
+        </section>
+        <SectorStockPanel
+          title="Estoque administrativo"
+          subtitle="Folhas sulfite, canetas, bobinas, itens de internet e material de recepção."
+          sector="recepcao"
+          defaultCategory="Recepção"
+          items={receptionStock}
+          insertKitchenItem={insertKitchenItem}
+          updateKitchenItem={updateKitchenItem}
+        />
       </div>
     </div>
   );
@@ -547,17 +596,16 @@ function PipelineCard({
   }[tone];
 
   return (
-    <section className="relative min-w-0 overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-      <div className={`bg-gradient-to-r ${toneClass} px-3 py-1.5 text-center text-[11px] font-bold uppercase text-white`}>
+    <section className="relative min-w-0 overflow-hidden rounded-md border border-border bg-card shadow-sm">
+      <div className={`bg-gradient-to-r ${toneClass} px-2.5 py-1 text-center text-[10px] font-bold uppercase text-white`}>
         {title}
       </div>
-      <div className="grid min-h-[88px] grid-cols-[1fr_48px] items-center gap-2 p-3">
+      <div className="min-h-[44px] px-2 py-1.5">
         <div className="min-w-0">
-          <p className="truncate font-serif text-[clamp(1.25rem,1.8vw,1.65rem)] font-bold leading-tight text-pine-dark">{value}</p>
-          <p className="truncate text-xs font-semibold text-foreground">{label}</p>
-          <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-muted-foreground">{hint}</p>
+          <p className="whitespace-nowrap font-serif text-[clamp(0.9rem,1.25vw,1.12rem)] font-bold leading-none text-pine-dark">{value}</p>
+          <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight text-foreground">{label}</p>
+          <p className="mt-0.5 truncate text-[9px] leading-tight text-muted-foreground">{hint}</p>
         </div>
-        <MiniSpark tone={tone} />
       </div>
     </section>
   );
@@ -571,7 +619,7 @@ function MiniSpark({ tone }: { tone: "pine" | "brass" | "sage" | "brick" }) {
     brick: "var(--brick)",
   }[tone];
   return (
-    <svg viewBox="0 0 90 54" className="h-14 w-full" aria-hidden="true">
+    <svg viewBox="0 0 90 54" className="h-7 w-full" aria-hidden="true">
       <path d="M4 48 L4 24 L16 34 L28 14 L42 22 L54 18 L68 38 L84 12 L84 48 Z" fill={stroke} opacity="0.16" />
       <path d="M4 24 L16 34 L28 14 L42 22 L54 18 L68 38 L84 12" fill="none" stroke={stroke} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -583,6 +631,9 @@ function LimpezaPainel({
   reservations,
   today,
   departuresToday,
+  kitchenItems,
+  insertKitchenItem,
+  updateKitchenItem,
   updateRoom,
   insertComplaint,
 }: {
@@ -590,6 +641,9 @@ function LimpezaPainel({
   reservations: Reservation[];
   today: string;
   departuresToday: Reservation[];
+  kitchenItems: KitchenItem[];
+  insertKitchenItem: ReturnType<typeof useInsert>;
+  updateKitchenItem: ReturnType<typeof useUpdate>;
   updateRoom: ReturnType<typeof useUpdate>;
   insertComplaint: ReturnType<typeof useInsert>;
 }) {
@@ -603,6 +657,8 @@ function LimpezaPainel({
   const maintenanceRooms = rooms
     .filter((room) => roomStatusToday(reservations, room.numero, today, (room as { situacao?: string | null }).situacao) === "manutencao")
     .sort((a, b) => a.numero - b.numero);
+  const cleaningStock = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "limpeza"));
+  const lowCleaning = cleaningStock.filter(isLowStock);
 
   return (
     <div>
@@ -615,6 +671,30 @@ function LimpezaPainel({
         <Stat icon={<ClipboardCheck />} label="Para limpar" value={String(cleaningRooms.length)} hint="Inclui check-outs de hoje" />
         <Stat icon={<DoorOpen />} label="Saidas hoje" value={String(departuresToday.length)} hint="Quartos liberando" />
         <Stat icon={<AlertTriangle />} label="Manutencao" value={String(maintenanceRooms.length)} hint="Nao liberar para hospede" />
+        <Stat icon={<AlertTriangle />} label="Reposição" value={String(lowCleaning.length)} hint="Itens de limpeza abaixo do mínimo" />
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.2fr]">
+        <section className="card-surface p-4">
+          <h3 className="section-title mb-3 text-base">Alertas da limpeza</h3>
+          <AlertList
+            items={[
+              cleaningRooms.length > 0 ? `${cleaningRooms.length} quarto(s) precisam ser liberados para a recepção.` : "",
+              maintenanceRooms.length > 0 ? `${maintenanceRooms.length} quarto(s) em manutenção não devem ser liberados.` : "",
+              lowCleaning.length > 0 ? `${lowCleaning.length} item(ns) precisam de reposição.` : "",
+              lowCleaning.some((item) => normalizeText(item.nome).includes("papel")) ? "Verificar papel higiênico nos quartos antes de liberar." : "",
+            ]}
+          />
+        </section>
+        <SectorStockPanel
+          title="Estoque da limpeza"
+          subtitle="Papel higiênico, produtos de limpeza, sacos, toalhas e reposições de quarto."
+          sector="limpeza"
+          defaultCategory="Limpeza"
+          items={cleaningStock}
+          insertKitchenItem={insertKitchenItem}
+          updateKitchenItem={updateKitchenItem}
+        />
       </div>
 
       <section className="mt-5 card-surface p-5">
@@ -705,12 +785,16 @@ function CafePainel({
     }))
     .sort((a, b) => a.quarto - b.quarto);
 
-  const activeItems = kitchenItems.filter((item) => item.ativo);
+  const activeItems = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "cafe"));
   const todayProductions = kitchenProductions.filter((row) => row.data === today);
   const lowItems = activeItems.filter((item) => Number(item.estoque_atual ?? 0) <= Number(item.estoque_minimo ?? 0));
   const todayLeftover = todayProductions.reduce((sum, row) => sum + Number(row.sobra ?? 0), 0);
   const todayLoss = todayProductions.reduce((sum, row) => sum + Number(row.perda ?? 0), 0);
   const latestProductions = kitchenProductions.slice(0, 12);
+  const kitchenChart = buildKitchenChart(activeItems, todayProductions, ocupantesHoje);
+  const topConsumed = [...kitchenChart].sort((a, b) => b.servido - a.servido).slice(0, 5);
+  const overPrepared = kitchenChart.filter((row) => row.produzido > 0 && row.sobra + row.perda > row.produzido * 0.25);
+  const underPrepared = kitchenChart.filter((row) => row.esperado > 0 && row.produzido > 0 && row.produzido < row.esperado * 0.85);
   const shoppingText = lowItems
     .map((item) => `- ${item.nome}: estoque ${formatQty(item.estoque_atual)} ${item.unidade}, mínimo ${formatQty(item.estoque_minimo)} ${item.unidade}`)
     .join("\n");
@@ -732,6 +816,61 @@ function CafePainel({
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Stat icon={<Coffee />} label="Sobra hoje" value={formatQty(todayLeftover)} hint="Registrado pela equipe" />
         <Stat icon={<AlertTriangle />} label="Perda hoje" value={formatQty(todayLoss)} hint="Quebrou, venceu ou não aproveitou" />
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-4 2xl:grid-cols-[1.35fr_1fr]">
+        <section className="card-surface p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="section-title text-base">Relatório inteligente do café</h3>
+              <p className="text-xs text-muted-foreground">Compara previsto, produzido, servido, sobra e perda.</p>
+            </div>
+            <Badge tone={overPrepared.length || underPrepared.length ? "brass" : "pine"}>
+              {overPrepared.length + underPrepared.length} alerta(s)
+            </Badge>
+          </div>
+          {kitchenChart.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Lance o preparo do dia para gerar os gráficos.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={230}>
+              <BarChart data={kitchenChart} margin={{ left: -18, right: 8, top: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="nome" tick={{ fontSize: 11 }} interval={0} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="esperado" name="Previsto" fill="var(--brass)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="produzido" name="Produzido" fill="var(--pine)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="servido" name="Consumido" fill="var(--sage)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="sobra" name="Sobra" fill="var(--slate)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </section>
+        <section className="card-surface p-4">
+          <h3 className="section-title mb-3 text-base">Alertas da cozinha</h3>
+          <AlertList
+            items={[
+              lowItems.length > 0 ? `${lowItems.length} item(ns) abaixo do estoque mínimo.` : "",
+              overPrepared.length > 0 ? `${overPrepared.length} item(ns) com sobra/perda acima de 25%. Reduzir preparo.` : "",
+              underPrepared.length > 0 ? `${underPrepared.length} item(ns) abaixo do previsto. Atenção para faltar.` : "",
+              topConsumed[0] ? `Mais consumido hoje: ${topConsumed[0].nome} (${formatQty(topConsumed[0].servido)}).` : "",
+            ]}
+          />
+          {topConsumed.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Mais consumidos</p>
+              <div className="space-y-2">
+                {topConsumed.map((row) => (
+                  <div key={row.id} className="flex items-center justify-between rounded-md bg-sage-bg/45 px-3 py-2 text-sm">
+                    <span className="font-semibold">{row.nome}</span>
+                    <span>{formatQty(row.servido)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
       </div>
 
       <section className="mt-5 card-surface p-5">
@@ -1052,6 +1191,331 @@ function CafePainel({
   );
 }
 
+function SectorStockPanel({
+  title,
+  subtitle,
+  sector,
+  defaultCategory,
+  items,
+  insertKitchenItem,
+  updateKitchenItem,
+}: {
+  title: string;
+  subtitle: string;
+  sector: "cafe" | "limpeza" | "recepcao";
+  defaultCategory: string;
+  items: KitchenItem[];
+  insertKitchenItem: ReturnType<typeof useInsert>;
+  updateKitchenItem: ReturnType<typeof useUpdate>;
+}) {
+  const [open, setOpen] = useState(false);
+  const lowItems = items.filter(isLowStock);
+  const stockText = lowItems
+    .map((item) => `- ${item.nome}: ${formatQty(item.estoque_atual)} ${item.unidade} (mínimo ${formatQty(item.estoque_minimo)})`)
+    .join("\n");
+
+  return (
+    <section className="card-surface p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h3 className="section-title text-base">{title}</h3>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+        <div className="flex gap-2">
+          {lowItems.length > 0 && (
+            <a
+              className="rounded-md bg-brick px-3 py-2 text-xs font-semibold text-white"
+              href={`https://wa.me/553588001372?text=${encodeURIComponent(`Reposição - ${title}:\n${stockText}`)}`}
+              target="_blank"
+              rel="noopener"
+            >
+              Avisar dono
+            </a>
+          )}
+          <button type="button" className="rounded-md bg-brass px-3 py-2 text-xs font-semibold text-pine-dark" onClick={() => setOpen((value) => !value)}>
+            {open ? "Fechar" : "Novo item"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <Stat icon={<ClipboardCheck />} label="Itens" value={String(items.length)} hint="Ativos no setor" />
+        <Stat icon={<AlertTriangle />} label="Reposição" value={String(lowItems.length)} hint="Abaixo do mínimo" />
+        <Stat icon={<TrendingDown />} label="Críticos" value={String(lowItems.filter((item) => Number(item.estoque_atual ?? 0) === 0).length)} hint="Estoque zerado" />
+      </div>
+
+      {open && (
+        <form
+          className="mb-4 grid gap-3 rounded-lg border border-border/70 bg-sage-bg/40 p-3 md:grid-cols-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const data = new FormData(form);
+            insertKitchenItem.mutate(
+              {
+                nome: String(data.get("nome") || "").trim(),
+                categoria: `${defaultCategory} - ${String(data.get("categoria") || "Geral")}`,
+                unidade: String(data.get("unidade") || "un"),
+                estoque_atual: Number(data.get("estoque_atual") || 0),
+                estoque_minimo: Number(data.get("estoque_minimo") || 0),
+                consumo_por_pessoa: Number(data.get("consumo_por_pessoa") || 0),
+                observacoes: String(data.get("observacoes") || `${sector}`) || null,
+                ativo: true,
+              },
+              { onSuccess: () => form.reset() },
+            );
+          }}
+        >
+          <label className="md:col-span-2 text-sm">
+            <span className="mb-1 block font-semibold text-muted-foreground">Item</span>
+            <input name="nome" required placeholder="Ex.: papel higiênico" className="field" />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold text-muted-foreground">Grupo</span>
+            <input name="categoria" defaultValue="Geral" className="field" />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold text-muted-foreground">Unidade</span>
+            <select name="unidade" className="field">
+              <option value="un">un</option>
+              <option value="pct">pct</option>
+              <option value="cx">cx</option>
+              <option value="L">L</option>
+              <option value="kg">kg</option>
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold text-muted-foreground">Estoque</span>
+            <input name="estoque_atual" type="number" min="0" step="0.01" className="field" />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold text-muted-foreground">Mínimo</span>
+            <input name="estoque_minimo" type="number" min="0" step="0.01" className="field" />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold text-muted-foreground">Uso por quarto/pessoa</span>
+            <input name="consumo_por_pessoa" type="number" min="0" step="0.01" className="field" />
+          </label>
+          <label className="md:col-span-2 text-sm">
+            <span className="mb-1 block font-semibold text-muted-foreground">Observação</span>
+            <input name="observacoes" placeholder="Ex.: repor toda sexta" className="field" />
+          </label>
+          <div className="flex items-end">
+            <button type="submit" className="btn-primary w-full" disabled={insertKitchenItem.isPending}>
+              Cadastrar
+            </button>
+          </div>
+        </form>
+      )}
+
+      {items.length === 0 ? (
+        <p className="rounded-md border border-border/70 p-3 text-sm text-muted-foreground">Nenhum item cadastrado para este setor.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                <th className="p-2">Item</th>
+                <th className="p-2">Estoque</th>
+                <th className="p-2">Mínimo</th>
+                <th className="p-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id} className="border-b border-border/50">
+                  <td className="p-2">
+                    <p className="font-semibold">{item.nome}</p>
+                    <p className="text-xs text-muted-foreground">{item.categoria}</p>
+                  </td>
+                  <td className="p-2">
+                    <form
+                      className="flex min-w-[140px] gap-2"
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        const data = new FormData(event.currentTarget);
+                        updateKitchenItem.mutate({
+                          id: item.id,
+                          patch: { estoque_atual: Number(data.get("estoque_atual") || 0) },
+                        });
+                      }}
+                    >
+                      <input name="estoque_atual" type="number" min="0" step="0.01" defaultValue={Number(item.estoque_atual ?? 0)} className="w-20 rounded-md border border-border bg-background px-2 py-1" />
+                      <button className="rounded-md border border-border px-2 py-1 text-xs font-semibold text-pine">Salvar</button>
+                    </form>
+                  </td>
+                  <td className="p-2">{formatQty(item.estoque_minimo)} {item.unidade}</td>
+                  <td className="p-2">
+                    <Badge tone={isLowStock(item) ? "brick" : "pine"}>{isLowStock(item) ? "Repor" : "Ok"}</Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function AlertList({ items }: { items: string[] }) {
+  const visible = items.filter(Boolean);
+  if (visible.length === 0) {
+    return <p className="rounded-md bg-sage-bg/60 px-3 py-2 text-sm text-pine-dark">Sem alertas críticos agora.</p>;
+  }
+  return (
+    <ul className="space-y-2 text-sm">
+      {visible.map((item) => (
+        <li key={item} className="flex gap-2 rounded-md bg-brass-bg/55 px-3 py-2">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-brass" />
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RevenueExpenseHighlights({
+  reservations,
+  sales,
+  expenses,
+}: {
+  reservations: Reservation[];
+  sales: Sale[];
+  expenses: Expense[];
+}) {
+  const revenueRows = [
+    ...groupMoney(
+      reservations.filter((reservation) => reservation.status !== "cancelado"),
+      (reservation) => `Hospedagem - ${reservation.canal || "Direto"}`,
+      (reservation) => Number(reservation.valor_pago ?? 0),
+    ),
+    ...groupMoney(
+      sales,
+      (sale) => sale.categoria || "Vendas avulsas",
+      (sale) => Number(sale.total ?? 0),
+    ),
+  ]
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 6);
+  const expenseRows = groupMoney(
+    expenses,
+    (expense) => expense.categoria || expense.descricao || "Despesa",
+    (expense) => Number(expense.valor ?? 0),
+  )
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 6);
+  const chartRows = [
+    { nome: "Receitas", valor: revenueRows.reduce((sum, row) => sum + row.valor, 0), fill: "var(--pine)" },
+    { nome: "Despesas", valor: expenseRows.reduce((sum, row) => sum + row.valor, 0), fill: "var(--brick)" },
+  ];
+
+  return (
+    <section className="card-surface p-4">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="section-title text-base">Receitas x despesas</h3>
+          <p className="text-xs text-muted-foreground">Mostra o que mais gera dinheiro e o que mais pesa no caixa.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+        <ResponsiveContainer width="100%" height={190}>
+          <BarChart data={chartRows} margin={{ left: -20, right: 8, top: 4 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="nome" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+            <Tooltip formatter={(value: number) => fmtBRL(value)} />
+            <Bar dataKey="valor" radius={[4, 4, 0, 0]}>
+              {chartRows.map((row) => (
+                <Cell key={row.nome} fill={row.fill} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
+          <TopMoneyTable title="Maiores receitas" rows={revenueRows} empty="Sem receita." />
+          <TopMoneyTable title="Maiores despesas" rows={expenseRows} empty="Sem despesa." />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function OperationalReports({
+  kitchenItems,
+  kitchenProductions,
+  cleaningRooms,
+  maintenanceRooms,
+  today,
+}: {
+  kitchenItems: KitchenItem[];
+  kitchenProductions: KitchenProduction[];
+  cleaningRooms: number;
+  maintenanceRooms: number;
+  today: string;
+}) {
+  const cafeItems = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "cafe"));
+  const cleaningItems = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "limpeza"));
+  const receptionItems = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "recepcao"));
+  const todayKitchen = kitchenProductions.filter((row) => row.data === today);
+  const served = todayKitchen.reduce((sum, row) => sum + Number(row.servido ?? 0), 0);
+  const waste = todayKitchen.reduce((sum, row) => sum + Number(row.sobra ?? 0) + Number(row.perda ?? 0), 0);
+  const reports = [
+    { area: "Café", principal: `${formatQty(served)} consumido`, alerta: `${cafeItems.filter(isLowStock).length} reposição`, fill: "var(--brass)" },
+    { area: "Limpeza", principal: `${cleaningRooms} quarto(s)`, alerta: `${cleaningItems.filter(isLowStock).length} reposição`, fill: "var(--sage)" },
+    { area: "Recepção", principal: `${receptionItems.length} item(ns)`, alerta: `${receptionItems.filter(isLowStock).length} reposição`, fill: "var(--pine)" },
+    { area: "Manutenção", principal: `${maintenanceRooms} quarto(s)`, alerta: `${formatQty(waste)} sobra/perda`, fill: "var(--brick)" },
+  ];
+
+  return (
+    <section className="card-surface p-4">
+      <h3 className="section-title mb-3 text-base">Relatórios por área</h3>
+      <div className="grid grid-cols-2 gap-2">
+        {reports.map((row) => (
+          <div key={row.area} className="rounded-md border border-border/70 bg-background px-3 py-2">
+            <div className="mb-1 h-1 rounded-full" style={{ background: row.fill }} />
+            <p className="text-xs font-semibold uppercase text-muted-foreground">{row.area}</p>
+            <p className="font-serif text-lg font-bold leading-tight">{row.principal}</p>
+            <p className="text-xs text-muted-foreground">{row.alerta}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 rounded-md bg-sage-bg/55 px-3 py-2 text-xs text-pine-dark">
+        Use esta leitura para comprar só o necessário: estoque baixo vira alerta, sobra/perda indica preparo acima da demanda.
+      </div>
+    </section>
+  );
+}
+
+function TopMoneyTable({ title, rows, empty }: { title: string; rows: { nome: string; valor: number }[]; empty: string }) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{title}</p>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{empty}</p>
+      ) : (
+        <div className="space-y-1.5">
+          {rows.map((row) => (
+            <div key={row.nome} className="flex items-center justify-between gap-3 rounded-md bg-background px-3 py-2 text-sm">
+              <span className="min-w-0 truncate">{row.nome}</span>
+              <span className="shrink-0 font-semibold">{fmtBRL(row.valor)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function groupMoney<T>(items: T[], label: (item: T) => string, value: (item: T) => number) {
+  const map = new Map<string, number>();
+  items.forEach((item) => {
+    const key = label(item);
+    map.set(key, (map.get(key) ?? 0) + value(item));
+  });
+  return [...map.entries()].map(([nome, valor]) => ({ nome, valor }));
+}
+
 function sumKitchenRows(rows: KitchenProduction[]) {
   return rows.reduce(
     (acc, row) => {
@@ -1063,6 +1527,38 @@ function sumKitchenRows(rows: KitchenProduction[]) {
     },
     { produzido: 0, servido: 0, sobra: 0, perda: 0 },
   );
+}
+
+function buildKitchenChart(items: KitchenItem[], rows: KitchenProduction[], people: number) {
+  return items
+    .map((item) => {
+      const totals = sumKitchenRows(rows.filter((row) => row.item_id === item.id));
+      return {
+        id: item.id,
+        nome: item.nome.length > 14 ? `${item.nome.slice(0, 13)}...` : item.nome,
+        esperado: Number(item.consumo_por_pessoa ?? 0) * people,
+        produzido: totals.produzido,
+        servido: totals.servido,
+        sobra: totals.sobra,
+        perda: totals.perda,
+      };
+    })
+    .filter((row) => row.esperado > 0 || row.produzido > 0 || row.servido > 0 || row.sobra > 0 || row.perda > 0);
+}
+
+function isLowStock(item: KitchenItem) {
+  return Number(item.estoque_atual ?? 0) <= Number(item.estoque_minimo ?? 0);
+}
+
+function sectorMatch(item: KitchenItem, sector: "cafe" | "limpeza" | "recepcao") {
+  const text = normalizeText(`${item.categoria} ${item.observacoes ?? ""}`);
+  if (sector === "cafe") {
+    return text.includes("cafe") || text.includes("cozinha") || text.includes("alimento") || text.includes("bebida");
+  }
+  if (sector === "limpeza") {
+    return text.includes("limpeza") || text.includes("quarto") || text.includes("papel") || text.includes("toalha");
+  }
+  return text.includes("recepc") || text.includes("administr") || text.includes("sulfite") || text.includes("internet") || text.includes("caneta");
 }
 
 function kitchenStatus(item: KitchenItem, totals: ReturnType<typeof sumKitchenRows>, expected: number): { label: string; hint: string; tone: "pine" | "brass" | "brick" | "muted" } {
@@ -1819,7 +2315,7 @@ function Stat({ icon, label, value, hint }: { icon: React.ReactNode; label: stri
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
         <span className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
       </div>
-      <div className="min-w-0 truncate font-serif text-[clamp(1.2rem,1.7vw,1.55rem)] font-bold leading-tight">{value}</div>
+      <div className="min-w-0 break-words font-serif text-[clamp(0.98rem,1.15vw,1.18rem)] font-bold leading-tight">{value}</div>
       {hint && <div className="mt-1 line-clamp-2 text-[10px] leading-snug text-muted-foreground">{hint}</div>}
     </div>
   );
@@ -1846,7 +2342,7 @@ function ComparisonStat({
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
         <span className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
       </div>
-      <div className="min-w-0 truncate font-serif text-[clamp(1.2rem,1.7vw,1.55rem)] font-bold leading-tight">{value}</div>
+      <div className="min-w-0 break-words font-serif text-[clamp(0.98rem,1.15vw,1.18rem)] font-bold leading-tight">{value}</div>
       <div className="mt-2 space-y-1 text-[10px]">
         <DeltaLine label="vs mês anterior" value={monthDelta} lowerIsBetter={lowerIsBetter} />
         <DeltaLine label="vs ano anterior" value={yearDelta} lowerIsBetter={lowerIsBetter} />

@@ -15,6 +15,7 @@ import {
   futureReservationsForRoom,
   roomBlock,
   type Client,
+  type Reservation,
   type Room,
 } from "@/lib/data";
 import { fmtBRL, fmtDate, fmtTime, todayISO } from "@/lib/format";
@@ -47,6 +48,7 @@ function Mapa() {
   const updateRoom = useUpdate("rooms", ["rooms"]);
   const [selected, setSelected] = useState<Room | null>(null);
   const [newFor, setNewFor] = useState<number | null>(null);
+  const [viewDate, setViewDate] = useState(today);
 
   const complaintsByRoom = useMemo(() => {
     const m = new Map<number, number>();
@@ -56,13 +58,18 @@ function Mapa() {
     return m;
   }, [complaints]);
 
-  const floors = useMemo(() => {
-    const m = new Map<number, Room[]>();
-    rooms.forEach((r) => {
-      if (!m.has(r.andar)) m.set(r.andar, []);
-      m.get(r.andar)!.push(r);
+  const roomGroups = useMemo(() => {
+    const m = new Map<string, { title: string; price: number; type: string; rooms: Room[] }>();
+    rooms.forEach((room) => {
+      const type = roomTypeLabel(room);
+      const price = Number(room.preco ?? 0);
+      const key = `${type}-${price}`;
+      if (!m.has(key)) m.set(key, { title: `${type} • ${fmtBRL(price)}`, price, type, rooms: [] });
+      m.get(key)!.rooms.push(room);
     });
-    return [...m.entries()].sort((a, b) => a[0] - b[0]);
+    return [...m.values()]
+      .map((group) => ({ ...group, rooms: group.rooms.sort((a, b) => a.numero - b.numero) }))
+      .sort((a, b) => a.price - b.price || a.type.localeCompare(b.type));
   }, [rooms]);
 
   const maxComplaints = Math.max(1, ...complaintsByRoom.values());
@@ -81,6 +88,15 @@ function Mapa() {
       .forEach((s) => m.set(s.quarto, (m.get(s.quarto) ?? 0) + Number(s.total)));
     return m;
   }, [reservations, sales, today]);
+
+  const dateSummary = useMemo(() => {
+    const arrivals = reservations.filter((r) => r.status !== "cancelado" && r.checkin === viewDate);
+    const departures = reservations.filter((r) => r.status !== "cancelado" && r.checkout === viewDate);
+    const occupied = rooms.filter((room) => roomStatusAtDate(reservations, room, viewDate) === "ocupado").length;
+    const reserved = rooms.filter((room) => roomStatusAtDate(reservations, room, viewDate) === "reservado").length;
+    const cleaning = rooms.filter((room) => roomStatusAtDate(reservations, room, viewDate) === "limpeza").length;
+    return { arrivals: arrivals.length, departures: departures.length, occupied, reserved, cleaning };
+  }, [reservations, rooms, viewDate]);
 
   const phoneDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
 
@@ -103,7 +119,13 @@ function Mapa() {
     delete cleanRow.cliente_tem_filhos;
     delete cleanRow.cliente_quantidade_filhos;
 
-    if (existing) return { ...cleanRow, cliente_id: existing.id, cliente_nome: existing.nome };
+    if (existing) {
+      const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();
+      if (!sameName) {
+        throw new Error(`Telefone já cadastrado para ${existing.nome}. Se for a mesma pessoa, selecione o cliente cadastrado.`);
+      }
+      return { ...cleanRow, cliente_id: existing.id, cliente_nome: existing.nome };
+    }
 
     const created = (await insertClient.mutateAsync({
       nome: row.cliente_nome,
@@ -127,8 +149,34 @@ function Mapa() {
     <div>
       <PageHeader
         title="Mapa de quartos"
-        subtitle="Situação de cada quarto hoje, com mapa de calor de reclamações sempre ativo. Clique num quarto para ver detalhes ou criar reserva."
+        subtitle="Agrupado por tipo e valor. Escolha uma data para ver reservas futuras, entradas, saídas e limpeza prevista."
       />
+
+      <section className="mb-4 rounded-lg border border-border bg-card p-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold text-muted-foreground">Ver disponibilidade em</span>
+            <input
+              type="date"
+              value={viewDate}
+              onChange={(event) => setViewDate(event.target.value || today)}
+              className="field max-w-[220px]"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
+            <MiniCount label="Ocupados" value={dateSummary.occupied} />
+            <MiniCount label="Reservados" value={dateSummary.reserved} />
+            <MiniCount label="Entram" value={dateSummary.arrivals} />
+            <MiniCount label="Saem" value={dateSummary.departures} />
+            <MiniCount label="Limpeza" value={dateSummary.cleaning} />
+          </div>
+        </div>
+        {viewDate !== today && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            Em {fmtDate(viewDate)}, quartos com saída aparecem como limpeza prevista para evitar vender antes da arrumação.
+          </p>
+        )}
+      </section>
 
       <div className="mb-4 flex flex-wrap gap-3 text-xs">
         {Object.entries(STATUS_STYLE).map(([k, s]) => (
@@ -141,34 +189,61 @@ function Mapa() {
         </span>
       </div>
 
-      <div className="space-y-6">
-        {floors.map(([andar, list]) => (
-          <div key={andar}>
-            <h3 className="section-title mb-2 text-sm uppercase tracking-wide text-muted-foreground">
-              {andar}º andar
-            </h3>
-            <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8">
-              {list.map((r) => {
-                const st = roomStatusToday(reservations, r.numero, today, r.situacao);
+      <div className="space-y-5">
+        {roomGroups.map((group) => (
+          <div key={group.title} className="rounded-lg border border-border bg-card/60 p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="section-title text-sm uppercase tracking-wide text-pine-dark">
+                {group.title}
+              </h3>
+              <span className="rounded-full bg-muted px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+                {group.rooms.length} quarto(s)
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10">
+              {group.rooms.map((r) => {
+                const st = roomStatusAtDate(reservations, r, viewDate);
                 const style = STATUS_STYLE[st] ?? STATUS_STYLE.livre;
                 const n = complaintsByRoom.get(r.numero) ?? 0;
                 const intensity = n / maxComplaints;
                 const blocked = !!roomBlock(complaints, r.numero);
-                const next = futureReservationsForRoom(reservations, r.numero, today)[0];
+                const dayReservation = reservationForDate(reservations, r.numero, viewDate);
+                const next = futureReservationsForRoom(reservations, r.numero, viewDate).find(
+                  (reservation) => reservation.id !== dayReservation?.id,
+                );
+                const departure = reservations.find((reservation) => reservation.quarto === r.numero && reservation.status !== "cancelado" && reservation.checkout === viewDate);
                 const revenue = revenueByRoom.get(r.numero) ?? 0;
                 return (
                   <button
                     key={r.numero}
                     onClick={() => setSelected(r)}
-                    className={`relative aspect-square rounded-lg border p-2 text-left transition hover:scale-[1.03] ${n > 0 ? "border-brick" : style.bg}`}
+                    className={`relative min-h-[112px] rounded-lg border p-2 text-left transition hover:scale-[1.02] ${n > 0 ? "border-brick" : style.bg}`}
                     style={n > 0 ? { backgroundColor: `rgba(200,60,40,${0.12 + intensity * 0.5})` } : undefined}
                   >
-                    <div className="font-serif text-lg font-bold">{r.numero}</div>
-                    <div className="text-[10px] opacity-80">{fmtBRL(r.preco)}</div>
-                    <div className="mt-1 text-[10px] font-semibold">{style.label}</div>
-                    {next && (
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-serif text-lg font-bold leading-none">{r.numero}</div>
+                      <span className="rounded bg-white/65 px-1.5 py-0.5 text-[9px] font-bold uppercase text-pine-dark">
+                        {roomTypeShort(r)}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-[10px] font-semibold opacity-80">{r.andar}º andar · {fmtBRL(r.preco)}</div>
+                    <div className="mt-1 text-[10px] font-bold">{style.label}</div>
+                    {dayReservation ? (
                       <div className="mt-1 text-[9px] leading-tight opacity-90">
-                        {fmtDate(next.checkin)} {fmtTime(next.horario_checkin)}
+                        {dayReservation.cliente_nome}
+                      </div>
+                    ) : departure ? (
+                      <div className="mt-1 text-[9px] leading-tight opacity-90">
+                        Sai: {departure.cliente_nome}
+                      </div>
+                    ) : next && (
+                      <div className="mt-1 text-[9px] leading-tight opacity-90">
+                        Próx: {fmtDate(next.checkin)}
+                      </div>
+                    )}
+                    {next && (
+                      <div className="mt-1 rounded bg-white/55 px-1.5 py-0.5 text-[9px] font-semibold text-pine-dark">
+                        Futuro: {fmtDate(next.checkin)} → {fmtDate(next.checkout)}
                       </div>
                     )}
                     {revenue > 0 && <div className="mt-1 text-[9px] font-semibold">{fmtBRL(revenue)}</div>}
@@ -193,7 +268,9 @@ function Mapa() {
           room={selected}
           onClose={() => setSelected(null)}
           reservation={activeReservationForRoom(reservations, selected.numero)}
-          futureReservations={futureReservationsForRoom(reservations, selected.numero, today).filter(
+          dateReservation={reservationForDate(reservations, selected.numero, viewDate)}
+          viewDate={viewDate}
+          futureReservations={futureReservationsForRoom(reservations, selected.numero, viewDate).filter(
             (fr) => fr.id !== activeReservationForRoom(reservations, selected.numero)?.id,
           )}
           sales={sales.filter((s) => s.quarto === selected.numero)}
@@ -224,6 +301,7 @@ function Mapa() {
           reservations={reservations}
           complaints={complaints}
           fixedRoom={newFor}
+          initialCheckin={viewDate}
           onClose={() => setNewFor(null)}
           onSave={(row) =>
             rowWithClient(row).then((prepared) => insert.mutate(prepared as never, {
@@ -244,6 +322,8 @@ function RoomModal({
   room,
   onClose,
   reservation,
+  dateReservation,
+  viewDate,
   futureReservations,
   sales,
   complaints,
@@ -253,6 +333,8 @@ function RoomModal({
   room: Room;
   onClose: () => void;
   reservation: ReturnType<typeof activeReservationForRoom>;
+  dateReservation: Reservation | null;
+  viewDate: string;
   futureReservations: ReturnType<typeof futureReservationsForRoom>;
   sales: { id: string; item: string; qtd: number; total: number; reserva_id: string | null; categoria: string | null }[];
   complaints: { id: string; categoria: string; descricao: string | null; status: string; created_at: string }[];
@@ -264,6 +346,7 @@ function RoomModal({
   const salesTotal = staySales.reduce((s, v) => s + Number(v.total), 0);
   const diaria = reservation ? Number(reservation.valor_total) : 0;
   const totalHospedagem = diaria + salesTotal;
+  const selectedStay = dateReservation && dateReservation.id !== reservation?.id ? dateReservation : null;
 
   return (
     <Modal open onClose={onClose} title={`Quarto ${room.numero} — ${room.andar}º andar`} wide>
@@ -299,6 +382,17 @@ function RoomModal({
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <section>
+          {selectedStay && (
+            <div className="mb-4 rounded-lg border border-brass/50 bg-brass-bg/60 p-3 text-sm">
+              <h4 className="mb-1 font-semibold">Reserva em {fmtDate(viewDate)}</h4>
+              <p className="font-semibold">{selectedStay.cliente_nome}</p>
+              <p className="text-muted-foreground">
+                {fmtDate(selectedStay.checkin)} {fmtTime(selectedStay.horario_checkin)} →{" "}
+                {fmtDate(selectedStay.checkout)} {fmtTime(selectedStay.horario_checkout)}
+              </p>
+            </div>
+          )}
+
           <h4 className="mb-2 font-semibold">Hospedagem atual</h4>
           {reservation ? (
             <div className="space-y-1 text-sm">
@@ -387,5 +481,73 @@ function RoomModal({
         </section>
       </div>
     </Modal>
+  );
+}
+
+function MiniCount({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-2">
+      <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className="font-serif text-lg font-bold leading-tight text-pine-dark">{value}</p>
+    </div>
+  );
+}
+
+function roomTypeLabel(room: Room) {
+  const text = normalizeRoomText(room.configuracao);
+  if ((text.includes("1c") && text.includes("1s")) || text.includes("casal solteiro")) return "Casal + solteiro";
+  if (text.includes("2 solteiro") || text.includes("2s") || text.includes("duplo solteiro")) return "Duplo solteiro";
+  if (text.includes("casal")) return "Casal";
+  if (text.includes("solteiro")) return "Solteiro";
+  if (text.includes("triplo")) return "Triplo";
+  return room.configuracao || "Sem configuração";
+}
+
+function roomTypeShort(room: Room) {
+  const label = roomTypeLabel(room);
+  if (label === "Casal + solteiro") return "C+S";
+  if (label === "Duplo solteiro") return "2S";
+  if (label === "Casal") return "C";
+  if (label === "Solteiro") return "S";
+  if (label === "Triplo") return "3";
+  return label.slice(0, 3);
+}
+
+function normalizeRoomText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function roomStatusAtDate(reservations: Reservation[], room: Room, date: string) {
+  const manual = String((room as { situacao?: string | null }).situacao ?? "");
+  if (date === todayISO() && (manual === "limpeza" || manual === "manutencao")) return manual;
+  const active = reservations.filter(
+    (reservation) =>
+      reservation.quarto === room.numero &&
+      reservation.status !== "cancelado" &&
+      reservation.status !== "finalizado" &&
+      reservation.status !== "manutencao",
+  );
+  if (active.some((reservation) => reservation.checkin === date)) return "reservado";
+  if (active.some((reservation) => reservation.checkin < date && reservation.checkout > date)) return "ocupado";
+  if (active.some((reservation) => reservation.checkout === date)) return "limpeza";
+  return "livre";
+}
+
+function reservationForDate(reservations: Reservation[], roomNumber: number, date: string) {
+  return (
+    reservations.find(
+      (reservation) =>
+        reservation.quarto === roomNumber &&
+        reservation.status !== "cancelado" &&
+        reservation.status !== "finalizado" &&
+        reservation.status !== "manutencao" &&
+        reservation.checkin <= date &&
+        reservation.checkout > date,
+    ) ?? null
   );
 }

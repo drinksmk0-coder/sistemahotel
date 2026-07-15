@@ -11,7 +11,7 @@ export function fmtDate(iso: string | null | undefined): string {
 }
 
 export function fmtTime(value: string | null | undefined): string {
-  if (!value) return "--:--";
+  if (!value) return "";
   return value.slice(0, 5);
 }
 
