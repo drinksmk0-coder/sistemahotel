@@ -6,7 +6,7 @@ import { useClients, useReservations, useInsert, type Client } from "@/lib/data"
 import { fmtBRL, fmtDate, downloadCSV, todayISO } from "@/lib/format";
 import { CLIENT_TYPES, BR_STATES, stateFromPhone } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
-import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
+import { DateBRInput, Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   component: Clientes,
@@ -313,7 +313,7 @@ function ClientForm({
             )}
           </Field>
           <Field label="Data de nascimento">
-            <input type="date" className="field" value={nascimento} onChange={(e) => setNascimento(e.target.value)} required />
+            <DateBRInput value={nascimento} onChange={setNascimento} required />
           </Field>
         </div>
         <Field label="Profissão">

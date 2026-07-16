@@ -12,6 +12,7 @@ import {
   Star,
   Wifi,
   AlertTriangle,
+  FileText,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -188,6 +189,7 @@ function Painel() {
   const currentRevpar = revparForMonth(month, currentMetrics.receita, rooms.length);
   const previousMonthRevpar = revparForMonth(previousMonth, previousMonthMetrics.receita, rooms.length);
   const previousYearRevpar = revparForMonth(previousYearMonth, previousYearMetrics.receita, rooms.length);
+  const reportHref = `/imprimir?tipo=relatorio&data=${encodeURIComponent(today)}&periodo=${encodeURIComponent(period)}&quartos=${rooms.length}&livres=${livres}&ocupados=${ocupados}&reservados=${reservados}&ocupacao=${ocupacao}&ocupantes=${ocupantesHoje}&capacidade=${capacidadeTotal}&receita=${Math.round(currentMetrics.receita)}&despesas=${Math.round(currentMetrics.despesas)}&areceber=${Math.round(aReceber)}&revpar=${Math.round(currentRevpar)}&avaliacao=${encodeURIComponent(currentMetrics.avaliacao ? currentMetrics.avaliacao.toFixed(1) : "-")}&reclamacoes=${abertas.length}&cancelamentos=${totals.cancelamentos}&comparecimento=${totals.comparecimento}`;
 
   const receitaPorQuarto = useMemo(() => {
     const m = new Map<number, number>();
@@ -258,7 +260,7 @@ function Painel() {
 
   return (
     <div>
-      <OwnerDashboardHero period={period} setPeriod={setPeriod} today={today} />
+      <OwnerDashboardHero period={period} setPeriod={setPeriod} today={today} reportHref={reportHref} />
 
       {alerta && (
         <div className="mb-4 flex items-start gap-3 rounded-lg border border-brick/40 bg-brick-bg px-4 py-3 text-sm text-brick">
@@ -585,10 +587,12 @@ function OwnerDashboardHero({
   period,
   setPeriod,
   today,
+  reportHref,
 }: {
   period: "dia" | "mes" | "ano";
   setPeriod: (period: "dia" | "mes" | "ano") => void;
   today: string;
+  reportHref: string;
 }) {
   return (
     <section className="mb-3 overflow-hidden rounded-md border border-pine/20 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine),var(--brass))] text-white shadow-sm">
@@ -601,6 +605,14 @@ function OwnerDashboardHero({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={reportHref}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-xs font-bold text-pine-dark shadow-sm transition hover:bg-white/90"
+          >
+            <FileText className="h-4 w-4" /> Relatorio PDF
+          </a>
           <div className="rounded-md bg-white/12 px-2.5 py-1 text-[11px] font-semibold text-white/85">
             Referência: {new Date(`${today}T00:00:00`).toLocaleDateString("pt-BR")}
           </div>
