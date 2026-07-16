@@ -59,18 +59,27 @@ Deno.serve(async (req) => {
   if (!owner) return json({ error: "Apenas o dono pode convidar funcionarios" }, 403);
 
   const redirectTo = safeSystemRedirect(body.redirect_to);
-  const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: {
-      nome: body.nome ?? "",
-      company_id: body.company_id,
-      role,
-    },
-    redirectTo,
-  });
+  const existingUser = await findUserByEmail(admin, email);
+  let invitedUserId = existingUser?.id;
+  let status = existingUser ? "acesso_liberado" : "enviado";
 
-  if (inviteError) return json({ error: inviteError.message }, 400);
-  const invitedUserId = inviteData.user?.id;
-  if (!invitedUserId) return json({ error: "Convite enviado sem usuario retornado" }, 500);
+  if (existingUser) {
+    await admin.auth.resetPasswordForEmail(email, { redirectTo });
+  } else {
+    const { data: inviteData, error: inviteError } = await admin.auth.admin.inviteUserByEmail(email, {
+      data: {
+        nome: body.nome ?? "",
+        company_id: body.company_id,
+        role,
+      },
+      redirectTo,
+    });
+
+    if (inviteError) return json({ error: inviteError.message }, 400);
+    invitedUserId = inviteData.user?.id;
+  }
+
+  if (!invitedUserId) return json({ error: "Nao foi possivel localizar ou criar o usuario do convite" }, 500);
 
   const { error: inviteRowError } = await admin.from("company_invites").upsert(
     {
@@ -78,7 +87,7 @@ Deno.serve(async (req) => {
       email,
       nome: body.nome ?? null,
       role,
-      status: "enviado",
+      status,
       invited_by: requester.id,
     },
     { onConflict: "company_id,email" },
@@ -96,7 +105,7 @@ Deno.serve(async (req) => {
   );
   if (memberError) return json({ error: memberError.message }, 500);
 
-  return json({ ok: true, user_id: invitedUserId });
+  return json({ ok: true, user_id: invitedUserId, status });
 });
 
 function json(payload: unknown, status = 200) {
@@ -119,4 +128,15 @@ function safeSystemRedirect(value?: string) {
     return SYSTEM_INVITE_URL;
   }
   return SYSTEM_INVITE_URL;
+}
+
+async function findUserByEmail(admin: ReturnType<typeof createClient>, email: string) {
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    const found = data.users.find((user) => user.email?.toLowerCase() === email);
+    if (found) return found;
+    if (data.users.length < 1000) return null;
+  }
+  return null;
 }
