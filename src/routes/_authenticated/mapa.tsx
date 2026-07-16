@@ -17,6 +17,7 @@ import {
   type Client,
   type Reservation,
   type Room,
+  type Sale,
 } from "@/lib/data";
 import { fmtBRL, fmtDate, fmtTime, todayISO } from "@/lib/format";
 import { complaintLabel } from "@/lib/constants";
@@ -52,6 +53,7 @@ function Mapa() {
   const [newFor, setNewFor] = useState<number | null>(null);
   const [viewDate, setViewDate] = useState(today);
   const [statusFilter, setStatusFilter] = useState("todos");
+  const [roomSearch, setRoomSearch] = useState("");
 
   const complaintsByRoom = useMemo(() => {
     const m = new Map<number, number>();
@@ -109,10 +111,14 @@ function Mapa() {
           rooms: group.rooms.filter((room) => {
             if (statusFilter === "todos") return true;
             return roomVisualStatus(reservations, room, viewDate) === statusFilter;
-          }),
+          }).filter((room) => (roomSearch.trim() ? String(room.numero).includes(roomSearch.trim()) : true)),
         }))
         .filter((group) => group.rooms.length > 0),
-    [roomGroups, reservations, statusFilter, viewDate],
+    [roomGroups, reservations, roomSearch, statusFilter, viewDate],
+  );
+  const searchedRoom = useMemo(
+    () => rooms.find((room) => String(room.numero) === roomSearch.trim()) ?? null,
+    [rooms, roomSearch],
   );
 
   const phoneDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
@@ -200,6 +206,49 @@ function Mapa() {
           <p className="mt-2 text-xs text-muted-foreground">
             Em {fmtDate(viewDate)}, quartos com saída aparecem como limpeza prevista para evitar vender antes da arrumação.
           </p>
+        )}
+      </section>
+
+      <section className="mb-4 rounded-lg border border-border bg-card p-3 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <label className="text-sm">
+            <span className="mb-1 block font-semibold text-muted-foreground">Buscar quarto</span>
+            <input
+              className="field max-w-[220px]"
+              inputMode="numeric"
+              placeholder="Ex.: 102"
+              value={roomSearch}
+              onChange={(event) => setRoomSearch(event.target.value.replace(/\D/g, ""))}
+            />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={!searchedRoom}
+              onClick={() => searchedRoom && setSelected(searchedRoom)}
+            >
+              Abrir quarto
+            </button>
+            {roomSearch && (
+              <button type="button" className="btn-ghost" onClick={() => setRoomSearch("")}>
+                Limpar busca
+              </button>
+            )}
+          </div>
+        </div>
+        {roomSearch && searchedRoom && (
+          <RoomSearchSummary
+            room={searchedRoom}
+            reservation={reservationForDate(reservations, searchedRoom.numero, viewDate) ?? activeReservationForRoom(reservations, searchedRoom.numero)}
+            sales={sales.filter((sale) => sale.quarto === searchedRoom.numero)}
+            revenue={revenueByRoom.get(searchedRoom.numero) ?? 0}
+            status={roomVisualStatus(reservations, searchedRoom, viewDate)}
+            onOpen={() => setSelected(searchedRoom)}
+          />
+        )}
+        {roomSearch && !searchedRoom && (
+          <p className="mt-3 rounded-md bg-brick-bg px-3 py-2 text-sm text-brick">Nenhum quarto encontrado com esse número.</p>
         )}
       </section>
 
@@ -537,6 +586,68 @@ function MiniCount({ label, value }: { label: string; value: number }) {
       <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
       <p className="font-serif text-lg font-bold leading-tight text-pine-dark">{value}</p>
     </div>
+  );
+}
+
+function RoomSearchSummary({
+  room,
+  reservation,
+  sales,
+  revenue,
+  status,
+  onOpen,
+}: {
+  room: Room;
+  reservation: Reservation | null;
+  sales: Sale[];
+  revenue: number;
+  status: string;
+  onOpen: () => void;
+}) {
+  const style = STATUS_STYLE[status] ?? STATUS_STYLE.livre;
+  const salesTotal = sales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
+  const paid = Number(reservation?.valor_pago ?? 0);
+  const total = Number(reservation?.valor_total ?? 0);
+  const paymentLabel = !reservation
+    ? "Sem reserva na data"
+    : paid >= total && total > 0
+      ? "Quitado"
+      : paid > 0
+        ? "Pagou sinal / falta receber"
+        : "Em débito";
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="mt-3 grid w-full gap-3 rounded-lg border border-border bg-background p-3 text-left text-sm transition hover:border-pine md:grid-cols-5"
+    >
+      <div>
+        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Quarto</p>
+        <p className="font-serif text-2xl font-bold text-pine-dark">{room.numero}</p>
+        <p className="text-xs text-muted-foreground">{roomTypeLabel(room)} · {fmtBRL(room.preco)}</p>
+      </div>
+      <div>
+        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Situação</p>
+        <Badge tone={status.includes("debito") ? "brick" : status.includes("pago") ? "sage" : "brass"}>{style.label}</Badge>
+        <p className="mt-1 text-xs text-muted-foreground">{paymentLabel}</p>
+      </div>
+      <div>
+        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Cliente</p>
+        <p className="font-semibold">{reservation?.cliente_nome ?? "Livre"}</p>
+        {reservation && <p className="text-xs text-muted-foreground">{fmtDate(reservation.checkin)} → {fmtDate(reservation.checkout)}</p>}
+      </div>
+      <div>
+        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Vendas</p>
+        <p className="font-semibold">{fmtBRL(salesTotal)}</p>
+        <p className="text-xs text-muted-foreground">{sales.length} lançamento(s)</p>
+      </div>
+      <div>
+        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Receita total</p>
+        <p className="font-serif text-xl font-bold text-pine-dark">{fmtBRL(revenue || total + salesTotal)}</p>
+        <p className="text-xs text-muted-foreground">Clique para ver detalhes</p>
+      </div>
+    </button>
   );
 }
 
