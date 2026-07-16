@@ -12,7 +12,6 @@ import {
   Star,
   Wifi,
   AlertTriangle,
-  FileText,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -189,14 +188,6 @@ function Painel() {
   const currentRevpar = revparForMonth(month, currentMetrics.receita, rooms.length);
   const previousMonthRevpar = revparForMonth(previousMonth, previousMonthMetrics.receita, rooms.length);
   const previousYearRevpar = revparForMonth(previousYearMonth, previousYearMetrics.receita, rooms.length);
-  const cashSnapshot = useMemo(
-    () => buildCashSnapshot(period, today, month, reservations, sales, expenses),
-    [period, today, month, reservations, sales, expenses],
-  );
-  const lucroEstimado = cashSnapshot.receitaPrevista - cashSnapshot.despesas;
-  const lucroLiquido = cashSnapshot.receitaRecebida - cashSnapshot.despesas;
-  const cashHealth = cashHealthFrom(lucroLiquido, cashSnapshot.receitaRecebida, cashSnapshot.funnel.taxaCancelamento);
-  const reportHref = `/imprimir?tipo=relatorio&data=${encodeURIComponent(today)}&periodo=${encodeURIComponent(period)}&quartos=${rooms.length}&livres=${livres}&ocupados=${ocupados}&reservados=${reservados}&ocupacao=${ocupacao}&ocupantes=${ocupantesHoje}&capacidade=${capacidadeTotal}&receita=${Math.round(currentMetrics.receita)}&despesas=${Math.round(currentMetrics.despesas)}&areceber=${Math.round(aReceber)}&revpar=${Math.round(currentRevpar)}&avaliacao=${encodeURIComponent(currentMetrics.avaliacao ? currentMetrics.avaliacao.toFixed(1) : "-")}&reclamacoes=${abertas.length}&cancelamentos=${totals.cancelamentos}&comparecimento=${totals.comparecimento}`;
 
   const receitaPorQuarto = useMemo(() => {
     const m = new Map<number, number>();
@@ -267,7 +258,7 @@ function Painel() {
 
   return (
     <div>
-      <OwnerDashboardHero period={period} setPeriod={setPeriod} today={today} reportHref={reportHref} />
+      <OwnerDashboardHero period={period} setPeriod={setPeriod} today={today} />
 
       {alerta && (
         <div className="mb-4 flex items-start gap-3 rounded-lg border border-brick/40 bg-brick-bg px-4 py-3 text-sm text-brick">
@@ -339,13 +330,6 @@ function Painel() {
           monthDelta={delta(currentMetrics.avaliacao, previousMonthMetrics.avaliacao)}
           yearDelta={delta(currentMetrics.avaliacao, previousYearMetrics.avaliacao)}
         />
-      </div>
-
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-4">
-        <CashHealthCard health={cashHealth} lucroEstimado={lucroEstimado} lucroLiquido={lucroLiquido} aReceber={cashSnapshot.aReceber} />
-        <ReservationConversionCard funnel={cashSnapshot.funnel} />
-        <PaymentPieCard title="Receita por pagamento" rows={cashSnapshot.receitasPorPagamento} emptyText="Sem pagamento recebido no periodo." />
-        <PaymentPieCard title="Despesas por pagamento" rows={cashSnapshot.despesasPorPagamento} emptyText="Sem despesa lancada no periodo." />
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-4">
@@ -601,12 +585,10 @@ function OwnerDashboardHero({
   period,
   setPeriod,
   today,
-  reportHref,
 }: {
   period: "dia" | "mes" | "ano";
   setPeriod: (period: "dia" | "mes" | "ano") => void;
   today: string;
-  reportHref: string;
 }) {
   return (
     <section className="mb-3 overflow-hidden rounded-md border border-pine/20 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine),var(--brass))] text-white shadow-sm">
@@ -619,14 +601,6 @@ function OwnerDashboardHero({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={reportHref}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md bg-white px-3 py-1.5 text-xs font-bold text-pine-dark shadow-sm transition hover:bg-white/90"
-          >
-            <FileText className="h-4 w-4" /> Relatorio PDF
-          </a>
           <div className="rounded-md bg-white/12 px-2.5 py-1 text-[11px] font-semibold text-white/85">
             Referência: {new Date(`${today}T00:00:00`).toLocaleDateString("pt-BR")}
           </div>
@@ -706,107 +680,6 @@ function PipelineCard({
         </div>
       </div>
     </section>
-  );
-}
-
-function CashHealthCard({
-  health,
-  lucroEstimado,
-  lucroLiquido,
-  aReceber,
-}: {
-  health: { label: string; tone: "pine" | "brass" | "brick"; detail: string };
-  lucroEstimado: number;
-  lucroLiquido: number;
-  aReceber: number;
-}) {
-  const toneClass = {
-    pine: "border-pine/35 bg-[linear-gradient(135deg,rgba(35,77,56,0.14),var(--card)_48%)] text-pine",
-    brass: "border-brass/50 bg-[linear-gradient(135deg,rgba(208,178,91,0.18),var(--card)_48%)] text-brass-dark",
-    brick: "border-brick/40 bg-[linear-gradient(135deg,rgba(162,70,45,0.14),var(--card)_48%)] text-brick",
-  }[health.tone];
-
-  return (
-    <section className={`card-surface min-w-0 border p-3 ${toneClass}`}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Saude do caixa</p>
-        <Badge tone={health.tone === "pine" ? "success" : health.tone === "brass" ? "warning" : "danger"}>{health.label}</Badge>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <p className="text-[10px] uppercase text-muted-foreground">Lucro estimado</p>
-          <p className="truncate font-serif text-lg font-bold text-foreground">{compactBRL(lucroEstimado)}</p>
-        </div>
-        <div>
-          <p className="text-[10px] uppercase text-muted-foreground">Lucro liquido</p>
-          <p className={`truncate font-serif text-lg font-bold ${lucroLiquido >= 0 ? "text-pine" : "text-brick"}`}>{compactBRL(lucroLiquido)}</p>
-        </div>
-      </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">A receber: {fmtBRL(aReceber)}. {health.detail}</p>
-    </section>
-  );
-}
-
-function ReservationConversionCard({ funnel }: { funnel: ReservationFunnel }) {
-  return (
-    <section className="card-surface border border-pine/20 bg-[linear-gradient(135deg,rgba(88,139,105,0.12),var(--card)_50%)] p-3">
-      <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Reservas x cancelamentos</p>
-      <div className="grid grid-cols-3 gap-2">
-        <SmallMetric label="Reservas" value={String(funnel.total)} />
-        <SmallMetric label="Hospedados" value={String(funnel.hospedados)} />
-        <SmallMetric label="Cancelados" value={String(funnel.cancelados)} tone="brick" />
-      </div>
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
-        <div className="h-full bg-pine" style={{ width: `${Math.min(100, funnel.taxaHospedagem)}%` }} />
-      </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        {funnel.taxaHospedagem.toFixed(0)}% hospedaram. {funnel.taxaCancelamento.toFixed(0)}% cancelaram.
-      </p>
-    </section>
-  );
-}
-
-function PaymentPieCard({ title, rows, emptyText }: { title: string; rows: MoneyRow[]; emptyText: string }) {
-  return (
-    <section className="card-surface min-w-0 p-3">
-      <p className="mb-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{title}</p>
-      {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{emptyText}</p>
-      ) : (
-        <div className="grid grid-cols-[110px_1fr] items-center gap-2">
-          <ResponsiveContainer width="100%" height={112}>
-            <PieChart>
-              <Pie data={rows} dataKey="value" nameKey="label" innerRadius={28} outerRadius={48} paddingAngle={2}>
-                {rows.map((row, index) => (
-                  <Cell key={row.label} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v: number) => fmtBRL(v)} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-1">
-            {rows.slice(0, 4).map((row, index) => (
-              <div key={row.label} className="flex items-center justify-between gap-2 text-[11px]">
-                <span className="min-w-0 truncate">
-                  <span className="mr-1 inline-block h-2 w-2 rounded-sm" style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
-                  {row.label}
-                </span>
-                <span className="shrink-0 font-semibold">{compactBRL(row.value)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function SmallMetric({ label, value, tone = "pine" }: { label: string; value: string; tone?: "pine" | "brick" }) {
-  return (
-    <div className="rounded-md border border-border bg-background/45 px-2 py-1.5">
-      <p className={`font-serif text-lg font-bold ${tone === "brick" ? "text-brick" : "text-pine"}`}>{value}</p>
-      <p className="truncate text-[10px] text-muted-foreground">{label}</p>
-    </div>
   );
 }
 
@@ -2689,119 +2562,6 @@ function revenueForMonth(month: string, reservations: Reservation[], sales: Sale
 
 function expensesForMonth(month: string, expenses: Expense[]) {
   return expenses.filter((e) => (e.data || "").slice(0, 7) === month).reduce((sum, e) => sum + Number(e.valor), 0);
-}
-
-type MoneyRow = { label: string; value: number };
-
-type ReservationFunnel = {
-  total: number;
-  hospedados: number;
-  cancelados: number;
-  taxaCancelamento: number;
-  taxaHospedagem: number;
-};
-
-function buildCashSnapshot(
-  period: "dia" | "mes" | "ano",
-  today: string,
-  month: string,
-  reservations: Reservation[],
-  sales: Sale[],
-  expenses: Expense[],
-) {
-  const reservasPeriodo = reservations.filter((reservation) => dateInSelectedPeriod(reservation.checkin, period, today, month));
-  const vendasPeriodo = sales.filter((sale) => dateInSelectedPeriod(sale.data, period, today, month));
-  const despesasPeriodo = expenses.filter((expense) => dateInSelectedPeriod(expense.data, period, today, month));
-
-  const receitaPrevista =
-    reservasPeriodo.reduce((sum, reservation) => sum + Number(reservation.valor_total ?? 0), 0) +
-    vendasPeriodo.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
-  const receitaRecebida =
-    reservasPeriodo.reduce((sum, reservation) => sum + Number(reservation.valor_pago ?? 0), 0) +
-    vendasPeriodo.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
-  const despesas = despesasPeriodo.reduce((sum, expense) => sum + Number(expense.valor ?? 0), 0);
-  const aReceber = reservasPeriodo
-    .filter((reservation) => reservation.status !== "cancelado")
-    .reduce((sum, reservation) => sum + Math.max(0, Number(reservation.valor_total ?? 0) - Number(reservation.valor_pago ?? 0)), 0);
-
-  const total = reservasPeriodo.length;
-  const cancelados = reservasPeriodo.filter((reservation) => reservation.status === "cancelado").length;
-  const hospedados = reservasPeriodo.filter((reservation) => {
-    if (reservation.status === "cancelado" || reservation.status === "manutencao") return false;
-    const status = normalizeText(String(reservation.status ?? ""));
-    return status.includes("ocup") || status.includes("final") || Boolean((reservation as { checkin_at?: string | null }).checkin_at) || reservation.checkin <= today;
-  }).length;
-
-  return {
-    receitaPrevista,
-    receitaRecebida,
-    despesas,
-    aReceber,
-    funnel: {
-      total,
-      hospedados,
-      cancelados,
-      taxaCancelamento: total ? (cancelados / total) * 100 : 0,
-      taxaHospedagem: total ? (hospedados / total) * 100 : 0,
-    },
-    receitasPorPagamento: topMoneyRows(
-      groupPaymentMoney([
-        ...reservasPeriodo.map((reservation) => ({
-          label: paymentLabel(reservation.pagamento),
-          value: Number(reservation.valor_pago ?? 0),
-        })),
-        ...vendasPeriodo.map((sale) => ({ label: paymentLabel(sale.pagamento), value: Number(sale.total ?? 0) })),
-      ]),
-    ),
-    despesasPorPagamento: topMoneyRows(
-      groupPaymentMoney(despesasPeriodo.map((expense) => ({ label: paymentLabel(expense.pagamento), value: Number(expense.valor ?? 0) }))),
-    ),
-  };
-}
-
-function dateInSelectedPeriod(value: string | null | undefined, period: "dia" | "mes" | "ano", today: string, month: string) {
-  const date = (value || "").slice(0, 10);
-  if (!date) return false;
-  if (period === "dia") return date === today;
-  if (period === "mes") return date.slice(0, 7) === month;
-  return date.slice(0, 4) === today.slice(0, 4);
-}
-
-function paymentLabel(value: string | null | undefined) {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "Nao informado";
-  const normalized = normalizeText(raw);
-  if (normalized.includes("pix")) return "Pix";
-  if (normalized.includes("dinheiro")) return "Dinheiro";
-  if (normalized.includes("credito")) return "Cartao credito";
-  if (normalized.includes("debito")) return "Cartao debito";
-  if (normalized.includes("transfer")) return "Transferencia";
-  if (normalized.includes("empresa")) return "Empresa";
-  return labelize(raw);
-}
-
-function groupPaymentMoney(rows: MoneyRow[]) {
-  const map = new Map<string, number>();
-  rows.forEach((row) => {
-    if (row.value <= 0) return;
-    map.set(row.label, (map.get(row.label) ?? 0) + row.value);
-  });
-  return [...map.entries()].map(([label, value]) => ({ label, value }));
-}
-
-function topMoneyRows(rows: MoneyRow[]) {
-  return rows.sort((a, b) => b.value - a.value).slice(0, 6);
-}
-
-function cashHealthFrom(lucroLiquido: number, receitaRecebida: number, taxaCancelamento: number) {
-  const margem = receitaRecebida > 0 ? lucroLiquido / receitaRecebida : lucroLiquido > 0 ? 1 : 0;
-  if (lucroLiquido <= 0 || taxaCancelamento >= 35) {
-    return { label: "Ruim", tone: "brick" as const, detail: "Caixa apertado ou cancelamento alto. Revise despesas e recebimentos." };
-  }
-  if (margem < 0.18 || taxaCancelamento >= 18) {
-    return { label: "Media", tone: "brass" as const, detail: "Existe lucro, mas a margem pede atencao." };
-  }
-  return { label: "Boa", tone: "pine" as const, detail: "Margem positiva para a operacao atual." };
 }
 
 function occupancyForMonth(month: string, reservations: Reservation[], roomCount: number) {
