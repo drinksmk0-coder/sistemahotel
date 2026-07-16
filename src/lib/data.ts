@@ -171,7 +171,7 @@ export function useRooms() {
     enabled: !!company.data,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("rooms")
+        .from("rooms" as never)
         .select("*")
         .eq("company_id", company.data!.id)
         .lt("numero", 900)

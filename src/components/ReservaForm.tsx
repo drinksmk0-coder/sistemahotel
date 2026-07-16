@@ -19,6 +19,7 @@ export type ReservaRow = {
   cliente_nome: string;
   cliente_telefone?: string | null;
   cliente_email?: string | null;
+  cliente_cpf?: string | null;
   cliente_tipo?: string | null;
   cliente_data_nascimento?: string | null;
   cliente_sexo?: string | null;
@@ -90,6 +91,7 @@ export function ReservaForm({
   const [nome, setNome] = useState(editing && !editing.cliente_id ? editing.cliente_nome : "");
   const [telefone, setTelefone] = useState("");
   const [email, setEmail] = useState("");
+  const [cpf, setCpf] = useState("");
   const [tipoCliente, setTipoCliente] = useState<string>("hóspede normal");
   const [nascimento, setNascimento] = useState("");
   const [sexo, setSexo] = useState("");
@@ -146,6 +148,7 @@ export function ReservaForm({
     setNome(client.nome);
     setTelefone(client.telefone ?? "");
     setEmail((client as Client & { email?: string | null }).email ?? "");
+    setCpf(client.cpf ?? "");
     setProfissao(client.profissao ?? "");
     setCidade(client.cidade ?? "");
     setEstado(client.estado ?? stateFromPhone(client.telefone ?? "") ?? "MG");
@@ -160,7 +163,7 @@ export function ReservaForm({
   }
 
   function handlePhoneChange(value: string) {
-    setTelefone(value);
+    setTelefone(formatPhoneBR(value));
     const uf = stateFromPhone(value);
     if (uf) setEstado(uf);
   }
@@ -185,22 +188,37 @@ export function ReservaForm({
     if (overlap) return toast.error("Já existe reserva ativa para este quarto no período");
     if (blocked) return toast.error("Quarto bloqueado — libere abaixo para continuar");
     const cli = selectedClient;
+    const cleanName = normalizePersonName(cli?.nome ?? nome);
+    const cleanPhone = formatPhoneBR(cli?.telefone ?? telefone);
+    const cleanCpf = formatCpfBR(cli?.cpf ?? cpf);
+    const requiredNascimento = cli?.data_nascimento ?? nascimento;
+    const requiredEstado = cli?.estado ?? estado;
+    const requiredEstadoCivil = cli?.estado_civil ?? estadoCivil;
+    if (!cleanName || hasNumber(cleanName) || cleanName.split(" ").length < 2) {
+      return toast.error("Informe o nome completo do hóspede, sem números.");
+    }
+    if (onlyDigits(cleanCpf).length !== 11) return toast.error("CPF obrigatório. Informe os 11 dígitos.");
+    if (onlyDigits(cleanPhone).length < 10) return toast.error("Telefone obrigatório. Informe DDD e número.");
+    if (!requiredNascimento) return toast.error("Data de nascimento obrigatória.");
+    if (!requiredEstado) return toast.error("Estado obrigatório.");
+    if (!requiredEstadoCivil) return toast.error("Estado civil obrigatório.");
     const wasOccupied = editing?.status === "ocupado";
     onSave({
       quarto,
       cliente_id: clienteId || null,
-      cliente_nome: cli?.nome ?? nome.trim(),
-      cliente_telefone: clienteId ? null : telefone.trim() || null,
+      cliente_nome: cleanName,
+      cliente_telefone: clienteId ? null : cleanPhone || null,
       cliente_email: clienteId ? null : email.trim() || null,
+      cliente_cpf: clienteId ? null : cleanCpf || null,
       cliente_tipo: clienteId ? null : tipoCliente,
-      cliente_data_nascimento: clienteId ? null : nascimento || null,
+      cliente_data_nascimento: clienteId ? null : requiredNascimento || null,
       cliente_sexo: clienteId ? null : sexo || null,
       cliente_profissao: clienteId ? null : profissao.trim() || null,
       cliente_cidade: clienteId ? null : cidade.trim() || null,
-      cliente_estado: clienteId ? null : estado || null,
+      cliente_estado: clienteId ? null : requiredEstado || null,
       cliente_cep: clienteId ? null : cep.trim() || null,
       cliente_bairro: clienteId ? null : bairro.trim() || null,
-      cliente_estado_civil: clienteId ? null : estadoCivil || null,
+      cliente_estado_civil: clienteId ? null : requiredEstadoCivil || null,
       cliente_tem_filhos: clienteId ? null : temFilhos,
       cliente_quantidade_filhos: clienteId || !temFilhos ? null : parseIntNumber(quantidadeFilhos),
       checkin,
@@ -268,7 +286,7 @@ export function ReservaForm({
               className="field"
               value={nome}
               onChange={(e) => {
-                setNome(e.target.value);
+                setNome(e.target.value.replace(/[0-9]/g, ""));
                 if (clienteId) setClienteId("");
               }}
               placeholder="Digite as primeiras letras do nome"
@@ -278,10 +296,10 @@ export function ReservaForm({
             {clienteId && (
               <button
                 type="button"
-                className="mt-1 text-xs font-semibold text-brick"
+                className="mt-1 text-xs font-semibold text-pine"
                 onClick={() => setClienteId("")}
               >
-                Digitar outro cliente
+                Trocar cliente
               </button>
             )}
             {clientSuggestions.length > 0 && (
@@ -307,12 +325,15 @@ export function ReservaForm({
           <>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Telefone">
-                <input className="field" value={telefone} onChange={(e) => handlePhoneChange(e.target.value)} maxLength={30} />
+                <input className="field" value={telefone} onChange={(e) => handlePhoneChange(e.target.value)} maxLength={17} required />
               </Field>
               <Field label="E-mail">
                 <input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} />
               </Field>
             </div>
+            <Field label="CPF">
+              <input className="field" value={cpf} onChange={(e) => setCpf(formatCpfBR(e.target.value))} maxLength={14} required />
+            </Field>
             <div className="grid grid-cols-3 gap-3">
               <Field label="Tipo de hóspede">
                 <select
@@ -329,7 +350,7 @@ export function ReservaForm({
                 </select>
               </Field>
               <Field label="Nascimento">
-                <input type="date" className="field" value={nascimento} onChange={(e) => setNascimento(e.target.value)} />
+                <input type="date" className="field" value={nascimento} onChange={(e) => setNascimento(e.target.value)} required />
               </Field>
               <Field label="Sexo">
                 <select className="field" value={sexo} onChange={(e) => setSexo(e.target.value)}>
@@ -348,7 +369,7 @@ export function ReservaForm({
                 <input className="field" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={60} />
               </Field>
               <Field label="UF">
-                <select className="field" value={estado} onChange={(e) => setEstado(e.target.value)}>
+                <select className="field" value={estado} onChange={(e) => setEstado(e.target.value)} required>
                   {BR_STATES.map((uf) => (
                     <option key={uf} value={uf}>{uf}</option>
                   ))}
@@ -597,4 +618,37 @@ function addDaysISO(date: string, days: number) {
   const current = new Date(`${date}T00:00:00`);
   current.setDate(current.getDate() + days);
   return current.toISOString().slice(0, 10);
+}
+
+function onlyDigits(value: string | null | undefined) {
+  return (value ?? "").replace(/\D/g, "");
+}
+
+function hasNumber(value: string) {
+  return /\d/.test(value);
+}
+
+function normalizePersonName(value: string | null | undefined) {
+  return (value ?? "")
+    .replace(/[0-9]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/(^|\s)(\p{L})/gu, (match) => match.toLocaleUpperCase("pt-BR"));
+}
+
+function formatCpfBR(value: string | null | undefined) {
+  const digits = onlyDigits(value).slice(0, 11);
+  return digits
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
+}
+
+function formatPhoneBR(value: string | null | undefined) {
+  const digits = onlyDigits(value).replace(/^55(?=\d{10,11}$)/, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }

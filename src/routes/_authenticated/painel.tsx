@@ -81,6 +81,7 @@ function Painel() {
   const { data: expenses = [] } = useExpenses();
   const updateRoom = useUpdate("rooms", ["rooms"]);
   const insertComplaint = useInsert("complaints", ["complaints"]);
+  const updateComplaint = useUpdate("complaints", ["complaints"]);
   const insertKitchenItem = useInsert("kitchen_items", ["kitchen_items"]);
   const updateKitchenItem = useUpdate("kitchen_items", ["kitchen_items"]);
   const insertKitchenProduction = useInsert("kitchen_productions", ["kitchen_productions"]);
@@ -207,6 +208,7 @@ function Painel() {
       <LimpezaPainel
         rooms={rooms}
         reservations={reservations}
+        complaints={complaints}
         today={today}
         departuresToday={departuresToday}
         kitchenItems={kitchenItems}
@@ -214,6 +216,7 @@ function Painel() {
         updateKitchenItem={updateKitchenItem}
         updateRoom={updateRoom}
         insertComplaint={insertComplaint}
+        updateComplaint={updateComplaint}
       />
     );
   }
@@ -403,6 +406,11 @@ function Painel() {
       <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
         <ChannelStrategy reservations={reservations} sales={sales} />
         <PricingSuggestion reservations={reservations} rooms={rooms} today={today} />
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <StaffSalesSummary sales={sales} />
+        <EmployeeConsumptionSummary sales={sales} />
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
@@ -693,6 +701,7 @@ function MiniSpark({ tone }: { tone: "pine" | "brass" | "sage" | "brick" }) {
 function LimpezaPainel({
   rooms,
   reservations,
+  complaints,
   today,
   departuresToday,
   kitchenItems,
@@ -700,9 +709,11 @@ function LimpezaPainel({
   updateKitchenItem,
   updateRoom,
   insertComplaint,
+  updateComplaint,
 }: {
   rooms: Room[];
   reservations: Reservation[];
+  complaints: ReturnType<typeof useComplaints>["data"];
   today: string;
   departuresToday: Reservation[];
   kitchenItems: KitchenItem[];
@@ -710,6 +721,7 @@ function LimpezaPainel({
   updateKitchenItem: ReturnType<typeof useUpdate>;
   updateRoom: ReturnType<typeof useUpdate>;
   insertComplaint: ReturnType<typeof useInsert>;
+  updateComplaint: ReturnType<typeof useUpdate>;
 }) {
   const checkoutRooms = new Set(departuresToday.map((r) => r.quarto));
   const cleaningRooms = rooms
@@ -723,91 +735,147 @@ function LimpezaPainel({
     .sort((a, b) => a.numero - b.numero);
   const cleaningStock = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "limpeza"));
   const lowCleaning = cleaningStock.filter(isLowStock);
+  const openCleaningRequests = (complaints ?? [])
+    .filter(
+      (complaint) =>
+        complaint.status !== "resolvido" &&
+        (complaint.origem === "limpeza" ||
+          ["papel_higienico", "sabonete", "toalha", "manutencao", "reposicao_quarto"].includes(complaint.categoria)),
+    )
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  const [tab, setTab] = useState<"quartos" | "estoque" | "solicitacoes">("quartos");
 
   return (
     <div>
       <PageHeader
         title="Limpeza"
-        subtitle="Somente os quartos que precisam de atencao hoje."
+        subtitle="Quartos para limpar, reposições e solicitações abertas."
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat icon={<ClipboardCheck />} label="Para limpar" value={String(cleaningRooms.length)} hint="Inclui check-outs de hoje" />
-        <Stat icon={<DoorOpen />} label="Saidas hoje" value={String(departuresToday.length)} hint="Quartos liberando" />
-        <Stat icon={<AlertTriangle />} label="Manutencao" value={String(maintenanceRooms.length)} hint="Nao liberar para hospede" />
-        <Stat icon={<AlertTriangle />} label="Reposição" value={String(lowCleaning.length)} hint="Itens de limpeza abaixo do mínimo" />
+        <Stat icon={<DoorOpen />} label="Saídas hoje" value={String(departuresToday.length)} hint="Quartos liberando" />
+        <Stat icon={<AlertTriangle />} label="Manutenção" value={String(maintenanceRooms.length)} hint="Não liberar para hóspede" />
+        <Stat icon={<MessageSquareWarning />} label="Solicitações" value={String(openCleaningRequests.length)} hint="Reposição ou problema aberto" />
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.2fr]">
-        <section className="card-surface p-4">
-          <h3 className="section-title mb-3 text-base">Alertas da limpeza</h3>
-          <AlertList
-            items={[
-              cleaningRooms.length > 0 ? `${cleaningRooms.length} quarto(s) precisam ser liberados para a recepção.` : "",
-              maintenanceRooms.length > 0 ? `${maintenanceRooms.length} quarto(s) em manutenção não devem ser liberados.` : "",
-              lowCleaning.length > 0 ? `${lowCleaning.length} item(ns) precisam de reposição.` : "",
-              lowCleaning.some((item) => normalizeText(item.nome).includes("papel")) ? "Verificar papel higiênico nos quartos antes de liberar." : "",
-            ]}
-          />
-        </section>
-        <SectorStockPanel
-          title="Estoque da limpeza"
-          subtitle="Papel higiênico, produtos de limpeza, sacos, toalhas e reposições de quarto."
-          sector="limpeza"
-          defaultCategory="Limpeza"
-          items={cleaningStock}
-          insertKitchenItem={insertKitchenItem}
-          updateKitchenItem={updateKitchenItem}
-        />
+      <div className="mt-4 flex flex-wrap gap-2">
+        {[
+          ["quartos", "Quartos"],
+          ["estoque", "Produtos e estoque"],
+          ["solicitacoes", "Solicitações"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setTab(value as typeof tab)}
+            className={`rounded-full px-3 py-1.5 text-sm font-semibold ${tab === value ? "bg-pine text-white" : "bg-muted text-muted-foreground"}`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      <section className="mt-5 card-surface p-5">
-        <h3 className="section-title mb-3 text-lg">Quartos para limpeza</h3>
-        {cleaningRooms.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum quarto pendente agora.</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-8 2xl:grid-cols-10">
-            {cleaningRooms.map((room) => (
-              <div key={room.numero} className="rounded-md border border-brass/45 bg-brass/10 px-3 py-4 text-center">
-                <div className="font-serif text-2xl font-bold text-pine-dark">{room.numero}</div>
-                <div className="mt-1 text-[11px] uppercase text-muted-foreground">Quarto</div>
-                <div className="mt-3 grid gap-1">
-                  <button
-                    className="rounded-md bg-pine px-2 py-1 text-[11px] font-semibold text-white"
-                    onClick={() =>
-                      updateRoom.mutate(
-                        { id: room.numero, patch: { situacao: "limpo" } },
-                        { onSuccess: () => undefined },
-                      )
-                    }
-                  >
-                    Liberar quarto
-                  </button>
-                  <button
-                    className="rounded-md bg-brass-bg px-2 py-1 text-[11px] font-semibold text-[oklch(0.4_0.06_74)]"
-                    onClick={() =>
-                      insertComplaint.mutate({
-                        quarto: room.numero,
-                        categoria: "papel_higienico",
-                        gravidade: "media",
-                        descricao: "Reposição de papel higiênico solicitada pela limpeza.",
-                        origem: "limpeza",
-                        status: "aberto",
-                      } as never)
-                    }
-                  >
-                    Pedir papel
-                  </button>
+      {tab === "quartos" && (
+        <section className="mt-5 card-surface p-5">
+          <h3 className="section-title mb-3 text-lg">Quartos para limpeza</h3>
+          {cleaningRooms.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum quarto pendente agora.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-8 2xl:grid-cols-10">
+              {cleaningRooms.map((room) => (
+                <div key={room.numero} className="rounded-md border border-brass/45 bg-brass/10 px-3 py-4 text-center">
+                  <div className="font-serif text-2xl font-bold text-pine-dark">{room.numero}</div>
+                  <div className="mt-1 text-[11px] uppercase text-muted-foreground">Quarto</div>
+                  <div className="mt-3 grid gap-1">
+                    <button
+                      className="rounded-md bg-pine px-2 py-1 text-[11px] font-semibold text-white"
+                      onClick={() =>
+                        updateRoom.mutate(
+                          { id: room.numero, patch: { situacao: "limpo" } },
+                          { onSuccess: () => undefined },
+                        )
+                      }
+                    >
+                      Liberar quarto
+                    </button>
+                    <QuickCleaningRequest room={room.numero} insertComplaint={insertComplaint} />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "estoque" && (
+        <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1.4fr]">
+          <section className="card-surface p-4">
+            <h3 className="section-title mb-3 text-base">Alertas da limpeza</h3>
+            <AlertList
+              items={[
+                cleaningRooms.length > 0 ? `${cleaningRooms.length} quarto(s) precisam ser liberados para a recepção.` : "",
+                maintenanceRooms.length > 0 ? `${maintenanceRooms.length} quarto(s) em manutenção não devem ser liberados.` : "",
+                lowCleaning.length > 0 ? `${lowCleaning.length} item(ns) precisam de reposição.` : "",
+                lowCleaning.some((item) => normalizeText(item.nome).includes("papel")) ? "Verificar papel higiênico nos quartos antes de liberar." : "",
+              ]}
+            />
+          </section>
+          <SectorStockPanel
+            title="Estoque da limpeza"
+            subtitle="Papel higiênico, sabonete, toalhas, produtos de limpeza, sacos e reposições de quarto."
+            sector="limpeza"
+            defaultCategory="Limpeza"
+            items={cleaningStock}
+            insertKitchenItem={insertKitchenItem}
+            updateKitchenItem={updateKitchenItem}
+          />
+        </div>
+      )}
+
+      {tab === "solicitacoes" && (
+        <section className="mt-5 card-surface p-5">
+          <h3 className="section-title mb-3 text-lg">Solicitações abertas</h3>
+          <p className="mb-3 rounded-lg bg-sage-bg px-3 py-2 text-xs text-pine-dark">
+            Sem WAHA o sistema abre o WhatsApp com a mensagem pronta. Com WAHA, dá para enviar automaticamente para o grupo do hotel ou para a pessoa responsável.
+          </p>
+          {openCleaningRequests.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhuma solicitação aberta agora.</p>
+          ) : (
+            <div className="space-y-2">
+              {openCleaningRequests.map((request) => (
+                <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                  <div>
+                    <p className="font-semibold">Quarto {request.quarto ?? "-"} · {complaintLabel(request.categoria)}</p>
+                    <p className="text-muted-foreground">{request.descricao ?? "Sem descrição."}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <a
+                      className="rounded-md bg-brass-bg px-3 py-1.5 text-xs font-semibold text-[oklch(0.4_0.06_74)]"
+                      href={cleaningWhatsAppUrl(request)}
+                      target="_blank"
+                      rel="noopener"
+                    >
+                      Avisar WhatsApp
+                    </a>
+                    <button
+                      type="button"
+                      className="rounded-md bg-pine px-3 py-1.5 text-xs font-semibold text-white"
+                      onClick={() => updateComplaint.mutate({ id: request.id, patch: { status: "resolvido", resolved_at: new Date().toISOString() } })}
+                    >
+                      Resolver
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {maintenanceRooms.length > 0 && (
         <section className="mt-4 card-surface p-5">
-          <h3 className="section-title mb-3 text-lg">Quartos em manutencao</h3>
+          <h3 className="section-title mb-3 text-lg">Quartos em manutenção</h3>
           <div className="flex flex-wrap gap-2">
             {maintenanceRooms.map((room) => (
               <Badge key={room.numero} tone="brick">Quarto {room.numero}</Badge>
@@ -815,6 +883,38 @@ function LimpezaPainel({
           </div>
         </section>
       )}
+    </div>
+  );
+}
+
+function QuickCleaningRequest({ room, insertComplaint }: { room: number; insertComplaint: ReturnType<typeof useInsert> }) {
+  const options = [
+    ["papel_higienico", "Papel"],
+    ["sabonete", "Sabonete"],
+    ["toalha", "Toalha"],
+    ["manutencao", "Manutenção"],
+  ] as const;
+
+  return (
+    <div className="grid grid-cols-2 gap-1">
+      {options.map(([categoria, label]) => (
+        <button
+          key={categoria}
+          className="rounded-md bg-brass-bg px-2 py-1 text-[10px] font-semibold text-[oklch(0.4_0.06_74)]"
+          onClick={() =>
+            insertComplaint.mutate({
+              quarto: room,
+              categoria,
+              gravidade: categoria === "manutencao" ? "alta" : "media",
+              descricao: `${label} solicitado pela limpeza no quarto ${room}.`,
+              origem: "limpeza",
+              status: "aberto",
+            } as never)
+          }
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -841,6 +941,7 @@ function CafePainel({
   insertKitchenProduction: ReturnType<typeof useInsert>;
 }) {
   const [showItemForm, setShowItemForm] = useState(false);
+  const [tab, setTab] = useState<"visao" | "produtos" | "servido">("visao");
   const rooms = activeToday
     .map((reservation) => ({
       quarto: reservation.quarto,
@@ -866,12 +967,29 @@ function CafePainel({
   return (
     <div>
       <PageHeader
-        title="Café e cozinha"
-        subtitle="Preparo, consumo, sobras e estoque da cozinha."
+        title="Café da manhã"
+        subtitle="Visão de hóspedes, produtos comprados, servido e sobras."
       />
 
+      <div className="mb-4 flex flex-wrap gap-2">
+        {[
+          ["visao", "Visão"],
+          ["produtos", "Produtos e estoque"],
+          ["servido", "Servido e sobras"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setTab(value as typeof tab)}
+            className={`rounded-full px-3 py-1.5 text-sm font-semibold ${tab === value ? "bg-pine text-white" : "bg-muted text-muted-foreground"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat icon={<Coffee />} label="Pessoas hoje" value={String(ocupantesHoje)} hint="Base para preparo" />
+        <Stat icon={<Coffee />} label="Pessoas hoje" value={String(ocupantesHoje)} hint="Base para compra" />
         <Stat icon={<BedDouble />} label="Quartos ocupados" value={String(activeToday.length)} hint={`Capacidade total: ${capacidadeTotal}`} />
         <Stat icon={<ClipboardCheck />} label="Itens ativos" value={String(activeItems.length)} hint="Cadastrados na cozinha" />
         <Stat icon={<AlertTriangle />} label="Reposição" value={String(lowItems.length)} hint="Estoque abaixo do mínimo" />
@@ -882,19 +1000,19 @@ function CafePainel({
         <Stat icon={<AlertTriangle />} label="Perda hoje" value={formatQty(todayLoss)} hint="Quebrou, venceu ou não aproveitou" />
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-4 2xl:grid-cols-[1.35fr_1fr]">
+      {tab === "visao" && <div className="mt-5 grid grid-cols-1 gap-4 2xl:grid-cols-[1.35fr_1fr]">
         <section className="card-surface p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
               <h3 className="section-title text-base">Relatório inteligente do café</h3>
-              <p className="text-xs text-muted-foreground">Compara previsto, produzido, servido, sobra e perda.</p>
+              <p className="text-xs text-muted-foreground">Compara previsto, disponível/comprado, servido, sobra e perda.</p>
             </div>
             <Badge tone={overPrepared.length || underPrepared.length ? "brass" : "pine"}>
               {overPrepared.length + underPrepared.length} alerta(s)
             </Badge>
           </div>
           {kitchenChart.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Lance o preparo do dia para gerar os gráficos.</p>
+            <p className="text-sm text-muted-foreground">Lance o que ficou disponível e o que foi servido para gerar os gráficos.</p>
           ) : (
             <ResponsiveContainer width="100%" height={230}>
               <BarChart data={kitchenChart} margin={{ left: -18, right: 8, top: 4 }}>
@@ -904,7 +1022,7 @@ function CafePainel({
                 <Tooltip />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="esperado" name="Previsto" fill="var(--brass)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="produzido" name="Produzido" fill="var(--pine)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="produzido" name="Disponível/comprado" fill="var(--pine)" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="servido" name="Consumido" fill="var(--sage)" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="sobra" name="Sobra" fill="var(--slate)" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -916,7 +1034,7 @@ function CafePainel({
           <AlertList
             items={[
               lowItems.length > 0 ? `${lowItems.length} item(ns) abaixo do estoque mínimo.` : "",
-              overPrepared.length > 0 ? `${overPrepared.length} item(ns) com sobra/perda acima de 25%. Reduzir preparo.` : "",
+              overPrepared.length > 0 ? `${overPrepared.length} item(ns) com sobra/perda acima de 25%. Comprar menos na próxima vez.` : "",
               underPrepared.length > 0 ? `${underPrepared.length} item(ns) abaixo do previsto. Atenção para faltar.` : "",
               topConsumed[0] ? `Mais consumido hoje: ${topConsumed[0].nome} (${formatQty(topConsumed[0].servido)}).` : "",
             ]}
@@ -935,13 +1053,13 @@ function CafePainel({
             </div>
           )}
         </section>
-      </div>
+      </div>}
 
-      <section className="mt-5 card-surface p-5">
+      {tab === "servido" && <section className="mt-5 card-surface p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="section-title text-lg">Lançar preparo do dia</h3>
-            <p className="text-sm text-muted-foreground">Registre o que foi preparado, servido, sobrou e perdeu.</p>
+            <h3 className="section-title text-lg">Lançar servido e sobras</h3>
+            <p className="text-sm text-muted-foreground">Registre o que ficou disponível, o que foi servido, o que sobrou e o que perdeu.</p>
           </div>
           {lowItems.length > 0 && (
             <a
@@ -956,7 +1074,7 @@ function CafePainel({
         </div>
         {activeItems.length === 0 ? (
           <p className="rounded-lg border border-border/70 p-3 text-sm text-muted-foreground">
-            Cadastre os itens da cozinha primeiro. Exemplos: pão, café, leite, suco, molho, frutas, ovos.
+            Cadastre os produtos do café primeiro. Exemplos: pão, café, leite, suco, molho, frutas, ovos.
           </p>
         ) : (
           <form
@@ -1009,7 +1127,7 @@ function CafePainel({
               <input name="pessoas_servidas" type="number" min="0" defaultValue={ocupantesHoje} className="w-full rounded-md border border-border bg-background px-3 py-2" />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Produzido</span>
+              <span className="mb-1 block font-semibold text-muted-foreground">Disponível/comprado</span>
               <input name="produzido" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
             </label>
             <label className="text-sm">
@@ -1030,17 +1148,17 @@ function CafePainel({
             </label>
             <div className="md:col-span-2 flex items-end">
               <button type="submit" className="w-full rounded-md bg-pine px-4 py-2 font-semibold text-white" disabled={insertKitchenProduction.isPending}>
-                Salvar preparo
+                Salvar consumo
               </button>
             </div>
           </form>
         )}
-      </section>
+      </section>}
 
-      <section className="mt-5 card-surface p-5">
+      {tab === "produtos" && <section className="mt-5 card-surface p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h3 className="section-title text-lg">Itens da cozinha</h3>
+            <h3 className="section-title text-lg">Produtos do café</h3>
             <p className="text-sm text-muted-foreground">Estoque, consumo por pessoa e alerta de reposição.</p>
           </div>
           <button type="button" className="rounded-md bg-brass px-3 py-2 text-xs font-semibold text-pine-dark" onClick={() => setShowItemForm((v) => !v)}>
@@ -1122,7 +1240,7 @@ function CafePainel({
                 <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                   <th className="p-3">Item</th>
                   <th className="p-3">Esperado hoje</th>
-                  <th className="p-3">Preparo hoje</th>
+                  <th className="p-3">Disponível hoje</th>
                   <th className="p-3">Estoque</th>
                   <th className="p-3">Status</th>
                 </tr>
@@ -1141,7 +1259,7 @@ function CafePainel({
                       </td>
                       <td className="p-3">{formatQty(expected)} {item.unidade}</td>
                       <td className="p-3 text-xs text-muted-foreground">
-                        <p>Produzido: <span className="font-semibold text-foreground">{formatQty(totals.produzido)} {item.unidade}</span></p>
+                        <p>Disponível: <span className="font-semibold text-foreground">{formatQty(totals.produzido)} {item.unidade}</span></p>
                         <p>Servido: <span className="font-semibold text-foreground">{formatQty(totals.servido)} {item.unidade}</span></p>
                         <p>Sobra: <span className="font-semibold text-foreground">{formatQty(totals.sobra)} {item.unidade}</span></p>
                         <p>Perda: <span className="font-semibold text-foreground">{formatQty(totals.perda)} {item.unidade}</span></p>
@@ -1183,12 +1301,12 @@ function CafePainel({
             </table>
           </div>
         )}
-      </section>
+      </section>}
 
-      <section className="mt-5 card-surface p-5">
-        <h3 className="section-title mb-3 text-lg">Histórico recente da cozinha</h3>
+      {tab === "servido" && <section className="mt-5 card-surface p-5">
+        <h3 className="section-title mb-3 text-lg">Histórico recente do café</h3>
         {latestProductions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum preparo lançado ainda.</p>
+          <p className="text-sm text-muted-foreground">Nenhum consumo lançado ainda.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -1197,7 +1315,7 @@ function CafePainel({
                   <th className="p-3">Data</th>
                   <th className="p-3">Item</th>
                   <th className="p-3">Pessoas</th>
-                  <th className="p-3">Produzido</th>
+                  <th className="p-3">Disponível</th>
                   <th className="p-3">Servido</th>
                   <th className="p-3">Sobra</th>
                   <th className="p-3">Perda</th>
@@ -1222,10 +1340,10 @@ function CafePainel({
             </table>
           </div>
         )}
-      </section>
+      </section>}
 
-      <section className="mt-5 card-surface p-5">
-        <h3 className="section-title mb-3 text-lg">Quartos com hospedes</h3>
+      {tab === "visao" && <section className="mt-5 card-surface p-5">
+        <h3 className="section-title mb-3 text-lg">Quartos com hóspedes</h3>
         {rooms.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum hospede ativo agora.</p>
         ) : (
@@ -1250,7 +1368,7 @@ function CafePainel({
             </table>
           </div>
         )}
-      </section>
+      </section>}
     </div>
   );
 }
@@ -1436,6 +1554,78 @@ function AlertList({ items }: { items: string[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function cleaningWhatsAppUrl(request: { quarto?: number | null; categoria: string; descricao?: string | null }) {
+  const message = [
+    "Hotel Real - solicitacao para a limpeza",
+    `Quarto: ${request.quarto ?? "-"}`,
+    `Tipo: ${complaintLabel(request.categoria)}`,
+    `Detalhe: ${request.descricao ?? "Sem detalhe informado."}`,
+    "",
+    "Por favor, verificar e avisar quando resolver.",
+  ].join("\n");
+
+  return `https://wa.me/553588001372?text=${encodeURIComponent(message)}`;
+}
+
+function StaffSalesSummary({ sales }: { sales: Sale[] }) {
+  const rows = groupMoney(
+    sales,
+    (sale) => sale.created_by ? `Funcionário ${sale.created_by.slice(0, 8)}` : "Sem funcionário informado",
+    (sale) => Number(sale.total ?? 0),
+  )
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, 6);
+
+  return (
+    <section className="card-surface border-t-4 border-t-pine p-4">
+      <h3 className="section-title mb-2 text-sm">Vendas lançadas por funcionário</h3>
+      {rows.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Nenhuma venda lançada ainda.</p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((row) => (
+            <div key={row.nome} className="flex items-center justify-between rounded-md bg-sage-bg/45 px-3 py-2 text-sm">
+              <span className="font-semibold">{row.nome}</span>
+              <span>{fmtBRL(row.valor)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EmployeeConsumptionSummary({ sales }: { sales: Sale[] }) {
+  const internalSales = sales.filter((sale) => {
+    const text = `${sale.categoria ?? ""} ${sale.item ?? ""} ${sale.observacoes ?? ""}`.toLocaleLowerCase("pt-BR");
+    return text.includes("funcionario") || text.includes("funcionário") || text.includes("interno") || text.includes("agua") || text.includes("água");
+  });
+  const waterQty = internalSales
+    .filter((sale) => `${sale.item} ${sale.categoria ?? ""}`.toLocaleLowerCase("pt-BR").includes("gua"))
+    .reduce((sum, sale) => sum + Number(sale.qtd ?? 0), 0);
+  const limitHint = waterQty > 0 ? `${formatQty(waterQty)} unidade(s) lançadas. Regra: 2 litros por funcionário/dia.` : "Regra sugerida: 2 litros por funcionário/dia.";
+
+  return (
+    <section className="card-surface border-t-4 border-t-brass p-4">
+      <h3 className="section-title mb-2 text-sm">Consumo interno e água</h3>
+      <div className="grid grid-cols-2 gap-2">
+        <MiniMetric label="Lançamentos internos" value={String(internalSales.length)} />
+        <MiniMetric label="Água funcionários" value={formatQty(waterQty)} />
+      </div>
+      <p className="mt-3 rounded-md bg-brass-bg/55 px-3 py-2 text-xs text-[oklch(0.36_0.05_74)]">{limitHint}</p>
+    </section>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-background px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase text-muted-foreground">{label}</p>
+      <p className="font-serif text-xl font-bold text-pine-dark">{value}</p>
+    </div>
   );
 }
 

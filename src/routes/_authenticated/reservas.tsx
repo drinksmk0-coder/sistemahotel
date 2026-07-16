@@ -102,15 +102,10 @@ function Reservas() {
   const phoneDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
 
   async function rowWithClient(row: ReservaRow) {
-    if (row.cliente_id) return row;
-    const telefoneDigits = phoneDigits(row.cliente_telefone);
-    const existing = telefoneDigits
-      ? clients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
-      : clients.find((c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase());
-
     const cleanRow = { ...row };
     delete cleanRow.cliente_telefone;
     delete cleanRow.cliente_email;
+    delete cleanRow.cliente_cpf;
     delete cleanRow.cliente_tipo;
     delete cleanRow.cliente_data_nascimento;
     delete cleanRow.cliente_sexo;
@@ -122,6 +117,12 @@ function Reservas() {
     delete cleanRow.cliente_estado_civil;
     delete cleanRow.cliente_tem_filhos;
     delete cleanRow.cliente_quantidade_filhos;
+
+    if (row.cliente_id) return cleanRow;
+    const telefoneDigits = phoneDigits(row.cliente_telefone);
+    const existing = telefoneDigits
+      ? clients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
+      : clients.find((c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase());
 
     if (existing) {
       const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();
@@ -135,6 +136,7 @@ function Reservas() {
       nome: row.cliente_nome,
       telefone: row.cliente_telefone || null,
       email: row.cliente_email || null,
+      cpf: row.cliente_cpf || null,
       tipo: row.cliente_tipo || "hóspede normal",
       data_nascimento: row.cliente_data_nascimento || null,
       sexo: row.cliente_sexo || null,

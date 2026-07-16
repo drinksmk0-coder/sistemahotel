@@ -225,13 +225,30 @@ function ClientForm({
             toast.error(cpfJaCadastrado ? "Este CPF já está cadastrado." : "Este telefone já está cadastrado.");
             return;
           }
+          const nomePadrao = normalizePersonName(nome);
+          if (!nomePadrao || hasNumber(nomePadrao) || nomePadrao.split(" ").length < 2) {
+            toast.error("Informe o nome completo, sem números.");
+            return;
+          }
+          if (cpfDigits.length !== 11) {
+            toast.error("CPF obrigatório. Informe os 11 dígitos.");
+            return;
+          }
+          if (telefoneDigits.length < 10) {
+            toast.error("Telefone obrigatório. Informe DDD e número.");
+            return;
+          }
+          if (!nascimento || !estado || !estadoCivil) {
+            toast.error("Data de nascimento, estado e estado civil são obrigatórios.");
+            return;
+          }
           onSave({
-            nome: nome.trim(),
+            nome: nomePadrao,
             tipo,
-            telefone: telefone.trim() || null,
+            telefone: formatPhoneBR(telefone) || null,
             email: email.trim() || null,
             documento: null,
-            cpf: cpf.trim() || null,
+            cpf: formatCpfBR(cpf) || null,
             data_nascimento: nascimento || null,
             profissao: profissao.trim() || null,
             sexo: sexo || null,
@@ -247,7 +264,7 @@ function ClientForm({
         className="space-y-3"
       >
         <Field label="Nome">
-          <input className="field" value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={80} />
+          <input className="field" value={nome} onChange={(e) => setNome(e.target.value.replace(/[0-9]/g, ""))} required maxLength={80} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Tipo">
@@ -265,11 +282,12 @@ function ClientForm({
               value={telefone}
               onChange={(e) => {
                 const value = e.target.value;
-                setTelefone(value);
+                setTelefone(formatPhoneBR(value));
                 const uf = stateFromPhone(value);
                 if (uf) setEstado(uf);
               }}
               maxLength={20}
+              required
               aria-invalid={telefoneJaCadastrado}
             />
             {telefoneJaCadastrado && (
@@ -285,8 +303,9 @@ function ClientForm({
             <input
               className="field"
               value={cpf}
-              onChange={(e) => setCpf(e.target.value)}
+              onChange={(e) => setCpf(formatCpfBR(e.target.value))}
               maxLength={14}
+              required
               aria-invalid={cpfJaCadastrado}
             />
             {cpfJaCadastrado && (
@@ -294,7 +313,7 @@ function ClientForm({
             )}
           </Field>
           <Field label="Data de nascimento">
-            <input type="date" className="field" value={nascimento} onChange={(e) => setNascimento(e.target.value)} />
+            <input type="date" className="field" value={nascimento} onChange={(e) => setNascimento(e.target.value)} required />
           </Field>
         </div>
         <Field label="Profissão">
@@ -311,7 +330,7 @@ function ClientForm({
             </select>
           </Field>
           <Field label="Estado civil">
-            <select className="field" value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)}>
+            <select className="field" value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)} required>
               <option value="">—</option>
               <option value="solteiro">Solteiro(a)</option>
               <option value="casado">Casado(a)</option>
@@ -354,7 +373,7 @@ function ClientForm({
             <input className="field" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={60} />
           </Field>
           <Field label="Estado">
-            <select className="field" value={estado} onChange={(e) => setEstado(e.target.value)}>
+            <select className="field" value={estado} onChange={(e) => setEstado(e.target.value)} required>
               <option value="">—</option>
               {BR_STATES.map((uf) => (
                 <option key={uf} value={uf}>
@@ -383,6 +402,35 @@ function ClientForm({
   );
 }
 
-function onlyDigits(value: string) {
-  return value.replace(/\D/g, "");
+function onlyDigits(value: string | null | undefined) {
+  return (value ?? "").replace(/\D/g, "");
+}
+
+function hasNumber(value: string) {
+  return /\d/.test(value);
+}
+
+function normalizePersonName(value: string | null | undefined) {
+  return (value ?? "")
+    .replace(/[0-9]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/(^|\s)(\p{L})/gu, (match) => match.toLocaleUpperCase("pt-BR"));
+}
+
+function formatCpfBR(value: string | null | undefined) {
+  const digits = onlyDigits(value).slice(0, 11);
+  return digits
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
+}
+
+function formatPhoneBR(value: string | null | undefined) {
+  const digits = onlyDigits(value).replace(/^55(?=\d{10,11}$)/, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }

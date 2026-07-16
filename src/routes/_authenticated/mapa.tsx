@@ -30,10 +30,12 @@ export const Route = createFileRoute("/_authenticated/mapa")({
 
 const STATUS_STYLE: Record<string, { bg: string; label: string }> = {
   livre: { bg: "bg-sage-bg border-sage/40 text-pine-dark", label: "Livre" },
-  ocupado: { bg: "bg-brick-bg border-brick/40 text-brick", label: "Ocupado" },
-  reservado: { bg: "bg-brass-bg border-brass/50 text-[oklch(0.4_0.06_74)]", label: "Reservado" },
+  hospedado_pago: { bg: "bg-pine/12 border-pine/45 text-pine-dark", label: "Hospedado · quitado" },
+  hospedado_debito: { bg: "bg-brick-bg border-brick/45 text-brick", label: "Hospedado · débito" },
+  sinal_pago: { bg: "bg-brass-bg border-brass/55 text-[oklch(0.4_0.06_74)]", label: "Sinal pago" },
+  reservado: { bg: "bg-[oklch(0.95_0.04_95)] border-brass/50 text-[oklch(0.4_0.06_74)]", label: "Reservado sem pagamento" },
   limpeza: { bg: "bg-slate-bg border-slate/40 text-slate", label: "Em limpeza" },
-  manutencao: { bg: "bg-slate-bg border-slate/40 text-slate", label: "Manutenção" },
+  manutencao: { bg: "bg-zinc-200 border-zinc-400 text-zinc-800", label: "Manutenção" },
 };
 
 function Mapa() {
@@ -106,7 +108,7 @@ function Mapa() {
           ...group,
           rooms: group.rooms.filter((room) => {
             if (statusFilter === "todos") return true;
-            return roomStatusAtDate(reservations, room, viewDate) === statusFilter;
+            return roomVisualStatus(reservations, room, viewDate) === statusFilter;
           }),
         }))
         .filter((group) => group.rooms.length > 0),
@@ -116,15 +118,10 @@ function Mapa() {
   const phoneDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
 
   async function rowWithClient(row: ReservaRow) {
-    if (row.cliente_id) return row;
-    const telefoneDigits = phoneDigits(row.cliente_telefone);
-    const existing = telefoneDigits
-      ? clients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
-      : clients.find((c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase());
-
     const cleanRow = { ...row };
     delete cleanRow.cliente_telefone;
     delete cleanRow.cliente_email;
+    delete cleanRow.cliente_cpf;
     delete cleanRow.cliente_tipo;
     delete cleanRow.cliente_data_nascimento;
     delete cleanRow.cliente_sexo;
@@ -136,6 +133,12 @@ function Mapa() {
     delete cleanRow.cliente_estado_civil;
     delete cleanRow.cliente_tem_filhos;
     delete cleanRow.cliente_quantidade_filhos;
+
+    if (row.cliente_id) return cleanRow;
+    const telefoneDigits = phoneDigits(row.cliente_telefone);
+    const existing = telefoneDigits
+      ? clients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
+      : clients.find((c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase());
 
     if (existing) {
       const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();
@@ -149,6 +152,7 @@ function Mapa() {
       nome: row.cliente_nome,
       telefone: row.cliente_telefone || null,
       email: row.cliente_email || null,
+      cpf: row.cliente_cpf || null,
       tipo: row.cliente_tipo || "hóspede normal",
       data_nascimento: row.cliente_data_nascimento || null,
       sexo: row.cliente_sexo || null,
@@ -214,7 +218,9 @@ function Mapa() {
         {[
           ["todos", "Todos"],
           ["livre", "Só livres"],
-          ["ocupado", "Ocupados"],
+          ["hospedado_pago", "Hospedado quitado"],
+          ["hospedado_debito", "Hospedado em débito"],
+          ["sinal_pago", "Sinal pago"],
           ["reservado", "Reservados"],
           ["limpeza", "Limpeza"],
         ].map(([value, label]) => (
@@ -243,7 +249,7 @@ function Mapa() {
             </div>
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10">
               {group.rooms.map((r) => {
-                const st = roomStatusAtDate(reservations, r, viewDate);
+                const st = roomVisualStatus(reservations, r, viewDate);
                 const style = STATUS_STYLE[st] ?? STATUS_STYLE.livre;
                 const n = complaintsByRoom.get(r.numero) ?? 0;
                 const intensity = n / maxComplaints;
@@ -561,6 +567,19 @@ function normalizeRoomText(value: string) {
     .toLowerCase()
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function roomVisualStatus(reservations: Reservation[], room: Room, date: string) {
+  const base = roomStatusAtDate(reservations, room, date);
+  if (base === "livre" || base === "limpeza" || base === "manutencao") return base;
+  const reservation = reservationForDate(reservations, room.numero, date) ?? activeReservationForRoom(reservations, room.numero);
+  if (!reservation) return base;
+  const paid = Number(reservation.valor_pago ?? 0);
+  const total = Number(reservation.valor_total ?? 0);
+  if (reservation.status === "ocupado") return paid >= total && total > 0 ? "hospedado_pago" : "hospedado_debito";
+  if (paid > 0 && paid < total) return "sinal_pago";
+  if (paid >= total && total > 0) return "hospedado_pago";
+  return "reservado";
 }
 
 function roomStatusAtDate(reservations: Reservation[], room: Room, date: string) {
