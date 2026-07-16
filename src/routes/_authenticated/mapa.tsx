@@ -49,6 +49,7 @@ function Mapa() {
   const [selected, setSelected] = useState<Room | null>(null);
   const [newFor, setNewFor] = useState<number | null>(null);
   const [viewDate, setViewDate] = useState(today);
+  const [statusFilter, setStatusFilter] = useState("todos");
 
   const complaintsByRoom = useMemo(() => {
     const m = new Map<number, number>();
@@ -98,6 +99,20 @@ function Mapa() {
     return { arrivals: arrivals.length, departures: departures.length, occupied, reserved, cleaning };
   }, [reservations, rooms, viewDate]);
 
+  const filteredRoomGroups = useMemo(
+    () =>
+      roomGroups
+        .map((group) => ({
+          ...group,
+          rooms: group.rooms.filter((room) => {
+            if (statusFilter === "todos") return true;
+            return roomStatusAtDate(reservations, room, viewDate) === statusFilter;
+          }),
+        }))
+        .filter((group) => group.rooms.length > 0),
+    [roomGroups, reservations, statusFilter, viewDate],
+  );
+
   const phoneDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
 
   async function rowWithClient(row: ReservaRow) {
@@ -109,11 +124,14 @@ function Mapa() {
 
     const cleanRow = { ...row };
     delete cleanRow.cliente_telefone;
+    delete cleanRow.cliente_email;
     delete cleanRow.cliente_tipo;
     delete cleanRow.cliente_data_nascimento;
     delete cleanRow.cliente_sexo;
+    delete cleanRow.cliente_profissao;
     delete cleanRow.cliente_cidade;
     delete cleanRow.cliente_estado;
+    delete cleanRow.cliente_cep;
     delete cleanRow.cliente_bairro;
     delete cleanRow.cliente_estado_civil;
     delete cleanRow.cliente_tem_filhos;
@@ -130,11 +148,14 @@ function Mapa() {
     const created = (await insertClient.mutateAsync({
       nome: row.cliente_nome,
       telefone: row.cliente_telefone || null,
+      email: row.cliente_email || null,
       tipo: row.cliente_tipo || "hóspede normal",
       data_nascimento: row.cliente_data_nascimento || null,
       sexo: row.cliente_sexo || null,
+      profissao: row.cliente_profissao || null,
       cidade: row.cliente_cidade || null,
       estado: row.cliente_estado || null,
+      cep: row.cliente_cep || null,
       bairro: row.cliente_bairro || null,
       estado_civil: row.cliente_estado_civil || null,
       tem_filhos: row.cliente_tem_filhos ?? null,
@@ -189,8 +210,28 @@ function Mapa() {
         </span>
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-1.5 text-sm">
+        {[
+          ["todos", "Todos"],
+          ["livre", "Só livres"],
+          ["ocupado", "Ocupados"],
+          ["reservado", "Reservados"],
+          ["limpeza", "Limpeza"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            onClick={() => setStatusFilter(value)}
+            className={`rounded-full px-3 py-1 font-semibold ${
+              statusFilter === value ? "bg-pine text-primary-foreground" : "bg-muted text-muted-foreground"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="space-y-5">
-        {roomGroups.map((group) => (
+        {filteredRoomGroups.map((group) => (
           <div key={group.title} className="rounded-lg border border-border bg-card/60 p-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h3 className="section-title text-sm uppercase tracking-wide text-pine-dark">
@@ -524,7 +565,7 @@ function normalizeRoomText(value: string) {
 
 function roomStatusAtDate(reservations: Reservation[], room: Room, date: string) {
   const manual = String((room as { situacao?: string | null }).situacao ?? "");
-  if (date === todayISO() && (manual === "limpeza" || manual === "manutencao")) return manual;
+  if (date === todayISO()) return roomStatusToday(reservations, room.numero, date, manual);
   const active = reservations.filter(
     (reservation) =>
       reservation.quarto === room.numero &&

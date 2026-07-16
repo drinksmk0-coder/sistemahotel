@@ -179,6 +179,14 @@ function Painel() {
   const decisionAverage = decisionSeries.length
     ? decisionSeries.reduce((sum, item) => sum + item.receita, 0) / decisionSeries.length
     : 0;
+  const forecastSeries = useMemo(() => buildForecastSeries(reservations, rooms.length, today), [reservations, rooms.length, today]);
+  const expenseLaunchAlert = useMemo(
+    () => shouldWarnMissingExpenses(expenses, reservations, today),
+    [expenses, reservations, today],
+  );
+  const currentRevpar = revparForMonth(month, currentMetrics.receita, rooms.length);
+  const previousMonthRevpar = revparForMonth(previousMonth, previousMonthMetrics.receita, rooms.length);
+  const previousYearRevpar = revparForMonth(previousYearMonth, previousYearMetrics.receita, rooms.length);
 
   const receitaPorQuarto = useMemo(() => {
     const m = new Map<number, number>();
@@ -262,6 +270,18 @@ function Painel() {
         </div>
       )}
 
+      {expenseLaunchAlert && (
+        <div className="mb-4 flex items-start gap-3 rounded-lg border border-brass/50 bg-brass/15 px-4 py-3 text-sm text-pine-dark">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-brass" />
+          <div>
+            <p className="font-semibold">Atenção: hotel ocupado sem lançamento de despesas</p>
+            <p>
+              Há hóspedes ativos e nenhum custo registrado nos últimos dias. Confira café, limpeza, reposição e compras para a margem não ficar artificialmente alta.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <PipelineCard tone="brass" title="Disponibilidade" value={`${livres}`} label="quartos livres" hint={`${ocupados} ocupados · ${reservados} reservados`} />
         <PipelineCard tone="pine" title="Hospedagem" value={`${ocupacao}%`} label="ocupação hoje" hint={`${ocupantesHoje} ocupantes · capacidade ${capacidadeTotal}`} />
@@ -270,7 +290,7 @@ function Painel() {
         <PipelineCard tone="pine" title="Experiência" value={media ? media.toFixed(1) : "—"} label="avaliação média" hint={`${feedbacks.length} avaliações`} />
       </div>
 
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
         <ComparisonStat
           icon={<DollarSign />}
           label="Receitas totais"
@@ -285,6 +305,13 @@ function Painel() {
           monthDelta={delta(currentMetrics.despesas, previousMonthMetrics.despesas)}
           yearDelta={delta(currentMetrics.despesas, previousYearMetrics.despesas)}
           lowerIsBetter
+        />
+        <ComparisonStat
+          icon={<TrendingUp />}
+          label="RevPAR"
+          value={fmtBRL(currentRevpar)}
+          monthDelta={delta(currentRevpar, previousMonthRevpar)}
+          yearDelta={delta(currentRevpar, previousYearRevpar)}
         />
         <ComparisonStat
           icon={<BedDouble />}
@@ -302,8 +329,8 @@ function Painel() {
         />
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
-        <div className="card-surface p-3">
+      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-4">
+        <div className="card-surface border-t-4 border-t-pine bg-[linear-gradient(180deg,rgba(35,77,56,0.08),var(--card)_42%)] p-3">
           <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
             <h3 className="section-title text-sm">Receita por {period === "dia" ? "hora" : period === "mes" ? "dia do mês" : "mês"}</h3>
             <PerformanceLegend />
@@ -323,7 +350,22 @@ function Painel() {
           </ResponsiveContainer>
         </div>
 
-        <div className="card-surface p-3">
+        <div className="card-surface border-t-4 border-t-sage bg-[linear-gradient(180deg,rgba(88,139,105,0.12),var(--card)_44%)] p-3">
+          <h3 className="section-title mb-2 text-sm">Previsão 30 dias</h3>
+          <ResponsiveContainer width="100%" height={176}>
+            <LineChart data={forecastSeries} margin={{ left: -16, right: 8, top: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v: number, name: string) => (name === "Receita" ? fmtBRL(v) : `${v}%`)} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Line type="monotone" dataKey="ocupacao" name="Ocupação" stroke="var(--sage)" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="receita" name="Receita" stroke="var(--brass)" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="card-surface border-t-4 border-t-brass bg-[linear-gradient(180deg,rgba(208,178,91,0.14),var(--card)_44%)] p-3">
           <h3 className="section-title mb-2 text-sm">Receita mensal x despesas</h3>
           <ResponsiveContainer width="100%" height={176}>
             <BarChart data={monthlySeries} margin={{ left: -10, right: 8, top: 4 }}>
@@ -342,7 +384,7 @@ function Painel() {
           </ResponsiveContainer>
         </div>
 
-        <div className="card-surface p-3">
+        <div className="card-surface border-t-4 border-t-brick bg-[linear-gradient(180deg,rgba(162,70,45,0.11),var(--card)_44%)] p-3">
           <h3 className="section-title mb-2 text-sm">Comparecimento x cancelamentos</h3>
           <ResponsiveContainer width="100%" height={176}>
             <LineChart data={series} margin={{ left: -20, right: 8, top: 4 }}>
@@ -383,7 +425,7 @@ function Painel() {
         />
       </div>
 
-      <div className="mt-3 card-surface p-3">
+      <div className="mt-3 card-surface border-t-4 border-t-sage bg-[linear-gradient(180deg,rgba(88,139,105,0.1),var(--card)_42%)] p-3">
         <h3 className="section-title mb-2 text-sm">Receita por quarto</h3>
         {receitaPorQuarto.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sem receita registrada ainda.</p>
@@ -1618,7 +1660,7 @@ const CHART_COLORS = ["var(--pine)", "var(--brass)", "var(--sage)", "var(--brick
 function ChannelStrategy({ reservations, sales }: { reservations: Reservation[]; sales: Sale[] }) {
   const rows = channelMetrics(reservations, sales);
   return (
-    <section className="card-surface p-3">
+    <section className="card-surface border-l-4 border-l-brass bg-[linear-gradient(90deg,rgba(208,178,91,0.12),var(--card)_26%)] p-3">
       <h3 className="section-title mb-2 text-sm">Canais de venda</h3>
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Sem canais registrados ainda.</p>
@@ -1689,7 +1731,7 @@ function GuestDemographics({ clients }: { clients: Client[] }) {
   const avgAge = ages.length ? Math.round(ages.reduce((sum, age) => sum + age, 0) / ages.length) : 0;
 
   return (
-    <section className="card-surface p-3">
+    <section className="card-surface border-l-4 border-l-sage bg-[linear-gradient(90deg,rgba(88,139,105,0.12),var(--card)_28%)] p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h3 className="section-title text-sm">Perfil dos hóspedes</h3>
         <div className="text-right text-xs text-muted-foreground">
@@ -1748,7 +1790,7 @@ function ClientStateMap({ clients }: { clients: Client[] }) {
   const unknown = clients.length - total;
 
   return (
-    <section className="card-surface p-3">
+    <section className="card-surface border-l-4 border-l-pine bg-[linear-gradient(90deg,rgba(35,77,56,0.1),var(--card)_28%)] p-3">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="section-title text-sm">Mapa de clientes por estado</h3>
@@ -1875,14 +1917,19 @@ function RetentionTable({ title, rows, empty }: { title: string; rows: Retention
 function PricingSuggestion({ reservations, rooms, today }: { reservations: Reservation[]; rooms: Room[]; today: string }) {
   const next7 = futureOccupancy(reservations, rooms.length, today, 7);
   const next14 = futureOccupancy(reservations, rooms.length, today, 14);
+  const weekend = [0, 5, 6].includes(new Date(`${today}T00:00:00`).getDay());
   const suggestion =
     next7 >= 80
       ? "Alta procura nos próximos 7 dias: sugerir aumento de 10% a 15% nas novas reservas."
-      : next14 >= 65
-        ? "Procura boa nos próximos 14 dias: segurar descontos e priorizar reserva direta."
-        : "Procura normal: manter preço base e divulgar reserva direta.";
+      : next7 <= 15
+        ? "Procura abaixo de 15%: criar promoção direta no WhatsApp/Instagram e tentar reativar clientes fixos."
+        : next14 >= 65
+          ? "Procura boa nos próximos 14 dias: segurar descontos e priorizar reserva direta."
+          : weekend
+            ? "Fim de semana: manter preço base, vender primeiro quartos com banheiro/ar e evitar desconto antecipado."
+            : "Procura normal: manter preço base e divulgar reserva direta.";
   return (
-    <section className="card-surface p-3">
+    <section className="card-surface border-l-4 border-l-brass bg-[linear-gradient(90deg,rgba(208,178,91,0.14),var(--card)_30%)] p-3">
       <h3 className="section-title mb-2 text-sm">Preço dinâmico simples</h3>
       <div className="grid grid-cols-2 gap-2">
         <Stat icon={<BedDouble />} label="Ocup. 7 dias" value={`${next7}%`} hint="Reservas futuras" />
@@ -1902,6 +1949,55 @@ function futureOccupancy(reservations: Reservation[], roomCount: number, today: 
     .filter((r) => r.status !== "cancelado" && r.status !== "manutencao")
     .reduce((sum, r) => sum + overlappingNights(r.checkin, r.checkout, start, end), 0);
   return Math.round((occupied / (roomCount * days)) * 100);
+}
+
+function buildForecastSeries(reservations: Reservation[], roomCount: number, today: string) {
+  const base = new Date(`${today}T00:00:00`);
+  return Array.from({ length: 30 }, (_, index) => {
+    const date = new Date(base);
+    date.setDate(base.getDate() + index);
+    const key = date.toISOString().slice(0, 10);
+    const active = reservations.filter(
+      (reservation) =>
+        reservation.status !== "cancelado" &&
+        reservation.status !== "manutencao" &&
+        reservation.checkin <= key &&
+        reservation.checkout > key,
+    );
+    return {
+      key,
+      label: `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`,
+      ocupacao: roomCount ? Math.round((active.length / roomCount) * 100) : 0,
+      receita: active.reduce((sum, reservation) => sum + Number(reservation.valor_diaria ?? reservation.valor_total ?? 0), 0),
+    };
+  });
+}
+
+function shouldWarnMissingExpenses(expenses: Expense[], reservations: Reservation[], today: string) {
+  const base = new Date(`${today}T00:00:00`);
+  const days = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(base);
+    date.setDate(base.getDate() - index);
+    return date.toISOString().slice(0, 10);
+  });
+  const hasExpenses = days.some((day) => expenses.some((expense) => expense.data === day && Number(expense.valor ?? 0) > 0));
+  const hadOccupancy = days.some((day) =>
+    reservations.some(
+      (reservation) =>
+        reservation.status !== "cancelado" &&
+        reservation.status !== "manutencao" &&
+        reservation.checkin <= day &&
+        reservation.checkout > day,
+    ),
+  );
+  return hadOccupancy && !hasExpenses;
+}
+
+function revparForMonth(month: string, revenue: number, roomCount: number) {
+  if (!roomCount) return 0;
+  const [year, monthNumber] = month.split("-").map(Number);
+  const daysInMonth = new Date(year, monthNumber, 0).getDate();
+  return revenue / Math.max(1, roomCount * daysInMonth);
 }
 
 function TodayList({
@@ -2359,7 +2455,7 @@ function ComparisonStat({
   lowerIsBetter?: boolean;
 }) {
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-md border border-border bg-card px-2 py-1.5 shadow-sm">
+    <div className="relative min-w-0 overflow-hidden rounded-md border border-brass/35 bg-[linear-gradient(135deg,rgba(208,178,91,0.16),var(--card)_48%)] px-2 py-1.5 shadow-sm">
       <div className="mb-1 flex min-w-0 items-center gap-1.5 text-pine">
         <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
         <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>

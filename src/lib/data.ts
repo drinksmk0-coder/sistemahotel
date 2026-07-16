@@ -165,7 +165,21 @@ function useTenantQuery<T>(table: string, order: string, options?: { ascending?:
 }
 
 export function useRooms() {
-  return useTenantQuery<Room>("rooms", "numero");
+  const company = useCurrentCompany();
+  return useQuery({
+    queryKey: ["rooms", company.data?.id],
+    enabled: !!company.data,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("rooms")
+        .select("*")
+        .eq("company_id", company.data!.id)
+        .lt("numero", 900)
+        .order("numero");
+      if (error) throw error;
+      return data as Room[];
+    },
+  });
 }
 
 export function useClients() {

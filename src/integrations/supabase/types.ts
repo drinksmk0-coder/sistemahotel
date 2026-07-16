@@ -23,6 +23,8 @@ export type Database = {
           created_by: string | null
           data_nascimento: string | null
           documento: string | null
+          email: string | null
+          cep: string | null
           estado: string | null
           estado_civil: string | null
           id: string
@@ -43,6 +45,8 @@ export type Database = {
           created_by?: string | null
           data_nascimento?: string | null
           documento?: string | null
+          email?: string | null
+          cep?: string | null
           estado?: string | null
           estado_civil?: string | null
           id?: string
@@ -63,6 +67,8 @@ export type Database = {
           created_by?: string | null
           data_nascimento?: string | null
           documento?: string | null
+          email?: string | null
+          cep?: string | null
           estado?: string | null
           estado_civil?: string | null
           id?: string

@@ -110,11 +110,14 @@ function Reservas() {
 
     const cleanRow = { ...row };
     delete cleanRow.cliente_telefone;
+    delete cleanRow.cliente_email;
     delete cleanRow.cliente_tipo;
     delete cleanRow.cliente_data_nascimento;
     delete cleanRow.cliente_sexo;
+    delete cleanRow.cliente_profissao;
     delete cleanRow.cliente_cidade;
     delete cleanRow.cliente_estado;
+    delete cleanRow.cliente_cep;
     delete cleanRow.cliente_bairro;
     delete cleanRow.cliente_estado_civil;
     delete cleanRow.cliente_tem_filhos;
@@ -131,11 +134,14 @@ function Reservas() {
     const created = (await insertClient.mutateAsync({
       nome: row.cliente_nome,
       telefone: row.cliente_telefone || null,
+      email: row.cliente_email || null,
       tipo: row.cliente_tipo || "hóspede normal",
       data_nascimento: row.cliente_data_nascimento || null,
       sexo: row.cliente_sexo || null,
+      profissao: row.cliente_profissao || null,
       cidade: row.cliente_cidade || null,
       estado: row.cliente_estado || null,
+      cep: row.cliente_cep || null,
       bairro: row.cliente_bairro || null,
       estado_civil: row.cliente_estado_civil || null,
       tem_filhos: row.cliente_tem_filhos ?? null,
@@ -414,6 +420,15 @@ function RowActions({
           Check-out
         </button>
       )}
+      {reservation.status === "ocupado" && (
+        <button
+          className="rounded-md bg-brass-bg px-2 py-1 text-xs font-semibold text-[oklch(0.4_0.06_74)]"
+          onClick={onEdit}
+          title="Editar check-out e estender estadia"
+        >
+          Estender
+        </button>
+      )}
       {!done && (
         <button
           className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground"
@@ -579,18 +594,24 @@ function whatsappReceiptUrl(reservation: Reservation, client?: Client) {
   if (!phone) return "";
   const status = reservation.pago ? "Quitado" : Number(reservation.valor_pago) > 0 ? "Sinal pago / saldo pendente" : "Pendente";
   const balance = Math.max(0, Number(reservation.valor_total) - Number(reservation.valor_pago));
+  const line = "------------------------------";
   const message = [
-    `Olá, ${reservation.cliente_nome}! Segue o recibo da sua hospedagem no Hotel Real Cruzília.`,
-    "",
+    "🏨 HOTEL REAL CRUZÍLIA",
+    "RECIBO DE HOSPEDAGEM",
+    line,
+    `Cliente: ${reservation.cliente_nome}`,
     `Quarto: ${reservation.quarto}`,
-    `Período: ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`,
+    `Entrada: ${fmtDate(reservation.checkin)} ${fmtTime(reservation.horario_checkin)}`,
+    `Saída: ${fmtDate(reservation.checkout)} ${fmtTime(reservation.horario_checkout)}`,
     `Diárias: ${reservation.diarias}`,
-    `Valor total: ${fmtBRL(reservation.valor_total)}`,
-    `Valor pago: ${fmtBRL(reservation.valor_pago)}`,
+    line,
+    `Total: ${fmtBRL(reservation.valor_total)}`,
+    `Pago: ${fmtBRL(reservation.valor_pago)}`,
     `Saldo: ${fmtBRL(balance)}`,
     `Status: ${status}`,
-    "",
+    line,
     "Para nota fiscal, envie os dados da empresa/CNPJ por aqui que a recepção dará continuidade.",
+    "Obrigado pela preferência!",
   ].join("\n");
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }

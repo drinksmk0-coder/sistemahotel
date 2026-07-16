@@ -7,6 +7,7 @@ import {
   CreditCard,
   DollarSign,
   FileWarning,
+  LayoutDashboard,
   LogOut,
   Menu,
   MessageSquare,
@@ -23,6 +24,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 const TABS = [
   { to: "/painel", label: "Painel", icon: BarChart3, roles: ["dono", "recepcao", "limpeza", "cafe"] },
+  { to: "/dashboard-estrategico", label: "Estratégico", icon: LayoutDashboard, roles: ["dono"] },
   { to: "/mapa", label: "Mapa", icon: BedDouble, roles: ["dono", "recepcao"] },
   { to: "/reservas", label: "Reservas", icon: CreditCard, roles: ["dono", "recepcao"] },
   { to: "/clientes", label: "Clientes", icon: Users, roles: ["dono", "recepcao"] },
@@ -35,6 +37,8 @@ const TABS = [
   { to: "/empresa", label: "Empresa", icon: Building2, roles: ["dono"] },
   { to: "/equipe", label: "Equipe", icon: Users, roles: ["dono"] },
 ];
+
+const MOBILE_PRIMARY_TABS = ["/painel", "/mapa", "/reservas", "/clientes"] as const;
 
 const ROLE_LABELS: Record<string, string> = {
   dono: "Dono - acesso total",
@@ -76,6 +80,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [menuOpen, setMenuOpen] = useState(false);
   const visibleTabs = TABS.filter((tab) => !role || tab.roles.includes(role));
+  const mobileTabs = visibleTabs.filter((tab) => MOBILE_PRIMARY_TABS.includes(tab.to as (typeof MOBILE_PRIMARY_TABS)[number])).slice(0, 4);
   const showCompanySelector = role === "dono" && currentCompany.companies.length > 1;
   const companyName = currentCompany.data?.nome ?? "Hotel Real";
 
@@ -187,9 +192,32 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <main className="min-w-0 px-3 pb-6 pt-16 sm:px-4 md:px-5 xl:ml-60 xl:px-5 xl:py-5">
+      <main className="min-w-0 px-3 pb-24 pt-16 sm:px-4 md:px-5 xl:ml-60 xl:px-5 xl:pb-6 xl:pt-5">
         <div className="mx-auto w-full max-w-[1800px]">{children}</div>
       </main>
+
+      {mobileTabs.length > 0 && (
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-pine-dark/15 bg-card/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_30px_rgba(42,33,24,0.12)] backdrop-blur xl:hidden">
+          <div className="grid grid-cols-4 gap-1">
+            {mobileTabs.map((tab) => {
+              const Icon = tab.icon;
+              const active = path.startsWith(tab.to);
+              return (
+                <Link
+                  key={tab.to}
+                  to={tab.to}
+                  className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-[10px] font-semibold transition ${
+                    active ? "bg-pine text-white" : "text-pine-dark hover:bg-sage-bg"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  <span className="max-w-full truncate">{tab.label}</span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   hasActiveOverlap,
@@ -10,7 +10,7 @@ import {
   type Complaint,
 } from "@/lib/data";
 import { fmtBRL, todayISO, nightsBetween } from "@/lib/format";
-import { BR_STATES, CLIENT_TYPES, PAYMENT_METHODS, SALES_CHANNELS, complaintLabel } from "@/lib/constants";
+import { BR_STATES, CLIENT_TYPES, PAYMENT_METHODS, SALES_CHANNELS, complaintLabel, stateFromPhone } from "@/lib/constants";
 import { Modal, Field } from "@/components/ui-kit";
 
 export type ReservaRow = {
@@ -18,11 +18,14 @@ export type ReservaRow = {
   cliente_id: string | null;
   cliente_nome: string;
   cliente_telefone?: string | null;
+  cliente_email?: string | null;
   cliente_tipo?: string | null;
   cliente_data_nascimento?: string | null;
   cliente_sexo?: string | null;
+  cliente_profissao?: string | null;
   cliente_cidade?: string | null;
   cliente_estado?: string | null;
+  cliente_cep?: string | null;
   cliente_bairro?: string | null;
   cliente_estado_civil?: string | null;
   cliente_tem_filhos?: boolean | null;
@@ -86,11 +89,14 @@ export function ReservaForm({
   const [clienteId, setClienteId] = useState(editing?.cliente_id ?? "");
   const [nome, setNome] = useState(editing && !editing.cliente_id ? editing.cliente_nome : "");
   const [telefone, setTelefone] = useState("");
+  const [email, setEmail] = useState("");
   const [tipoCliente, setTipoCliente] = useState<string>("hóspede normal");
   const [nascimento, setNascimento] = useState("");
   const [sexo, setSexo] = useState("");
+  const [profissao, setProfissao] = useState("");
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("MG");
+  const [cep, setCep] = useState("");
   const [bairro, setBairro] = useState("");
   const [estadoCivil, setEstadoCivil] = useState("");
   const [temFilhos, setTemFilhos] = useState(false);
@@ -125,6 +131,39 @@ export function ReservaForm({
   const block = roomBlock(complaints, quarto);
   const blocked = !!block && !override;
   const status = statusFromPayment(total, valorPagoNumber);
+  const effectiveStatus = editing?.status === "ocupado" ? "ocupado" : status;
+  const selectedClient = clients.find((c) => c.id === clienteId);
+  const clientSuggestions = useMemo(() => {
+    const query = nome.trim().toLowerCase();
+    if (clienteId || query.length < 2) return [];
+    return clients
+      .filter((client) => client.nome.toLowerCase().includes(query))
+      .slice(0, 8);
+  }, [clients, clienteId, nome]);
+
+  function selectClient(client: Client) {
+    setClienteId(client.id);
+    setNome(client.nome);
+    setTelefone(client.telefone ?? "");
+    setEmail((client as Client & { email?: string | null }).email ?? "");
+    setProfissao(client.profissao ?? "");
+    setCidade(client.cidade ?? "");
+    setEstado(client.estado ?? stateFromPhone(client.telefone ?? "") ?? "MG");
+    setCep((client as Client & { cep?: string | null }).cep ?? "");
+    setBairro(client.bairro ?? "");
+    setNascimento(client.data_nascimento ?? "");
+    setSexo(client.sexo ?? "");
+    setEstadoCivil(client.estado_civil ?? "");
+    setTemFilhos(Boolean(client.tem_filhos));
+    setQuantidadeFilhos(client.quantidade_filhos != null ? String(client.quantidade_filhos) : "0");
+    if ((client.tipo ?? "").toLowerCase().includes("empresa")) setPagamento("transferência");
+  }
+
+  function handlePhoneChange(value: string) {
+    setTelefone(value);
+    const uf = stateFromPhone(value);
+    if (uf) setEstado(uf);
+  }
 
   function applyDateChange(nextCheckin: string, nextCheckout: string) {
     const calculated = nightsBetween(nextCheckin, nextCheckout);
@@ -145,18 +184,21 @@ export function ReservaForm({
     if (!checkout || nights <= 0) return toast.error("Informe um período válido");
     if (overlap) return toast.error("Já existe reserva ativa para este quarto no período");
     if (blocked) return toast.error("Quarto bloqueado — libere abaixo para continuar");
-    const cli = clients.find((c) => c.id === clienteId);
+    const cli = selectedClient;
     const wasOccupied = editing?.status === "ocupado";
     onSave({
       quarto,
       cliente_id: clienteId || null,
       cliente_nome: cli?.nome ?? nome.trim(),
       cliente_telefone: clienteId ? null : telefone.trim() || null,
+      cliente_email: clienteId ? null : email.trim() || null,
       cliente_tipo: clienteId ? null : tipoCliente,
       cliente_data_nascimento: clienteId ? null : nascimento || null,
       cliente_sexo: clienteId ? null : sexo || null,
+      cliente_profissao: clienteId ? null : profissao.trim() || null,
       cliente_cidade: clienteId ? null : cidade.trim() || null,
       cliente_estado: clienteId ? null : estado || null,
+      cliente_cep: clienteId ? null : cep.trim() || null,
       cliente_bairro: clienteId ? null : bairro.trim() || null,
       cliente_estado_civil: clienteId ? null : estadoCivil || null,
       cliente_tem_filhos: clienteId ? null : temFilhos,
@@ -176,9 +218,9 @@ export function ReservaForm({
       motivo_estadia: motivoEstadia.trim() || null,
       pagamento,
       pago: total > 0 && valorPagoNumber >= total,
-      status,
+      status: effectiveStatus,
       checkin_at:
-        status === "ocupado"
+        effectiveStatus === "ocupado"
           ? (wasOccupied ? editing?.checkin_at ?? new Date().toISOString() : new Date().toISOString())
           : editing?.checkin_at ?? null,
     });
@@ -220,29 +262,67 @@ export function ReservaForm({
           </Field>
         </div>
 
-        <Field label="Cliente cadastrado (opcional)">
-          <select className="field" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-            <option value="">— digitar nome manualmente —</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-              </option>
-            ))}
-          </select>
+        <Field label="Cliente">
+          <div className="relative">
+            <input
+              className="field"
+              value={nome}
+              onChange={(e) => {
+                setNome(e.target.value);
+                if (clienteId) setClienteId("");
+              }}
+              placeholder="Digite as primeiras letras do nome"
+              required
+              maxLength={80}
+            />
+            {clienteId && (
+              <button
+                type="button"
+                className="mt-1 text-xs font-semibold text-brick"
+                onClick={() => setClienteId("")}
+              >
+                Digitar outro cliente
+              </button>
+            )}
+            {clientSuggestions.length > 0 && (
+              <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-border bg-card shadow-lg">
+                {clientSuggestions.map((client) => (
+                  <button
+                    key={client.id}
+                    type="button"
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                    onClick={() => selectClient(client)}
+                  >
+                    <span className="font-semibold">{client.nome}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      {[client.telefone, client.estado, client.profissao].filter(Boolean).join(" · ")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </Field>
-        {!clienteId && (
+        {!selectedClient && (
           <>
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Nome do hóspede">
-                <input className="field" value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={80} />
-              </Field>
               <Field label="Telefone">
-                <input className="field" value={telefone} onChange={(e) => setTelefone(e.target.value)} maxLength={30} />
+                <input className="field" value={telefone} onChange={(e) => handlePhoneChange(e.target.value)} maxLength={30} />
+              </Field>
+              <Field label="E-mail">
+                <input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} />
               </Field>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <Field label="Tipo de hóspede">
-                <select className="field" value={tipoCliente} onChange={(e) => setTipoCliente(e.target.value)}>
+                <select
+                  className="field"
+                  value={tipoCliente}
+                  onChange={(e) => {
+                    setTipoCliente(e.target.value);
+                    if (e.target.value.toLowerCase().includes("empresa")) setPagamento("transferência");
+                  }}
+                >
                   {CLIENT_TYPES.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
@@ -260,6 +340,9 @@ export function ReservaForm({
                 </select>
               </Field>
             </div>
+            <Field label="Profissão">
+              <input className="field" value={profissao} onChange={(e) => setProfissao(e.target.value)} maxLength={60} />
+            </Field>
             <div className="grid grid-cols-3 gap-3">
               <Field label="Cidade">
                 <input className="field" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={60} />
@@ -275,6 +358,9 @@ export function ReservaForm({
                 <input className="field" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={80} />
               </Field>
             </div>
+            <Field label="CEP">
+              <input className="field" value={cep} onChange={(e) => setCep(e.target.value)} maxLength={10} placeholder="Opcional" />
+            </Field>
             <div className="grid grid-cols-3 gap-3">
               <Field label="Estado civil">
                 <select className="field" value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)}>
@@ -486,7 +572,7 @@ export function ReservaForm({
         <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
           <span className="text-sm text-muted-foreground">
             {nights} diária(s){descontoValor > 0 ? ` · desconto ${fmtBRL(descontoValor)}` : ""} ·{" "}
-            {status === "ocupado" ? "ficará ocupado" : "ficará reservado"}
+            {effectiveStatus === "ocupado" ? "ficará ocupado" : "ficará reservado"}
           </span>
           <span className="font-serif text-lg font-bold">
             {fmtBRL(diariaValor)} x {nights} = {fmtBRL(bruto)}

@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Plus, Download, Search } from "lucide-react";
 import { useClients, useReservations, useInsert, type Client } from "@/lib/data";
 import { fmtBRL, fmtDate, downloadCSV, todayISO } from "@/lib/format";
-import { CLIENT_TYPES, BR_STATES } from "@/lib/constants";
+import { CLIENT_TYPES, BR_STATES, stateFromPhone } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
 
@@ -42,6 +42,7 @@ function Clientes() {
         "Nome",
         "Tipo",
         "Telefone",
+        "Email",
         "CPF",
         "Sexo",
         "Estado civil",
@@ -51,6 +52,7 @@ function Clientes() {
         "Bairro",
         "Cidade",
         "Estado",
+        "CEP",
         "Visitas",
         "Cadastrado em",
       ],
@@ -58,6 +60,7 @@ function Clientes() {
         c.nome,
         c.tipo,
         c.telefone,
+        (c as Client & { email?: string | null }).email ?? "",
         c.cpf,
         c.sexo,
         c.estado_civil,
@@ -67,6 +70,7 @@ function Clientes() {
         c.bairro,
         c.cidade,
         c.estado,
+        (c as Client & { cep?: string | null }).cep ?? "",
         c.visitas,
         c.created_at.slice(0, 10),
       ]),
@@ -109,7 +113,10 @@ function Clientes() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-serif text-lg font-bold">{c.nome}</p>
-                  {c.telefone && <p className="text-sm text-muted-foreground">{c.telefone}</p>}
+                {c.telefone && <p className="text-sm text-muted-foreground">{c.telefone}</p>}
+                {(c as Client & { email?: string | null }).email && (
+                  <p className="text-sm text-muted-foreground">{(c as Client & { email?: string | null }).email}</p>
+                )}
                 </div>
                 <Badge tone={c.tipo === "cliente fixo" ? "brass" : "sage"}>{c.tipo}</Badge>
               </div>
@@ -122,6 +129,7 @@ function Clientes() {
                 )}
                 {c.bairro && <p>Bairro: {c.bairro}</p>}
                 {(c.cidade || c.estado) && <p>{[c.cidade, c.estado].filter(Boolean).join(" / ")}</p>}
+                {(c as Client & { cep?: string | null }).cep && <p>CEP: {(c as Client & { cep?: string | null }).cep}</p>}
                 {c.profissao && <p>{c.profissao}</p>}
                 {c.data_nascimento && <p>Nasc.: {fmtDate(c.data_nascimento)}</p>}
                 <p>Cadastrado em {fmtDate(c.created_at)}</p>
@@ -167,12 +175,14 @@ function ClientForm({
       | "nome"
       | "tipo"
       | "telefone"
+      | "email"
       | "documento"
       | "cpf"
       | "data_nascimento"
       | "profissao"
       | "cidade"
       | "estado"
+      | "cep"
       | "sexo"
       | "bairro"
       | "estado_civil"
@@ -184,6 +194,7 @@ function ClientForm({
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState<string>(CLIENT_TYPES[0]);
   const [telefone, setTelefone] = useState("");
+  const [email, setEmail] = useState("");
   const [cpf, setCpf] = useState("");
   const [nascimento, setNascimento] = useState("");
   const [profissao, setProfissao] = useState("");
@@ -194,6 +205,7 @@ function ClientForm({
   const [quantidadeFilhos, setQuantidadeFilhos] = useState("");
   const [cidade, setCidade] = useState("");
   const [estado, setEstado] = useState("");
+  const [cep, setCep] = useState("");
 
   const cpfDigits = onlyDigits(cpf);
   const telefoneDigits = onlyDigits(telefone);
@@ -217,6 +229,7 @@ function ClientForm({
             nome: nome.trim(),
             tipo,
             telefone: telefone.trim() || null,
+            email: email.trim() || null,
             documento: null,
             cpf: cpf.trim() || null,
             data_nascimento: nascimento || null,
@@ -228,6 +241,7 @@ function ClientForm({
             quantidade_filhos: temFilhos ? Number(quantidadeFilhos || 0) : null,
             cidade: cidade.trim() || null,
             estado: estado || null,
+            cep: cep.trim() || null,
           });
         }}
         className="space-y-3"
@@ -249,7 +263,12 @@ function ClientForm({
             <input
               className="field"
               value={telefone}
-              onChange={(e) => setTelefone(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                setTelefone(value);
+                const uf = stateFromPhone(value);
+                if (uf) setEstado(uf);
+              }}
               maxLength={20}
               aria-invalid={telefoneJaCadastrado}
             />
@@ -258,6 +277,9 @@ function ClientForm({
             )}
           </Field>
         </div>
+        <Field label="E-mail">
+          <input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="CPF">
             <input
@@ -342,6 +364,9 @@ function ClientForm({
             </select>
           </Field>
         </div>
+        <Field label="CEP">
+          <input className="field" value={cep} onChange={(e) => setCep(e.target.value)} maxLength={10} placeholder="Opcional" />
+        </Field>
         <p className="text-xs text-muted-foreground">
           A data e o horário do cadastro são registrados automaticamente.
         </p>

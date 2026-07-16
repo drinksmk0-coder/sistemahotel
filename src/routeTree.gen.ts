@@ -26,6 +26,7 @@ import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenti
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticated/empresa'
 import { Route as AuthenticatedDespesasRouteImport } from './routes/_authenticated/despesas'
+import { Route as AuthenticatedDashboardEstrategicoRouteImport } from './routes/_authenticated/dashboard-estrategico'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedAvaliacoesRouteImport } from './routes/_authenticated/avaliacoes'
 
@@ -115,6 +116,12 @@ const AuthenticatedDespesasRoute = AuthenticatedDespesasRouteImport.update({
   path: '/despesas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDashboardEstrategicoRoute =
+  AuthenticatedDashboardEstrategicoRouteImport.update({
+    id: '/dashboard-estrategico',
+    path: '/dashboard-estrategico',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedClientesRoute = AuthenticatedClientesRouteImport.update({
   id: '/clientes',
   path: '/clientes',
@@ -135,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/clientes': typeof AuthenticatedClientesRoute
+  '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
   '/despesas': typeof AuthenticatedDespesasRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/equipe': typeof AuthenticatedEquipeRoute
@@ -155,6 +163,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/clientes': typeof AuthenticatedClientesRoute
+  '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
   '/despesas': typeof AuthenticatedDespesasRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/equipe': typeof AuthenticatedEquipeRoute
@@ -177,6 +186,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
+  '/_authenticated/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
   '/_authenticated/despesas': typeof AuthenticatedDespesasRoute
   '/_authenticated/empresa': typeof AuthenticatedEmpresaRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/avaliacoes'
     | '/clientes'
+    | '/dashboard-estrategico'
     | '/despesas'
     | '/empresa'
     | '/equipe'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/avaliacoes'
     | '/clientes'
+    | '/dashboard-estrategico'
     | '/despesas'
     | '/empresa'
     | '/equipe'
@@ -240,6 +252,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_authenticated/avaliacoes'
     | '/_authenticated/clientes'
+    | '/_authenticated/dashboard-estrategico'
     | '/_authenticated/despesas'
     | '/_authenticated/empresa'
     | '/_authenticated/equipe'
@@ -383,6 +396,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDespesasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/dashboard-estrategico': {
+      id: '/_authenticated/dashboard-estrategico'
+      path: '/dashboard-estrategico'
+      fullPath: '/dashboard-estrategico'
+      preLoaderRoute: typeof AuthenticatedDashboardEstrategicoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/clientes': {
       id: '/_authenticated/clientes'
       path: '/clientes'
@@ -403,6 +423,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAvaliacoesRoute: typeof AuthenticatedAvaliacoesRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
+  AuthenticatedDashboardEstrategicoRoute: typeof AuthenticatedDashboardEstrategicoRoute
   AuthenticatedDespesasRoute: typeof AuthenticatedDespesasRoute
   AuthenticatedEmpresaRoute: typeof AuthenticatedEmpresaRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
@@ -418,6 +439,8 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAvaliacoesRoute: AuthenticatedAvaliacoesRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
+  AuthenticatedDashboardEstrategicoRoute:
+    AuthenticatedDashboardEstrategicoRoute,
   AuthenticatedDespesasRoute: AuthenticatedDespesasRoute,
   AuthenticatedEmpresaRoute: AuthenticatedEmpresaRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
