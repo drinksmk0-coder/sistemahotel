@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { MessageCircle, Plus } from "lucide-react";
 import {
   useRooms,
   useClients,
@@ -11,6 +11,7 @@ import {
   useInsert,
   useUpdate,
   roomStatusToday,
+  isCheckoutDueForCleaning,
   activeReservationForRoom,
   futureReservationsForRoom,
   roomBlock,
@@ -19,7 +20,7 @@ import {
   type Room,
   type Sale,
 } from "@/lib/data";
-import { fmtBRL, fmtDate, fmtTime, todayISO } from "@/lib/format";
+import { fmtBRL, fmtDate, fmtTime, todayISO, whatsappLink } from "@/lib/format";
 import { complaintLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Badge } from "@/components/ui-kit";
@@ -29,13 +30,29 @@ export const Route = createFileRoute("/_authenticated/mapa")({
   component: Mapa,
 });
 
+function clientPhoneForReservation(
+  reservation: Reservation | null | undefined,
+  clients: Client[],
+): string | null {
+  if (!reservation) return null;
+  const byId = reservation.cliente_id ? clients.find((c) => c.id === reservation.cliente_id) : null;
+  if (byId?.telefone) return byId.telefone;
+  const byName = clients.find(
+    (c) => c.nome.trim().toLowerCase() === reservation.cliente_nome.trim().toLowerCase(),
+  );
+  return byName?.telefone ?? null;
+}
+
 const STATUS_STYLE: Record<string, { bg: string; label: string }> = {
   livre: { bg: "bg-sage-bg border-sage/40 text-pine-dark", label: "Livre" },
   hospedado_pago: { bg: "bg-pine/12 border-pine/45 text-pine-dark", label: "Hospedado · quitado" },
   hospedado_debito: { bg: "bg-brick-bg border-brick/45 text-brick", label: "Hospedado · débito" },
   sinal_pago: { bg: "bg-brass-bg border-brass/55 text-[oklch(0.4_0.06_74)]", label: "Sinal pago" },
-  reservado: { bg: "bg-[oklch(0.95_0.04_95)] border-brass/50 text-[oklch(0.4_0.06_74)]", label: "Reservado sem pagamento" },
-  limpeza: { bg: "bg-slate-bg border-slate/40 text-slate", label: "Em limpeza" },
+  reservado: {
+    bg: "bg-[oklch(0.95_0.04_95)] border-brass/50 text-[oklch(0.4_0.06_74)]",
+    label: "Reservado sem pagamento",
+  },
+  limpeza: { bg: "bg-slate-bg border-slate/40 text-slate", label: "Limpeza / saída" },
   manutencao: { bg: "bg-zinc-200 border-zinc-400 text-zinc-800", label: "Manutenção" },
 };
 
@@ -88,7 +105,11 @@ function Mapa() {
     sales
       .filter((s) => {
         const reservation = s.reserva_id ? reservations.find((r) => r.id === s.reserva_id) : null;
-        return !reservation || (!["cancelado", "finalizado"].includes(reservation.status) && reservation.checkout >= today);
+        return (
+          !reservation ||
+          (!["cancelado", "finalizado"].includes(reservation.status) &&
+            reservation.checkout >= today)
+        );
       })
       .forEach((s) => m.set(s.quarto, (m.get(s.quarto) ?? 0) + Number(s.total)));
     return m;
@@ -96,11 +117,25 @@ function Mapa() {
 
   const dateSummary = useMemo(() => {
     const arrivals = reservations.filter((r) => r.status !== "cancelado" && r.checkin === viewDate);
-    const departures = reservations.filter((r) => r.status !== "cancelado" && r.checkout === viewDate);
-    const occupied = rooms.filter((room) => roomStatusAtDate(reservations, room, viewDate) === "ocupado").length;
-    const reserved = rooms.filter((room) => roomStatusAtDate(reservations, room, viewDate) === "reservado").length;
-    const cleaning = rooms.filter((room) => roomStatusAtDate(reservations, room, viewDate) === "limpeza").length;
-    return { arrivals: arrivals.length, departures: departures.length, occupied, reserved, cleaning };
+    const departures = reservations.filter(
+      (r) => r.status !== "cancelado" && r.checkout === viewDate,
+    );
+    const occupied = rooms.filter(
+      (room) => roomStatusAtDate(reservations, room, viewDate) === "ocupado",
+    ).length;
+    const reserved = rooms.filter(
+      (room) => roomStatusAtDate(reservations, room, viewDate) === "reservado",
+    ).length;
+    const cleaning = rooms.filter(
+      (room) => roomStatusAtDate(reservations, room, viewDate) === "limpeza",
+    ).length;
+    return {
+      arrivals: arrivals.length,
+      departures: departures.length,
+      occupied,
+      reserved,
+      cleaning,
+    };
   }, [reservations, rooms, viewDate]);
 
   const filteredRoomGroups = useMemo(
@@ -108,10 +143,14 @@ function Mapa() {
       roomGroups
         .map((group) => ({
           ...group,
-          rooms: group.rooms.filter((room) => {
-            if (statusFilter === "todos") return true;
-            return roomVisualStatus(reservations, room, viewDate) === statusFilter;
-          }).filter((room) => (roomSearch.trim() ? String(room.numero).includes(roomSearch.trim()) : true)),
+          rooms: group.rooms
+            .filter((room) => {
+              if (statusFilter === "todos") return true;
+              return roomVisualStatus(reservations, room, viewDate) === statusFilter;
+            })
+            .filter((room) =>
+              roomSearch.trim() ? String(room.numero).includes(roomSearch.trim()) : true,
+            ),
         }))
         .filter((group) => group.rooms.length > 0),
     [roomGroups, reservations, roomSearch, statusFilter, viewDate],
@@ -149,7 +188,9 @@ function Mapa() {
     if (existing) {
       const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();
       if (!sameName) {
-        throw new Error(`Telefone já cadastrado para ${existing.nome}. Se for a mesma pessoa, selecione o cliente cadastrado.`);
+        throw new Error(
+          `Telefone já cadastrado para ${existing.nome}. Se for a mesma pessoa, selecione o cliente cadastrado.`,
+        );
       }
       return { ...cleanRow, cliente_id: existing.id, cliente_nome: existing.nome };
     }
@@ -169,7 +210,7 @@ function Mapa() {
       bairro: row.cliente_bairro || null,
       estado_civil: row.cliente_estado_civil || null,
       tem_filhos: row.cliente_tem_filhos ?? null,
-      quantidade_filhos: row.cliente_tem_filhos ? row.cliente_quantidade_filhos ?? 0 : null,
+      quantidade_filhos: row.cliente_tem_filhos ? (row.cliente_quantidade_filhos ?? 0) : null,
     })) as unknown as Client[];
 
     const client = created[0];
@@ -186,7 +227,9 @@ function Mapa() {
       <section className="mb-4 rounded-lg border border-border bg-card p-3 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <label className="text-sm">
-            <span className="mb-1 block font-semibold text-muted-foreground">Ver disponibilidade em</span>
+            <span className="mb-1 block font-semibold text-muted-foreground">
+              Ver disponibilidade em
+            </span>
             <input
               type="date"
               value={viewDate}
@@ -204,7 +247,8 @@ function Mapa() {
         </div>
         {viewDate !== today && (
           <p className="mt-2 text-xs text-muted-foreground">
-            Em {fmtDate(viewDate)}, quartos com saída aparecem como limpeza prevista para evitar vender antes da arrumação.
+            Em {fmtDate(viewDate)}, quartos com saída aparecem como limpeza prevista para evitar
+            vender antes da arrumação.
           </p>
         )}
       </section>
@@ -240,7 +284,10 @@ function Mapa() {
         {roomSearch && searchedRoom && (
           <RoomSearchSummary
             room={searchedRoom}
-            reservation={reservationForDate(reservations, searchedRoom.numero, viewDate) ?? activeReservationForRoom(reservations, searchedRoom.numero)}
+            reservation={
+              reservationForDate(reservations, searchedRoom.numero, viewDate) ??
+              activeReservationForRoom(reservations, searchedRoom.numero)
+            }
             sales={sales.filter((sale) => sale.quarto === searchedRoom.numero)}
             revenue={revenueByRoom.get(searchedRoom.numero) ?? 0}
             status={roomVisualStatus(reservations, searchedRoom, viewDate)}
@@ -248,7 +295,9 @@ function Mapa() {
           />
         )}
         {roomSearch && !searchedRoom && (
-          <p className="mt-3 rounded-md bg-brick-bg px-3 py-2 text-sm text-brick">Nenhum quarto encontrado com esse número.</p>
+          <p className="mt-3 rounded-md bg-brick-bg px-3 py-2 text-sm text-brick">
+            Nenhum quarto encontrado com esse número.
+          </p>
         )}
       </section>
 
@@ -259,7 +308,8 @@ function Mapa() {
           </span>
         ))}
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded bg-brick" /> intensidade = reclamações abertas
+          <span className="inline-block h-3 w-3 rounded bg-brick" /> intensidade = reclamações
+          abertas
         </span>
       </div>
 
@@ -277,7 +327,9 @@ function Mapa() {
             key={value}
             onClick={() => setStatusFilter(value)}
             className={`rounded-full px-3 py-1 font-semibold ${
-              statusFilter === value ? "bg-pine text-primary-foreground" : "bg-muted text-muted-foreground"
+              statusFilter === value
+                ? "bg-pine text-primary-foreground"
+                : "bg-muted text-muted-foreground"
             }`}
           >
             {label}
@@ -307,22 +359,52 @@ function Mapa() {
                 const next = futureReservationsForRoom(reservations, r.numero, viewDate).find(
                   (reservation) => reservation.id !== dayReservation?.id,
                 );
-                const departure = reservations.find((reservation) => reservation.quarto === r.numero && reservation.status !== "cancelado" && reservation.checkout === viewDate);
+                const departure = reservations.find(
+                  (reservation) =>
+                    reservation.quarto === r.numero &&
+                    reservation.status !== "cancelado" &&
+                    reservation.checkout === viewDate,
+                );
                 const revenue = revenueByRoom.get(r.numero) ?? 0;
+                const roomPhone = clientPhoneForReservation(dayReservation, clients);
+                const roomWaLink = whatsappLink(
+                  roomPhone,
+                  dayReservation
+                    ? `Olá ${dayReservation.cliente_nome.split(" ")[0]}, aqui é do Hotel Real Cruzília!`
+                    : undefined,
+                );
                 return (
                   <button
                     key={r.numero}
                     onClick={() => setSelected(r)}
                     className={`relative min-h-[112px] rounded-lg border p-2 text-left transition hover:scale-[1.02] ${n > 0 ? "border-brick" : style.bg}`}
-                    style={n > 0 ? { backgroundColor: `rgba(200,60,40,${0.12 + intensity * 0.5})` } : undefined}
+                    style={
+                      n > 0
+                        ? { backgroundColor: `rgba(200,60,40,${0.12 + intensity * 0.5})` }
+                        : undefined
+                    }
                   >
+                    {roomWaLink && (
+                      <a
+                        href={roomWaLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        title={`WhatsApp de ${dayReservation?.cliente_nome}`}
+                        className="absolute -right-1.5 -top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-[#25D366] text-white shadow-sm transition hover:scale-110"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </a>
+                    )}
                     <div className="flex items-start justify-between gap-2">
                       <div className="font-serif text-lg font-bold leading-none">{r.numero}</div>
                       <span className="rounded bg-white/65 px-1.5 py-0.5 text-[9px] font-bold uppercase text-pine-dark">
                         {roomTypeShort(r)}
                       </span>
                     </div>
-                    <div className="mt-1 text-[10px] font-semibold opacity-80">{r.andar}º andar · {fmtBRL(r.preco)}</div>
+                    <div className="mt-1 text-[10px] font-semibold opacity-80">
+                      {r.andar}º andar · {fmtBRL(r.preco)}
+                    </div>
                     <div className="mt-1 text-[10px] font-bold">{style.label}</div>
                     {dayReservation ? (
                       <div className="mt-1 text-[9px] leading-tight opacity-90">
@@ -332,24 +414,30 @@ function Mapa() {
                       <div className="mt-1 text-[9px] leading-tight opacity-90">
                         Sai: {departure.cliente_nome}
                       </div>
-                    ) : next && (
-                      <div className="mt-1 text-[9px] leading-tight opacity-90">
-                        Próx: {fmtDate(next.checkin)}
-                      </div>
+                    ) : (
+                      next && (
+                        <div className="mt-1 text-[9px] leading-tight opacity-90">
+                          Próx: {fmtDate(next.checkin)}
+                        </div>
+                      )
                     )}
                     {next && (
                       <div className="mt-1 rounded bg-white/55 px-1.5 py-0.5 text-[9px] font-semibold text-pine-dark">
                         Futuro: {fmtDate(next.checkin)} → {fmtDate(next.checkout)}
                       </div>
                     )}
-                    {revenue > 0 && <div className="mt-1 text-[9px] font-semibold">{fmtBRL(revenue)}</div>}
+                    {revenue > 0 && (
+                      <div className="mt-1 text-[9px] font-semibold">{fmtBRL(revenue)}</div>
+                    )}
                     {n > 0 && (
                       <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick px-1 text-[9px] font-bold text-white">
                         {n}
                       </span>
                     )}
                     {blocked && (
-                      <span className="absolute bottom-1 right-1 text-[9px] font-bold text-brick">🔒</span>
+                      <span className="absolute bottom-1 right-1 text-[9px] font-bold text-brick">
+                        🔒
+                      </span>
                     )}
                   </button>
                 );
@@ -362,13 +450,16 @@ function Mapa() {
       {selected && (
         <RoomModal
           room={selected}
+          clients={clients}
           onClose={() => setSelected(null)}
           reservation={activeReservationForRoom(reservations, selected.numero)}
           dateReservation={reservationForDate(reservations, selected.numero, viewDate)}
           viewDate={viewDate}
-          futureReservations={futureReservationsForRoom(reservations, selected.numero, viewDate).filter(
-            (fr) => fr.id !== activeReservationForRoom(reservations, selected.numero)?.id,
-          )}
+          futureReservations={futureReservationsForRoom(
+            reservations,
+            selected.numero,
+            viewDate,
+          ).filter((fr) => fr.id !== activeReservationForRoom(reservations, selected.numero)?.id)}
           sales={sales.filter((s) => s.quarto === selected.numero)}
           complaints={complaints.filter((c) => c.quarto === selected.numero)}
           onNew={() => {
@@ -400,13 +491,17 @@ function Mapa() {
           initialCheckin={viewDate}
           onClose={() => setNewFor(null)}
           onSave={(row) =>
-            rowWithClient(row).then((prepared) => insert.mutate(prepared as never, {
-              onSuccess: () => {
-                toast.success("Reserva criada");
-                setNewFor(null);
-              },
-              onError: (e) => toast.error(e.message),
-            })).catch((e: Error) => toast.error(e.message))
+            rowWithClient(row)
+              .then((prepared) =>
+                insert.mutate(prepared as never, {
+                  onSuccess: () => {
+                    toast.success("Reserva criada");
+                    setNewFor(null);
+                  },
+                  onError: (e) => toast.error(e.message),
+                }),
+              )
+              .catch((e: Error) => toast.error(e.message))
           }
         />
       )}
@@ -416,6 +511,7 @@ function Mapa() {
 
 function RoomModal({
   room,
+  clients,
   onClose,
   reservation,
   dateReservation,
@@ -427,22 +523,47 @@ function RoomModal({
   onSituacao,
 }: {
   room: Room;
+  clients: Client[];
   onClose: () => void;
   reservation: ReturnType<typeof activeReservationForRoom>;
   dateReservation: Reservation | null;
   viewDate: string;
   futureReservations: ReturnType<typeof futureReservationsForRoom>;
-  sales: { id: string; item: string; qtd: number; total: number; reserva_id: string | null; categoria: string | null }[];
-  complaints: { id: string; categoria: string; descricao: string | null; status: string; created_at: string }[];
+  sales: {
+    id: string;
+    item: string;
+    qtd: number;
+    total: number;
+    reserva_id: string | null;
+    categoria: string | null;
+  }[];
+  complaints: {
+    id: string;
+    categoria: string;
+    descricao: string | null;
+    status: string;
+    created_at: string;
+  }[];
   onNew: () => void;
   onSituacao: (situacao: string | null) => void;
 }) {
+  const modalPhone = clientPhoneForReservation(reservation, clients);
+  const modalWaLink = whatsappLink(
+    modalPhone,
+    reservation
+      ? `Olá ${reservation.cliente_nome.split(" ")[0]}, aqui é do Hotel Real Cruzília!`
+      : undefined,
+  );
   const stayId = reservation?.id;
-  const staySales = stayId ? sales.filter((s) => s.reserva_id === stayId || s.reserva_id == null) : sales;
+  const staySales = stayId
+    ? sales.filter((s) => s.reserva_id === stayId || s.reserva_id == null)
+    : sales;
   const salesTotal = staySales.reduce((s, v) => s + Number(v.total), 0);
   const diaria = reservation ? Number(reservation.valor_total) : 0;
   const totalHospedagem = diaria + salesTotal;
-  const selectedStay = dateReservation && dateReservation.id !== reservation?.id ? dateReservation : null;
+  const selectedStay =
+    dateReservation && dateReservation.id !== reservation?.id ? dateReservation : null;
+  const checkoutDue = reservation ? isCheckoutDueForCleaning(reservation) : false;
 
   return (
     <Modal open onClose={onClose} title={`Quarto ${room.numero} — ${room.andar}º andar`} wide>
@@ -478,6 +599,16 @@ function RoomModal({
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <section>
+          {checkoutDue && (
+            <div className="mb-4 rounded-lg border border-slate/40 bg-slate-bg p-3 text-sm text-slate">
+              <p className="font-semibold">Saída prevista até 12:00</p>
+              <p className="mt-1">
+                Prioridade para limpeza: conferir itens do quarto, repor papel/sabonete e liberar
+                para a recepção.
+              </p>
+            </div>
+          )}
+
           {selectedStay && (
             <div className="mb-4 rounded-lg border border-brass/50 bg-brass-bg/60 p-3 text-sm">
               <h4 className="mb-1 font-semibold">Reserva em {fmtDate(viewDate)}</h4>
@@ -492,10 +623,29 @@ function RoomModal({
           <h4 className="mb-2 font-semibold">Hospedagem atual</h4>
           {reservation ? (
             <div className="space-y-1 text-sm">
-              <p className="font-semibold">{reservation.cliente_nome}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold">{reservation.cliente_nome}</p>
+                {modalWaLink ? (
+                  <a
+                    href={modalWaLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 rounded-full bg-[#25D366] px-2 py-0.5 text-[11px] font-semibold text-white transition hover:opacity-90"
+                  >
+                    <MessageCircle className="h-3 w-3" /> WhatsApp
+                  </a>
+                ) : (
+                  modalPhone === null && (
+                    <span className="text-[11px] text-muted-foreground">
+                      Sem telefone cadastrado
+                    </span>
+                  )
+                )}
+              </div>
               <p className="text-muted-foreground">
                 {fmtDate(reservation.checkin)} {fmtTime(reservation.horario_checkin)} →{" "}
-                {fmtDate(reservation.checkout)} {fmtTime(reservation.horario_checkout)} · {reservation.diarias} diária(s)
+                {fmtDate(reservation.checkout)} {fmtTime(reservation.horario_checkout)} ·{" "}
+                {reservation.diarias} diária(s)
               </p>
               <p>Diárias: {fmtBRL(reservation.valor_total)}</p>
               <p>
@@ -513,7 +663,10 @@ function RoomModal({
           {futureReservations.length ? (
             <ul className="space-y-1 text-sm">
               {futureReservations.map((fr) => (
-                <li key={fr.id} className="flex items-center justify-between border-b border-border/60 py-1">
+                <li
+                  key={fr.id}
+                  className="flex items-center justify-between border-b border-border/60 py-1"
+                >
                   <span>
                     {fr.cliente_nome} · {fmtDate(fr.checkin)} {fmtTime(fr.horario_checkin)} →{" "}
                     {fmtDate(fr.checkout)} {fmtTime(fr.horario_checkout)}
@@ -523,7 +676,9 @@ function RoomModal({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">Nenhuma reserva futura — quarto livre para novas datas.</p>
+            <p className="text-sm text-muted-foreground">
+              Nenhuma reserva futura — quarto livre para novas datas.
+            </p>
           )}
 
           <h4 className="mb-2 mt-4 font-semibold">Vendas desta estadia</h4>
@@ -531,7 +686,9 @@ function RoomModal({
             <ul className="space-y-1 text-sm">
               {staySales.map((s) => (
                 <li key={s.id} className="flex justify-between border-b border-border/60 py-1">
-                  <span>{s.item} ×{s.qtd}</span>
+                  <span>
+                    {s.item} ×{s.qtd}
+                  </span>
                   <span>{fmtBRL(s.total)}</span>
                 </li>
               ))}
@@ -625,17 +782,27 @@ function RoomSearchSummary({
       <div>
         <p className="text-[11px] font-semibold uppercase text-muted-foreground">Quarto</p>
         <p className="font-serif text-2xl font-bold text-pine-dark">{room.numero}</p>
-        <p className="text-xs text-muted-foreground">{roomTypeLabel(room)} · {fmtBRL(room.preco)}</p>
+        <p className="text-xs text-muted-foreground">
+          {roomTypeLabel(room)} · {fmtBRL(room.preco)}
+        </p>
       </div>
       <div>
         <p className="text-[11px] font-semibold uppercase text-muted-foreground">Situação</p>
-        <Badge tone={status.includes("debito") ? "brick" : status.includes("pago") ? "sage" : "brass"}>{style.label}</Badge>
+        <Badge
+          tone={status.includes("debito") ? "brick" : status.includes("pago") ? "sage" : "brass"}
+        >
+          {style.label}
+        </Badge>
         <p className="mt-1 text-xs text-muted-foreground">{paymentLabel}</p>
       </div>
       <div>
         <p className="text-[11px] font-semibold uppercase text-muted-foreground">Cliente</p>
         <p className="font-semibold">{reservation?.cliente_nome ?? "Livre"}</p>
-        {reservation && <p className="text-xs text-muted-foreground">{fmtDate(reservation.checkin)} → {fmtDate(reservation.checkout)}</p>}
+        {reservation && (
+          <p className="text-xs text-muted-foreground">
+            {fmtDate(reservation.checkin)} → {fmtDate(reservation.checkout)}
+          </p>
+        )}
       </div>
       <div>
         <p className="text-[11px] font-semibold uppercase text-muted-foreground">Vendas</p>
@@ -644,7 +811,9 @@ function RoomSearchSummary({
       </div>
       <div>
         <p className="text-[11px] font-semibold uppercase text-muted-foreground">Receita total</p>
-        <p className="font-serif text-xl font-bold text-pine-dark">{fmtBRL(revenue || total + salesTotal)}</p>
+        <p className="font-serif text-xl font-bold text-pine-dark">
+          {fmtBRL(revenue || total + salesTotal)}
+        </p>
         <p className="text-xs text-muted-foreground">Clique para ver detalhes</p>
       </div>
     </button>
@@ -653,8 +822,10 @@ function RoomSearchSummary({
 
 function roomTypeLabel(room: Room) {
   const text = normalizeRoomText(room.configuracao);
-  if ((text.includes("1c") && text.includes("1s")) || text.includes("casal solteiro")) return "Casal + solteiro";
-  if (text.includes("2 solteiro") || text.includes("2s") || text.includes("duplo solteiro")) return "Duplo solteiro";
+  if ((text.includes("1c") && text.includes("1s")) || text.includes("casal solteiro"))
+    return "Casal + solteiro";
+  if (text.includes("2 solteiro") || text.includes("2s") || text.includes("duplo solteiro"))
+    return "Duplo solteiro";
   if (text.includes("casal")) return "Casal";
   if (text.includes("solteiro")) return "Solteiro";
   if (text.includes("triplo")) return "Triplo";
@@ -683,11 +854,14 @@ function normalizeRoomText(value: string) {
 function roomVisualStatus(reservations: Reservation[], room: Room, date: string) {
   const base = roomStatusAtDate(reservations, room, date);
   if (base === "livre" || base === "limpeza" || base === "manutencao") return base;
-  const reservation = reservationForDate(reservations, room.numero, date) ?? activeReservationForRoom(reservations, room.numero);
+  const reservation =
+    reservationForDate(reservations, room.numero, date) ??
+    activeReservationForRoom(reservations, room.numero);
   if (!reservation) return base;
   const paid = Number(reservation.valor_pago ?? 0);
   const total = Number(reservation.valor_total ?? 0);
-  if (reservation.status === "ocupado") return paid >= total && total > 0 ? "hospedado_pago" : "hospedado_debito";
+  if (reservation.status === "ocupado")
+    return paid >= total && total > 0 ? "hospedado_pago" : "hospedado_debito";
   if (paid > 0 && paid < total) return "sinal_pago";
   if (paid >= total && total > 0) return "hospedado_pago";
   return "reservado";
@@ -704,7 +878,8 @@ function roomStatusAtDate(reservations: Reservation[], room: Room, date: string)
       reservation.status !== "manutencao",
   );
   if (active.some((reservation) => reservation.checkin === date)) return "reservado";
-  if (active.some((reservation) => reservation.checkin < date && reservation.checkout > date)) return "ocupado";
+  if (active.some((reservation) => reservation.checkin < date && reservation.checkout > date))
+    return "ocupado";
   if (active.some((reservation) => reservation.checkout === date)) return "limpeza";
   return "livre";
 }
