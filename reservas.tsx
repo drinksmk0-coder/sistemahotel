@@ -1,183 +1,160 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Download, Pencil, Trash2, Save } from "lucide-react";
-import { useFeedbacks, useUpdate, useDelete, type Feedback } from "@/lib/data";
-import { fmtDate, todayISO, downloadCSV } from "@/lib/format";
+import { toast } from "sonner";
+import { Plus, Download, Search } from "lucide-react";
+import { useClients, useReservations, useInsert, type Client } from "@/lib/data";
+import { fmtBRL, fmtDate, downloadCSV, todayISO } from "@/lib/format";
+import { CLIENT_TYPES, BR_STATES, stateFromPhone } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
-import { Stars, Badge, EmptyState, Modal, Field } from "@/components/ui-kit";
+import { DateBRInput, Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
 
-export const Route = createFileRoute("/_authenticated/avaliacoes")({
-  component: Avaliacoes,
+export const Route = createFileRoute("/_authenticated/clientes")({
+  component: Clientes,
 });
 
-const CRITERIA = [
-  { key: "nota_geral", label: "Geral" },
-  { key: "nota_limpeza", label: "Limpeza" },
-  { key: "nota_conforto", label: "Conforto" },
-  { key: "nota_atendimento", label: "Atendimento" },
-  { key: "nota_wifi", label: "Wi-Fi" },
-  { key: "nota_chuveiro", label: "Chuveiro" },
-] as const;
+function Clientes() {
+  const { data: clients = [] } = useClients();
+  const { data: reservations = [] } = useReservations();
+  const insert = useInsert("clients", ["clients"]);
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
 
-function Avaliacoes() {
-  const { data: feedbacks = [] } = useFeedbacks();
-  const updateFb = useUpdate("feedbacks", ["feedbacks"]);
-  const deleteFb = useDelete("feedbacks", ["feedbacks"]);
-  const [editing, setEditing] = useState<Feedback | null>(null);
-  const [quartoFiltro, setQuartoFiltro] = useState<string>("");
-
-  const quartos = useMemo(
-    () =>
-      Array.from(new Set(feedbacks.map((f) => f.quarto).filter((q): q is number => q != null))).sort(
-        (a, b) => a - b,
-      ),
-    [feedbacks],
-  );
-
-  const filtrados = useMemo(
-    () => (quartoFiltro ? feedbacks.filter((f) => String(f.quarto) === quartoFiltro) : feedbacks),
-    [feedbacks, quartoFiltro],
-  );
-
-  const averages = useMemo(() => {
-    return CRITERIA.map((c) => {
-      const vals = filtrados.map((f) => f[c.key]).filter((v): v is number => v != null);
-      const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
-      return { ...c, avg, count: vals.length };
+  const spentByClient = useMemo(() => {
+    const m = new Map<string, number>();
+    reservations.forEach((r) => {
+      if (r.cliente_id && r.pago)
+        m.set(r.cliente_id, (m.get(r.cliente_id) ?? 0) + Number(r.valor_total));
     });
-  }, [filtrados]);
+    return m;
+  }, [reservations]);
 
-  const recomendam = filtrados.filter((f) => f.recomendaria);
-  const nps = filtrados.length ? Math.round((recomendam.length / filtrados.length) * 100) : 0;
+  const filtered = clients.filter(
+    (c) =>
+      c.nome.toLowerCase().includes(q.toLowerCase()) ||
+      (c.telefone ?? "").includes(q) ||
+      (c.documento ?? "").includes(q) ||
+      (c.cpf ?? "").includes(q),
+  );
 
   function exportCSV() {
-    downloadCSV(`avaliacoes-${todayISO()}.csv`, [
-      ["Data", "Hóspede", "Quarto", "Geral", "Limpeza", "Conforto", "Atendimento", "WiFi", "Chuveiro", "Recomenda", "Comentário", "Sugestão"],
-      ...filtrados.map((f) => [
-        f.created_at.slice(0, 10),
-        f.hospede_nome,
-        f.quarto,
-        f.nota_geral,
-        f.nota_limpeza,
-        f.nota_conforto,
-        f.nota_atendimento,
-        f.nota_wifi,
-        f.nota_chuveiro,
-        f.recomendaria ? "sim" : "não",
-        f.comentario,
-        f.sugestao,
+    downloadCSV(`clientes-${todayISO()}.csv`, [
+      [
+        "Nome",
+        "Tipo",
+        "Telefone",
+        "Email",
+        "CPF",
+        "Sexo",
+        "Estado civil",
+        "Filhos",
+        "Nascimento",
+        "Profissão",
+        "Bairro",
+        "Cidade",
+        "Estado",
+        "CEP",
+        "Visitas",
+        "Cadastrado em",
+      ],
+      ...clients.map((c) => [
+        c.nome,
+        c.tipo,
+        c.telefone,
+        (c as Client & { email?: string | null }).email ?? "",
+        c.cpf,
+        c.sexo,
+        c.estado_civil,
+        c.tem_filhos ? c.quantidade_filhos ?? 0 : "Não",
+        c.data_nascimento,
+        c.profissao,
+        c.bairro,
+        c.cidade,
+        c.estado,
+        (c as Client & { cep?: string | null }).cep ?? "",
+        c.visitas,
+        c.created_at.slice(0, 10),
       ]),
     ]);
-  }
-
-  function cancelar(f: Feedback) {
-    if (confirm(`Cancelar (excluir) a avaliação de ${f.hospede_nome ?? "Anônimo"}? Esta ação não pode ser desfeita.`)) {
-      deleteFb.mutate(f.id);
-    }
   }
 
   return (
     <div>
       <PageHeader
-        title="Avaliações dos hóspedes"
-        subtitle="Respostas recebidas pelo QR code dos quartos e pelo formulário impresso."
+        title="Clientes"
+        subtitle="Hóspedes e clientes fixos da pousada."
         action={
-          <div className="flex items-center gap-2">
-            <select
-              value={quartoFiltro}
-              onChange={(e) => setQuartoFiltro(e.target.value)}
-              className="field h-9 py-0 text-sm"
-            >
-              <option value="">Todos os quartos</option>
-              {quartos.map((q) => (
-                <option key={q} value={String(q)}>
-                  Quarto {q}
-                </option>
-              ))}
-            </select>
+          <div className="flex gap-2">
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
               <Download className="h-4 w-4" /> CSV
+            </button>
+            <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
+              <Plus className="h-4 w-4" /> Novo cliente
             </button>
           </div>
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Recomendariam</p>
-          <p className="font-serif text-2xl font-bold">{nps}%</p>
-          <p className="text-[11px] text-muted-foreground">{filtrados.length} respostas</p>
-        </div>
-        {averages.map((a) => (
-          <div key={a.key} className="stat-card">
-            <p className="text-xs uppercase text-muted-foreground">{a.label}</p>
-            <p className="font-serif text-2xl font-bold">{a.avg ? a.avg.toFixed(1) : "—"}</p>
-            <Stars value={a.avg} />
-          </div>
-        ))}
+      <div className="relative mb-4 max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          className="field pl-9"
+          placeholder="Buscar por nome, telefone…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
       </div>
 
-      {filtrados.length === 0 ? (
-        <EmptyState text="Nenhuma avaliação recebida ainda. Divulgue o QR code nos quartos!" />
+      {filtered.length === 0 ? (
+        <EmptyState text="Nenhum cliente encontrado." />
       ) : (
-        <div className="space-y-3">
-          {filtrados.map((f) => (
-            <div key={f.id} className="card-surface p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{f.hospede_nome ?? "Anônimo"}</span>
-                  {f.quarto && <Badge tone="slate">Quarto {f.quarto}</Badge>}
-                  <Stars value={f.nota_geral} />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((c) => (
+            <div key={c.id} className="card-surface p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-serif text-lg font-bold">{c.nome}</p>
+                {c.telefone && <p className="text-sm text-muted-foreground">{c.telefone}</p>}
+                {(c as Client & { email?: string | null }).email && (
+                  <p className="text-sm text-muted-foreground">{(c as Client & { email?: string | null }).email}</p>
+                )}
                 </div>
-                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                  {f.recomendaria != null && (
-                    <Badge tone={f.recomendaria ? "sage" : "brick"}>
-                      {f.recomendaria ? "Recomenda" : "Não recomenda"}
-                    </Badge>
-                  )}
-                  {fmtDate(f.created_at)}
-                  <button
-                    onClick={() => setEditing(f)}
-                    className="rounded-md p-1 hover:bg-muted"
-                    title="Editar avaliação"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => cancelar(f)}
-                    className="rounded-md p-1 text-brick hover:bg-muted"
-                    title="Cancelar avaliação"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+                <Badge tone={c.tipo === "cliente fixo" ? "brass" : "sage"}>{c.tipo}</Badge>
               </div>
-              {f.wifi_problema && (
-                <p className="mt-2 text-xs text-brick">
-                  ⚠ Relatou problema de Wi-Fi{f.wifi_dispositivo ? ` (aparelho: ${f.wifi_dispositivo})` : ""}
-                </p>
-              )}
-              {f.comentario && <p className="mt-2 text-sm">{f.comentario}</p>}
-              {f.sugestao && (
-                <p className="mt-2 rounded-lg bg-sage-bg/50 px-3 py-2 text-sm text-pine-dark">
-                  💡 Sugestão: {f.sugestao}
-                </p>
-              )}
+              <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                {c.cpf && <p>CPF: {c.cpf}</p>}
+                {c.sexo && <p>Sexo: {c.sexo}</p>}
+                {c.estado_civil && <p>Estado civil: {c.estado_civil}</p>}
+                {c.tem_filhos != null && (
+                  <p>Filhos: {c.tem_filhos ? c.quantidade_filhos ?? 0 : "Não"}</p>
+                )}
+                {c.bairro && <p>Bairro: {c.bairro}</p>}
+                {(c.cidade || c.estado) && <p>{[c.cidade, c.estado].filter(Boolean).join(" / ")}</p>}
+                {(c as Client & { cep?: string | null }).cep && <p>CEP: {(c as Client & { cep?: string | null }).cep}</p>}
+                {c.profissao && <p>{c.profissao}</p>}
+                {c.data_nascimento && <p>Nasc.: {fmtDate(c.data_nascimento)}</p>}
+                <p>Cadastrado em {fmtDate(c.created_at)}</p>
+              </div>
+              <div className="mt-3 flex justify-between text-sm">
+                <span className="text-muted-foreground">{c.visitas} visita(s)</span>
+                <span className="font-semibold">{fmtBRL(spentByClient.get(c.id) ?? 0)}</span>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {editing && (
-        <EditFeedbackModal
-          feedback={editing}
-          saving={updateFb.isPending}
-          onClose={() => setEditing(null)}
-          onSave={(patch) =>
-            updateFb.mutate(
-              { id: editing.id, patch },
-              { onSuccess: () => setEditing(null) },
-            )
+      {open && (
+        <ClientForm
+          clients={clients}
+          onClose={() => setOpen(false)}
+          onSave={(row) =>
+            insert.mutate(row, {
+              onSuccess: () => {
+                toast.success("Cliente cadastrado");
+                setOpen(false);
+              },
+              onError: (e) => toast.error(e.message),
+            })
           }
         />
       )}
@@ -185,119 +162,275 @@ function Avaliacoes() {
   );
 }
 
-function EditFeedbackModal({
-  feedback,
-  saving,
+function ClientForm({
+  clients,
   onClose,
   onSave,
 }: {
-  feedback: Feedback;
-  saving: boolean;
+  clients: Client[];
   onClose: () => void;
-  onSave: (patch: Partial<Feedback>) => void;
+  onSave: (
+    row: Pick<
+      Client,
+      | "nome"
+      | "tipo"
+      | "telefone"
+      | "email"
+      | "documento"
+      | "cpf"
+      | "data_nascimento"
+      | "profissao"
+      | "cidade"
+      | "estado"
+      | "cep"
+      | "sexo"
+      | "bairro"
+      | "estado_civil"
+      | "tem_filhos"
+      | "quantidade_filhos"
+    >,
+  ) => void;
 }) {
-  const [form, setForm] = useState<Feedback>(feedback);
+  const [nome, setNome] = useState("");
+  const [tipo, setTipo] = useState<string>(CLIENT_TYPES[0]);
+  const [telefone, setTelefone] = useState("");
+  const [email, setEmail] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [nascimento, setNascimento] = useState("");
+  const [profissao, setProfissao] = useState("");
+  const [sexo, setSexo] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [estadoCivil, setEstadoCivil] = useState("");
+  const [temFilhos, setTemFilhos] = useState(false);
+  const [quantidadeFilhos, setQuantidadeFilhos] = useState("");
+  const [cidade, setCidade] = useState("");
+  const [estado, setEstado] = useState("");
+  const [cep, setCep] = useState("");
 
-  function set<K extends keyof Feedback>(key: K, value: Feedback[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
-  }
-
-  function nota(value: number | null) {
-    return value == null ? "" : String(value);
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    onSave({
-      hospede_nome: form.hospede_nome,
-      quarto: form.quarto,
-      nota_geral: form.nota_geral,
-      nota_limpeza: form.nota_limpeza,
-      nota_conforto: form.nota_conforto,
-      nota_atendimento: form.nota_atendimento,
-      nota_wifi: form.nota_wifi,
-      nota_chuveiro: form.nota_chuveiro,
-      recomendaria: form.recomendaria,
-      comentario: form.comentario,
-      sugestao: form.sugestao,
-    });
-  }
+  const cpfDigits = onlyDigits(cpf);
+  const telefoneDigits = onlyDigits(telefone);
+  const cpfJaCadastrado =
+    cpfDigits.length > 0 &&
+    clients.some((client) => client.cpf && onlyDigits(client.cpf) === cpfDigits);
+  const telefoneJaCadastrado =
+    telefoneDigits.length > 0 &&
+    clients.some((client) => client.telefone && onlyDigits(client.telefone) === telefoneDigits);
 
   return (
-    <Modal open onClose={onClose} title="Editar avaliação">
-      <form onSubmit={submit} className="space-y-3">
+    <Modal open onClose={onClose} title="Novo cliente">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (cpfJaCadastrado || telefoneJaCadastrado) {
+            toast.error(cpfJaCadastrado ? "Este CPF já está cadastrado." : "Este telefone já está cadastrado.");
+            return;
+          }
+          const nomePadrao = normalizePersonName(nome);
+          if (!nomePadrao || hasNumber(nomePadrao) || nomePadrao.split(" ").length < 2) {
+            toast.error("Informe o nome completo, sem números.");
+            return;
+          }
+          if (cpfDigits.length !== 11) {
+            toast.error("CPF obrigatório. Informe os 11 dígitos.");
+            return;
+          }
+          if (telefoneDigits.length < 10) {
+            toast.error("Telefone obrigatório. Informe DDD e número.");
+            return;
+          }
+          if (!nascimento || !estado || !estadoCivil) {
+            toast.error("Data de nascimento, estado e estado civil são obrigatórios.");
+            return;
+          }
+          onSave({
+            nome: nomePadrao,
+            tipo,
+            telefone: formatPhoneBR(telefone) || null,
+            email: email.trim() || null,
+            documento: null,
+            cpf: formatCpfBR(cpf) || null,
+            data_nascimento: nascimento || null,
+            profissao: profissao.trim() || null,
+            sexo: sexo || null,
+            bairro: bairro.trim() || null,
+            estado_civil: estadoCivil || null,
+            tem_filhos: temFilhos,
+            quantidade_filhos: temFilhos ? Number(quantidadeFilhos || 0) : null,
+            cidade: cidade.trim() || null,
+            estado: estado || null,
+            cep: cep.trim() || null,
+          });
+        }}
+        className="space-y-3"
+      >
+        <Field label="Nome">
+          <input className="field" value={nome} onChange={(e) => setNome(e.target.value.replace(/[0-9]/g, ""))} required maxLength={80} />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Hóspede">
-            <input
-              className="field"
-              value={form.hospede_nome ?? ""}
-              onChange={(e) => set("hospede_nome", e.target.value)}
-            />
+          <Field label="Tipo">
+            <select className="field" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+              {CLIENT_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
           </Field>
-          <Field label="Quarto">
+          <Field label="Telefone">
             <input
-              type="number"
               className="field"
-              value={form.quarto ?? ""}
-              onChange={(e) => set("quarto", e.target.value ? Number(e.target.value) : null)}
+              value={telefone}
+              onChange={(e) => {
+                const value = e.target.value;
+                setTelefone(formatPhoneBR(value));
+                const uf = stateFromPhone(value);
+                if (uf) setEstado(uf);
+              }}
+              maxLength={20}
+              required
+              aria-invalid={telefoneJaCadastrado}
+            />
+            {telefoneJaCadastrado && (
+              <p className="mt-1 text-xs font-semibold text-brick">Este telefone já está cadastrado.</p>
+            )}
+          </Field>
+        </div>
+        <Field label="E-mail">
+          <input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="CPF">
+            <input
+              className="field"
+              value={cpf}
+              onChange={(e) => setCpf(formatCpfBR(e.target.value))}
+              maxLength={14}
+              required
+              aria-invalid={cpfJaCadastrado}
+            />
+            {cpfJaCadastrado && (
+              <p className="mt-1 text-xs font-semibold text-brick">Este CPF já está cadastrado.</p>
+            )}
+          </Field>
+          <Field label="Data de nascimento">
+            <DateBRInput value={nascimento} onChange={setNascimento} required />
+          </Field>
+        </div>
+        <Field label="Profissão">
+          <input className="field" value={profissao} onChange={(e) => setProfissao(e.target.value)} maxLength={60} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Sexo">
+            <select className="field" value={sexo} onChange={(e) => setSexo(e.target.value)}>
+              <option value="">—</option>
+              <option value="feminino">Feminino</option>
+              <option value="masculino">Masculino</option>
+              <option value="outro">Outro</option>
+              <option value="nao_informado">Prefere não informar</option>
+            </select>
+          </Field>
+          <Field label="Estado civil">
+            <select className="field" value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)} required>
+              <option value="">—</option>
+              <option value="solteiro">Solteiro(a)</option>
+              <option value="casado">Casado(a)</option>
+              <option value="divorciado">Divorciado(a)</option>
+              <option value="viuvo">Viúvo(a)</option>
+              <option value="uniao_estavel">União estável</option>
+            </select>
+          </Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Tem filhos?">
+            <select
+              className="field"
+              value={temFilhos ? "sim" : "nao"}
+              onChange={(e) => {
+                const next = e.target.value === "sim";
+                setTemFilhos(next);
+                if (!next) setQuantidadeFilhos("");
+              }}
+            >
+              <option value="nao">Não</option>
+              <option value="sim">Sim</option>
+            </select>
+          </Field>
+          <Field label="Quantidade de filhos">
+            <input
+              className="field"
+              inputMode="numeric"
+              value={quantidadeFilhos}
+              onChange={(e) => setQuantidadeFilhos(e.target.value.replace(/\D/g, ""))}
+              disabled={!temFilhos}
             />
           </Field>
         </div>
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {CRITERIA.map((c) => (
-            <Field key={c.key} label={c.label}>
-              <select
-                className="field"
-                value={nota(form[c.key])}
-                onChange={(e) =>
-                  set(c.key, e.target.value ? Number(e.target.value) : (null as never))
-                }
-              >
-                <option value="">—</option>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          ))}
+        <Field label="Bairro">
+          <input className="field" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={80} />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Cidade">
+            <input className="field" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={60} />
+          </Field>
+          <Field label="Estado">
+            <select className="field" value={estado} onChange={(e) => setEstado(e.target.value)} required>
+              <option value="">—</option>
+              {BR_STATES.map((uf) => (
+                <option key={uf} value={uf}>
+                  {uf}
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
-
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={!!form.recomendaria}
-            onChange={(e) => set("recomendaria", e.target.checked)}
-          />
-          Recomendaria o hotel
-        </label>
-
-        <Field label="Comentário">
-          <textarea
-            className="field min-h-[70px]"
-            value={form.comentario ?? ""}
-            onChange={(e) => set("comentario", e.target.value)}
-          />
+        <Field label="CEP">
+          <input className="field" value={cep} onChange={(e) => setCep(e.target.value)} maxLength={10} placeholder="Opcional" />
         </Field>
-        <Field label="Sugestão">
-          <textarea
-            className="field min-h-[70px]"
-            value={form.sugestao ?? ""}
-            onChange={(e) => set("sugestao", e.target.value)}
-          />
-        </Field>
-
-        <div className="flex justify-end gap-2 pt-2">
+        <p className="text-xs text-muted-foreground">
+          A data e o horário do cadastro são registrados automaticamente.
+        </p>
+        <div className="flex justify-end gap-2 pt-1">
           <button type="button" onClick={onClose} className="btn-ghost">
-            Voltar
+            Cancelar
           </button>
-          <button type="submit" disabled={saving} className="btn-primary flex items-center gap-1.5">
-            <Save className="h-4 w-4" /> {saving ? "Salvando..." : "Salvar"}
+          <button type="submit" className="btn-primary" disabled={cpfJaCadastrado || telefoneJaCadastrado}>
+            Salvar
           </button>
         </div>
       </form>
     </Modal>
   );
+}
+
+function onlyDigits(value: string | null | undefined) {
+  return (value ?? "").replace(/\D/g, "");
+}
+
+function hasNumber(value: string) {
+  return /\d/.test(value);
+}
+
+function normalizePersonName(value: string | null | undefined) {
+  return (value ?? "")
+    .replace(/[0-9]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/(^|\s)(\p{L})/gu, (match) => match.toLocaleUpperCase("pt-BR"));
+}
+
+function formatCpfBR(value: string | null | undefined) {
+  const digits = onlyDigits(value).slice(0, 11);
+  return digits
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/^(\d{3})\.(\d{3})\.(\d{3})(\d)/, "$1.$2.$3-$4");
+}
+
+function formatPhoneBR(value: string | null | undefined) {
+  const digits = onlyDigits(value).replace(/^55(?=\d{10,11}$)/, "").slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }

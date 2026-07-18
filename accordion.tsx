@@ -1,392 +1,329 @@
-import { useState } from "react";
-import { toast } from "sonner";
-import {
-  hasPaidOverlap,
-  roomBlock,
-  statusFromPayment,
-  type Reservation,
-  type Client,
-  type Room,
-  type Complaint,
-} from "@/lib/data";
-import { fmtBRL, todayISO, nightsBetween } from "@/lib/format";
-import { PAYMENT_METHODS, SALES_CHANNELS, complaintLabel } from "@/lib/constants";
-import { Modal, Field } from "@/components/ui-kit";
+import { createFileRoute } from "@tanstack/react-router";
+import { Mail, MessageCircle, Printer } from "lucide-react";
+import { fmtBRL, fmtDate } from "@/lib/format";
 
-export type ReservaRow = {
-  quarto: number;
-  cliente_id: string | null;
-  cliente_nome: string;
-  checkin: string;
-  checkout: string;
-  horario_reserva: string | null;
-  horario_checkin: string | null;
-  horario_checkout: string | null;
-  diarias: number;
-  valor_diaria: number;
-  valor_total: number;
-  valor_pago: number;
-  desconto: number;
-  pessoas: number;
-  canal: string;
-  pagamento: string;
-  pago: boolean;
-  status: string;
-  checkin_at: string | null;
-};
+export const Route = createFileRoute("/imprimir")({
+  ssr: false,
+  component: Imprimir,
+});
 
-export function ReservaForm({
-  rooms,
-  clients,
-  reservations,
-  complaints,
-  editing,
-  fixedRoom,
-  onClose,
-  onSave,
-}: {
-  rooms: Room[];
-  clients: Client[];
-  reservations: Reservation[];
-  complaints: Complaint[];
-  editing?: Reservation | null;
-  fixedRoom?: number;
-  onClose: () => void;
-  onSave: (row: ReservaRow) => void;
-}) {
-  const numberInput = (value: number | null | undefined, fallback = "") =>
-    value == null || Number(value) === 0 ? fallback : String(value);
-  const parseNumber = (value: string) => {
-    const normalized = value.replace(",", ".");
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : 0;
-  };
-  const parseIntNumber = (value: string, fallback = 0) => {
-    const parsed = Number.parseInt(value, 10);
-    return Number.isFinite(parsed) ? parsed : fallback;
-  };
+const CRITERIA = [
+  "Limpeza do quarto",
+  "Conforto e cama",
+  "Atendimento da equipe",
+  "Wi-Fi / internet",
+  "Chuveiro / água quente",
+  "Café da manhã",
+  "Nota geral da estadia",
+];
 
-  const initRoom = editing?.quarto ?? fixedRoom ?? rooms[0]?.numero ?? 0;
-  const [quarto, setQuarto] = useState<number>(initRoom);
-  const [clienteId, setClienteId] = useState(editing?.cliente_id ?? "");
-  const [nome, setNome] = useState(editing && !editing.cliente_id ? editing.cliente_nome : "");
-  const [checkin, setCheckin] = useState(editing?.checkin ?? todayISO());
-  const [checkout, setCheckout] = useState(editing?.checkout ?? "");
-  const [horarioReserva, setHorarioReserva] = useState(
-    editing?.horario_reserva?.slice(0, 5) ?? new Date().toTimeString().slice(0, 5),
+function Line({ label }: { label: string }) {
+  return (
+    <div className="mb-3">
+      <span className="text-sm font-semibold">{label}:</span>
+      <div className="mt-1 h-6 border-b border-dashed border-neutral-400" />
+    </div>
   );
-  const [horarioCheckin, setHorarioCheckin] = useState(editing?.horario_checkin?.slice(0, 5) ?? "14:00");
-  const [horarioCheckout, setHorarioCheckout] = useState(editing?.horario_checkout?.slice(0, 5) ?? "12:00");
-  const [diarias, setDiarias] = useState<string>(
-    String(editing?.diarias ?? nightsBetween(editing?.checkin ?? todayISO(), editing?.checkout ?? "")),
-  );
-  const [valorDiaria, setValorDiaria] = useState<string>(
-    numberInput(editing?.valor_diaria ?? rooms.find((r) => r.numero === initRoom)?.preco ?? 0),
-  );
-  const [pagamento, setPagamento] = useState<string>(editing?.pagamento ?? PAYMENT_METHODS[0]);
-  const [valorPago, setValorPago] = useState<string>(numberInput(editing?.valor_pago));
-  const [desconto, setDesconto] = useState<string>(numberInput(editing?.desconto));
-  const [pessoas, setPessoas] = useState<string>(String(editing?.pessoas ?? 1));
-  const [canal, setCanal] = useState<string>(editing?.canal ?? SALES_CHANNELS[0]);
-  const [override, setOverride] = useState(false);
+}
 
-  const nights = Math.max(0, parseIntNumber(diarias));
-  const diariaValor = parseNumber(valorDiaria);
-  const descontoValor = parseNumber(desconto);
-  const valorPagoNumber = parseNumber(valorPago);
-  const bruto = nights * diariaValor;
-  const total = Math.max(0, bruto - descontoValor);
-  const overlap =
-    quarto && checkin && checkout && hasPaidOverlap(reservations, quarto, checkin, checkout, editing?.id);
-  const block = roomBlock(complaints, quarto);
-  const blocked = !!block && !override;
-  const status = statusFromPayment(total, valorPagoNumber);
-
-  function applyDateChange(nextCheckin: string, nextCheckout: string) {
-    const calculated = nightsBetween(nextCheckin, nextCheckout);
-    setDiarias(calculated > 0 ? String(calculated) : "");
-  }
-
-  function setPaymentShortcut(amount: number, label: string) {
-    if (!checkout || nights <= 0 || total <= 0) {
-      toast.error("Informe check-in, check-out e valor da diária antes de aplicar pagamento.");
-      return;
-    }
-    setValorPago(String(Math.min(total, Math.max(0, amount))));
-    toast.success(label);
-  }
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!checkout || nights <= 0) return toast.error("Informe um período válido");
-    if (overlap) return toast.error("Já existe reserva ativa para este quarto no período");
-    if (blocked) return toast.error("Quarto bloqueado — libere abaixo para continuar");
-    const cli = clients.find((c) => c.id === clienteId);
-    const wasOccupied = editing?.status === "ocupado";
-    onSave({
-      quarto,
-      cliente_id: clienteId || null,
-      cliente_nome: cli?.nome ?? nome.trim(),
-      checkin,
-      checkout,
-      horario_reserva: horarioReserva || null,
-      horario_checkin: horarioCheckin || null,
-      horario_checkout: horarioCheckout || null,
-      diarias: nights,
-      valor_diaria: diariaValor,
-      valor_total: total,
-      valor_pago: valorPagoNumber,
-      desconto: descontoValor,
-      pessoas: Math.max(1, parseIntNumber(pessoas, 1)),
-      canal,
-      pagamento,
-      pago: total > 0 && valorPagoNumber >= total,
-      status,
-      checkin_at:
-        status === "ocupado"
-          ? (wasOccupied ? editing?.checkin_at ?? new Date().toISOString() : new Date().toISOString())
-          : editing?.checkin_at ?? null,
-    });
-  }
+function Imprimir() {
+  const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
+  if (params.get("tipo") === "recibo") return <Recibo params={params} />;
+  if (params.get("tipo") === "relatorio") return <RelatorioHotel params={params} />;
 
   return (
-    <Modal open onClose={onClose} title={editing ? `Editar reserva — Quarto ${editing.quarto}` : "Nova reserva"}>
-      <form onSubmit={submit} className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Quarto">
-            <select
-              className="field"
-              value={quarto}
-              disabled={fixedRoom != null && !editing}
-              onChange={(e) => {
-                const num = Number(e.target.value);
-                setQuarto(num);
-                setOverride(false);
-                const room = rooms.find((r) => r.numero === num);
-                if (room) setValorDiaria(numberInput(room.preco));
-              }}
-            >
-              {rooms.map((r) => (
-                <option key={r.numero} value={r.numero}>
-                  {r.numero} — {fmtBRL(r.preco)} ({r.andar}º)
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Valor da diária">
-            <input
-              type="text"
-              inputMode="decimal"
-              className="field"
-              value={valorDiaria}
-              placeholder="0,00"
-              onChange={(e) => setValorDiaria(e.target.value.replace(/[^\d,.]/g, ""))}
-            />
-          </Field>
+    <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
+      <div className="mx-auto mb-4 flex max-w-2xl justify-end px-4 no-print">
+        <button onClick={() => window.print()} className="btn-primary flex items-center gap-1.5">
+          <Printer className="h-4 w-4" /> Imprimir formulário
+        </button>
+      </div>
+
+      <div className="mx-auto max-w-2xl bg-white p-10 shadow print:max-w-none print:p-0 print:shadow-none">
+        <div className="mb-6 flex items-center gap-3 border-b-2 border-pine pb-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-pine font-serif text-xl font-bold text-white">
+            PR
+          </div>
+          <div>
+            <h1 className="font-serif text-2xl font-bold">Pousada Real Cruzília</h1>
+            <p className="text-sm text-neutral-500">Formulário de avaliação da estadia</p>
+          </div>
         </div>
 
-        <Field label="Cliente cadastrado (opcional)">
-          <select className="field" value={clienteId} onChange={(e) => setClienteId(e.target.value)}>
-            <option value="">— digitar nome manualmente —</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nome}
-              </option>
+        <div className="grid grid-cols-2 gap-4">
+          <Line label="Nome do hóspede" />
+          <Line label="Número do quarto" />
+          <Line label="Data do check-out" />
+          <Line label="Cidade de origem" />
+        </div>
+
+        <h2 className="mb-3 mt-4 font-serif text-lg font-bold">
+          Avalie de 1 a 5 (circule as estrelas)
+        </h2>
+        <table className="w-full border-collapse text-sm">
+          <tbody>
+            {CRITERIA.map((c) => (
+              <tr key={c} className="border-b border-neutral-300">
+                <td className="py-2 font-medium">{c}</td>
+                <td className="py-2 text-right text-xl tracking-widest">☆ ☆ ☆ ☆ ☆</td>
+              </tr>
             ))}
-          </select>
-        </Field>
-        {!clienteId && (
-          <Field label="Nome do hóspede">
-            <input className="field" value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={80} />
-          </Field>
-        )}
+          </tbody>
+        </table>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Check-in">
-            <input
-              type="date"
-              className="field"
-              value={checkin}
-              onChange={(e) => {
-                setCheckin(e.target.value);
-                applyDateChange(e.target.value, checkout);
-              }}
-              required
-            />
-          </Field>
-          <Field label="Check-out">
-            <input
-              type="date"
-              className="field"
-              value={checkout}
-              onChange={(e) => {
-                setCheckout(e.target.value);
-                applyDateChange(checkin, e.target.value);
-              }}
-              required
-            />
-          </Field>
+        <div className="mt-4">
+          <span className="text-sm font-semibold">Teve problema com o Wi-Fi?</span>
+          <span className="ml-3 text-sm">◻ Não ◻ Sim — Aparelho usado: ______________________</span>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Horário da reserva">
-            <input
-              type="time"
-              className="field"
-              value={horarioReserva}
-              onChange={(e) => setHorarioReserva(e.target.value)}
-            />
-          </Field>
-          <Field label="Horário do check-in">
-            <input
-              type="time"
-              className="field"
-              value={horarioCheckin}
-              onChange={(e) => setHorarioCheckin(e.target.value)}
-            />
-          </Field>
-          <Field label="Horário do check-out">
-            <input
-              type="time"
-              className="field"
-              value={horarioCheckout}
-              onChange={(e) => setHorarioCheckout(e.target.value)}
-            />
-          </Field>
+        <div className="mt-4">
+          <span className="text-sm font-semibold">Recomendaria a pousada?</span>
+          <span className="ml-3 text-sm">◻ Sim ◻ Não</span>
         </div>
 
-        <div className="grid grid-cols-4 gap-3">
-          <Field label="Diárias">
-            <input
-              type="text"
-              inputMode="numeric"
-              className="field"
-              value={diarias}
-              placeholder="0"
-              onChange={(e) => setDiarias(e.target.value.replace(/\D/g, ""))}
-            />
-          </Field>
-          <Field label="Pessoas">
-            <input
-              type="text"
-              inputMode="numeric"
-              className="field"
-              value={pessoas}
-              onChange={(e) => setPessoas(e.target.value.replace(/\D/g, ""))}
-            />
-          </Field>
-          <Field label="Desconto (R$)">
-            <input
-              type="text"
-              inputMode="decimal"
-              className="field"
-              value={desconto}
-              placeholder="0,00"
-              onChange={(e) => setDesconto(e.target.value.replace(/[^\d,.]/g, ""))}
-            />
-          </Field>
-          <Field label="Canal de vendas">
-            <select className="field" value={canal} onChange={(e) => setCanal(e.target.value)}>
-              {SALES_CHANNELS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </Field>
+        <div className="mt-4">
+          <p className="text-sm font-semibold">O que mais gostou / comentário:</p>
+          <div className="mt-1 h-6 border-b border-dashed border-neutral-400" />
+          <div className="mt-3 h-6 border-b border-dashed border-neutral-400" />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Forma de pagamento">
-            <select className="field" value={pagamento} onChange={(e) => setPagamento(e.target.value)}>
-              {PAYMENT_METHODS.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Valor já pago">
-            <input
-              type="text"
-              inputMode="decimal"
-              className="field"
-              value={valorPago}
-              placeholder="0,00"
-              onChange={(e) => setValorPago(e.target.value.replace(/[^\d,.]/g, ""))}
-            />
-          </Field>
+        <div className="mt-4">
+          <p className="text-sm font-semibold">Sugestão de melhoria:</p>
+          <div className="mt-1 h-6 border-b border-dashed border-neutral-400" />
+          <div className="mt-3 h-6 border-b border-dashed border-neutral-400" />
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn-ghost text-xs"
-            onClick={() => setPaymentShortcut(Math.round((total / 2) * 100) / 100, "Metade do valor aplicada")}
+        <p className="mt-6 text-center text-xs text-neutral-500">
+          Obrigado por ajudar a Pousada Real Cruzília a melhorar! Entregue este formulário na recepção.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Recibo({ params }: { params: URLSearchParams }) {
+  const nome = params.get("cliente") || "Cliente";
+  const quarto = params.get("quarto") || "-";
+  const periodo = params.get("periodo") || "-";
+  const diarias = params.get("diarias") || "-";
+  const total = params.get("total") || "R$ 0,00";
+  const pago = params.get("pago") || "R$ 0,00";
+  const status = params.get("status") || "Pendente";
+  const telefone = (params.get("telefone") || "").replace(/\D/g, "");
+  const hoje = new Date().toLocaleDateString("pt-BR");
+  const whatsappText = encodeURIComponent(
+    `Recibo Hotel Real Cruzília\nCliente: ${nome}\nQuarto: ${quarto}\nPeríodo: ${periodo}\nDiárias: ${diarias}\nTotal: ${total}\nPago: ${pago}\nStatus: ${status}`,
+  );
+
+  return (
+    <div className="min-h-screen bg-[#f3efe5] py-8 print:bg-white print:py-0">
+      <div className="mx-auto mb-4 flex max-w-3xl flex-wrap justify-end gap-2 px-4 no-print">
+        {telefone && (
+          <a
+            href={`https://wa.me/${telefone}?text=${whatsappText}`}
+            target="_blank"
+            rel="noopener"
+            className="btn-ghost flex items-center gap-1.5"
           >
-            Pagar metade (reserva)
-          </button>
-          <button
-            type="button"
-            className="btn-ghost text-xs"
-            onClick={() => setPaymentShortcut(total, "Pagamento total aplicado")}
-          >
-            Pagar total (ocupado)
-          </button>
-        </div>
-
-        {overlap && (
-          <p className="rounded-lg bg-brick-bg px-3 py-2 text-sm text-brick">
-            ⚠ Este quarto já tem reserva ativa que se sobrepõe a este período.
-          </p>
+            <MessageCircle className="h-4 w-4" /> WhatsApp
+          </a>
         )}
+        <button onClick={() => window.print()} className="btn-primary flex items-center gap-1.5">
+          <Printer className="h-4 w-4" /> Imprimir recibo
+        </button>
+      </div>
 
-        {block && (
-          <div className="rounded-lg bg-brick-bg px-3 py-2 text-sm">
-            <p className="font-semibold text-brick">
-              ⚠ Quarto bloqueado: {complaintLabel(block.categoria)}
-              {block.descricao ? ` — ${block.descricao}` : ""}
-            </p>
-            <p className="mt-1 text-brick">O hóspede ainda quer este quarto?</p>
-            <div className="mt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setOverride(true)}
-                className={`rounded-md px-3 py-1 text-xs font-semibold ${override ? "bg-pine text-primary-foreground" : "bg-sage-bg text-pine-dark"}`}
-              >
-                Sim, liberar
-              </button>
-              <button
-                type="button"
-                onClick={() => setOverride(false)}
-                className={`rounded-md px-3 py-1 text-xs font-semibold ${!override ? "bg-brick text-white" : "bg-muted text-muted-foreground"}`}
-              >
-                Não
-              </button>
+      <div className="mx-auto max-w-3xl overflow-hidden rounded-lg bg-white shadow-xl print:max-w-none print:rounded-none print:shadow-none">
+        <div className="bg-pine px-10 py-7 text-white">
+          <div className="flex items-center gap-4">
+            <img src="/hotel-real-logo.png" alt="Hotel Real" className="h-16 w-16 rounded bg-white object-contain p-1" />
+            <div>
+              <h1 className="font-serif text-3xl font-bold">Hotel Real Cruzília</h1>
+              <p className="text-sm text-white/80">Rua Capitão Pinto, 70 - Centro, Cruzília - MG</p>
+              <p className="text-sm text-white/80">WhatsApp: (35) 8800-1372</p>
             </div>
           </div>
-        )}
-
-        <div className="flex items-center justify-between rounded-lg bg-muted px-3 py-2">
-          <span className="text-sm text-muted-foreground">
-            {nights} diária(s){descontoValor > 0 ? ` · desconto ${fmtBRL(descontoValor)}` : ""} ·{" "}
-            {status === "ocupado" ? "ficará ocupado" : "ficará reservado"}
-          </span>
-          <span className="font-serif text-lg font-bold">
-            {fmtBRL(diariaValor)} x {nights} = {fmtBRL(bruto)}
-            {descontoValor > 0 ? ` · Total ${fmtBRL(total)}` : ""}
-          </span>
         </div>
 
-        <div className="flex justify-end gap-2 pt-1">
-          <button type="button" onClick={onClose} className="btn-ghost">
-            Cancelar
-          </button>
-          <button type="submit" className="btn-primary" disabled={!!overlap || blocked}>
-            {editing ? "Salvar alterações" : "Salvar reserva"}
-          </button>
+        <div className="p-10">
+          <div className="mb-8 flex items-start justify-between gap-6 border-b border-neutral-200 pb-5">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-pine">Recibo de hospedagem</p>
+              <h2 className="mt-2 font-serif text-2xl font-bold">{nome}</h2>
+            </div>
+            <div className="text-right text-sm text-neutral-500">
+              <p>Emitido em</p>
+              <strong className="text-neutral-900">{hoje}</strong>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Info label="Quarto" value={quarto} />
+            <Info label="Período" value={periodo} />
+            <Info label="Diárias" value={diarias} />
+            <Info label="Status" value={status} />
+          </div>
+
+          <div className="mt-8 rounded-lg border border-pine/20 bg-sage-bg/40 p-5">
+            <div className="flex justify-between border-b border-pine/15 pb-3 text-sm">
+              <span>Total da hospedagem</span>
+              <strong>{total}</strong>
+            </div>
+            <div className="flex justify-between border-b border-pine/15 py-3 text-sm">
+              <span>Valor pago</span>
+              <strong>{pago}</strong>
+            </div>
+            <div className="flex justify-between pt-3 font-serif text-xl font-bold text-pine-dark">
+              <span>Comprovante</span>
+              <span>{status}</span>
+            </div>
+          </div>
+
+          <p className="mt-8 text-center text-xs text-neutral-500">
+            Este documento é um recibo operacional de hospedagem. Para nota fiscal, consulte a recepção.
+          </p>
         </div>
-      </form>
-    </Modal>
+      </div>
+    </div>
+  );
+}
+
+function RelatorioHotel({ params }: { params: URLSearchParams }) {
+  const data = params.get("data") || new Date().toISOString().slice(0, 10);
+  const periodo = params.get("periodo") || "mes";
+  const quartos = params.get("quartos") || "0";
+  const livres = params.get("livres") || "0";
+  const ocupados = params.get("ocupados") || "0";
+  const reservados = params.get("reservados") || "0";
+  const ocupacao = params.get("ocupacao") || "0";
+  const ocupantes = params.get("ocupantes") || "0";
+  const capacidade = params.get("capacidade") || "0";
+  const avaliacao = params.get("avaliacao") || "-";
+  const reclamacoes = params.get("reclamacoes") || "0";
+  const cancelamentos = params.get("cancelamentos") || "0";
+  const comparecimento = params.get("comparecimento") || "0";
+  const receita = moneyFromParam(params, "receita");
+  const despesas = moneyFromParam(params, "despesas");
+  const aReceber = moneyFromParam(params, "areceber");
+  const revpar = moneyFromParam(params, "revpar");
+  const periodoLabel = periodo === "dia" ? "Dia" : periodo === "ano" ? "Ano" : "Mes";
+  const subject = `Relatorio Hotel Real - ${fmtDate(data)}`;
+  const body = [
+    `Relatorio gerencial do Hotel Real Cruzilia`,
+    `Referencia: ${fmtDate(data)} (${periodoLabel})`,
+    ``,
+    `Ocupacao: ${ocupacao}%`,
+    `Quartos: ${quartos} | Livres: ${livres} | Ocupados: ${ocupados} | Reservados: ${reservados}`,
+    `Ocupantes: ${ocupantes}/${capacidade}`,
+    `Receita: ${receita}`,
+    `Despesas: ${despesas}`,
+    `A receber: ${aReceber}`,
+    `RevPAR: ${revpar}`,
+    `Avaliacao: ${avaliacao}`,
+    `Reclamacoes abertas: ${reclamacoes}`,
+  ].join("\n");
+
+  return (
+    <div className="min-h-screen bg-[#f3efe5] py-8 print:bg-white print:py-0">
+      <div className="mx-auto mb-4 flex max-w-5xl flex-wrap justify-end gap-2 px-4 no-print">
+        <a
+          href={`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`}
+          className="btn-ghost flex items-center gap-1.5"
+        >
+          <Mail className="h-4 w-4" /> Enviar por e-mail
+        </a>
+        <button onClick={() => window.print()} className="btn-primary flex items-center gap-1.5">
+          <Printer className="h-4 w-4" /> Salvar em PDF
+        </button>
+      </div>
+
+      <div className="mx-auto max-w-5xl overflow-hidden rounded-lg bg-white shadow-xl print:max-w-none print:rounded-none print:shadow-none">
+        <div className="bg-pine px-10 py-7 text-white">
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <img src="/hotel-real-logo.png" alt="Hotel Real" className="h-16 w-16 rounded bg-white object-contain p-1" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold-light">Hotel Real Cruzilia</p>
+                <h1 className="font-serif text-3xl font-bold">Relatorio gerencial do hotel</h1>
+                <p className="text-sm text-white/80">Visao de ocupacao, receita, despesas e operacao.</p>
+              </div>
+            </div>
+            <div className="text-right text-sm text-white/80">
+              <p>Referencia</p>
+              <strong className="text-lg text-white">{fmtDate(data)}</strong>
+              <p>{periodoLabel}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-10">
+          <section className="grid gap-4 md:grid-cols-4">
+            <ReportCard label="Receita" value={receita} note={`A receber: ${aReceber}`} />
+            <ReportCard label="Despesas" value={despesas} note={`Margem: ${fmtBRL(Number(params.get("receita") || 0) - Number(params.get("despesas") || 0))}`} />
+            <ReportCard label="Ocupacao" value={`${ocupacao}%`} note={`${ocupantes} ocupantes de ${capacidade}`} />
+            <ReportCard label="RevPAR" value={revpar} note={`${quartos} quartos cadastrados`} />
+          </section>
+
+          <section className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-neutral-200 p-5">
+              <h2 className="font-serif text-lg font-bold">Quartos</h2>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <Info label="Livres" value={livres} />
+                <Info label="Ocupados" value={ocupados} />
+                <Info label="Reservados" value={reservados} />
+                <Info label="Total" value={quartos} />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-neutral-200 p-5">
+              <h2 className="font-serif text-lg font-bold">Experiencia</h2>
+              <div className="mt-4 grid gap-3 text-sm">
+                <Info label="Avaliacao media" value={avaliacao} />
+                <Info label="Reclamacoes abertas" value={reclamacoes} />
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-neutral-200 p-5">
+              <h2 className="font-serif text-lg font-bold">Reservas</h2>
+              <div className="mt-4 grid gap-3 text-sm">
+                <Info label="Comparecimentos" value={comparecimento} />
+                <Info label="Cancelamentos" value={cancelamentos} />
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-6 rounded-lg border border-pine/20 bg-sage-bg/40 p-5">
+            <h2 className="font-serif text-lg font-bold text-pine-dark">Leitura rapida</h2>
+            <p className="mt-2 text-sm text-neutral-700">
+              Use este relatorio para reunioes, acompanhamento diario e fechamento mensal. O envio automatico por e-mail
+              pode ser ligado depois com Resend ou outro provedor; por enquanto o botao abre o e-mail pronto para envio.
+            </p>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReportCard({ label, value, note }: { label: string; value: string; note: string }) {
+  return (
+    <div className="rounded-lg border border-pine/15 bg-white p-5 shadow-sm">
+      <p className="text-xs font-bold uppercase tracking-wide text-pine">{label}</p>
+      <p className="mt-2 font-serif text-2xl font-bold text-neutral-950">{value}</p>
+      <p className="mt-1 text-xs text-neutral-500">{note}</p>
+    </div>
+  );
+}
+
+function moneyFromParam(params: URLSearchParams, key: string) {
+  return fmtBRL(Number(params.get(key) || 0));
+}
+
+function Info({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-neutral-200 p-4">
+      <p className="text-xs font-bold uppercase tracking-wide text-neutral-500">{label}</p>
+      <p className="mt-1 font-semibold text-neutral-950">{value}</p>
+    </div>
   );
 }

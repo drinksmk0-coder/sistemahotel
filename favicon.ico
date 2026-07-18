@@ -1,247 +1,305 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { KeyRound, Loader2, Mail, Plus, Trash2, UserX } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
-import { Field, Modal } from "@/components/ui-kit";
-import { useCurrentCompany, useInsert, useRooms, useUpdate, type Company, type Room } from "@/lib/data";
-import { fmtBRL } from "@/lib/format";
+import { Badge, Field, Modal } from "@/components/ui-kit";
+import { useCompanyInvites, useCompanyMembers, useCurrentCompany, useDelete } from "@/lib/data";
+import { supabase } from "@/integrations/supabase/client";
 
-export const Route = createFileRoute("/_authenticated/empresa")({
-  component: Empresa,
+export const Route = createFileRoute("/_authenticated/equipe")({
+  component: Equipe,
 });
 
-function Empresa() {
-  const current = useCurrentCompany();
-  const { data: rooms = [] } = useRooms();
-  const updateCompany = useUpdate("companies", ["companies"]);
-  const insertRoom = useInsert("rooms", ["rooms"]);
-  const updateRoom = useUpdate("rooms", ["rooms"]);
-  const [roomOpen, setRoomOpen] = useState(false);
-  const [editingRoom, setEditingRoom] = useState<Room | null>(null);
+const ROLES = [
+  { value: "recepcao", label: "Recepcao" },
+  { value: "limpeza", label: "Limpeza" },
+  { value: "cafe", label: "Cafe" },
+  { value: "dono", label: "Dono" },
+] as const;
 
-  if (!current.data) {
-    return (
-      <div>
-        <PageHeader title="Empresa" subtitle="Nenhuma empresa encontrada para este usuario." />
-      </div>
-    );
+function Equipe() {
+  const company = useCurrentCompany();
+  const { data: members = [] } = useCompanyMembers();
+  const { data: invites = [] } = useCompanyInvites();
+  const queryClient = useQueryClient();
+  const deleteInvite = useDelete("company_invites", ["company_invites"]);
+  const [open, setOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const [memberAction, setMemberAction] = useState<string | null>(null);
+
+  async function sendInvite(row: { nome: string | null; email: string; role: string }) {
+    if (!company.data?.id) {
+      toast.error("Selecione uma empresa antes de convidar.");
+      return;
+    }
+
+    setSending(true);
+    try {
+      const { error } = await supabase.functions.invoke("send-staff-invite", {
+        body: {
+          ...row,
+          company_id: company.data.id,
+          redirect_to: `${window.location.origin}/auth?convite=1`,
+        },
+      });
+
+      if (error) throw new Error(await getFunctionErrorMessage(error));
+      toast.success("Convite enviado por e-mail. Ao aceitar, o acesso ja fica liberado.");
+      setOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["company_invites"] });
+      await queryClient.invalidateQueries({ queryKey: ["company_members"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Nao foi possivel enviar o convite.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function cancelInvite(invite: { id: string; email: string }) {
+    if (!window.confirm(`Cancelar o convite de ${invite.email}?`)) return;
+    setCancelingId(invite.id);
+    deleteInvite.mutate(invite.id, {
+      onSuccess: async () => {
+        toast.success("Convite cancelado");
+        await queryClient.invalidateQueries({ queryKey: ["company_invites"] });
+      },
+      onError: (err) => toast.error(err.message),
+      onSettled: () => setCancelingId(null),
+    });
+  }
+
+  async function manageMember(
+    member: { id: string; user_id: string; role: string },
+    action: "remove_access" | "reset_password",
+  ) {
+    if (!company.data?.id) return;
+    if (action === "remove_access" && member.role === "dono" && !window.confirm("Remover acesso de um dono?")) return;
+    if (action === "remove_access" && !window.confirm("Remover o acesso deste usuario?")) return;
+
+    setMemberAction(`${action}:${member.id}`);
+    try {
+      const { data, error } = await supabase.functions.invoke("manage-staff-access", {
+        body: {
+          action,
+          company_id: company.data.id,
+          member_id: member.id,
+          user_id: member.user_id,
+        },
+      });
+
+      if (error) throw new Error(await getFunctionErrorMessage(error));
+      if (data && typeof data === "object" && "error" in data) throw new Error(String(data.error));
+      toast.success(action === "remove_access" ? "Acesso removido" : "E-mail de redefinicao enviado");
+      await queryClient.invalidateQueries({ queryKey: ["company_members"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Nao foi possivel concluir a acao");
+    } finally {
+      setMemberAction(null);
+    }
   }
 
   return (
     <div>
       <PageHeader
-        title="Empresa"
-        subtitle="Cadastro da empresa, quartos, capacidade e observacoes operacionais."
+        title="Equipe"
+        subtitle="Cadastre recepcionistas, limpeza e cafe. Cada perfil ve apenas o que precisa."
         action={
-          <button onClick={() => setRoomOpen(true)} className="btn-primary flex items-center gap-1.5">
-            <Plus className="h-4 w-4" /> Quarto
+          <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
+            <Plus className="h-4 w-4" /> Convidar funcionario
           </button>
         }
       />
 
-      <CompanyForm
-        company={current.data}
-        onSave={(patch) =>
-          updateCompany.mutate(
-            { id: current.data!.id, patch },
-            {
-              onSuccess: () => toast.success("Empresa atualizada"),
-              onError: (e) => toast.error(e.message),
-            },
-          )
-        }
-      />
-
-      <section className="mt-5 card-surface overflow-x-auto">
-        <div className="border-b border-border p-4">
-          <h3 className="font-serif text-lg font-bold">Quartos cadastrados</h3>
+      <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <div className="card-surface p-4">
+          <h3 className="font-semibold text-pine-dark">1. Envie o convite</h3>
+          <p className="mt-1 text-sm text-muted-foreground">O funcionario recebe um link seguro por e-mail.</p>
         </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-              <th className="p-3">Numero</th>
-              <th className="p-3">Andar</th>
-              <th className="p-3">Configuracao</th>
-              <th className="p-3">Diaria</th>
-              <th className="p-3">Banheiro</th>
-              <th className="p-3">Observacao</th>
-              <th className="p-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {rooms.map((room) => (
-              <tr key={`${room.company_id}-${room.numero}`} className="border-b border-border/50">
-                <td className="p-3 font-serif text-lg font-bold">{room.numero}</td>
-                <td className="p-3">{room.andar}</td>
-                <td className="p-3">{room.configuracao}</td>
-                <td className="p-3">{fmtBRL(room.preco)}</td>
-                <td className="p-3">{room.banheiro ? "Sim" : "Nao"}</td>
-                <td className="p-3 text-muted-foreground">{room.situacao ?? "-"}</td>
-                <td className="p-3 text-right">
-                  <button
-                    className="btn-ghost py-1 text-xs"
-                    onClick={() => {
-                      setEditingRoom(room);
-                      setRoomOpen(true);
-                    }}
-                  >
-                    Editar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+        <div className="card-surface p-4">
+          <h3 className="font-semibold text-pine-dark">2. Ele cria a senha</h3>
+          <p className="mt-1 text-sm text-muted-foreground">Ao aceitar, ele define a senha no proprio sistema.</p>
+        </div>
+        <div className="card-surface p-4">
+          <h3 className="font-semibold text-pine-dark">3. Acesso liberado</h3>
+          <p className="mt-1 text-sm text-muted-foreground">O perfil escolhido ja fica pronto para entrar.</p>
+        </div>
+      </div>
 
-      {roomOpen && (
-        <RoomForm
-          editing={editingRoom}
-          onClose={() => {
-            setRoomOpen(false);
-            setEditingRoom(null);
-          }}
-          onSave={(row) => {
-            if (editingRoom) {
-              updateRoom.mutate(
-                { id: editingRoom.numero, patch: row },
-                {
-                  onSuccess: () => {
-                    toast.success("Quarto atualizado");
-                    setRoomOpen(false);
-                    setEditingRoom(null);
-                  },
-                  onError: (e) => toast.error(e.message),
-                },
-              );
-            } else {
-              insertRoom.mutate(row, {
-                onSuccess: () => {
-                  toast.success("Quarto cadastrado");
-                  setRoomOpen(false);
-                },
-                onError: (e) => toast.error(e.message),
-              });
-            }
-          }}
+      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+        <section className="card-surface overflow-x-auto">
+          <div className="border-b border-border p-4">
+            <h3 className="font-serif text-lg font-bold">Usuarios ativos</h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                <th className="p-3">Usuario</th>
+                <th className="p-3">Perfil</th>
+                <th className="p-3">Status</th>
+                <th className="p-3 text-right">Acoes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {members.map((member) => (
+                <tr key={member.id} className="border-b border-border/50">
+                  <td className="p-3 font-mono text-xs">{member.user_id}</td>
+                  <td className="p-3"><Badge tone="pine">{member.role}</Badge></td>
+                  <td className="p-3">{member.ativo ? "Ativo" : "Inativo"}</td>
+                  <td className="p-3">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-pine transition hover:bg-muted disabled:opacity-60"
+                        onClick={() => manageMember(member, "reset_password")}
+                        disabled={memberAction === `reset_password:${member.id}`}
+                        title="Enviar redefinicao de senha"
+                      >
+                        {memberAction === `reset_password:${member.id}` ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <KeyRound className="h-3.5 w-3.5" />
+                        )}
+                        Senha
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                        onClick={() => manageMember(member, "remove_access")}
+                        disabled={!member.ativo || memberAction === `remove_access:${member.id}`}
+                        title="Remover acesso"
+                      >
+                        {memberAction === `remove_access:${member.id}` ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <UserX className="h-3.5 w-3.5" />
+                        )}
+                        Remover
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section className="card-surface overflow-x-auto">
+          <div className="border-b border-border p-4">
+            <h3 className="font-serif text-lg font-bold">Convites</h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                <th className="p-3">Email</th>
+                <th className="p-3">Perfil</th>
+                <th className="p-3">Status</th>
+                <th className="p-3 text-right">Acoes</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invites.map((invite) => (
+                <tr key={invite.id} className="border-b border-border/50">
+                  <td className="p-3">{invite.email}</td>
+                  <td className="p-3"><Badge tone="brass">{invite.role}</Badge></td>
+                  <td className="p-3">{invite.status}</td>
+                  <td className="p-3 text-right">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                      onClick={() => cancelInvite(invite)}
+                      disabled={cancelingId === invite.id}
+                      title="Cancelar convite"
+                    >
+                      {cancelingId === invite.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5" />
+                      )}
+                      Cancelar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      {open && (
+        <InviteForm
+          onClose={() => setOpen(false)}
+          onSave={sendInvite}
+          sending={sending}
         />
       )}
     </div>
   );
 }
 
-function CompanyForm({ company, onSave }: { company: Company; onSave: (patch: Partial<Company>) => void }) {
-  const [form, setForm] = useState(company);
-  useEffect(() => setForm(company), [company.id]);
-  const set = (key: keyof Company, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
-
-  return (
-    <form
-      className="card-surface grid gap-3 p-4 md:grid-cols-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave({
-          nome: form.nome,
-          documento: form.documento,
-          telefone: form.telefone,
-          whatsapp: form.whatsapp,
-          email: form.email,
-          endereco: form.endereco,
-          cidade: form.cidade,
-          estado: form.estado,
-          observacoes: form.observacoes,
-        });
-      }}
-    >
-      <Field label="Nome da empresa">
-        <input className="field" value={form.nome} onChange={(e) => set("nome", e.target.value)} required />
-      </Field>
-      <Field label="Documento">
-        <input className="field" value={form.documento ?? ""} onChange={(e) => set("documento", e.target.value)} />
-      </Field>
-      <Field label="Telefone">
-        <input className="field" value={form.telefone ?? ""} onChange={(e) => set("telefone", e.target.value)} />
-      </Field>
-      <Field label="WhatsApp">
-        <input className="field" value={form.whatsapp ?? ""} onChange={(e) => set("whatsapp", e.target.value)} />
-      </Field>
-      <Field label="E-mail">
-        <input className="field" type="email" value={form.email ?? ""} onChange={(e) => set("email", e.target.value)} />
-      </Field>
-      <Field label="Cidade / UF">
-        <div className="grid grid-cols-[1fr_90px] gap-2">
-          <input className="field" value={form.cidade ?? ""} onChange={(e) => set("cidade", e.target.value)} />
-          <input className="field" value={form.estado ?? ""} onChange={(e) => set("estado", e.target.value)} maxLength={2} />
-        </div>
-      </Field>
-      <Field label="Endereco">
-        <input className="field" value={form.endereco ?? ""} onChange={(e) => set("endereco", e.target.value)} />
-      </Field>
-      <Field label="Observacoes">
-        <input className="field" value={form.observacoes ?? ""} onChange={(e) => set("observacoes", e.target.value)} />
-      </Field>
-      <div className="md:col-span-2">
-        <button className="btn-primary" type="submit">
-          Salvar empresa
-        </button>
-      </div>
-    </form>
-  );
+async function getFunctionErrorMessage(error: unknown) {
+  const context = (error as { context?: Response }).context;
+  if (context) {
+    try {
+      const payload = await context.clone().json();
+      if (payload?.error) return String(payload.error);
+    } catch {
+      try {
+        const text = await context.clone().text();
+        if (text) return text;
+      } catch {
+        // Ignore and fall through to the generic message.
+      }
+    }
+  }
+  return error instanceof Error ? error.message : "Erro na funcao do servidor";
 }
 
-function RoomForm({
-  editing,
+function InviteForm({
   onClose,
   onSave,
+  sending,
 }: {
-  editing: Room | null;
   onClose: () => void;
-  onSave: (row: Record<string, unknown>) => void;
+  onSave: (row: { nome: string | null; email: string; role: string }) => void;
+  sending: boolean;
 }) {
-  const [numero, setNumero] = useState(editing?.numero ?? 0);
-  const [andar, setAndar] = useState(editing?.andar ?? 1);
-  const [configuracao, setConfiguracao] = useState(editing?.configuracao ?? "Casal");
-  const [preco, setPreco] = useState(editing?.preco ?? 0);
-  const [banheiro, setBanheiro] = useState(editing?.banheiro ?? true);
-  const [observacao, setObservacao] = useState(editing?.situacao ?? "");
+  const [nome, setNome] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<(typeof ROLES)[number]["value"]>("recepcao");
 
   return (
-    <Modal open onClose={onClose} title={editing ? "Editar quarto" : "Novo quarto"}>
+    <Modal open onClose={onClose} title="Convidar funcionario">
       <form
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          onSave({ numero, andar, configuracao, preco, banheiro, situacao: observacao || null });
+          onSave({ nome: nome || null, email, role });
         }}
       >
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Numero">
-            <input className="field" type="number" value={numero} disabled={!!editing} onChange={(e) => setNumero(Number(e.target.value))} />
-          </Field>
-          <Field label="Andar">
-            <input className="field" type="number" value={andar} onChange={(e) => setAndar(Number(e.target.value))} />
-          </Field>
+        <Field label="Nome">
+          <input className="field" value={nome} onChange={(e) => setNome(e.target.value)} />
+        </Field>
+        <Field label="Email">
+          <input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </Field>
+        <Field label="Perfil">
+          <select className="field" value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
+            {ROLES.map((r) => (
+              <option key={r.value} value={r.value}>{r.label}</option>
+            ))}
+          </select>
+        </Field>
+        <div className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+          O funcionario recebe um e-mail de convite. Ao aceitar, ele ja entra com o perfil escolhido.
         </div>
-        <Field label="Configuracao / capacidade">
-          <input className="field" value={configuracao} onChange={(e) => setConfiguracao(e.target.value)} placeholder="Ex.: casal, duplo, ate 5 pessoas" />
-        </Field>
-        <Field label="Valor da diaria">
-          <input className="field" type="number" step="0.01" value={preco} onChange={(e) => setPreco(Number(e.target.value))} />
-        </Field>
-        <Field label="Observacoes do quarto">
-          <input className="field" value={observacao} onChange={(e) => setObservacao(e.target.value)} />
-        </Field>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={banheiro} onChange={(e) => setBanheiro(e.target.checked)} />
-          Possui banheiro
-        </label>
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="btn-ghost">
-            Cancelar
-          </button>
-          <button type="submit" className="btn-primary">
-            Salvar
+          <button type="button" onClick={onClose} className="btn-ghost" disabled={sending}>Cancelar</button>
+          <button type="submit" className="btn-primary inline-flex items-center gap-2" disabled={sending}>
+            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+            Enviar convite
           </button>
         </div>
       </form>
