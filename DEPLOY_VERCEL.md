@@ -18,17 +18,9 @@ VITE_SUPABASE_URL=<url do seu Supabase>
 VITE_SUPABASE_PUBLISHABLE_KEY=<publishable/anon key do Supabase>
 SUPABASE_URL=<mesma url do Supabase>
 SUPABASE_PUBLISHABLE_KEY=<mesma publishable/anon key do Supabase>
-GEMINI_API_KEY=<chave API do Gemini, sem VITE_>
 ```
 
 O app usa `VITE_*` no navegador e as variaveis sem `VITE_` no SSR.
-Nunca crie `VITE_GEMINI_API_KEY`: isso exporia a chave para qualquer pessoa no navegador.
-
-## Gemini / assistente de reservas
-
-No Vercel, adicione a variavel `GEMINI_API_KEY` em **Production**, **Preview** e **Development**.
-Depois de salvar a chave, faca um novo deploy. A chave fica pronta para o assistente interno consultar reservas,
-gerar respostas de WhatsApp e, futuramente, ler reservas vindas de e-mail/Booking sem expor CPF ou telefone no front-end.
 
 ## Supabase Auth
 
