@@ -11,7 +11,6 @@ import {
   useInsert,
   useUpdate,
   roomStatusToday,
-  isCheckoutDueForCleaning,
   activeReservationForRoom,
   futureReservationsForRoom,
   roomBlock,
@@ -36,7 +35,7 @@ const STATUS_STYLE: Record<string, { bg: string; label: string }> = {
   hospedado_debito: { bg: "bg-brick-bg border-brick/45 text-brick", label: "Hospedado · débito" },
   sinal_pago: { bg: "bg-brass-bg border-brass/55 text-[oklch(0.4_0.06_74)]", label: "Sinal pago" },
   reservado: { bg: "bg-[oklch(0.95_0.04_95)] border-brass/50 text-[oklch(0.4_0.06_74)]", label: "Reservado sem pagamento" },
-  limpeza: { bg: "bg-slate-bg border-slate/40 text-slate", label: "Limpeza / saída" },
+  limpeza: { bg: "bg-slate-bg border-slate/40 text-slate", label: "Em limpeza" },
   manutencao: { bg: "bg-zinc-200 border-zinc-400 text-zinc-800", label: "Manutenção" },
 };
 
@@ -444,7 +443,6 @@ function RoomModal({
   const diaria = reservation ? Number(reservation.valor_total) : 0;
   const totalHospedagem = diaria + salesTotal;
   const selectedStay = dateReservation && dateReservation.id !== reservation?.id ? dateReservation : null;
-  const checkoutDue = reservation ? isCheckoutDueForCleaning(reservation) : false;
 
   return (
     <Modal open onClose={onClose} title={`Quarto ${room.numero} — ${room.andar}º andar`} wide>
@@ -480,15 +478,6 @@ function RoomModal({
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <section>
-          {checkoutDue && (
-            <div className="mb-4 rounded-lg border border-slate/40 bg-slate-bg p-3 text-sm text-slate">
-              <p className="font-semibold">Saída prevista até 12:00</p>
-              <p className="mt-1">
-                Prioridade para limpeza: conferir itens do quarto, repor papel/sabonete e liberar para a recepção.
-              </p>
-            </div>
-          )}
-
           {selectedStay && (
             <div className="mb-4 rounded-lg border border-brass/50 bg-brass-bg/60 p-3 text-sm">
               <h4 className="mb-1 font-semibold">Reserva em {fmtDate(viewDate)}</h4>

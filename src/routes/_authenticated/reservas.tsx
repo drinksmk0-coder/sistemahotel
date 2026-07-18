@@ -344,9 +344,6 @@ function RowActions({
   const done = ["finalizado", "cancelado"].includes(reservation.status);
   const total = Number(reservation.valor_total);
   const receiptUrl = whatsappReceiptUrl(reservation, client);
-  const isCompanyBilling =
-    (client?.tipo ?? "").toLowerCase().includes("empresa") ||
-    (reservation.pagamento ?? "").toLowerCase().includes("transfer");
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
       {!done && !reservation.pago && (
@@ -433,12 +430,7 @@ function RowActions({
                   updateRoom.mutate(
                     { id: reservation.quarto, patch: { situacao: "limpeza" } },
                     {
-                      onSuccess: () =>
-                        toast.success(
-                          isCompanyBilling && !reservation.pago
-                            ? "Check-out realizado; quarto enviado para limpeza e saldo mantido para cobrança da empresa"
-                            : "Check-out realizado; quarto enviado para limpeza",
-                        ),
+                      onSuccess: () => toast.success("Check-out realizado; quarto enviado para limpeza"),
                       onError: (e: Error) => toast.error(`Check-out feito, mas falhou ao marcar limpeza: ${e.message}`),
                     },
                   );

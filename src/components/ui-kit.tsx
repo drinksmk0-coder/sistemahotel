@@ -1,6 +1,5 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect } from "react";
 import { X } from "lucide-react";
-import { dateInputToISO, formatDateInputBR, isoToDateInput } from "@/lib/format";
 
 export function Modal({
   open,
@@ -58,55 +57,6 @@ export function Field({ label, children }: { label: string; children: ReactNode 
       <span className="mb-1 block text-xs font-semibold text-muted-foreground">{label}</span>
       {children}
     </label>
-  );
-}
-
-export function DateBRInput({
-  value,
-  onChange,
-  required,
-  className = "field",
-  placeholder = "dd/mm/aaaa",
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  required?: boolean;
-  className?: string;
-  placeholder?: string;
-}) {
-  const [display, setDisplay] = useState(() => isoToDateInput(value));
-
-  useEffect(() => {
-    setDisplay(isoToDateInput(value));
-  }, [value]);
-
-  function commit(nextDisplay: string) {
-    if (!nextDisplay.trim()) {
-      onChange("");
-      return;
-    }
-    const iso = dateInputToISO(nextDisplay);
-    if (iso) {
-      onChange(iso);
-      setDisplay(isoToDateInput(iso));
-    }
-  }
-
-  return (
-    <input
-      className={className}
-      inputMode="numeric"
-      value={display}
-      placeholder={placeholder}
-      maxLength={10}
-      required={required}
-      onChange={(event) => {
-        const formatted = formatDateInputBR(event.target.value);
-        setDisplay(formatted);
-        if (formatted.length === 10) commit(formatted);
-      }}
-      onBlur={() => commit(display)}
-    />
   );
 }
 
