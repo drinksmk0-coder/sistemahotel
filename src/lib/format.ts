@@ -10,6 +10,38 @@ export function fmtDate(iso: string | null | undefined): string {
   return `${d}/${m}/${y}`;
 }
 
+export function dateInputToISO(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length !== 8) return "";
+  const day = digits.slice(0, 2);
+  const month = digits.slice(2, 4);
+  const year = digits.slice(4, 8);
+  const parsed = new Date(`${year}-${month}-${day}T00:00:00`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== Number(year) ||
+    parsed.getMonth() + 1 !== Number(month) ||
+    parsed.getDate() !== Number(day)
+  ) {
+    return "";
+  }
+  return `${year}-${month}-${day}`;
+}
+
+export function isoToDateInput(value: string | null | undefined): string {
+  if (!value) return "";
+  const [year, month, day] = value.slice(0, 10).split("-");
+  if (!year || !month || !day) return "";
+  return `${day}/${month}/${year}`;
+}
+
+export function formatDateInputBR(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 export function fmtTime(value: string | null | undefined): string {
   if (!value) return "";
   return value.slice(0, 5);
@@ -36,6 +68,14 @@ function csvCell(value: unknown): string {
   if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   if (/[",\n;]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
   return s;
+}
+
+export function whatsappLink(phone: string | null | undefined, message?: string): string | null {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  if (digits.length < 10) return null;
+  const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
+  const text = message ? `?text=${encodeURIComponent(message)}` : "";
+  return `https://wa.me/${withCountry}${text}`;
 }
 
 export function downloadCSV(filename: string, rows: (string | number | null)[][]) {
