@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Download, Pencil } from "lucide-react";
+import { Download, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   useRooms,
   useReservations,
@@ -9,8 +9,10 @@ import {
   useProducts,
   useInsert,
   useUpdate,
+  useDelete,
   activeReservationForRoom,
   type Product,
+  type Sale,
 } from "@/lib/data";
 import { fmtBRL, fmtDate, todayISO, downloadCSV } from "@/lib/format";
 import { PAYMENT_METHODS } from "@/lib/constants";
@@ -27,9 +29,13 @@ function Vendas() {
   const { data: sales = [] } = useSales();
   const { data: products = [] } = useProducts();
   const insert = useInsert("sales", ["sales", "products"]);
+  const updateSale = useUpdate("sales", ["sales", "products"]);
+  const removeSale = useDelete("sales", ["sales", "products"]);
   const insertProduct = useInsert("products", ["products"]);
   const updateProduct = useUpdate("products", ["products"]);
+  const removeProduct = useDelete("products", ["products"]);
   const [open, setOpen] = useState(false);
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [productOpen, setProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -171,6 +177,19 @@ function Vendas() {
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
+                      <button
+                        className="ml-1 rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
+                        onClick={() => {
+                          if (!window.confirm(`Excluir produto ${p.nome}?`)) return;
+                          removeProduct.mutate(p.id, {
+                            onSuccess: () => toast.success("Produto excluído"),
+                            onError: (e) => toast.error(e.message),
+                          });
+                        }}
+                        title="Excluir produto"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -232,6 +251,7 @@ function Vendas() {
                 <th className="p-3">Pago</th>
                 <th className="p-3">Pendente</th>
                 <th className="p-3">Pgto</th>
+                <th className="p-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -248,6 +268,32 @@ function Vendas() {
                     {fmtBRL(Math.max(0, Number(s.total) - Number(s.valor_pago ?? s.total)))}
                   </td>
                   <td className="p-3 text-muted-foreground">{s.pagamento}</td>
+                  <td className="p-3 text-right">
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        type="button"
+                        className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground"
+                        onClick={() => setEditingSale(s)}
+                        title="Editar venda"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
+                        onClick={() => {
+                          if (!window.confirm(`Excluir venda "${s.item}"?`)) return;
+                          removeSale.mutate(s.id, {
+                            onSuccess: () => toast.success("Venda excluída"),
+                            onError: (e) => toast.error(e.message),
+                          });
+                        }}
+                        title="Excluir venda"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -255,13 +301,30 @@ function Vendas() {
         </div>
       )}
 
-      {open && (
+      {(open || editingSale) && (
         <SaleForm
           rooms={rooms}
           products={products.filter((p) => p.ativo)}
-          onClose={() => setOpen(false)}
+          editing={editingSale}
+          onClose={() => {
+            setOpen(false);
+            setEditingSale(null);
+          }}
           onSave={(quarto, row) => {
             const active = activeReservationForRoom(reservations, quarto);
+            if (editingSale) {
+              updateSale.mutate(
+                { id: editingSale.id, patch: { ...row, quarto, reserva_id: active?.id ?? editingSale.reserva_id ?? null } },
+                {
+                  onSuccess: () => {
+                    toast.success("Venda atualizada");
+                    setEditingSale(null);
+                  },
+                  onError: (e) => toast.error(e.message),
+                },
+              );
+              return;
+            }
             insert.mutate(
               { ...row, quarto, reserva_id: active?.id ?? null },
               {
@@ -315,11 +378,13 @@ function Vendas() {
 function SaleForm({
   rooms,
   products,
+  editing,
   onClose,
   onSave,
 }: {
   rooms: ReturnType<typeof useRooms>["data"];
   products: Product[];
+  editing: Sale | null;
   onClose: () => void;
   onSave: (
     quarto: number,
@@ -337,21 +402,21 @@ function SaleForm({
     },
   ) => void;
 }) {
-  const [quarto, setQuarto] = useState<number>(rooms?.[0]?.numero ?? 0);
-  const [produtoId, setProdutoId] = useState("");
-  const [item, setItem] = useState("");
-  const [categoria, setCategoria] = useState("Geral");
-  const [qtd, setQtd] = useState(1);
-  const [valor, setValor] = useState(0);
-  const [valorPago, setValorPago] = useState<number | "">("");
-  const [pagamento, setPagamento] = useState<string>(PAYMENT_METHODS[0]);
+  const [quarto, setQuarto] = useState<number>(editing?.quarto ?? rooms?.[0]?.numero ?? 0);
+  const [produtoId, setProdutoId] = useState(editing?.produto_id ?? "");
+  const [item, setItem] = useState(editing?.produto_id ? "" : editing?.item ?? "");
+  const [categoria, setCategoria] = useState(editing?.categoria ?? "Geral");
+  const [qtd, setQtd] = useState(Number(editing?.qtd ?? 1));
+  const [valor, setValor] = useState(Number(editing?.valor_unit ?? 0));
+  const [valorPago, setValorPago] = useState<number | "">(editing ? Number(editing.valor_pago ?? editing.total) : "");
+  const [pagamento, setPagamento] = useState<string>(editing?.pagamento ?? PAYMENT_METHODS[0]);
   const selectedProduct = products.find((p) => p.id === produtoId);
   const total = qtd * valor;
   const paid = valorPago === "" ? total : Math.min(total, Math.max(0, Number(valorPago) || 0));
   const saleStatus = paid >= total ? "pago" : paid > 0 ? "parcial" : "pendente";
 
   return (
-    <Modal open onClose={onClose} title="Nova venda">
+    <Modal open onClose={onClose} title={editing ? "Editar venda" : "Nova venda"}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -369,7 +434,7 @@ function SaleForm({
             valor_pago: paid,
             status: saleStatus,
             pagamento,
-            data: todayISO(),
+            data: editing?.data ?? todayISO(),
           });
         }}
         className="space-y-3"

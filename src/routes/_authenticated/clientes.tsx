@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Download, Search } from "lucide-react";
-import { useClients, useReservations, useInsert, type Client } from "@/lib/data";
+import { Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { useClients, useDelete, useInsert, useReservations, useUpdate, type Client } from "@/lib/data";
 import { fmtBRL, fmtDate, downloadCSV, todayISO } from "@/lib/format";
 import { CLIENT_TYPES, BR_STATES, stateFromPhone } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
@@ -16,7 +16,10 @@ function Clientes() {
   const { data: clients = [] } = useClients();
   const { data: reservations = [] } = useReservations();
   const insert = useInsert("clients", ["clients"]);
+  const update = useUpdate("clients", ["clients", "reservations"]);
+  const remove = useDelete("clients", ["clients"]);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Client | null>(null);
   const [q, setQ] = useState("");
 
   const spentByClient = useMemo(() => {
@@ -138,24 +141,65 @@ function Clientes() {
                 <span className="text-muted-foreground">{c.visitas} visita(s)</span>
                 <span className="font-semibold">{fmtBRL(spentByClient.get(c.id) ?? 0)}</span>
               </div>
+              <div className="mt-3 flex justify-end gap-1.5">
+                <button
+                  type="button"
+                  className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground"
+                  onClick={() => setEditing(c)}
+                  title="Editar cliente"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
+                  onClick={() => {
+                    if (!window.confirm(`Excluir cliente ${c.nome}? Reservas vinculadas podem impedir a exclusão.`)) return;
+                    remove.mutate(c.id, {
+                      onSuccess: () => toast.success("Cliente excluído"),
+                      onError: (e) => toast.error(e.message),
+                    });
+                  }}
+                  title="Excluir cliente"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      {open && (
+      {(open || editing) && (
         <ClientForm
           clients={clients}
-          onClose={() => setOpen(false)}
-          onSave={(row) =>
+          editing={editing}
+          onClose={() => {
+            setOpen(false);
+            setEditing(null);
+          }}
+          onSave={(row) => {
+            if (editing) {
+              update.mutate(
+                { id: editing.id, patch: row },
+                {
+                  onSuccess: () => {
+                    toast.success("Cliente atualizado");
+                    setEditing(null);
+                  },
+                  onError: (e) => toast.error(e.message),
+                },
+              );
+              return;
+            }
             insert.mutate(row, {
               onSuccess: () => {
                 toast.success("Cliente cadastrado");
                 setOpen(false);
               },
               onError: (e) => toast.error(e.message),
-            })
-          }
+            });
+          }}
         />
       )}
     </div>
@@ -164,10 +208,12 @@ function Clientes() {
 
 function ClientForm({
   clients,
+  editing,
   onClose,
   onSave,
 }: {
   clients: Client[];
+  editing: Client | null;
   onClose: () => void;
   onSave: (
     row: Pick<
@@ -191,33 +237,33 @@ function ClientForm({
     >,
   ) => void;
 }) {
-  const [nome, setNome] = useState("");
-  const [tipo, setTipo] = useState<string>(CLIENT_TYPES[0]);
-  const [telefone, setTelefone] = useState("");
-  const [email, setEmail] = useState("");
-  const [cpf, setCpf] = useState("");
-  const [nascimento, setNascimento] = useState("");
-  const [profissao, setProfissao] = useState("");
-  const [sexo, setSexo] = useState("");
-  const [bairro, setBairro] = useState("");
-  const [estadoCivil, setEstadoCivil] = useState("");
-  const [temFilhos, setTemFilhos] = useState(false);
-  const [quantidadeFilhos, setQuantidadeFilhos] = useState("");
-  const [cidade, setCidade] = useState("");
-  const [estado, setEstado] = useState("");
-  const [cep, setCep] = useState("");
+  const [nome, setNome] = useState(editing?.nome ?? "");
+  const [tipo, setTipo] = useState<string>(editing?.tipo ?? CLIENT_TYPES[0]);
+  const [telefone, setTelefone] = useState(editing?.telefone ?? "");
+  const [email, setEmail] = useState((editing as (Client & { email?: string | null }) | null)?.email ?? "");
+  const [cpf, setCpf] = useState(editing?.cpf ?? "");
+  const [nascimento, setNascimento] = useState(editing?.data_nascimento ?? "");
+  const [profissao, setProfissao] = useState(editing?.profissao ?? "");
+  const [sexo, setSexo] = useState(editing?.sexo ?? "");
+  const [bairro, setBairro] = useState(editing?.bairro ?? "");
+  const [estadoCivil, setEstadoCivil] = useState(editing?.estado_civil ?? "");
+  const [temFilhos, setTemFilhos] = useState(Boolean(editing?.tem_filhos));
+  const [quantidadeFilhos, setQuantidadeFilhos] = useState(editing?.quantidade_filhos != null ? String(editing.quantidade_filhos) : "");
+  const [cidade, setCidade] = useState(editing?.cidade ?? "");
+  const [estado, setEstado] = useState(editing?.estado ?? "");
+  const [cep, setCep] = useState((editing as (Client & { cep?: string | null }) | null)?.cep ?? "");
 
   const cpfDigits = onlyDigits(cpf);
   const telefoneDigits = onlyDigits(telefone);
   const cpfJaCadastrado =
     cpfDigits.length > 0 &&
-    clients.some((client) => client.cpf && onlyDigits(client.cpf) === cpfDigits);
+    clients.some((client) => client.id !== editing?.id && client.cpf && onlyDigits(client.cpf) === cpfDigits);
   const telefoneJaCadastrado =
     telefoneDigits.length > 0 &&
-    clients.some((client) => client.telefone && onlyDigits(client.telefone) === telefoneDigits);
+    clients.some((client) => client.id !== editing?.id && client.telefone && onlyDigits(client.telefone) === telefoneDigits);
 
   return (
-    <Modal open onClose={onClose} title="Novo cliente">
+    <Modal open onClose={onClose} title={editing ? "Editar cliente" : "Novo cliente"}>
       <form
         onSubmit={(e) => {
           e.preventDefault();

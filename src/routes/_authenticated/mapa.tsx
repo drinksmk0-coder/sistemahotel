@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { MessageCircle, Plus } from "lucide-react";
 import {
   useRooms,
   useClients,
@@ -365,6 +365,7 @@ function Mapa() {
           onClose={() => setSelected(null)}
           reservation={activeReservationForRoom(reservations, selected.numero)}
           dateReservation={reservationForDate(reservations, selected.numero, viewDate)}
+          clients={clients}
           viewDate={viewDate}
           futureReservations={futureReservationsForRoom(reservations, selected.numero, viewDate).filter(
             (fr) => fr.id !== activeReservationForRoom(reservations, selected.numero)?.id,
@@ -419,6 +420,7 @@ function RoomModal({
   onClose,
   reservation,
   dateReservation,
+  clients,
   viewDate,
   futureReservations,
   sales,
@@ -430,6 +432,7 @@ function RoomModal({
   onClose: () => void;
   reservation: ReturnType<typeof activeReservationForRoom>;
   dateReservation: Reservation | null;
+  clients: Client[];
   viewDate: string;
   futureReservations: ReturnType<typeof futureReservationsForRoom>;
   sales: { id: string; item: string; qtd: number; total: number; reserva_id: string | null; categoria: string | null }[];
@@ -443,6 +446,11 @@ function RoomModal({
   const diaria = reservation ? Number(reservation.valor_total) : 0;
   const totalHospedagem = diaria + salesTotal;
   const selectedStay = dateReservation && dateReservation.id !== reservation?.id ? dateReservation : null;
+  const whatsappReservation = selectedStay ?? reservation;
+  const whatsappClient = whatsappReservation?.cliente_id
+    ? clients.find((client) => client.id === whatsappReservation.cliente_id)
+    : undefined;
+  const whatsappUrl = whatsappReservation ? whatsappRoomUrl(whatsappReservation, whatsappClient, room.numero) : "";
 
   return (
     <Modal open onClose={onClose} title={`Quarto ${room.numero} — ${room.andar}º andar`} wide>
@@ -472,9 +480,30 @@ function RoomModal({
             </button>
           )}
         </div>
-        <button onClick={onNew} className="btn-primary flex items-center gap-1.5">
-          <Plus className="h-4 w-4" /> Nova reserva neste quarto
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {whatsappUrl ? (
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener"
+              className="btn-ghost flex items-center gap-1.5"
+              title="Enviar mensagem ao cliente no WhatsApp"
+            >
+              <MessageCircle className="h-4 w-4" /> WhatsApp
+            </a>
+          ) : (
+            <button
+              type="button"
+              className="btn-ghost flex items-center gap-1.5"
+              onClick={() => alert("Cliente sem telefone cadastrado para WhatsApp.")}
+            >
+              <MessageCircle className="h-4 w-4" /> WhatsApp
+            </button>
+          )}
+          <button onClick={onNew} className="btn-primary flex items-center gap-1.5">
+            <Plus className="h-4 w-4" /> Nova reserva neste quarto
+          </button>
+        </div>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <section>
@@ -721,4 +750,25 @@ function reservationForDate(reservations: Reservation[], roomNumber: number, dat
         reservation.checkout > date,
     ) ?? null
   );
+}
+
+function whatsappRoomUrl(reservation: Reservation, client: Client | undefined, roomNumber: number) {
+  const phone = whatsappPhone(client?.telefone);
+  if (!phone) return "";
+  const balance = Math.max(0, Number(reservation.valor_total) - Number(reservation.valor_pago));
+  const message = [
+    `Olá, ${reservation.cliente_nome}!`,
+    `Aqui é do Hotel Real. Sua hospedagem/reserva do quarto ${roomNumber} está registrada de ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}.`,
+    `Total: ${fmtBRL(reservation.valor_total)}. Pago: ${fmtBRL(reservation.valor_pago)}. Saldo: ${fmtBRL(balance)}.`,
+    "Qualquer dúvida, pode responder por aqui.",
+  ].join("\n");
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
+function whatsappPhone(value?: string | null) {
+  const digits = (value ?? "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("55")) return digits;
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  return digits;
 }

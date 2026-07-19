@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Plus } from "lucide-react";
+import { Download, Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { EmptyState, Field, Modal } from "@/components/ui-kit";
-import { useExpenses, useInsert } from "@/lib/data";
+import { useDelete, useExpenses, useInsert, useUpdate, type Expense } from "@/lib/data";
 import { downloadCSV, fmtBRL, fmtDate, todayISO } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/despesas")({
@@ -14,7 +14,10 @@ export const Route = createFileRoute("/_authenticated/despesas")({
 function Despesas() {
   const { data: expenses = [] } = useExpenses();
   const insert = useInsert("expenses", ["expenses"]);
+  const update = useUpdate("expenses", ["expenses"]);
+  const remove = useDelete("expenses", ["expenses"]);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Expense | null>(null);
   const totalMes = expenses
     .filter((e) => (e.data || "").slice(0, 7) === todayISO().slice(0, 7))
     .reduce((sum, e) => sum + Number(e.valor), 0);
@@ -92,6 +95,7 @@ function Despesas() {
                 <th className="p-3">Fornecedor</th>
                 <th className="p-3">Pagamento</th>
                 <th className="p-3">Valor</th>
+                <th className="p-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -103,6 +107,32 @@ function Despesas() {
                   <td className="p-3 text-muted-foreground">{expense.fornecedor ?? "-"}</td>
                   <td className="p-3 text-muted-foreground">{expense.pagamento ?? "-"}</td>
                   <td className="p-3 font-semibold">{fmtBRL(expense.valor)}</td>
+                  <td className="p-3 text-right">
+                    <div className="flex justify-end gap-1.5">
+                      <button
+                        type="button"
+                        className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground"
+                        onClick={() => setEditing(expense)}
+                        title="Editar despesa"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
+                        onClick={() => {
+                          if (!window.confirm(`Excluir despesa "${expense.descricao}"?`)) return;
+                          remove.mutate(expense.id, {
+                            onSuccess: () => toast.success("Despesa excluída"),
+                            onError: (e) => toast.error(e.message),
+                          });
+                        }}
+                        title="Excluir despesa"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -110,35 +140,60 @@ function Despesas() {
         </div>
       )}
 
-      {open && (
+      {(open || editing) && (
         <ExpenseForm
-          onClose={() => setOpen(false)}
-          onSave={(row) =>
+          editing={editing}
+          onClose={() => {
+            setOpen(false);
+            setEditing(null);
+          }}
+          onSave={(row) => {
+            if (editing) {
+              update.mutate(
+                { id: editing.id, patch: row },
+                {
+                  onSuccess: () => {
+                    toast.success("Despesa atualizada");
+                    setEditing(null);
+                  },
+                  onError: (e) => toast.error(e.message),
+                },
+              );
+              return;
+            }
             insert.mutate(row, {
               onSuccess: () => {
                 toast.success("Despesa cadastrada");
                 setOpen(false);
               },
               onError: (e) => toast.error(e.message),
-            })
-          }
+            });
+          }}
         />
       )}
     </div>
   );
 }
 
-function ExpenseForm({ onClose, onSave }: { onClose: () => void; onSave: (row: Record<string, unknown>) => void }) {
-  const [data, setData] = useState(todayISO());
-  const [categoria, setCategoria] = useState("Geral");
-  const [descricao, setDescricao] = useState("");
-  const [valor, setValor] = useState(0);
-  const [pagamento, setPagamento] = useState("");
-  const [fornecedor, setFornecedor] = useState("");
-  const [observacoes, setObservacoes] = useState("");
+function ExpenseForm({
+  editing,
+  onClose,
+  onSave,
+}: {
+  editing: Expense | null;
+  onClose: () => void;
+  onSave: (row: Record<string, unknown>) => void;
+}) {
+  const [data, setData] = useState(editing?.data ?? todayISO());
+  const [categoria, setCategoria] = useState(editing?.categoria ?? "Geral");
+  const [descricao, setDescricao] = useState(editing?.descricao ?? "");
+  const [valor, setValor] = useState(Number(editing?.valor ?? 0));
+  const [pagamento, setPagamento] = useState(editing?.pagamento ?? "");
+  const [fornecedor, setFornecedor] = useState(editing?.fornecedor ?? "");
+  const [observacoes, setObservacoes] = useState(editing?.observacoes ?? "");
 
   return (
-    <Modal open onClose={onClose} title="Nova despesa">
+    <Modal open onClose={onClose} title={editing ? "Editar despesa" : "Nova despesa"}>
       <form
         className="space-y-3"
         onSubmit={(e) => {
