@@ -1,8 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Download, Search } from "lucide-react";
-import { useClients, useReservations, useInsert, type Client } from "@/lib/data";
+import { Plus, Download, Search, Pencil, Trash2 } from "lucide-react";
+import {
+  useClients,
+  useReservations,
+  useInsert,
+  useUpdate,
+  useDelete,
+  type Client,
+} from "@/lib/data";
 import { fmtBRL, fmtDate, downloadCSV, todayISO } from "@/lib/format";
 import { CLIENT_TYPES, BR_STATES, stateFromPhone } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
@@ -16,8 +23,24 @@ function Clientes() {
   const { data: clients = [] } = useClients();
   const { data: reservations = [] } = useReservations();
   const insert = useInsert("clients", ["clients"]);
+  const update = useUpdate("clients", ["clients"]);
+  const deleteClient = useDelete("clients", ["clients"]);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Client | null>(null);
   const [q, setQ] = useState("");
+
+  function excluir(client: Client) {
+    if (
+      !window.confirm(
+        `Excluir o cliente "${client.nome}"? As reservas antigas dele são mantidas, mas o cadastro será removido. Esta ação não pode ser desfeita.`,
+      )
+    )
+      return;
+    deleteClient.mutate(client.id, {
+      onSuccess: () => toast.success("Cliente excluído"),
+      onError: (e) => toast.error(e.message),
+    });
+  }
 
   const spentByClient = useMemo(() => {
     const m = new Map<string, number>();
@@ -64,7 +87,7 @@ function Clientes() {
         c.cpf,
         c.sexo,
         c.estado_civil,
-        c.tem_filhos ? c.quantidade_filhos ?? 0 : "Não",
+        c.tem_filhos ? (c.quantidade_filhos ?? 0) : "Não",
         c.data_nascimento,
         c.profissao,
         c.bairro,
@@ -113,23 +136,45 @@ function Clientes() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-serif text-lg font-bold">{c.nome}</p>
-                {c.telefone && <p className="text-sm text-muted-foreground">{c.telefone}</p>}
-                {(c as Client & { email?: string | null }).email && (
-                  <p className="text-sm text-muted-foreground">{(c as Client & { email?: string | null }).email}</p>
-                )}
+                  {c.telefone && <p className="text-sm text-muted-foreground">{c.telefone}</p>}
+                  {(c as Client & { email?: string | null }).email && (
+                    <p className="text-sm text-muted-foreground">
+                      {(c as Client & { email?: string | null }).email}
+                    </p>
+                  )}
                 </div>
-                <Badge tone={c.tipo === "cliente fixo" ? "brass" : "sage"}>{c.tipo}</Badge>
+                <div className="flex items-center gap-1">
+                  <Badge tone={c.tipo === "cliente fixo" ? "brass" : "sage"}>{c.tipo}</Badge>
+                  <button
+                    onClick={() => setEditing(c)}
+                    className="rounded-md p-1 hover:bg-muted"
+                    title="Editar cliente"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => excluir(c)}
+                    className="rounded-md p-1 text-brick hover:bg-muted"
+                    title="Excluir cliente"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
                 {c.cpf && <p>CPF: {c.cpf}</p>}
                 {c.sexo && <p>Sexo: {c.sexo}</p>}
                 {c.estado_civil && <p>Estado civil: {c.estado_civil}</p>}
                 {c.tem_filhos != null && (
-                  <p>Filhos: {c.tem_filhos ? c.quantidade_filhos ?? 0 : "Não"}</p>
+                  <p>Filhos: {c.tem_filhos ? (c.quantidade_filhos ?? 0) : "Não"}</p>
                 )}
                 {c.bairro && <p>Bairro: {c.bairro}</p>}
-                {(c.cidade || c.estado) && <p>{[c.cidade, c.estado].filter(Boolean).join(" / ")}</p>}
-                {(c as Client & { cep?: string | null }).cep && <p>CEP: {(c as Client & { cep?: string | null }).cep}</p>}
+                {(c.cidade || c.estado) && (
+                  <p>{[c.cidade, c.estado].filter(Boolean).join(" / ")}</p>
+                )}
+                {(c as Client & { cep?: string | null }).cep && (
+                  <p>CEP: {(c as Client & { cep?: string | null }).cep}</p>
+                )}
                 {c.profissao && <p>{c.profissao}</p>}
                 {c.data_nascimento && <p>Nasc.: {fmtDate(c.data_nascimento)}</p>}
                 <p>Cadastrado em {fmtDate(c.created_at)}</p>
@@ -158,15 +203,37 @@ function Clientes() {
           }
         />
       )}
+
+      {editing && (
+        <ClientForm
+          client={editing}
+          clients={clients}
+          onClose={() => setEditing(null)}
+          onSave={(row) =>
+            update.mutate(
+              { id: editing.id, patch: row },
+              {
+                onSuccess: () => {
+                  toast.success("Cliente atualizado");
+                  setEditing(null);
+                },
+                onError: (e) => toast.error(e.message),
+              },
+            )
+          }
+        />
+      )}
     </div>
   );
 }
 
 function ClientForm({
+  client,
   clients,
   onClose,
   onSave,
 }: {
+  client?: Client;
   clients: Client[];
   onClose: () => void;
   onSave: (
@@ -191,38 +258,48 @@ function ClientForm({
     >,
   ) => void;
 }) {
-  const [nome, setNome] = useState("");
-  const [tipo, setTipo] = useState<string>(CLIENT_TYPES[0]);
-  const [telefone, setTelefone] = useState("");
-  const [email, setEmail] = useState("");
-  const [cpf, setCpf] = useState("");
-  const [nascimento, setNascimento] = useState("");
-  const [profissao, setProfissao] = useState("");
-  const [sexo, setSexo] = useState("");
-  const [bairro, setBairro] = useState("");
-  const [estadoCivil, setEstadoCivil] = useState("");
-  const [temFilhos, setTemFilhos] = useState(false);
-  const [quantidadeFilhos, setQuantidadeFilhos] = useState("");
-  const [cidade, setCidade] = useState("");
-  const [estado, setEstado] = useState("");
-  const [cep, setCep] = useState("");
+  const [nome, setNome] = useState(client?.nome ?? "");
+  const [tipo, setTipo] = useState<string>(client?.tipo ?? CLIENT_TYPES[0]);
+  const [telefone, setTelefone] = useState(client?.telefone ?? "");
+  const [email, setEmail] = useState(
+    (client as (Client & { email?: string | null }) | undefined)?.email ?? "",
+  );
+  const [cpf, setCpf] = useState(client?.cpf ?? "");
+  const [nascimento, setNascimento] = useState(client?.data_nascimento ?? "");
+  const [profissao, setProfissao] = useState(client?.profissao ?? "");
+  const [sexo, setSexo] = useState(client?.sexo ?? "");
+  const [bairro, setBairro] = useState(client?.bairro ?? "");
+  const [estadoCivil, setEstadoCivil] = useState(client?.estado_civil ?? "");
+  const [temFilhos, setTemFilhos] = useState(!!client?.tem_filhos);
+  const [quantidadeFilhos, setQuantidadeFilhos] = useState(
+    client?.tem_filhos && client?.quantidade_filhos != null ? String(client.quantidade_filhos) : "",
+  );
+  const [cidade, setCidade] = useState(client?.cidade ?? "");
+  const [estado, setEstado] = useState(client?.estado ?? "");
+  const [cep, setCep] = useState(
+    (client as (Client & { cep?: string | null }) | undefined)?.cep ?? "",
+  );
 
+  const otherClients = client ? clients.filter((c) => c.id !== client.id) : clients;
   const cpfDigits = onlyDigits(cpf);
   const telefoneDigits = onlyDigits(telefone);
   const cpfJaCadastrado =
-    cpfDigits.length > 0 &&
-    clients.some((client) => client.cpf && onlyDigits(client.cpf) === cpfDigits);
+    cpfDigits.length > 0 && otherClients.some((c) => c.cpf && onlyDigits(c.cpf) === cpfDigits);
   const telefoneJaCadastrado =
     telefoneDigits.length > 0 &&
-    clients.some((client) => client.telefone && onlyDigits(client.telefone) === telefoneDigits);
+    otherClients.some((c) => c.telefone && onlyDigits(c.telefone) === telefoneDigits);
 
   return (
-    <Modal open onClose={onClose} title="Novo cliente">
+    <Modal open onClose={onClose} title={client ? "Editar cliente" : "Novo cliente"}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           if (cpfJaCadastrado || telefoneJaCadastrado) {
-            toast.error(cpfJaCadastrado ? "Este CPF já está cadastrado." : "Este telefone já está cadastrado.");
+            toast.error(
+              cpfJaCadastrado
+                ? "Este CPF já está cadastrado."
+                : "Este telefone já está cadastrado.",
+            );
             return;
           }
           const nomePadrao = normalizePersonName(nome);
@@ -264,7 +341,13 @@ function ClientForm({
         className="space-y-3"
       >
         <Field label="Nome">
-          <input className="field" value={nome} onChange={(e) => setNome(e.target.value.replace(/[0-9]/g, ""))} required maxLength={80} />
+          <input
+            className="field"
+            value={nome}
+            onChange={(e) => setNome(e.target.value.replace(/[0-9]/g, ""))}
+            required
+            maxLength={80}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Tipo">
@@ -291,12 +374,20 @@ function ClientForm({
               aria-invalid={telefoneJaCadastrado}
             />
             {telefoneJaCadastrado && (
-              <p className="mt-1 text-xs font-semibold text-brick">Este telefone já está cadastrado.</p>
+              <p className="mt-1 text-xs font-semibold text-brick">
+                Este telefone já está cadastrado.
+              </p>
             )}
           </Field>
         </div>
         <Field label="E-mail">
-          <input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} />
+          <input
+            className="field"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="CPF">
@@ -317,7 +408,12 @@ function ClientForm({
           </Field>
         </div>
         <Field label="Profissão">
-          <input className="field" value={profissao} onChange={(e) => setProfissao(e.target.value)} maxLength={60} />
+          <input
+            className="field"
+            value={profissao}
+            onChange={(e) => setProfissao(e.target.value)}
+            maxLength={60}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Sexo">
@@ -330,7 +426,12 @@ function ClientForm({
             </select>
           </Field>
           <Field label="Estado civil">
-            <select className="field" value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)} required>
+            <select
+              className="field"
+              value={estadoCivil}
+              onChange={(e) => setEstadoCivil(e.target.value)}
+              required
+            >
               <option value="">—</option>
               <option value="solteiro">Solteiro(a)</option>
               <option value="casado">Casado(a)</option>
@@ -366,14 +467,29 @@ function ClientForm({
           </Field>
         </div>
         <Field label="Bairro">
-          <input className="field" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={80} />
+          <input
+            className="field"
+            value={bairro}
+            onChange={(e) => setBairro(e.target.value)}
+            maxLength={80}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Cidade">
-            <input className="field" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={60} />
+            <input
+              className="field"
+              value={cidade}
+              onChange={(e) => setCidade(e.target.value)}
+              maxLength={60}
+            />
           </Field>
           <Field label="Estado">
-            <select className="field" value={estado} onChange={(e) => setEstado(e.target.value)} required>
+            <select
+              className="field"
+              value={estado}
+              onChange={(e) => setEstado(e.target.value)}
+              required
+            >
               <option value="">—</option>
               {BR_STATES.map((uf) => (
                 <option key={uf} value={uf}>
@@ -384,7 +500,13 @@ function ClientForm({
           </Field>
         </div>
         <Field label="CEP">
-          <input className="field" value={cep} onChange={(e) => setCep(e.target.value)} maxLength={10} placeholder="Opcional" />
+          <input
+            className="field"
+            value={cep}
+            onChange={(e) => setCep(e.target.value)}
+            maxLength={10}
+            placeholder="Opcional"
+          />
         </Field>
         <p className="text-xs text-muted-foreground">
           A data e o horário do cadastro são registrados automaticamente.
@@ -393,7 +515,11 @@ function ClientForm({
           <button type="button" onClick={onClose} className="btn-ghost">
             Cancelar
           </button>
-          <button type="submit" className="btn-primary" disabled={cpfJaCadastrado || telefoneJaCadastrado}>
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={cpfJaCadastrado || telefoneJaCadastrado}
+          >
             Salvar
           </button>
         </div>
@@ -428,9 +554,12 @@ function formatCpfBR(value: string | null | undefined) {
 }
 
 function formatPhoneBR(value: string | null | undefined) {
-  const digits = onlyDigits(value).replace(/^55(?=\d{10,11}$)/, "").slice(0, 11);
+  const digits = onlyDigits(value)
+    .replace(/^55(?=\d{10,11}$)/, "")
+    .slice(0, 11);
   if (digits.length <= 2) return digits;
   if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  if (digits.length <= 10)
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }

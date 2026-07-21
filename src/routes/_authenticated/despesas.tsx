@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Plus } from "lucide-react";
+import { Download, Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { EmptyState, Field, Modal } from "@/components/ui-kit";
-import { useExpenses, useInsert } from "@/lib/data";
+import { useExpenses, useInsert, useUpdate, useDelete, type Expense } from "@/lib/data";
 import { downloadCSV, fmtBRL, fmtDate, todayISO } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/despesas")({
@@ -14,20 +14,46 @@ export const Route = createFileRoute("/_authenticated/despesas")({
 function Despesas() {
   const { data: expenses = [] } = useExpenses();
   const insert = useInsert("expenses", ["expenses"]);
+  const update = useUpdate("expenses", ["expenses"]);
+  const deleteExpense = useDelete("expenses", ["expenses"]);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Expense | null>(null);
+
+  function excluir(expense: Expense) {
+    if (
+      !window.confirm(
+        `Excluir a despesa "${expense.descricao}" (${fmtBRL(expense.valor)})? Esta ação não pode ser desfeita.`,
+      )
+    )
+      return;
+    deleteExpense.mutate(expense.id, {
+      onSuccess: () => toast.success("Despesa excluída"),
+      onError: (e) => toast.error(e.message),
+    });
+  }
   const totalMes = expenses
     .filter((e) => (e.data || "").slice(0, 7) === todayISO().slice(0, 7))
     .reduce((sum, e) => sum + Number(e.valor), 0);
   const byCategory = useMemo(() => {
     const map = new Map<string, number>();
-    expenses.forEach((expense) => map.set(expense.categoria, (map.get(expense.categoria) ?? 0) + Number(expense.valor)));
+    expenses.forEach((expense) =>
+      map.set(expense.categoria, (map.get(expense.categoria) ?? 0) + Number(expense.valor)),
+    );
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   }, [expenses]);
 
   function exportCSV() {
     downloadCSV(`despesas-${todayISO()}.csv`, [
       ["Data", "Categoria", "Descricao", "Fornecedor", "Pagamento", "Valor", "Observacoes"],
-      ...expenses.map((e) => [e.data, e.categoria, e.descricao, e.fornecedor ?? "", e.pagamento ?? "", e.valor, e.observacoes ?? ""]),
+      ...expenses.map((e) => [
+        e.data,
+        e.categoria,
+        e.descricao,
+        e.fornecedor ?? "",
+        e.pagamento ?? "",
+        e.valor,
+        e.observacoes ?? "",
+      ]),
     ]);
   }
 
@@ -92,6 +118,7 @@ function Despesas() {
                 <th className="p-3">Fornecedor</th>
                 <th className="p-3">Pagamento</th>
                 <th className="p-3">Valor</th>
+                <th className="p-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -103,6 +130,24 @@ function Despesas() {
                   <td className="p-3 text-muted-foreground">{expense.fornecedor ?? "-"}</td>
                   <td className="p-3 text-muted-foreground">{expense.pagamento ?? "-"}</td>
                   <td className="p-3 font-semibold">{fmtBRL(expense.valor)}</td>
+                  <td className="p-3">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        onClick={() => setEditing(expense)}
+                        className="rounded-md p-1.5 hover:bg-muted"
+                        title="Editar despesa"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => excluir(expense)}
+                        className="rounded-md p-1.5 text-brick hover:bg-muted"
+                        title="Excluir despesa"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -124,56 +169,128 @@ function Despesas() {
           }
         />
       )}
+
+      {editing && (
+        <ExpenseForm
+          expense={editing}
+          onClose={() => setEditing(null)}
+          onSave={(row) =>
+            update.mutate(
+              { id: editing.id, patch: row },
+              {
+                onSuccess: () => {
+                  toast.success("Despesa atualizada");
+                  setEditing(null);
+                },
+                onError: (e) => toast.error(e.message),
+              },
+            )
+          }
+        />
+      )}
     </div>
   );
 }
 
-function ExpenseForm({ onClose, onSave }: { onClose: () => void; onSave: (row: Record<string, unknown>) => void }) {
-  const [data, setData] = useState(todayISO());
-  const [categoria, setCategoria] = useState("Geral");
-  const [descricao, setDescricao] = useState("");
-  const [valor, setValor] = useState(0);
-  const [pagamento, setPagamento] = useState("");
-  const [fornecedor, setFornecedor] = useState("");
-  const [observacoes, setObservacoes] = useState("");
+function ExpenseForm({
+  expense,
+  onClose,
+  onSave,
+}: {
+  expense?: Expense;
+  onClose: () => void;
+  onSave: (row: Record<string, unknown>) => void;
+}) {
+  const [data, setData] = useState(expense?.data ?? todayISO());
+  const [categoria, setCategoria] = useState(expense?.categoria ?? "Geral");
+  const [descricao, setDescricao] = useState(expense?.descricao ?? "");
+  const [valor, setValor] = useState(expense ? Number(expense.valor) : 0);
+  const [pagamento, setPagamento] = useState(expense?.pagamento ?? "");
+  const [fornecedor, setFornecedor] = useState(expense?.fornecedor ?? "");
+  const [observacoes, setObservacoes] = useState(expense?.observacoes ?? "");
 
   return (
-    <Modal open onClose={onClose} title="Nova despesa">
+    <Modal open onClose={onClose} title={expense ? "Editar despesa" : "Nova despesa"}>
       <form
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          onSave({ data, categoria, descricao, valor, pagamento: pagamento || null, fornecedor: fornecedor || null, observacoes: observacoes || null });
+          onSave({
+            data,
+            categoria,
+            descricao,
+            valor,
+            pagamento: pagamento || null,
+            fornecedor: fornecedor || null,
+            observacoes: observacoes || null,
+          });
         }}
       >
         <div className="grid grid-cols-2 gap-3">
           <Field label="Data">
-            <input className="field" type="date" value={data} onChange={(e) => setData(e.target.value)} />
+            <input
+              className="field"
+              type="date"
+              value={data}
+              onChange={(e) => setData(e.target.value)}
+            />
           </Field>
           <Field label="Categoria">
-            <input className="field" value={categoria} onChange={(e) => setCategoria(e.target.value)} required />
+            <input
+              className="field"
+              value={categoria}
+              onChange={(e) => setCategoria(e.target.value)}
+              required
+            />
           </Field>
         </div>
         <Field label="Descricao">
-          <input className="field" value={descricao} onChange={(e) => setDescricao(e.target.value)} required />
+          <input
+            className="field"
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            required
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Valor">
-            <input className="field" type="number" step="0.01" value={valor} onChange={(e) => setValor(Number(e.target.value))} />
+            <input
+              className="field"
+              type="number"
+              step="0.01"
+              value={valor}
+              onChange={(e) => setValor(Number(e.target.value))}
+            />
           </Field>
           <Field label="Pagamento">
-            <input className="field" value={pagamento} onChange={(e) => setPagamento(e.target.value)} />
+            <input
+              className="field"
+              value={pagamento}
+              onChange={(e) => setPagamento(e.target.value)}
+            />
           </Field>
         </div>
         <Field label="Fornecedor">
-          <input className="field" value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} />
+          <input
+            className="field"
+            value={fornecedor}
+            onChange={(e) => setFornecedor(e.target.value)}
+          />
         </Field>
         <Field label="Observacoes">
-          <input className="field" value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
+          <input
+            className="field"
+            value={observacoes}
+            onChange={(e) => setObservacoes(e.target.value)}
+          />
         </Field>
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
-          <button type="submit" className="btn-primary">Salvar</button>
+          <button type="button" onClick={onClose} className="btn-ghost">
+            Cancelar
+          </button>
+          <button type="submit" className="btn-primary">
+            Salvar
+          </button>
         </div>
       </form>
     </Modal>
