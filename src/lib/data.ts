@@ -329,6 +329,8 @@ export function roomStatusToday(
   const active = reservations.filter(
     (r) => r.quarto === numero && r.status !== "cancelado" && r.status !== "finalizado",
   );
+  const checkoutDue = active.find((r) => isCheckoutDueForCleaning(r, today));
+  if (checkoutDue) return "limpeza";
   // A guest who has already checked in (checkin <= hoje) and is fully paid
   // OR whose reservation is marked "ocupado" keeps the room OCUPADO until the
   // stay is finalized (checkout) on the reservations page. This is why a paid
@@ -359,6 +361,17 @@ export function activeReservationForRoom(reservations: Reservation[], numero: nu
     )
     .sort((a, b) => b.checkin.localeCompare(a.checkin));
   return active[0] ?? null;
+}
+
+export function isCheckoutDueForCleaning(
+  reservation: Reservation,
+  today = todayISO(),
+  now = new Date(),
+): boolean {
+  if (["cancelado", "finalizado", "manutencao"].includes(reservation.status)) return false;
+  if (reservation.checkin > today) return false;
+  if (reservation.checkout !== today) return false;
+  return now.getHours() >= 12;
 }
 
 // Future / upcoming reservations for a room (checkout still ahead), so the desk

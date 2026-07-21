@@ -11,7 +11,7 @@ import {
 } from "@/lib/data";
 import { fmtBRL, todayISO, nightsBetween } from "@/lib/format";
 import { BR_STATES, CLIENT_TYPES, PAYMENT_METHODS, SALES_CHANNELS, complaintLabel, stateFromPhone } from "@/lib/constants";
-import { Modal, Field } from "@/components/ui-kit";
+import { DateBRInput, Modal, Field } from "@/components/ui-kit";
 
 export type ReservaRow = {
   quarto: number;
@@ -350,7 +350,7 @@ export function ReservaForm({
                 </select>
               </Field>
               <Field label="Nascimento">
-                <input type="date" className="field" value={nascimento} onChange={(e) => setNascimento(e.target.value)} required />
+                <DateBRInput value={nascimento} onChange={setNascimento} required />
               </Field>
               <Field label="Sexo">
                 <select className="field" value={sexo} onChange={(e) => setSexo(e.target.value)}>

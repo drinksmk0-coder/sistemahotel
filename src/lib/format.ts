@@ -70,14 +70,6 @@ function csvCell(value: unknown): string {
   return s;
 }
 
-export function whatsappLink(phone: string | null | undefined, message?: string): string | null {
-  const digits = (phone ?? "").replace(/\D/g, "");
-  if (digits.length < 10) return null;
-  const withCountry = digits.startsWith("55") ? digits : `55${digits}`;
-  const text = message ? `?text=${encodeURIComponent(message)}` : "";
-  return `https://wa.me/${withCountry}${text}`;
-}
-
 export function downloadCSV(filename: string, rows: (string | number | null)[][]) {
   const content = rows.map((r) => r.map(csvCell).join(";")).join("\r\n");
   const blob = new Blob(["\uFEFF" + content], { type: "text/csv;charset=utf-8;" });
