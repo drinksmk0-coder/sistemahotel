@@ -14,11 +14,11 @@ export const Route = createFileRoute("/avaliar")({
 });
 
 const CRITERIA = [
-  { key: "nota_limpeza", label: "Limpeza do quarto" },
-  { key: "nota_conforto", label: "Conforto e cama" },
-  { key: "nota_atendimento", label: "Atendimento da equipe" },
-  { key: "nota_wifi", label: "Wi-Fi / internet" },
-  { key: "nota_chuveiro", label: "Chuveiro / água quente" },
+  { key: "nota_atendimento", label: "Funcionários e atendimento" },
+  { key: "nota_chuveiro", label: "Comodidades do quarto" },
+  { key: "nota_limpeza", label: "Limpeza" },
+  { key: "nota_conforto", label: "Conforto" },
+  { key: "nota_wifi", label: "Wi-Fi gratuito" },
   { key: "nota_geral", label: "Nota geral da estadia" },
 ] as const;
 

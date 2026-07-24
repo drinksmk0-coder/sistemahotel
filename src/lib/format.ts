@@ -48,3 +48,43 @@ export function downloadCSV(filename: string, rows: (string | number | null)[][]
   a.click();
   URL.revokeObjectURL(url);
 }
+
+function xmlCell(value: string | number | null): string {
+  const content = value == null ? "" : String(value);
+  return content
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export function downloadExcel(filename: string, rows: (string | number | null)[][]) {
+  const tableRows = rows
+    .map(
+      (row, rowIndex) =>
+        `<Row>${row
+          .map((value) => {
+            const isNumber = typeof value === "number" && Number.isFinite(value);
+            const style = rowIndex === 0 ? ' ss:StyleID="Header"' : "";
+            return `<Cell${style}><Data ss:Type="${isNumber ? "Number" : "String"}">${xmlCell(value)}</Data></Cell>`;
+          })
+          .join("")}</Row>`,
+    )
+    .join("");
+  const content = `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D0B25B" ss:Pattern="Solid"/></Style>
+ </Styles>
+ <Worksheet ss:Name="Dados"><Table>${tableRows}</Table></Worksheet>
+</Workbook>`;
+  const blob = new Blob(["\uFEFF" + content], { type: "application/vnd.ms-excel;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename.endsWith(".xls") ? filename : `${filename}.xls`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}

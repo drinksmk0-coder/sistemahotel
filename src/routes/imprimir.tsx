@@ -28,6 +28,7 @@ function Line({ label }: { label: string }) {
 function Imprimir() {
   const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   if (params.get("tipo") === "recibo") return <Recibo params={params} />;
+  if (params.get("tipo") === "cadastro") return <GuestRegistration params={params} />;
 
   return (
     <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
@@ -94,6 +95,50 @@ function Imprimir() {
         <p className="mt-6 text-center text-xs text-neutral-500">
           Obrigado por ajudar a Pousada Real Cruzília a melhorar! Entregue este formulário na recepção.
         </p>
+      </div>
+    </div>
+  );
+}
+
+function GuestRegistration({ params }: { params: URLSearchParams }) {
+  const fields = [
+    ["Nome completo", params.get("nome")],
+    ["CPF / Passaporte", params.get("cpf")],
+    ["Telefone / WhatsApp", params.get("telefone")],
+    ["E-mail", params.get("email")],
+    ["Data de nascimento", params.get("nascimento")],
+    ["Estado civil", params.get("estadoCivil")],
+    ["Profissão", params.get("profissao")],
+    ["Cidade / Estado / País", params.get("origem")],
+    ["CEP / Bairro", params.get("endereco")],
+    ["Quarto", params.get("quarto")],
+    ["Check-in", params.get("checkin")],
+    ["Check-out", params.get("checkout")],
+  ] as const;
+  return (
+    <div className="min-h-screen bg-neutral-100 py-8 print:bg-white print:py-0">
+      <div className="mx-auto mb-4 flex max-w-3xl justify-end px-4 no-print">
+        <button onClick={() => window.print()} className="btn-primary flex items-center gap-1.5">
+          <Printer className="h-4 w-4" /> Imprimir cadastro
+        </button>
+      </div>
+      <div className="mx-auto max-w-3xl bg-white p-10 shadow print:max-w-none print:p-0 print:shadow-none">
+        <div className="mb-6 border-b-2 border-pine pb-4">
+          <h1 className="font-serif text-2xl font-bold">Ficha de cadastro do hóspede</h1>
+          <p className="text-sm text-neutral-500">Preencha, confira os dados e assine ao final.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-x-5">
+          {fields.map(([label, value]) => (
+            <div key={label} className="mb-4">
+              <p className="text-xs font-bold uppercase text-neutral-500">{label}</p>
+              <div className="mt-1 min-h-7 border-b border-neutral-400 text-sm">{value || ""}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 grid grid-cols-2 gap-12">
+          <Line label="Assinatura do hóspede" />
+          <Line label="Responsável pelo atendimento" />
+        </div>
       </div>
     </div>
   );

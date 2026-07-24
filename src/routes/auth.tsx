@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { getValidAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -15,37 +16,55 @@ function AuthPage() {
   const [novaSenha, setNovaSenha] = useState("");
   const [trocaSenha, setTrocaSenha] = useState(false);
   const [busy, setBusy] = useState(false);
-
-  async function goToPanel() {
-    const { data } = await supabase.auth.getSession();
-    const isPasswordFlow =
-      typeof window !== "undefined" &&
-      (window.location.search.includes("convite=1") || window.location.search.includes("redefinir=1"));
-    if (data.session && isPasswordFlow) {
-      setTrocaSenha(true);
-      return;
-    }
-    if (data.session) {
-      navigate({ to: "/painel", replace: true });
-    }
-  }
+  const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
-    void goToPanel();
-  }, []);
+    let mounted = true;
+    void getValidAuth().then(async (auth) => {
+      if (!mounted) return;
+      const isPasswordFlow =
+        window.location.search.includes("convite=1") ||
+        window.location.search.includes("redefinir=1");
+      if (auth && isPasswordFlow) {
+        setTrocaSenha(true);
+        setCheckingSession(false);
+        return;
+      }
+      if (auth) {
+        await navigate({ to: "/painel", replace: true });
+        return;
+      }
+      setCheckingSession(false);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [navigate]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim().toLowerCase(),
+        password: senha,
+      });
       if (error) throw error;
-      await goToPanel();
+      if (!data.session || !data.user) throw new Error("Não foi possível iniciar sua sessão.");
+      await navigate({ to: "/painel", replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao autenticar");
     } finally {
       setBusy(false);
     }
+  }
+
+  if (checkingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-pine to-pine-dark px-4">
+        <p className="text-sm font-semibold text-white">Verificando sua sessão…</p>
+      </div>
+    );
   }
 
   async function finishInvite(e: React.FormEvent) {

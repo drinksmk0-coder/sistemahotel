@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { MessageCircle, Plus } from "lucide-react";
+import { BedDouble, CalendarDays, CheckCircle2, MessageCircle, Plus, UsersRound } from "lucide-react";
 import {
   useRooms,
   useClients,
@@ -100,7 +100,13 @@ function Mapa() {
     const occupied = rooms.filter((room) => roomStatusAtDate(reservations, room, viewDate) === "ocupado").length;
     const reserved = rooms.filter((room) => roomStatusAtDate(reservations, room, viewDate) === "reservado").length;
     const cleaning = rooms.filter((room) => roomStatusAtDate(reservations, room, viewDate) === "limpeza").length;
-    return { arrivals: arrivals.length, departures: departures.length, occupied, reserved, cleaning };
+    const unavailable = new Set(
+      rooms
+        .filter((room) => roomVisualStatus(reservations, room, viewDate) !== "livre")
+        .map((room) => room.numero),
+    ).size;
+    const available = Math.max(0, rooms.length - unavailable);
+    return { arrivals: arrivals.length, departures: departures.length, occupied, reserved, cleaning, available };
   }, [reservations, rooms, viewDate]);
 
   const filteredRoomGroups = useMemo(
@@ -183,27 +189,49 @@ function Mapa() {
         subtitle="Agrupado por tipo e valor. Escolha uma data para ver reservas futuras, entradas, saídas e limpeza prevista."
       />
 
-      <section className="mb-4 rounded-lg border border-border bg-card p-3 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+      <section className="mb-4 overflow-hidden rounded-xl border border-pine/20 bg-[linear-gradient(135deg,var(--pine-dark),var(--pine))] p-4 text-white shadow-md">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <label className="text-sm">
-            <span className="mb-1 block font-semibold text-muted-foreground">Ver disponibilidade em</span>
+            <span className="mb-1.5 flex items-center gap-2 font-semibold text-white">
+              <CalendarDays className="h-4 w-4 text-brass" />
+              Consultar disponibilidade
+            </span>
             <input
               type="date"
               value={viewDate}
               onChange={(event) => setViewDate(event.target.value || today)}
-              className="field max-w-[220px]"
+              className="field min-w-[220px] border-white/30 bg-white text-pine-dark"
             />
           </label>
-          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
-            <MiniCount label="Ocupados" value={dateSummary.occupied} />
-            <MiniCount label="Reservados" value={dateSummary.reserved} />
-            <MiniCount label="Entram" value={dateSummary.arrivals} />
-            <MiniCount label="Saem" value={dateSummary.departures} />
-            <MiniCount label="Limpeza" value={dateSummary.cleaning} />
+          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
+            <AvailabilityCount icon={<CheckCircle2 />} label="Disponíveis" value={dateSummary.available} emphasis />
+            <AvailabilityCount icon={<BedDouble />} label="Ocupados" value={dateSummary.occupied} />
+            <AvailabilityCount icon={<CalendarDays />} label="Reservados" value={dateSummary.reserved} />
+            <AvailabilityCount icon={<UsersRound />} label="Entradas" value={dateSummary.arrivals} />
+            <AvailabilityCount icon={<UsersRound />} label="Saídas" value={dateSummary.departures} />
+            <AvailabilityCount icon={<BedDouble />} label="Limpeza" value={dateSummary.cleaning} />
           </div>
         </div>
+        {dateSummary.available === 0 ? (
+          <div className="mt-4 rounded-lg border border-brick/50 bg-brick/90 px-4 py-3 font-semibold text-white">
+            Lotação completa em {fmtDate(viewDate)} — não há quartos disponíveis para uma nova reserva.
+          </div>
+        ) : (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/10 px-4 py-3">
+            <p className="text-sm">
+              <strong>{dateSummary.available}</strong> de <strong>{rooms.length}</strong> quartos disponíveis em {fmtDate(viewDate)}.
+            </p>
+            <button
+              type="button"
+              className="rounded-md bg-brass px-3 py-2 text-xs font-bold text-pine-dark hover:brightness-105"
+              onClick={() => setStatusFilter("livre")}
+            >
+              Mostrar somente disponíveis
+            </button>
+          </div>
+        )}
         {viewDate !== today && (
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 text-xs text-white/75">
             Em {fmtDate(viewDate)}, quartos com saída aparecem como limpeza prevista para evitar vender antes da arrumação.
           </p>
         )}
@@ -313,11 +341,14 @@ function Mapa() {
                   <button
                     key={r.numero}
                     onClick={() => setSelected(r)}
-                    className={`relative min-h-[112px] rounded-lg border p-2 text-left transition hover:scale-[1.02] ${n > 0 ? "border-brick" : style.bg}`}
+                    className={`group relative min-h-[132px] overflow-hidden rounded-xl border p-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${n > 0 ? "border-brick" : style.bg}`}
                     style={n > 0 ? { backgroundColor: `rgba(200,60,40,${0.12 + intensity * 0.5})` } : undefined}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="font-serif text-lg font-bold leading-none">{r.numero}</div>
+                      <div>
+                        <div className="text-[9px] font-bold uppercase tracking-[0.2em] opacity-65">Quarto</div>
+                        <div className="font-serif text-2xl font-bold leading-none">{r.numero}</div>
+                      </div>
                       <span className="rounded bg-white/65 px-1.5 py-0.5 text-[9px] font-bold uppercase text-pine-dark">
                         {roomTypeShort(r)}
                       </span>
@@ -350,6 +381,11 @@ function Mapa() {
                     )}
                     {blocked && (
                       <span className="absolute bottom-1 right-1 text-[9px] font-bold text-brick">🔒</span>
+                    )}
+                    {st === "livre" && (
+                      <span className="absolute inset-x-0 bottom-0 translate-y-full bg-pine px-2 py-1.5 text-center text-[10px] font-bold text-white transition group-hover:translate-y-0">
+                        Clique para reservar
+                      </span>
                     )}
                   </button>
                 );
@@ -614,6 +650,28 @@ function MiniCount({ label, value }: { label: string; value: number }) {
     <div className="rounded-md border border-border bg-background px-3 py-2">
       <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
       <p className="font-serif text-lg font-bold leading-tight text-pine-dark">{value}</p>
+    </div>
+  );
+}
+
+function AvailabilityCount({
+  icon,
+  label,
+  value,
+  emphasis = false,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  emphasis?: boolean;
+}) {
+  return (
+    <div className={`min-w-[92px] rounded-lg border px-3 py-2 ${emphasis ? "border-brass bg-brass text-pine-dark" : "border-white/15 bg-white/10"}`}>
+      <div className="flex items-center gap-1.5 opacity-80">
+        <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
+        <span className="text-[9px] font-bold uppercase tracking-wide">{label}</span>
+      </div>
+      <p className="mt-1 font-serif text-xl font-bold leading-none">{value}</p>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CalendarClock, MessageCircle, Plus, Webhook } from "lucide-react";
+import { CalendarClock, FileText, MessageCircle, Plus, Webhook } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge, EmptyState, Field, Modal } from "@/components/ui-kit";
 import {
@@ -26,6 +26,7 @@ const TYPES = [
   { value: "airbnb", label: "Airbnb" },
   { value: "google", label: "Google Hotel" },
   { value: "channel_manager", label: "Channel Manager" },
+  { value: "nota_fiscal", label: "Nota fiscal / NFS-e" },
 ];
 
 function Integracoes() {
@@ -89,6 +90,19 @@ function Integracoes() {
           <p className="text-sm text-muted-foreground">Atendimentos iniciados pelo WhatsApp.</p>
         </section>
       </div>
+
+      <section className="mt-5 rounded-xl border border-brass/40 bg-brass/10 p-4">
+        <div className="flex items-start gap-3">
+          <FileText className="mt-0.5 h-5 w-5 text-pine" />
+          <div>
+            <h3 className="font-serif text-lg font-bold text-pine-dark">Envio de nota fiscal</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cadastre um provedor de NFS-e em “Canal” usando a URL de webhook/API fornecida por ele. A emissão automática exige
+              credenciais fiscais da empresa e não deve ser ativada sem certificado ou token do provedor.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <section className="mt-5 card-surface overflow-x-auto">
         <div className="grid gap-3 border-b border-border p-4 md:grid-cols-2">

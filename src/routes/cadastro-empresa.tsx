@@ -1,7 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { getValidAuth } from "@/lib/auth";
+
+const PENDING_COMPANY_KEY = "hotel-real:pending-company";
+
+type PendingCompany = {
+  empresa: string;
+  nome: string;
+  email: string;
+  quartos: string;
+};
 
 export const Route = createFileRoute("/cadastro-empresa")({
   ssr: false,
@@ -16,25 +26,54 @@ function CadastroEmpresa() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [quartos, setQuartos] = useState("101,102,103");
+  const [signedIn, setSignedIn] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const pending = readPendingCompany();
+    if (pending) {
+      setEmpresa(pending.empresa);
+      setNome(pending.nome);
+      setEmail(pending.email);
+      setQuartos(pending.quartos);
+    }
+
+    void getValidAuth().then((auth) => {
+      if (!mounted || !auth) return;
+      setSignedIn(true);
+      setEmail(auth.user.email ?? pending?.email ?? "");
+      setNome((current) => current || String(auth.user.user_metadata?.nome ?? ""));
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password: senha,
-        options: {
-          emailRedirectTo: `${window.location.origin}/painel`,
-          data: { nome, empresa },
-        },
-      });
-      if (error) throw error;
+      let auth = await getValidAuth();
+      if (!auth) {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim().toLowerCase(),
+          password: senha,
+          options: {
+            emailRedirectTo: `${window.location.origin}/cadastro-empresa?finalizar=1`,
+            data: { nome, empresa },
+          },
+        });
+        if (error) throw error;
 
-      if (!data.session || !data.user) {
-        toast.success("Conta criada. Confirme o email e entre para finalizar a empresa.");
-        navigate({ to: "/auth" });
-        return;
+        if (!data.session || !data.user) {
+          savePendingCompany({ empresa, nome, email: email.trim().toLowerCase(), quartos });
+          toast.success("Conta criada. Confirme o e-mail e entre para finalizar a empresa.");
+          await navigate({ to: "/auth" });
+          return;
+        }
+
+        auth = { session: data.session, user: data.user };
       }
 
       const slug = empresa
@@ -46,7 +85,7 @@ function CadastroEmpresa() {
 
       const { data: company, error: companyError } = await supabase
         .from("companies" as never)
-        .insert({ nome: empresa, slug, created_by: data.user.id } as never)
+        .insert({ nome: empresa, slug, created_by: auth.user.id } as never)
         .select("id")
         .single();
       if (companyError) throw companyError;
@@ -54,7 +93,7 @@ function CadastroEmpresa() {
       const companyId = (company as unknown as { id: string }).id;
       const { error: memberError } = await supabase
         .from("company_members" as never)
-        .insert({ company_id: companyId, user_id: data.user.id, role: "dono" } as never);
+        .insert({ company_id: companyId, user_id: auth.user.id, role: "dono" } as never);
       if (memberError) throw memberError;
 
       const parsedRooms = quartos
@@ -75,8 +114,9 @@ function CadastroEmpresa() {
         if (roomError) throw roomError;
       }
 
+      localStorage.removeItem(PENDING_COMPANY_KEY);
       toast.success("Empresa criada");
-      navigate({ to: "/painel" });
+      await navigate({ to: "/painel" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao cadastrar empresa");
     } finally {
@@ -104,14 +144,33 @@ function CadastroEmpresa() {
               <input className="field" value={nome} onChange={(e) => setNome(e.target.value)} required />
             </Field>
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
+          {signedIn ? (
             <Field label="E-mail de login">
-              <input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <input className="field bg-muted" type="email" value={email} readOnly />
             </Field>
-            <Field label="Senha">
-              <input className="field" type="password" minLength={6} value={senha} onChange={(e) => setSenha(e.target.value)} required />
-            </Field>
-          </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="E-mail de login">
+                <input
+                  className="field"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </Field>
+              <Field label="Senha">
+                <input
+                  className="field"
+                  type="password"
+                  minLength={6}
+                  value={senha}
+                  onChange={(e) => setSenha(e.target.value)}
+                  required
+                />
+              </Field>
+            </div>
+          )}
           <Field label="Numeros dos quartos iniciais">
             <input className="field" value={quartos} onChange={(e) => setQuartos(e.target.value)} placeholder="Ex.: 101,102,103,201" />
           </Field>
@@ -127,6 +186,19 @@ function CadastroEmpresa() {
       </div>
     </div>
   );
+}
+
+function readPendingCompany(): PendingCompany | null {
+  try {
+    const raw = localStorage.getItem(PENDING_COMPANY_KEY);
+    return raw ? (JSON.parse(raw) as PendingCompany) : null;
+  } catch {
+    return null;
+  }
+}
+
+function savePendingCompany(value: PendingCompany) {
+  localStorage.setItem(PENDING_COMPANY_KEY, JSON.stringify(value));
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

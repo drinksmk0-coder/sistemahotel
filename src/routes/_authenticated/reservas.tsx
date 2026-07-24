@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Download, Pencil, ArrowLeftRight, Ban, MessageCircle, Trash2 } from "lucide-react";
+import { Plus, Download, Pencil, ArrowLeftRight, Ban, MessageCircle, Star, Trash2 } from "lucide-react";
 import {
   useRooms,
   useClients,
@@ -16,7 +16,7 @@ import {
   type Client,
   type Reservation,
 } from "@/lib/data";
-import { fmtBRL, fmtDate, fmtTime, todayISO, downloadCSV } from "@/lib/format";
+import { fmtBRL, fmtDate, fmtTime, todayISO, downloadExcel } from "@/lib/format";
 import { ROOM_BLOCK_REASONS, complaintLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
@@ -119,7 +119,7 @@ function Reservas() {
         ];
       }),
     ];
-    downloadCSV(`reservas-${todayISO()}.csv`, rows);
+    downloadExcel(`reservas-${todayISO()}.xls`, rows);
   }
 
   const phoneDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
@@ -185,7 +185,7 @@ function Reservas() {
         action={
           <div className="flex gap-2">
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> CSV
+              <Download className="h-4 w-4" /> Excel
             </button>
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Nova reserva
@@ -349,6 +349,7 @@ function RowActions({
   const done = ["finalizado", "cancelado"].includes(reservation.status);
   const total = Number(reservation.valor_total);
   const receiptUrl = whatsappReceiptUrl(reservation, client);
+  const reviewUrl = whatsappReviewUrl(reservation, client);
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
       {!done && !reservation.pago && (
@@ -490,6 +491,25 @@ function RowActions({
           title="Cliente sem telefone"
         >
           <MessageCircle className="h-3.5 w-3.5" />
+        </button>
+      )}
+      {reviewUrl ? (
+        <a
+          className="rounded-md bg-brass-bg px-2 py-1 text-xs font-semibold text-pine-dark"
+          href={reviewUrl}
+          target="_blank"
+          rel="noopener"
+          title="Enviar avaliação pelo WhatsApp"
+        >
+          <Star className="h-3.5 w-3.5" />
+        </a>
+      ) : (
+        <button
+          className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+          onClick={() => toast.error("Cadastre o telefone do cliente para enviar a avaliação.")}
+          title="Cliente sem telefone"
+        >
+          <Star className="h-3.5 w-3.5" />
         </button>
       )}
       <button
@@ -654,6 +674,19 @@ function whatsappReceiptUrl(reservation: Reservation, client?: Client) {
     "Para nota fiscal, envie os dados da empresa/CNPJ por aqui que a recepção dará continuidade.",
     "Obrigado pela preferência!",
   ].join("\n");
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
+function whatsappReviewUrl(reservation: Reservation, client?: Client) {
+  const phone = whatsappPhone(client?.telefone);
+  if (!phone || typeof window === "undefined") return "";
+  const formUrl = `${window.location.origin}/avaliar?quarto=${reservation.quarto}&empresa=${reservation.company_id}`;
+  const message = [
+    `Olá, ${reservation.cliente_nome}!`,
+    "Obrigado por se hospedar conosco.",
+    "Você pode avaliar sua estadia pelo link abaixo. É rápido e ajuda muito nossa equipe:",
+    formUrl,
+  ].join("\n\n");
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 

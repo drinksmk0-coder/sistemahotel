@@ -445,17 +445,20 @@ function HotelMetricCard({
     brick: "border-brick/45 bg-brick/10",
   }[tone];
   return (
-    <article className={`min-w-0 rounded-lg border p-3 shadow-sm ${toneClass}`}>
+    <article className={`min-w-0 rounded-lg border px-3 py-2 shadow-sm ${toneClass}`}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="truncate text-[11px] font-bold uppercase text-pine-dark">{label}</h2>
-          <p className="mt-1 font-serif text-xl font-bold text-pine-dark">{value}</p>
+          <p className="font-serif text-lg font-bold text-pine-dark">{value}</p>
         </div>
         <Activity className="h-4 w-4 shrink-0 text-brass" />
       </div>
-      <p className="mt-2 text-[11px] font-semibold text-pine-dark">Cálculo: {formula}</p>
-      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{meaning}</p>
-      <p className="mt-2 rounded-md bg-white/65 px-2 py-1.5 text-xs leading-relaxed text-pine-dark">{strategy}</p>
+      <p className="truncate text-[10px] text-muted-foreground">{formula}</p>
+      <details className="mt-1 text-[11px]">
+        <summary className="cursor-pointer font-semibold text-pine">Ver explicação</summary>
+        <p className="mt-1 leading-relaxed text-muted-foreground">{meaning}</p>
+        <p className="mt-1 rounded-md bg-white/65 px-2 py-1.5 leading-relaxed text-pine-dark">{strategy}</p>
+      </details>
     </article>
   );
 }

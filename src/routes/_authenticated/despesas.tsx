@@ -5,7 +5,7 @@ import { Download, Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { EmptyState, Field, Modal } from "@/components/ui-kit";
 import { useDelete, useExpenses, useInsert, useUpdate, type Expense } from "@/lib/data";
-import { downloadCSV, fmtBRL, fmtDate, todayISO } from "@/lib/format";
+import { downloadExcel, fmtBRL, fmtDate, todayISO } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/despesas")({
   component: Despesas,
@@ -28,7 +28,7 @@ function Despesas() {
   }, [expenses]);
 
   function exportCSV() {
-    downloadCSV(`despesas-${todayISO()}.csv`, [
+    downloadExcel(`despesas-${todayISO()}.xls`, [
       ["Data", "Categoria", "Descricao", "Fornecedor", "Pagamento", "Valor", "Observacoes"],
       ...expenses.map((e) => [e.data, e.categoria, e.descricao, e.fornecedor ?? "", e.pagamento ?? "", e.valor, e.observacoes ?? ""]),
     ]);
@@ -42,7 +42,7 @@ function Despesas() {
         action={
           <div className="flex gap-2">
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> CSV
+              <Download className="h-4 w-4" /> Excel
             </button>
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Nova despesa
