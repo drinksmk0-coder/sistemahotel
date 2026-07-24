@@ -57,6 +57,7 @@ import { complaintLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge } from "@/components/ui-kit";
 import { useRole, useSession } from "@/hooks/use-auth";
+import { ReceivablesPanel } from "@/components/ReceivablesPanel";
 
 export const Route = createFileRoute("/_authenticated/painel")({
   component: Painel,
@@ -330,6 +331,10 @@ function Painel() {
           monthDelta={delta(currentMetrics.avaliacao, previousMonthMetrics.avaliacao)}
           yearDelta={delta(currentMetrics.avaliacao, previousYearMetrics.avaliacao)}
         />
+      </div>
+
+      <div className="mt-3">
+        <ReceivablesPanel reservations={reservations} clients={clients} compact />
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-4">

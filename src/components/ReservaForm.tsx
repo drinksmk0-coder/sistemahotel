@@ -148,7 +148,7 @@ export function ReservaForm({
     const query = nome.trim().toLowerCase();
     if (clienteId || query.length < 2) return [];
     return clients
-      .filter((client) => client.nome.toLowerCase().includes(query))
+      .filter((client) => !client.tipo.startsWith("desativado:") && client.nome.toLowerCase().includes(query))
       .slice(0, 8);
   }, [clients, clienteId, nome]);
 

@@ -3,7 +3,6 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   BarChart3,
   BedDouble,
-  Building2,
   CreditCard,
   DollarSign,
   FileWarning,
@@ -35,7 +34,7 @@ const TABS = [
   { to: "/avaliacoes", label: "Avaliacoes", icon: Star, roles: ["dono", "recepcao"] },
   { to: "/qrcodes", label: "QR Codes", icon: QrCode, roles: ["dono", "recepcao"] },
   { to: "/integracoes", label: "Integracoes", icon: Settings, roles: ["dono"] },
-  { to: "/empresa", label: "Empresa", icon: Building2, roles: ["dono"] },
+  { to: "/empresa", label: "Configurações", icon: Settings, roles: ["dono"] },
   { to: "/equipe", label: "Equipe", icon: Users, roles: ["dono"] },
 ];
 

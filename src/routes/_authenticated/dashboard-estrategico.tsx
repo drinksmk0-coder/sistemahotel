@@ -46,6 +46,7 @@ import {
   type Sale,
 } from "@/lib/data";
 import { fmtBRL, todayISO } from "@/lib/format";
+import { ReceivablesPanel } from "@/components/ReceivablesPanel";
 
 export const Route = createFileRoute("/_authenticated/dashboard-estrategico")({
   component: DashboardEstrategico,
@@ -196,7 +197,7 @@ function DashboardEstrategico() {
       </section>
 
       <div className="grid gap-3 xl:grid-cols-[11rem_1fr]">
-        <nav className="grid grid-cols-2 gap-2 xl:block xl:space-y-2">
+        <nav className="flex flex-col gap-2">
           {[
             ["geral", "Visão geral"],
             ["canais", "Canais"],
@@ -225,7 +226,7 @@ function DashboardEstrategico() {
             <StoryKpi icon={<Star />} label="Avaliação" value={avaliacaoMedia ? avaliacaoMedia.toFixed(1) : "—"} hint={`${feedbacks.length} avaliações`} tone="pine" />
           </div>
 
-          <section className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+          <section className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
             <HotelMetricCard
               label="Taxa de Ocupação"
               value={`${taxaOcupacao.toFixed(1)}%`}
@@ -276,9 +277,11 @@ function DashboardEstrategico() {
             />
           </section>
 
-          <div className="grid gap-3 lg:grid-cols-[1fr_0.8fr_1fr]">
+          {(section === "geral" || section === "canais" || section === "quartos" || section === "clientes") && (
+          <div className="grid gap-3 xl:grid-cols-2">
+            {(section === "geral" || section === "canais") && (
             <ChartCard title="Avaliação por canal" icon={<BarChart3 />}>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={190}>
                 <BarChart data={allChannels} layout="vertical" margin={{ left: 16, right: 16 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis type="number" domain={[0, 5]} tick={{ fontSize: 11 }} />
@@ -288,9 +291,11 @@ function DashboardEstrategico() {
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
+            )}
 
+            {(section === "geral" || section === "quartos") && (
             <ChartCard title="Ocupação futura" icon={<Activity />}>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={190}>
                 <RadialBarChart innerRadius="68%" outerRadius="96%" data={[{ name: "Ocupação", value: ocupacao30, fill: COLORS.sage }]} startAngle={180} endAngle={0}>
                   <RadialBar dataKey="value" cornerRadius={10} background />
                   <text x="50%" y="54%" textAnchor="middle" className="fill-pine-dark font-serif text-3xl font-bold">
@@ -302,9 +307,11 @@ function DashboardEstrategico() {
                 </RadialBarChart>
               </ResponsiveContainer>
             </ChartCard>
+            )}
 
+            {(section === "geral" || section === "clientes") && (
             <ChartCard title="Lucro por região" icon={<MapPin />}>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={190}>
                 <AreaChart data={activeStateRows} margin={{ left: -16, right: 16 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="uf" tick={{ fontSize: 11 }} />
@@ -314,11 +321,14 @@ function DashboardEstrategico() {
                 </AreaChart>
               </ResponsiveContainer>
             </ChartCard>
+            )}
           </div>
+          )}
 
+          {(section === "geral" || section === "canais") && (
           <div className="grid gap-3 xl:grid-cols-2">
             <ChartCard title="Receita x custo por canal" icon={<DollarSign />}>
-              <ResponsiveContainer width="100%" height={230}>
+              <ResponsiveContainer width="100%" height={190}>
                 <BarChart data={allChannels} margin={{ left: -8, right: 12 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -332,7 +342,7 @@ function DashboardEstrategico() {
             </ChartCard>
 
             <ChartCard title="Canal x recorrência" icon={<Users />}>
-              <ResponsiveContainer width="100%" height={230}>
+              <ResponsiveContainer width="100%" height={190}>
                 <BarChart data={allChannels} margin={{ left: -8, right: 12 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -345,10 +355,13 @@ function DashboardEstrategico() {
               </ResponsiveContainer>
             </ChartCard>
           </div>
+          )}
 
-          <div className="grid gap-3 xl:grid-cols-[1fr_0.85fr]">
+          {(section === "geral" || section === "tendencias" || section === "clientes") && (
+          <div className="grid gap-3 xl:grid-cols-2">
+            {(section === "geral" || section === "tendencias") && (
             <ChartCard title="Previsão 30 dias: ocupação e receita" icon={<TrendingUp />}>
-              <ResponsiveContainer width="100%" height={230}>
+              <ResponsiveContainer width="100%" height={190}>
                 <LineChart data={forecast} margin={{ left: -8, right: 12 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -361,22 +374,70 @@ function DashboardEstrategico() {
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
+            )}
 
+            {(section === "geral" || section === "clientes") && (
             <ChartCard title="Clientes por estado" icon={<MapPin />}>
               <BrazilBubbleMap rows={activeStateRows} />
             </ChartCard>
+            )}
           </div>
+          )}
 
+          {(section === "geral" || section === "tendencias") && (
+          <div className="grid gap-3 xl:grid-cols-2">
+            <ChartCard title="Comparação dos últimos 12 meses" icon={<BarChart3 />}>
+              <ResponsiveContainer width="100%" height={190}>
+                <BarChart data={trends} margin={{ left: -8, right: 12 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="mes" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(value: number) => fmtBRL(value)} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Bar dataKey="receita" name="Receita" fill={COLORS.pine} radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="despesa" name="Despesas" fill={COLORS.brick} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+            <ChartCard title="Comparação dos últimos 6 meses" icon={<TrendingUp />}>
+              <ResponsiveContainer width="100%" height={190}>
+                <LineChart data={trends.slice(-6)} margin={{ left: -8, right: 12 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="mes" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(value: number) => fmtBRL(value)} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Line type="monotone" dataKey="receita" name="Receita" stroke={COLORS.pine} strokeWidth={2} />
+                  <Line type="monotone" dataKey="despesa" name="Despesas" stroke={COLORS.brick} strokeWidth={2} />
+                  <Line type="monotone" dataKey="lucro" name="Lucro" stroke={COLORS.brass} strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
+          )}
+
+          {(section === "geral" || section === "clientes") && (
+            <ReceivablesPanel reservations={filteredReservations} clients={clients} compact />
+          )}
+
+          {section === "geral" && (
           <div className="grid gap-3 xl:grid-cols-3">
             <InsightCard title="Preço dinâmico" text={pricingInsight(ocupacao30, today)} tone="brass" />
             <InsightCard title="Custos por quarto" text={costInsight(roomRows)} tone="pine" />
             <InsightCard title="Pós-estadia" text="Após checkout, use o botão de WhatsApp/recibo na reserva para pedir avaliação e oferecer desconto de retorno." tone="sage" />
           </div>
+          )}
 
+          {(section === "geral" || section === "quartos" || section === "clientes") && (
           <div className="grid gap-3 xl:grid-cols-2">
+            {(section === "geral" || section === "quartos") && (
             <TableCard title="Melhores quartos por margem" rows={roomRows.slice(0, 6)} columns={["Quarto", "Tipo", "Receita", "Custo", "Margem"]} />
+            )}
+            {(section === "geral" || section === "clientes") && (
             <TableCard title="Clientes recorrentes e empresas" rows={recurring.slice(0, 6)} columns={["Cliente", "Reservas", "Receita", "Última", "Status"]} />
+            )}
           </div>
+          )}
 
           {section !== "geral" && (
             <div className="rounded-lg border border-brass/35 bg-brass/10 px-3 py-2 text-xs text-pine-dark">
