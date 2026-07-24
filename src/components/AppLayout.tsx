@@ -3,7 +3,6 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   BarChart3,
   BedDouble,
-  Building2,
   CreditCard,
   DollarSign,
   FileWarning,
@@ -11,10 +10,12 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  PackageSearch,
   QrCode,
   Settings,
   Star,
   Users,
+  WalletCards,
   X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +27,9 @@ import { applySystemSettings, getSystemSettings } from "@/lib/system-settings";
 const TABS = [
   { to: "/painel", label: "Painel", icon: BarChart3, roles: ["dono", "recepcao", "limpeza", "cafe"] },
   { to: "/dashboard-estrategico", label: "Estratégico", icon: LayoutDashboard, roles: ["dono"] },
+  { to: "/financeiro", label: "Financeiro", icon: WalletCards, roles: ["dono"] },
+  { to: "/vendas-produtos", label: "Produtos", icon: PackageSearch, roles: ["dono", "recepcao"] },
+  { to: "/dashboard-quartos", label: "Quartos", icon: BedDouble, roles: ["dono", "recepcao"] },
   { to: "/mapa", label: "Mapa", icon: BedDouble, roles: ["dono", "recepcao"] },
   { to: "/reservas", label: "Reservas", icon: CreditCard, roles: ["dono", "recepcao"] },
   { to: "/clientes", label: "Clientes", icon: Users, roles: ["dono", "recepcao"] },
@@ -35,7 +39,7 @@ const TABS = [
   { to: "/avaliacoes", label: "Avaliacoes", icon: Star, roles: ["dono", "recepcao"] },
   { to: "/qrcodes", label: "QR Codes", icon: QrCode, roles: ["dono", "recepcao"] },
   { to: "/integracoes", label: "Integracoes", icon: Settings, roles: ["dono"] },
-  { to: "/empresa", label: "Empresa", icon: Building2, roles: ["dono"] },
+  { to: "/empresa", label: "Configurações", icon: Settings, roles: ["dono"] },
   { to: "/equipe", label: "Equipe", icon: Users, roles: ["dono"] },
 ];
 

@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Pencil, Plus, Printer, Search, Trash2 } from "lucide-react";
-import { useClients, useDelete, useInsert, useReservations, useUpdate, type Client } from "@/lib/data";
+import { Download, Pencil, Plus, Power, Printer, Search } from "lucide-react";
+import { useClients, useInsert, useReservations, useUpdate, type Client } from "@/lib/data";
 import { fmtBRL, fmtDate, downloadExcel, todayISO } from "@/lib/format";
 import { CLIENT_TYPES, BR_STATES, stateFromPhone } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
@@ -17,13 +17,13 @@ function Clientes() {
   const { data: reservations = [] } = useReservations();
   const insert = useInsert("clients", ["clients"]);
   const update = useUpdate("clients", ["clients", "reservations"]);
-  const remove = useDelete("clients", ["clients"]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [q, setQ] = useState("");
   const [createdFrom, setCreatedFrom] = useState("");
   const [createdTo, setCreatedTo] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<"ativos" | "desativados" | "todos">("ativos");
 
   const spentByClient = useMemo(() => {
     const m = new Map<string, number>();
@@ -43,7 +43,9 @@ function Clientes() {
       (c.cpf ?? "").includes(q);
     const matchesFrom = !createdFrom || created >= createdFrom;
     const matchesTo = !createdTo || created <= createdTo;
-    return matchesSearch && matchesFrom && matchesTo;
+    const disabled = isClientDisabled(c);
+    const matchesStatus = statusFilter === "todos" || (statusFilter === "desativados" ? disabled : !disabled);
+    return matchesSearch && matchesFrom && matchesTo && matchesStatus;
   });
   const filteredIds = filtered.map((client) => client.id);
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
@@ -125,6 +127,11 @@ function Clientes() {
           </Field>
         </div>
         <div className="flex flex-wrap items-end gap-2">
+          <select className="field h-10 w-auto" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
+            <option value="ativos">Ativos</option>
+            <option value="desativados">Desativados</option>
+            <option value="todos">Todos</option>
+          </select>
           <button
             type="button"
             className="btn-ghost"
@@ -136,19 +143,26 @@ function Clientes() {
           <button
             type="button"
             className="rounded-md bg-brick-bg px-3 py-2 text-sm font-semibold text-brick"
-            disabled={selectedIds.length === 0 || remove.isPending}
+            disabled={selectedIds.length === 0 || update.isPending}
             onClick={async () => {
-              if (!window.confirm(`Excluir ${selectedIds.length} cliente(s) selecionado(s)? Reservas vinculadas podem impedir a exclusão.`)) return;
+              if (!window.confirm(`Desativar ${selectedIds.length} cliente(s)? O histórico de reservas será mantido.`)) return;
               try {
-                await Promise.all(selectedIds.map((id) => remove.mutateAsync(id)));
-                toast.success("Clientes excluídos");
+                await Promise.all(
+                  selectedIds.map((id) => {
+                    const client = clients.find((item) => item.id === id);
+                    return client && !isClientDisabled(client)
+                      ? update.mutateAsync({ id, patch: { tipo: `desativado:${client.tipo}` } })
+                      : Promise.resolve();
+                  }),
+                );
+                toast.success("Clientes desativados; histórico preservado");
                 setSelectedIds([]);
               } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Falha ao excluir clientes");
+                toast.error(e instanceof Error ? e.message : "Falha ao desativar clientes");
               }
             }}
           >
-            Excluir selecionados
+            Desativar selecionados
           </button>
         </div>
       </div>
@@ -180,7 +194,9 @@ function Clientes() {
                 )}
                   </div>
                 </div>
-                <Badge tone={c.tipo === "cliente fixo" ? "brass" : "sage"}>{c.tipo}</Badge>
+                <Badge tone={isClientDisabled(c) ? "slate" : c.tipo === "cliente fixo" ? "brass" : "sage"}>
+                  {isClientDisabled(c) ? "desativado" : c.tipo}
+                </Badge>
               </div>
               <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
                 {c.cpf && <p>CPF: {c.cpf}</p>}
@@ -233,17 +249,18 @@ function Clientes() {
                 </button>
                 <button
                   type="button"
-                  className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
+                  className={`rounded-md px-2 py-1 text-xs font-semibold ${isClientDisabled(c) ? "bg-sage-bg text-pine-dark" : "bg-brick-bg text-brick"}`}
                   onClick={() => {
-                    if (!window.confirm(`Excluir cliente ${c.nome}? Reservas vinculadas podem impedir a exclusão.`)) return;
-                    remove.mutate(c.id, {
-                      onSuccess: () => toast.success("Cliente excluído"),
+                    const disabling = !isClientDisabled(c);
+                    if (!window.confirm(`${disabling ? "Desativar" : "Reativar"} ${c.nome}? O histórico de reservas será preservado.`)) return;
+                    update.mutate({ id: c.id, patch: { tipo: disabling ? `desativado:${c.tipo}` : activeClientType(c) } }, {
+                      onSuccess: () => toast.success(disabling ? "Cliente desativado" : "Cliente reativado"),
                       onError: (e) => toast.error(e.message),
                     });
                   }}
-                  title="Excluir cliente"
+                  title={isClientDisabled(c) ? "Reativar cliente" : "Desativar cliente"}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Power className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
@@ -285,6 +302,14 @@ function Clientes() {
       )}
     </div>
   );
+}
+
+function isClientDisabled(client: Client) {
+  return client.tipo.startsWith("desativado:");
+}
+
+function activeClientType(client: Client) {
+  return client.tipo.replace(/^desativado:/, "") || "hóspede normal";
 }
 
 function ClientForm({

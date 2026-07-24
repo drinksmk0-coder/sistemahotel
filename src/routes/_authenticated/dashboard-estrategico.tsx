@@ -5,10 +5,7 @@ import {
   BarChart3,
   BedDouble,
   DollarSign,
-  Filter,
   MapPin,
-  PieChart as PieChartIcon,
-  Star,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -18,12 +15,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   RadialBar,
   RadialBarChart,
   ResponsiveContainer,
@@ -46,6 +40,9 @@ import {
   type Sale,
 } from "@/lib/data";
 import { fmtBRL, todayISO } from "@/lib/format";
+import { ReceivablesPanel } from "@/components/ReceivablesPanel";
+import { PeriodSelector } from "@/components/DashboardKit";
+import { inRange, periodRange, rangeDays, type DashboardPeriod } from "@/lib/dashboard-utils";
 
 export const Route = createFileRoute("/_authenticated/dashboard-estrategico")({
   component: DashboardEstrategico,
@@ -71,13 +68,6 @@ const CHANNEL_COST: Record<string, number> = {
   site: 0,
 };
 
-const FALLBACK_CHANNELS = [
-  { name: "WhatsApp", receita: 1320, custo: 0, recorrentes: 6, novos: 4, avaliacao: 4.8 },
-  { name: "Booking", receita: 980, custo: 127.4, recorrentes: 1, novos: 7, avaliacao: 4.4 },
-  { name: "Instagram", receita: 680, custo: 0, recorrentes: 2, novos: 3, avaliacao: 4.7 },
-  { name: "Direto", receita: 510, custo: 0, recorrentes: 4, novos: 1, avaliacao: 4.9 },
-];
-
 function DashboardEstrategico() {
   const today = todayISO();
   const { data: rooms = [] } = useRooms();
@@ -87,80 +77,57 @@ function DashboardEstrategico() {
   const { data: clients = [] } = useClients();
   const { data: feedbacks = [] } = useFeedbacks();
   const [section, setSection] = useState<DashboardSection>("geral");
-  const [year, setYear] = useState(() => today.slice(0, 4));
-  const [month, setMonth] = useState("todos");
-  const [channel, setChannel] = useState("todos");
-  const [state, setState] = useState("todos");
-  const [roomType, setRoomType] = useState("todos");
-
-  const years = useMemo(() => availableYears(reservations, expenses, today), [reservations, expenses, today]);
-  const roomTypes = useMemo(() => uniqueSorted(rooms.map((room) => roomLabel(room))), [rooms]);
+  const [period, setPeriod] = useState<DashboardPeriod>("mes");
+  const range = periodRange(period, today);
   const clientById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
 
   const filteredReservations = useMemo(
     () =>
-      reservations.filter((reservation) => {
-        const date = reservation.checkin || reservation.created_at || "";
-        if (year !== "todos" && !date.startsWith(year)) return false;
-        if (month !== "todos" && date.slice(5, 7) !== month) return false;
-        const currentChannel = normalizeChannel(readChannel(reservation));
-        if (channel !== "todos" && currentChannel !== channel) return false;
-        const client = clientById.get(readClientId(reservation) ?? "");
-        if (state !== "todos" && normalizeState(String(client?.estado ?? "")) !== state) return false;
-        if (roomType !== "todos") {
-          const room = rooms.find((item) => item.numero === reservation.quarto);
-          if (!room || roomLabel(room) !== roomType) return false;
-        }
-        return reservation.status !== "manutencao";
-      }),
-    [channel, clientById, month, reservations, roomType, rooms, state, year],
+      reservations.filter(
+        (reservation) => reservation.status !== "manutencao" && inRange(reservation.checkin, range),
+      ),
+    [range, reservations],
   );
 
   const filteredExpenses = useMemo(
-    () =>
-      expenses.filter((expense) => {
-        const date = expense.data || expense.created_at || "";
-        if (year !== "todos" && !date.startsWith(year)) return false;
-        if (month !== "todos" && date.slice(5, 7) !== month) return false;
-        return true;
-      }),
-    [expenses, month, year],
+    () => expenses.filter((expense) => inRange(expense.data, range)),
+    [expenses, range],
   );
+  const filteredSales = useMemo(() => sales.filter((sale) => inRange(sale.data, range)), [range, sales]);
 
   const channelRows = useMemo(
-    () => buildChannelRows(filteredReservations, sales, clients, feedbacks),
-    [clients, feedbacks, filteredReservations, sales],
+    () => buildChannelRows(filteredReservations, filteredSales, clients, feedbacks),
+    [clients, feedbacks, filteredReservations, filteredSales],
   );
   const stateRows = useMemo(
     () => buildStateRows(filteredReservations, clients, clientById),
     [clientById, clients, filteredReservations],
   );
-  const roomRows = useMemo(() => buildRoomRows(filteredReservations, rooms, sales, filteredExpenses), [filteredReservations, filteredExpenses, rooms, sales]);
-  const trends = useMemo(() => buildMonthlyStory(filteredReservations, sales, filteredExpenses, year), [filteredExpenses, filteredReservations, sales, year]);
+  const roomRows = useMemo(() => buildRoomRows(filteredReservations, rooms, filteredSales, filteredExpenses), [filteredExpenses, filteredReservations, filteredSales, rooms]);
+  const trends = useMemo(() => buildMonthlyStory(reservations, sales, expenses, today.slice(0, 4)), [expenses, reservations, sales, today]);
 
   const receitaHospedagem = filteredReservations.reduce((sum, reservation) => sum + reservationRevenue(reservation), 0);
-  const receitaExtra = sales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
+  const receitaExtra = filteredSales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
   const receita = receitaHospedagem + receitaExtra;
   const despesas = filteredExpenses.reduce((sum, expense) => sum + Number(expense.valor ?? 0), 0);
   const lucro = receita - despesas;
   const margem = receita > 0 ? Math.round((lucro / receita) * 100) : 0;
   const totalReservas = filteredReservations.filter((reservation) => reservation.status !== "cancelado").length;
-  const diasPeriodo = periodDays(year, month);
+  const diasPeriodo = rangeDays(range);
   const uhsDisponiveis = rooms.length * diasPeriodo;
   const uhsVendidas = occupiedRoomNights(filteredReservations);
   const taxaOcupacao = safePercent(uhsVendidas, uhsDisponiveis);
-  const diariaMedia = safeDivide(receitaHospedagem, uhsVendidas);
-  const revpar = safeDivide(receitaHospedagem, uhsDisponiveis);
-  const trevpar = safeDivide(receita, uhsDisponiveis);
-  const goppar = safeDivide(lucro, uhsDisponiveis);
   const clientesPeriodo = uniqueReservationClients(filteredReservations);
   const mediaPorCliente = safeDivide(receita, clientesPeriodo);
-  const avaliacaoMedia = average(feedbacks.map((feedback) => Number(feedback.nota_geral ?? 0)).filter(Boolean));
   const ocupacao30 = futureOccupancy(filteredReservations, rooms.length, today, 30);
-  const forecast = useMemo(() => buildForecast(filteredReservations, rooms.length, today), [filteredReservations, rooms.length, today]);
+  const forecast = useMemo(() => buildForecast(reservations, rooms.length, today), [reservations, rooms.length, today]);
   const recurring = useMemo(() => recurringByClient(filteredReservations), [filteredReservations]);
+  const aReceber = filteredReservations.reduce(
+    (sum, reservation) => sum + Math.max(0, Number(reservation.valor_total) - Number(reservation.valor_pago)),
+    0,
+  );
 
-  const allChannels = channelRows.length ? channelRows : FALLBACK_CHANNELS;
+  const allChannels = channelRows;
   const activeStateRows = stateRows.length ? stateRows : [{ uf: "MG", label: "Minas Gerais", value: clients.length || 8, receita: receita || 2100 }];
 
   return (
@@ -175,28 +142,17 @@ function DashboardEstrategico() {
               <p className="mt-0.5 text-xs text-white/80">Receita, canais, clientes e operação em uma narrativa de decisão.</p>
             </div>
           </div>
-          <a href="/painel" className="rounded-md bg-white/12 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20">
-            Voltar ao painel
-          </a>
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodSelector value={period} onChange={setPeriod} />
+            <a href="/painel" className="rounded-md bg-white/12 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20">
+              Voltar ao painel
+            </a>
+          </div>
         </div>
       </header>
 
-      <section className="rounded-lg border border-brass/35 bg-card/95 p-3 shadow-sm">
-        <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase text-pine-dark">
-          <Filter className="h-4 w-4 text-brass" />
-          Filtros do dashboard
-        </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          <FilterSelect label="Ano" value={year} onChange={setYear} options={[{ value: "todos", label: "Todos" }, ...years.map((item) => ({ value: item, label: item }))]} />
-          <FilterSelect label="Mês" value={month} onChange={setMonth} options={[{ value: "todos", label: "Todos" }, ...MONTHS]} />
-          <FilterSelect label="Canal" value={channel} onChange={setChannel} options={[{ value: "todos", label: "Todos" }, ...uniqueSorted(allChannels.map((item) => normalizeChannel(item.name))).map((item) => ({ value: item, label: labelize(item) }))]} />
-          <FilterSelect label="Região" value={state} onChange={setState} options={[{ value: "todos", label: "Todos" }, ...activeStateRows.map((item) => ({ value: item.uf, label: item.uf }))]} />
-          <FilterSelect label="Tipo quarto" value={roomType} onChange={setRoomType} options={[{ value: "todos", label: "Todos" }, ...roomTypes.map((item) => ({ value: item, label: item }))]} />
-        </div>
-      </section>
-
       <div className="grid gap-3 xl:grid-cols-[11rem_1fr]">
-        <nav className="grid grid-cols-2 gap-2 xl:block xl:space-y-2">
+        <nav className="flex flex-col gap-2">
           {[
             ["geral", "Visão geral"],
             ["canais", "Canais"],
@@ -217,80 +173,19 @@ function DashboardEstrategico() {
         </nav>
 
         <main className="min-w-0 space-y-3">
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
             <StoryKpi icon={<BedDouble />} label="Reservas" value={String(totalReservas)} hint="período filtrado" tone="pine" />
             <StoryKpi icon={<DollarSign />} label="Receita" value={fmtBRL(receita)} hint="reservas + vendas" tone="sage" />
-            <StoryKpi icon={<DollarSign />} label="Despesas" value={fmtBRL(despesas)} hint="custos lançados" tone="brick" />
-            <StoryKpi icon={<TrendingUp />} label="Margem" value={`${margem}%`} hint={fmtBRL(lucro)} tone="brass" />
-            <StoryKpi icon={<Star />} label="Avaliação" value={avaliacaoMedia ? avaliacaoMedia.toFixed(1) : "—"} hint={`${feedbacks.length} avaliações`} tone="pine" />
+            <StoryKpi icon={<DollarSign />} label="A receber" value={fmtBRL(aReceber)} hint="saldo das reservas" tone="brass" />
+            <StoryKpi icon={<Activity />} label="Ocupação" value={`${taxaOcupacao.toFixed(1)}%`} hint={`${uhsVendidas}/${uhsDisponiveis} UHs`} tone="pine" />
+            <StoryKpi icon={<TrendingUp />} label="Lucro" value={fmtBRL(lucro)} hint={`${margem}% de margem`} tone={lucro >= 0 ? "sage" : "brick"} />
+            <StoryKpi icon={<Users />} label="Ticket médio" value={fmtBRL(mediaPorCliente)} hint={`${clientesPeriodo} cliente(s)`} tone="sage" />
           </div>
 
-          <section className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
-            <HotelMetricCard
-              label="Taxa de Ocupação"
-              value={`${taxaOcupacao.toFixed(1)}%`}
-              formula={`${uhsVendidas} UHs vendidas / ${uhsDisponiveis} UHs disponíveis`}
-              meaning="Mostra quanto da capacidade operacional ficou ocupada no período filtrado."
-              strategy={occupancyStrategy(taxaOcupacao)}
-              tone="pine"
-            />
-            <HotelMetricCard
-              label="Diária Média"
-              value={fmtBRL(diariaMedia)}
-              formula={`${fmtBRL(receitaHospedagem)} / ${uhsVendidas} UHs vendidas`}
-              meaning="Mostra o preço médio pago por quarto vendido, desconsiderando cortesias, manutenção e uso interno."
-              strategy={adrStrategy(diariaMedia, revpar)}
-              tone="sage"
-            />
-            <HotelMetricCard
-              label="RevPAR"
-              value={fmtBRL(revpar)}
-              formula={`${fmtBRL(receitaHospedagem)} / ${uhsDisponiveis} UHs disponíveis`}
-              meaning="Mede a eficiência comercial considerando todos os quartos disponíveis, vendidos ou não."
-              strategy={revparStrategy(revpar, diariaMedia, taxaOcupacao)}
-              tone="brass"
-            />
-            <HotelMetricCard
-              label="TRevPAR"
-              value={fmtBRL(trevpar)}
-              formula={`${fmtBRL(receita)} / ${uhsDisponiveis} UHs disponíveis`}
-              meaning="Inclui hospedagem e receitas extras, como consumo, restaurante, bar, serviços, day use e eventos."
-              strategy={trevparStrategy(receitaExtra, receita)}
-              tone="pine"
-            />
-            <HotelMetricCard
-              label="Média por Cliente"
-              value={fmtBRL(mediaPorCliente)}
-              formula={`${fmtBRL(receita)} / ${clientesPeriodo} cliente(s)`}
-              meaning="Mostra quanto cada cliente gerou em média somando hospedagem e extras no período."
-              strategy={clientAverageStrategy(mediaPorCliente)}
-              tone="sage"
-            />
-            <HotelMetricCard
-              label="GOPPAR"
-              value={fmtBRL(goppar)}
-              formula={`${fmtBRL(lucro)} / ${uhsDisponiveis} UHs disponíveis`}
-              meaning="Mostra o lucro operacional bruto por quarto disponível depois das despesas lançadas."
-              strategy={gopparStrategy(goppar)}
-              tone={goppar < 0 ? "brick" : "brass"}
-            />
-          </section>
-
-          <div className="grid gap-3 lg:grid-cols-[1fr_0.8fr_1fr]">
-            <ChartCard title="Avaliação por canal" icon={<BarChart3 />}>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={allChannels} layout="vertical" margin={{ left: 16, right: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis type="number" domain={[0, 5]} tick={{ fontSize: 11 }} />
-                  <YAxis dataKey="name" type="category" tick={{ fontSize: 11 }} width={76} />
-                  <Tooltip />
-                  <Bar dataKey="avaliacao" name="Avaliação" fill={COLORS.brass} radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
+          {section === "geral" && (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
             <ChartCard title="Ocupação futura" icon={<Activity />}>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={190}>
                 <RadialBarChart innerRadius="68%" outerRadius="96%" data={[{ name: "Ocupação", value: ocupacao30, fill: COLORS.sage }]} startAngle={180} endAngle={0}>
                   <RadialBar dataKey="value" cornerRadius={10} background />
                   <text x="50%" y="54%" textAnchor="middle" className="fill-pine-dark font-serif text-3xl font-bold">
@@ -302,23 +197,13 @@ function DashboardEstrategico() {
                 </RadialBarChart>
               </ResponsiveContainer>
             </ChartCard>
-
-            <ChartCard title="Lucro por região" icon={<MapPin />}>
-              <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={activeStateRows} margin={{ left: -16, right: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="uf" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(value: number) => fmtBRL(value)} />
-                  <Area type="monotone" dataKey="receita" name="Receita" stroke={COLORS.pine} fill={COLORS.sage} fillOpacity={0.28} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </ChartCard>
           </div>
+          )}
 
-          <div className="grid gap-3 xl:grid-cols-2">
+          {section === "canais" && (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
             <ChartCard title="Receita x custo por canal" icon={<DollarSign />}>
-              <ResponsiveContainer width="100%" height={230}>
+              <ResponsiveContainer width="100%" height={190}>
                 <BarChart data={allChannels} margin={{ left: -8, right: 12 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -332,7 +217,7 @@ function DashboardEstrategico() {
             </ChartCard>
 
             <ChartCard title="Canal x recorrência" icon={<Users />}>
-              <ResponsiveContainer width="100%" height={230}>
+              <ResponsiveContainer width="100%" height={190}>
                 <BarChart data={allChannels} margin={{ left: -8, right: 12 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
@@ -345,10 +230,31 @@ function DashboardEstrategico() {
               </ResponsiveContainer>
             </ChartCard>
           </div>
+          )}
 
-          <div className="grid gap-3 xl:grid-cols-[1fr_0.85fr]">
+          {section === "clientes" && (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+            <ChartCard title="Clientes por estado" icon={<MapPin />}>
+              <BrazilBubbleMap rows={activeStateRows} />
+            </ChartCard>
+            <ChartCard title="Lucro por região" icon={<MapPin />}>
+              <ResponsiveContainer width="100%" height={190}>
+                <AreaChart data={activeStateRows} margin={{ left: -16, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="uf" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value: number) => fmtBRL(value)} />
+                  <Area type="monotone" dataKey="receita" name="Receita" stroke={COLORS.pine} fill={COLORS.sage} fillOpacity={0.28} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
+          )}
+
+          {section === "tendencias" && (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
             <ChartCard title="Previsão 30 dias: ocupação e receita" icon={<TrendingUp />}>
-              <ResponsiveContainer width="100%" height={230}>
+              <ResponsiveContainer width="100%" height={190}>
                 <LineChart data={forecast} margin={{ left: -8, right: 12 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
@@ -361,46 +267,66 @@ function DashboardEstrategico() {
                 </LineChart>
               </ResponsiveContainer>
             </ChartCard>
-
-            <ChartCard title="Clientes por estado" icon={<MapPin />}>
-              <BrazilBubbleMap rows={activeStateRows} />
+            <ChartCard title="Receita, despesa e lucro por mês" icon={<BarChart3 />}>
+              <ResponsiveContainer width="100%" height={190}>
+                <LineChart data={trends} margin={{ left: -8, right: 12 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="mes" tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(value: number) => fmtBRL(value)} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  <Line type="monotone" dataKey="receita" name="Receita" stroke={COLORS.pine} strokeWidth={2} />
+                  <Line type="monotone" dataKey="despesa" name="Despesas" stroke={COLORS.brick} strokeWidth={2} />
+                  <Line type="monotone" dataKey="lucro" name="Lucro" stroke={COLORS.brass} strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
             </ChartCard>
           </div>
+          )}
 
+          {section === "quartos" && (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+            <ChartCard title="Receita por quarto" icon={<BedDouble />}>
+              <ResponsiveContainer width="100%" height={190}>
+                <BarChart data={roomRows.slice(0, 8)} margin={{ left: -8, right: 12 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="Quarto" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip formatter={(value: number) => fmtBRL(value)} />
+                  <Bar dataKey="receitaRaw" name="Receita" fill={COLORS.pine} radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+            <TableCard title="Melhores quartos por margem" rows={roomRows.slice(0, 5)} columns={["Quarto", "Tipo", "Receita", "Custo", "Margem"]} />
+          </div>
+          )}
+
+          {section === "clientes" && (
+            <ReceivablesPanel reservations={filteredReservations} clients={clients} compact />
+          )}
+
+          {section === "geral" && (
           <div className="grid gap-3 xl:grid-cols-3">
             <InsightCard title="Preço dinâmico" text={pricingInsight(ocupacao30, today)} tone="brass" />
             <InsightCard title="Custos por quarto" text={costInsight(roomRows)} tone="pine" />
             <InsightCard title="Pós-estadia" text="Após checkout, use o botão de WhatsApp/recibo na reserva para pedir avaliação e oferecer desconto de retorno." tone="sage" />
           </div>
+          )}
 
-          <div className="grid gap-3 xl:grid-cols-2">
-            <TableCard title="Melhores quartos por margem" rows={roomRows.slice(0, 6)} columns={["Quarto", "Tipo", "Receita", "Custo", "Margem"]} />
+          {section === "clientes" && (
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
             <TableCard title="Clientes recorrentes e empresas" rows={recurring.slice(0, 6)} columns={["Cliente", "Reservas", "Receita", "Última", "Status"]} />
           </div>
+          )}
 
           {section !== "geral" && (
             <div className="rounded-lg border border-brass/35 bg-brass/10 px-3 py-2 text-xs text-pine-dark">
-              Foco ativo: <strong>{sectionLabel(section)}</strong>. Os filtros acima continuam valendo para todos os gráficos desta tela.
+              Foco ativo: <strong>{sectionLabel(section)}</strong>. O seletor Dia/Mês/Ano recalcula esta tela.
             </div>
           )}
         </main>
       </div>
     </div>
-  );
-}
-
-function FilterSelect({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) {
-  return (
-    <label className="min-w-0">
-      <span className="mb-1 block text-[10px] font-bold uppercase text-muted-foreground">{label}</span>
-      <select className="field h-9 min-w-0 text-xs" value={value} onChange={(event) => onChange(event.target.value)}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 
@@ -423,49 +349,9 @@ function StoryKpi({ icon, label, value, hint, tone }: { icon: React.ReactNode; l
   );
 }
 
-function HotelMetricCard({
-  label,
-  value,
-  formula,
-  meaning,
-  strategy,
-  tone,
-}: {
-  label: string;
-  value: string;
-  formula: string;
-  meaning: string;
-  strategy: string;
-  tone: "pine" | "sage" | "brass" | "brick";
-}) {
-  const toneClass = {
-    pine: "border-pine/35 bg-pine/5",
-    sage: "border-sage/45 bg-sage-bg/55",
-    brass: "border-brass/50 bg-brass/10",
-    brick: "border-brick/45 bg-brick/10",
-  }[tone];
-  return (
-    <article className={`min-w-0 rounded-lg border px-3 py-2 shadow-sm ${toneClass}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="truncate text-[11px] font-bold uppercase text-pine-dark">{label}</h2>
-          <p className="font-serif text-lg font-bold text-pine-dark">{value}</p>
-        </div>
-        <Activity className="h-4 w-4 shrink-0 text-brass" />
-      </div>
-      <p className="truncate text-[10px] text-muted-foreground">{formula}</p>
-      <details className="mt-1 text-[11px]">
-        <summary className="cursor-pointer font-semibold text-pine">Ver explicação</summary>
-        <p className="mt-1 leading-relaxed text-muted-foreground">{meaning}</p>
-        <p className="mt-1 rounded-md bg-white/65 px-2 py-1.5 leading-relaxed text-pine-dark">{strategy}</p>
-      </details>
-    </article>
-  );
-}
-
 function ChartCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="min-w-0 rounded-lg border border-border bg-card p-3 shadow-sm">
+    <section className="min-w-0 rounded-lg border border-border bg-card p-3 shadow-sm lg:col-span-6">
       <h2 className="mb-2 flex items-center gap-2 text-xs font-bold uppercase text-pine-dark [&>svg]:h-4 [&>svg]:w-4 [&>svg]:text-brass">
         {icon}
         {title}
@@ -487,7 +373,7 @@ function InsightCard({ title, text, tone }: { title: string; text: string; tone:
 
 function TableCard({ title, rows, columns }: { title: string; rows: Record<string, unknown>[]; columns: string[] }) {
   return (
-    <section className="rounded-lg border border-border bg-card p-3 shadow-sm">
+    <section className="rounded-lg border border-border bg-card p-3 shadow-sm lg:col-span-6">
       <h2 className="mb-2 text-xs font-bold uppercase text-pine-dark">{title}</h2>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[520px] text-xs">
@@ -629,6 +515,8 @@ function buildRoomRows(reservations: Reservation[], rooms: Room[], sales: Sale[]
       Receita: fmtBRL(row.receita),
       Custo: fmtBRL(row.custo),
       Margem: fmtBRL(row.receita - row.custo),
+      receitaRaw: row.receita,
+      custoRaw: row.custo,
       raw: row.receita - row.custo,
     }))
     .sort((a, b) => Number(b.raw) - Number(a.raw));

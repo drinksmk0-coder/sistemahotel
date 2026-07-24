@@ -51,12 +51,32 @@ import {
   type KitchenProduction,
   type Expense,
   type Feedback,
+  type Complaint,
 } from "@/lib/data";
 import { fmtBRL, todayISO } from "@/lib/format";
 import { complaintLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge } from "@/components/ui-kit";
 import { useRole, useSession } from "@/hooks/use-auth";
+import { ReceivablesPanel } from "@/components/ReceivablesPanel";
+import {
+  AlertBanner,
+  ChartPanel,
+  CompactKpi,
+  DashboardHeader,
+  ShortList,
+} from "@/components/DashboardKit";
+import {
+  expensesTotal,
+  inRange,
+  normalizeChannel,
+  percentChange,
+  periodRange,
+  reservationReceived,
+  reservationRevenue,
+  saleReceived,
+  type DashboardPeriod,
+} from "@/lib/dashboard-utils";
 
 export const Route = createFileRoute("/_authenticated/painel")({
   component: Painel,
@@ -256,6 +276,24 @@ function Painel() {
     );
   }
 
+  if (role === "dono") {
+    return (
+      <OwnerCompactDashboard
+        period={period}
+        setPeriod={setPeriod}
+        today={today}
+        rooms={rooms}
+        reservations={reservations}
+        sales={sales}
+        expenses={expenses}
+        clients={clients}
+        complaints={complaints}
+        expenseLaunchAlert={expenseLaunchAlert}
+        cancellationAlert={alerta}
+      />
+    );
+  }
+
   return (
     <div>
       <OwnerDashboardHero period={period} setPeriod={setPeriod} today={today} />
@@ -330,6 +368,10 @@ function Painel() {
           monthDelta={delta(currentMetrics.avaliacao, previousMonthMetrics.avaliacao)}
           yearDelta={delta(currentMetrics.avaliacao, previousYearMetrics.avaliacao)}
         />
+      </div>
+
+      <div className="mt-3">
+        <ReceivablesPanel reservations={reservations} clients={clients} compact />
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-4">
@@ -493,6 +535,138 @@ function Painel() {
           </p>
           <WifiInsight complaints={complaints} feedbacks={feedbacks} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function OwnerCompactDashboard({
+  period,
+  setPeriod,
+  today,
+  rooms,
+  reservations,
+  sales,
+  expenses,
+  clients,
+  complaints,
+  expenseLaunchAlert,
+  cancellationAlert,
+}: {
+  period: DashboardPeriod;
+  setPeriod: (period: DashboardPeriod) => void;
+  today: string;
+  rooms: Room[];
+  reservations: Reservation[];
+  sales: Sale[];
+  expenses: Expense[];
+  clients: Client[];
+  complaints: Complaint[];
+  expenseLaunchAlert: boolean;
+  cancellationAlert: boolean;
+}) {
+  const range = periodRange(period, today);
+  const previousRange = periodRange(period, today, -1);
+  const previousYearToday = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`;
+  const previousYearRange = periodRange(period, previousYearToday);
+  const periodReservations = reservations.filter((reservation) => inRange(reservation.checkin, range));
+  const previousReservations = reservations.filter((reservation) => inRange(reservation.checkin, previousRange));
+  const yearReservations = reservations.filter((reservation) => inRange(reservation.checkin, previousYearRange));
+  const periodSales = sales.filter((sale) => inRange(sale.data, range));
+  const periodExpenses = expenses.filter((expense) => inRange(expense.data, range));
+  const revenue = periodReservations.reduce((sum, reservation) => sum + reservationReceived(reservation), 0) +
+    periodSales.reduce((sum, sale) => sum + saleReceived(sale), 0);
+  const previousRevenue = previousReservations.reduce((sum, reservation) => sum + reservationReceived(reservation), 0);
+  const yearRevenue = yearReservations.reduce((sum, reservation) => sum + reservationReceived(reservation), 0);
+  const cost = expensesTotal(periodExpenses);
+  const profit = revenue - cost;
+  const pending = reservations
+    .filter((reservation) => reservation.status !== "cancelado")
+    .reduce((sum, reservation) => sum + Math.max(0, reservationRevenue(reservation) - reservationReceived(reservation)), 0);
+  const occupied = rooms.filter(
+    (room) => roomStatusToday(reservations, room.numero, today, room.situacao) === "ocupado",
+  ).length;
+  const occupancy = rooms.length ? (occupied / rooms.length) * 100 : 0;
+
+  const channelMap = new Map<string, number>();
+  periodReservations.forEach((reservation) => {
+    const channel = normalizeChannel(reservation.canal);
+    channelMap.set(channel, (channelMap.get(channel) ?? 0) + reservationRevenue(reservation));
+  });
+  const channelRows = [...channelMap].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+
+  const paymentMap = new Map<string, number>();
+  periodReservations.forEach((reservation) => {
+    const payment = reservation.pagamento || "Não informado";
+    paymentMap.set(payment, (paymentMap.get(payment) ?? 0) + reservationReceived(reservation));
+  });
+  const paymentRows = [...paymentMap].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  const expenseRows = periodExpenses
+    .slice()
+    .sort((a, b) => Number(b.valor) - Number(a.valor))
+    .map((expense) => ({ label: expense.descricao, value: fmtBRL(expense.valor), hint: expense.categoria }));
+  const complaintMap = new Map<number, number>();
+  complaints
+    .filter((complaint) => complaint.status !== "resolvido" && complaint.quarto != null)
+    .forEach((complaint) => complaintMap.set(complaint.quarto!, (complaintMap.get(complaint.quarto!) ?? 0) + 1));
+  const problemRooms = [...complaintMap]
+    .sort((a, b) => b[1] - a[1])
+    .map(([room, count]) => ({ label: `Quarto ${room}`, value: `${count} aberta(s)`, highlight: count >= 2 }));
+
+  return (
+    <div className="space-y-3 pb-6">
+      <DashboardHeader
+        title="Painel de Operação"
+        subtitle="Só o que exige uma decisão hoje."
+        period={period}
+        onPeriodChange={setPeriod}
+      />
+      {expenseLaunchAlert && (
+        <AlertBanner title="Hotel ocupado sem lançamento recente de despesas" tone="brass">
+          Confira café, limpeza, reposição e compras para não superestimar o lucro.
+        </AlertBanner>
+      )}
+      {cancellationAlert && (
+        <AlertBanner title="Cancelamentos acima do comparecimento">
+          Revise os motivos e as regras de confirmação das reservas.
+        </AlertBanner>
+      )}
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+        <CompactKpi label="Receita recebida" value={fmtBRL(revenue)} previousDelta={percentChange(revenue, previousRevenue)} yearDelta={percentChange(revenue, yearRevenue)} />
+        <CompactKpi label="A receber" value={fmtBRL(pending)} />
+        <CompactKpi label="Despesas" value={fmtBRL(cost)} lowerIsBetter />
+        <CompactKpi label="Lucro" value={fmtBRL(profit)} />
+        <CompactKpi label="Ocupação agora" value={`${occupancy.toFixed(1)}%`} />
+        <CompactKpi label="Quartos livres" value={String(rooms.length - occupied)} />
+      </div>
+      <ReceivablesPanel reservations={reservations} clients={clients} compact />
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+        <ChartPanel title="Receita por canal" span={6}>
+          <ResponsiveContainer width="100%" height={210}>
+            <PieChart>
+              <Pie data={channelRows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={82}>
+                {channelRows.map((row, index) => <Cell key={row.name} fill={index % 2 ? "var(--sage)" : "var(--pine)"} />)}
+              </Pie>
+              <Tooltip formatter={(value: number) => fmtBRL(value)} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartPanel>
+        <ChartPanel title="Formas de pagamento" span={6}>
+          <ResponsiveContainer width="100%" height={210}>
+            <BarChart data={paymentRows} layout="vertical" margin={{ left: 34, right: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis type="number" tick={{ fontSize: 9 }} />
+              <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9 }} />
+              <Tooltip formatter={(value: number) => fmtBRL(value)} />
+              <Bar dataKey="value" name="Recebido" fill="var(--pine)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartPanel>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ShortList title="Maiores despesas" rows={expenseRows} />
+        <ShortList title="Quartos com problemas" rows={problemRooms} />
       </div>
     </div>
   );

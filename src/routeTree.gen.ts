@@ -16,6 +16,7 @@ import { Route as AvaliarRouteImport } from './routes/avaliar'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedVendasProdutosRouteImport } from './routes/_authenticated/vendas-produtos'
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
 import { Route as AuthenticatedReservasRouteImport } from './routes/_authenticated/reservas'
 import { Route as AuthenticatedReclamacoesRouteImport } from './routes/_authenticated/reclamacoes'
@@ -23,9 +24,11 @@ import { Route as AuthenticatedQrcodesRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
 import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenticated/integracoes'
+import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticated/empresa'
 import { Route as AuthenticatedDespesasRouteImport } from './routes/_authenticated/despesas'
+import { Route as AuthenticatedDashboardQuartosRouteImport } from './routes/_authenticated/dashboard-quartos'
 import { Route as AuthenticatedDashboardEstrategicoRouteImport } from './routes/_authenticated/dashboard-estrategico'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedAvaliacoesRouteImport } from './routes/_authenticated/avaliacoes'
@@ -64,6 +67,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedVendasProdutosRoute =
+  AuthenticatedVendasProdutosRouteImport.update({
+    id: '/vendas-produtos',
+    path: '/vendas-produtos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedVendasRoute = AuthenticatedVendasRouteImport.update({
   id: '/vendas',
   path: '/vendas',
@@ -101,6 +110,11 @@ const AuthenticatedIntegracoesRoute =
     path: '/integracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFinanceiroRoute = AuthenticatedFinanceiroRouteImport.update({
+  id: '/financeiro',
+  path: '/financeiro',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
   id: '/equipe',
   path: '/equipe',
@@ -116,6 +130,12 @@ const AuthenticatedDespesasRoute = AuthenticatedDespesasRouteImport.update({
   path: '/despesas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDashboardQuartosRoute =
+  AuthenticatedDashboardQuartosRouteImport.update({
+    id: '/dashboard-quartos',
+    path: '/dashboard-quartos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDashboardEstrategicoRoute =
   AuthenticatedDashboardEstrategicoRouteImport.update({
     id: '/dashboard-estrategico',
@@ -143,9 +163,11 @@ export interface FileRoutesByFullPath {
   '/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
+  '/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
   '/despesas': typeof AuthenticatedDespesasRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/equipe': typeof AuthenticatedEquipeRoute
+  '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/painel': typeof AuthenticatedPainelRoute
@@ -153,6 +175,7 @@ export interface FileRoutesByFullPath {
   '/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/reservas': typeof AuthenticatedReservasRoute
   '/vendas': typeof AuthenticatedVendasRoute
+  '/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -164,9 +187,11 @@ export interface FileRoutesByTo {
   '/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
+  '/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
   '/despesas': typeof AuthenticatedDespesasRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/equipe': typeof AuthenticatedEquipeRoute
+  '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/painel': typeof AuthenticatedPainelRoute
@@ -174,6 +199,7 @@ export interface FileRoutesByTo {
   '/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/reservas': typeof AuthenticatedReservasRoute
   '/vendas': typeof AuthenticatedVendasRoute
+  '/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -187,9 +213,11 @@ export interface FileRoutesById {
   '/_authenticated/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
+  '/_authenticated/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
   '/_authenticated/despesas': typeof AuthenticatedDespesasRoute
   '/_authenticated/empresa': typeof AuthenticatedEmpresaRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
+  '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
   '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
@@ -197,6 +225,7 @@ export interface FileRoutesById {
   '/_authenticated/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/_authenticated/reservas': typeof AuthenticatedReservasRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
+  '/_authenticated/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -210,9 +239,11 @@ export interface FileRouteTypes {
     | '/avaliacoes'
     | '/clientes'
     | '/dashboard-estrategico'
+    | '/dashboard-quartos'
     | '/despesas'
     | '/empresa'
     | '/equipe'
+    | '/financeiro'
     | '/integracoes'
     | '/mapa'
     | '/painel'
@@ -220,6 +251,7 @@ export interface FileRouteTypes {
     | '/reclamacoes'
     | '/reservas'
     | '/vendas'
+    | '/vendas-produtos'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -231,9 +263,11 @@ export interface FileRouteTypes {
     | '/avaliacoes'
     | '/clientes'
     | '/dashboard-estrategico'
+    | '/dashboard-quartos'
     | '/despesas'
     | '/empresa'
     | '/equipe'
+    | '/financeiro'
     | '/integracoes'
     | '/mapa'
     | '/painel'
@@ -241,6 +275,7 @@ export interface FileRouteTypes {
     | '/reclamacoes'
     | '/reservas'
     | '/vendas'
+    | '/vendas-produtos'
   id:
     | '__root__'
     | '/'
@@ -253,9 +288,11 @@ export interface FileRouteTypes {
     | '/_authenticated/avaliacoes'
     | '/_authenticated/clientes'
     | '/_authenticated/dashboard-estrategico'
+    | '/_authenticated/dashboard-quartos'
     | '/_authenticated/despesas'
     | '/_authenticated/empresa'
     | '/_authenticated/equipe'
+    | '/_authenticated/financeiro'
     | '/_authenticated/integracoes'
     | '/_authenticated/mapa'
     | '/_authenticated/painel'
@@ -263,6 +300,7 @@ export interface FileRouteTypes {
     | '/_authenticated/reclamacoes'
     | '/_authenticated/reservas'
     | '/_authenticated/vendas'
+    | '/_authenticated/vendas-produtos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -326,6 +364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/vendas-produtos': {
+      id: '/_authenticated/vendas-produtos'
+      path: '/vendas-produtos'
+      fullPath: '/vendas-produtos'
+      preLoaderRoute: typeof AuthenticatedVendasProdutosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/vendas': {
       id: '/_authenticated/vendas'
       path: '/vendas'
@@ -375,6 +420,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedIntegracoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/financeiro': {
+      id: '/_authenticated/financeiro'
+      path: '/financeiro'
+      fullPath: '/financeiro'
+      preLoaderRoute: typeof AuthenticatedFinanceiroRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/equipe': {
       id: '/_authenticated/equipe'
       path: '/equipe'
@@ -394,6 +446,13 @@ declare module '@tanstack/react-router' {
       path: '/despesas'
       fullPath: '/despesas'
       preLoaderRoute: typeof AuthenticatedDespesasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard-quartos': {
+      id: '/_authenticated/dashboard-quartos'
+      path: '/dashboard-quartos'
+      fullPath: '/dashboard-quartos'
+      preLoaderRoute: typeof AuthenticatedDashboardQuartosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard-estrategico': {
@@ -424,9 +483,11 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAvaliacoesRoute: typeof AuthenticatedAvaliacoesRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedDashboardEstrategicoRoute: typeof AuthenticatedDashboardEstrategicoRoute
+  AuthenticatedDashboardQuartosRoute: typeof AuthenticatedDashboardQuartosRoute
   AuthenticatedDespesasRoute: typeof AuthenticatedDespesasRoute
   AuthenticatedEmpresaRoute: typeof AuthenticatedEmpresaRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
+  AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
   AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
@@ -434,6 +495,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedReclamacoesRoute: typeof AuthenticatedReclamacoesRoute
   AuthenticatedReservasRoute: typeof AuthenticatedReservasRoute
   AuthenticatedVendasRoute: typeof AuthenticatedVendasRoute
+  AuthenticatedVendasProdutosRoute: typeof AuthenticatedVendasProdutosRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -441,9 +503,11 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedDashboardEstrategicoRoute:
     AuthenticatedDashboardEstrategicoRoute,
+  AuthenticatedDashboardQuartosRoute: AuthenticatedDashboardQuartosRoute,
   AuthenticatedDespesasRoute: AuthenticatedDespesasRoute,
   AuthenticatedEmpresaRoute: AuthenticatedEmpresaRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
+  AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
   AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
@@ -451,6 +515,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedReclamacoesRoute: AuthenticatedReclamacoesRoute,
   AuthenticatedReservasRoute: AuthenticatedReservasRoute,
   AuthenticatedVendasRoute: AuthenticatedVendasRoute,
+  AuthenticatedVendasProdutosRoute: AuthenticatedVendasProdutosRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =

@@ -109,14 +109,14 @@ async function handleWhatsAppBusiness(body: Record<string, unknown>, companyId: 
   if (missing) {
     const reply = questionFor(missing);
     await upsertSession(inbound.phone, inbound.phone, companyId, missing, draft, inbound.text, reply);
-    await sendWhatsAppBusinessText(inbound.phone, reply);
+    await sendWhatsAppBusinessText(inbound.phone, reply, companyId);
     return { created: false, reply };
   }
 
   const created = await createReservation(draft);
   const reply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}. Nome: ${created.nome}.`;
   await upsertSession(inbound.phone, inbound.phone, companyId, "done", {}, inbound.text, reply);
-  await sendWhatsAppBusinessText(inbound.phone, reply);
+  await sendWhatsAppBusinessText(inbound.phone, reply, companyId);
   return { created: true, reservationId: created.reservationId, reply };
 }
 
@@ -309,9 +309,19 @@ async function upsertSession(phone: string, chatId: string, companyId: string, s
   if (error) throw error;
 }
 
-async function sendWhatsAppBusinessText(to: string, text: string) {
-  if (!whatsappBusinessToken || !whatsappPhoneNumberId) return;
-  await fetch(`https://graph.facebook.com/v20.0/${whatsappPhoneNumberId}/messages`, {
+async function sendWhatsAppBusinessText(to: string, text: string, companyId: string) {
+  if (!whatsappBusinessToken) return;
+  const { data: integration } = await supabase
+    .from("company_integrations")
+    .select("configuracao")
+    .eq("company_id", companyId)
+    .eq("tipo", "whatsapp_business")
+    .eq("ativo", true)
+    .maybeSingle();
+  const configuration = (integration?.configuracao ?? {}) as Record<string, unknown>;
+  const configuredPhoneNumberId = String(configuration.phone_number_id ?? whatsappPhoneNumberId).trim();
+  if (!configuredPhoneNumberId) return;
+  await fetch(`https://graph.facebook.com/v20.0/${configuredPhoneNumberId}/messages`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${whatsappBusinessToken}`,
