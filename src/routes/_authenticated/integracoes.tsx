@@ -20,7 +20,8 @@ export const Route = createFileRoute("/_authenticated/integracoes")({
 });
 
 const TYPES = [
-  { value: "waha", label: "WhatsApp / WAHA" },
+  { value: "whatsapp_business", label: "WhatsApp Business" },
+  { value: "waha", label: "WhatsApp / WAHA legado" },
   { value: "booking", label: "Booking" },
   { value: "airbnb", label: "Airbnb" },
   { value: "google", label: "Google Hotel" },
@@ -46,7 +47,7 @@ function Integracoes() {
     <div>
       <PageHeader
         title="Integracoes"
-        subtitle="Cadastre canais externos por empresa: WhatsApp/WAHA, Booking, Airbnb, Google e channel managers."
+        subtitle="Cadastre canais externos por empresa: WhatsApp Business, Booking, Airbnb, Google e channel managers."
         action={
           <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
             <Plus className="h-4 w-4" /> Canal
@@ -58,14 +59,15 @@ function Integracoes() {
         <section className="card-surface p-4">
           <div className="mb-3 flex items-center gap-2">
             <MessageCircle className="h-4 w-4 text-pine" />
-            <h3 className="font-serif text-lg font-bold">WhatsApp / WAHA</h3>
+            <h3 className="font-serif text-lg font-bold">WhatsApp Business</h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            Use este webhook no WAHA. O token fica nos secrets do Supabase, nao no navegador.
+            Use este webhook na Meta Cloud API. Os secrets ficam no Supabase: INTEGRATION_WEBHOOK_TOKEN, WHATSAPP_VERIFY_TOKEN,
+            WHATSAPP_BUSINESS_TOKEN e WHATSAPP_PHONE_NUMBER_ID.
           </p>
           <code className="mt-3 block break-all rounded-md bg-muted p-3 text-xs">{webhookUrl}</code>
           <div className="mt-3 rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-            QR do WAHA aparece aqui quando a URL/API key do WAHA estiver conectada no backend.
+            Ao receber mensagem com nome, datas, quarto, pessoas e diaria confirmada, o sistema cria a reserva direto em Reservas e no mapa.
           </div>
         </section>
 
@@ -87,6 +89,19 @@ function Integracoes() {
           <p className="text-sm text-muted-foreground">Atendimentos iniciados pelo WhatsApp.</p>
         </section>
       </div>
+
+      <section className="mt-5 card-surface overflow-x-auto">
+        <div className="grid gap-3 border-b border-border p-4 md:grid-cols-2">
+          <div>
+            <h3 className="font-serif text-lg font-bold">Webhook Booking / Channel Manager</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A mesma URL aceita reservas estruturadas do Booking ou de um channel manager com source=booking. Envie hospede, quarto, checkin,
+              checkout, pessoas e valor total/diaria.
+            </p>
+          </div>
+          <code className="block break-all rounded-md bg-muted p-3 text-xs">{webhookUrl.replace("SEU_TOKEN", "TOKEN_DO_SUPABASE")}</code>
+        </div>
+      </section>
 
       <section className="mt-5 card-surface overflow-x-auto">
         <div className="border-b border-border p-4">
@@ -234,7 +249,7 @@ function IntegrationForm({
   onClose: () => void;
   onSave: (row: Record<string, unknown>) => void;
 }) {
-  const [tipo, setTipo] = useState(editing?.tipo ?? "booking");
+  const [tipo, setTipo] = useState(editing?.tipo ?? "whatsapp_business");
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [identificador, setIdentificador] = useState(editing?.identificador ?? "");
   const [webhookUrl, setWebhookUrl] = useState(editing?.webhook_url ?? "");

@@ -8,6 +8,9 @@ type Draft = {
   checkin?: string;
   checkout?: string;
   pessoas?: number;
+  valorDiaria?: number;
+  valorTotal?: number;
+  diariaConfirmada?: boolean;
   source?: string;
   externalId?: string;
   companyId?: string;
@@ -16,7 +19,7 @@ type Draft = {
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-integration-token",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
@@ -25,6 +28,9 @@ const webhookToken = Deno.env.get("INTEGRATION_WEBHOOK_TOKEN") ?? "";
 const wahaBaseUrl = Deno.env.get("WAHA_BASE_URL") ?? "";
 const wahaApiKey = Deno.env.get("WAHA_API_KEY") ?? "";
 const wahaSession = Deno.env.get("WAHA_SESSION") ?? "default";
+const whatsappBusinessToken = Deno.env.get("WHATSAPP_BUSINESS_TOKEN") ?? "";
+const whatsappPhoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
+const whatsappVerifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? webhookToken;
 
 const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -32,6 +38,7 @@ const supabase = createClient(supabaseUrl, serviceKey, {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return json({ ok: true });
+  if (req.method === "GET") return verifyWhatsAppWebhook(req);
   if (req.method !== "POST") return json({ ok: false, error: "Method not allowed" }, 405);
 
   const url = new URL(req.url);
@@ -52,7 +59,13 @@ Deno.serve(async (req) => {
   if (event?.status === "duplicated") return json({ ok: true, duplicated: true });
 
   try {
-    const result = source === "waha" ? await handleWaha(body, companyId) : await handleStructuredReservation(body, source, companyId);
+    const result =
+      source === "whatsapp_business"
+        ? await handleWhatsAppBusiness(body, companyId)
+        : source === "waha"
+          ? await handleWaha(body, companyId)
+          : await handleStructuredReservation(body, source, companyId);
+
     if (event?.id) {
       await supabase
         .from("integration_events")
@@ -69,6 +82,44 @@ Deno.serve(async (req) => {
   }
 });
 
+function verifyWhatsAppWebhook(req: Request) {
+  const url = new URL(req.url);
+  const mode = url.searchParams.get("hub.mode");
+  const token = url.searchParams.get("hub.verify_token");
+  const challenge = url.searchParams.get("hub.challenge");
+  if (mode === "subscribe" && token && token === whatsappVerifyToken && challenge) {
+    return new Response(challenge, { status: 200, headers: corsHeaders });
+  }
+  return json({ ok: false, error: "Invalid WhatsApp verification token" }, 403);
+}
+
+async function handleWhatsAppBusiness(body: Record<string, unknown>, companyId: string) {
+  const inbound = extractWhatsAppBusinessMessage(body);
+  if (!inbound?.phone || !inbound.text) return { created: false, reply: "Mensagem ignorada." };
+
+  const current = await getSession(inbound.phone, companyId);
+  const draft = mergeDraft(current?.draft as Draft | null, parseMessage(inbound.text, current?.stage, current?.draft as Draft | null));
+  draft.nome = draft.nome ?? inbound.name;
+  draft.telefone = inbound.phone;
+  draft.source = "WhatsApp Business";
+  draft.externalId = inbound.messageId ?? externalEventId(body, "whatsapp_business");
+  draft.companyId = companyId;
+
+  const missing = firstMissingField(draft, { requireCpf: false, requireDailyConfirmation: true });
+  if (missing) {
+    const reply = questionFor(missing);
+    await upsertSession(inbound.phone, inbound.phone, companyId, missing, draft, inbound.text, reply);
+    await sendWhatsAppBusinessText(inbound.phone, reply);
+    return { created: false, reply };
+  }
+
+  const created = await createReservation(draft);
+  const reply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}. Nome: ${created.nome}.`;
+  await upsertSession(inbound.phone, inbound.phone, companyId, "done", {}, inbound.text, reply);
+  await sendWhatsAppBusinessText(inbound.phone, reply);
+  return { created: true, reservationId: created.reservationId, reply };
+}
+
 async function handleWaha(body: Record<string, unknown>, companyId: string) {
   const payload = (body.payload ?? body) as Record<string, unknown>;
   const chatId = String(payload.from ?? payload.chatId ?? "");
@@ -83,7 +134,7 @@ async function handleWaha(body: Record<string, unknown>, companyId: string) {
   draft.externalId = externalEventId(body, "waha");
   draft.companyId = companyId;
 
-  const missing = firstMissingField(draft);
+  const missing = firstMissingField(draft, { requireCpf: false, requireDailyConfirmation: true });
   if (missing) {
     const reply = questionFor(missing);
     await upsertSession(phone, chatId, companyId, missing, draft, text, reply);
@@ -92,28 +143,37 @@ async function handleWaha(body: Record<string, unknown>, companyId: string) {
   }
 
   const created = await createReservation(draft);
-  const reply = `Pre-reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}. Nome: ${created.nome}.`;
+  const reply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}. Nome: ${created.nome}.`;
   await upsertSession(phone, chatId, companyId, "done", {}, text, reply);
   await sendWahaText(chatId, reply);
   return { created: true, reservationId: created.reservationId, reply };
 }
 
 async function handleStructuredReservation(body: Record<string, unknown>, source: string, companyId: string) {
-  const raw = ((body.reservation ?? body.reserva ?? body) as Record<string, unknown>) ?? {};
+  const raw = ((body.reservation ?? body.reserva ?? body.payload ?? body.data ?? body) as Record<string, unknown>) ?? {};
+  const guest = objectValue(raw.guest ?? raw.cliente ?? raw.customer);
+  const room = objectValue(raw.room ?? raw.quarto);
+  const price = objectValue(raw.price ?? raw.valor ?? raw.amounts);
+  const status = normalizeText(String(raw.status ?? raw.state ?? raw.booking_status ?? ""));
+  if (status.includes("cancel")) return { created: false, reply: "Reserva cancelada recebida; nenhum quarto foi bloqueado." };
+
   const draft: Draft = {
-    nome: stringValue(raw.nome ?? raw.name ?? raw.guest_name ?? raw.cliente_nome),
-    cpf: stringValue(raw.cpf ?? raw.document ?? raw.documento),
-    telefone: stringValue(raw.telefone ?? raw.phone ?? raw.whatsapp),
-    quarto: numberValue(raw.quarto ?? raw.room ?? raw.room_number),
-    checkin: normalizeDate(stringValue(raw.checkin ?? raw.check_in ?? raw.arrival)),
-    checkout: normalizeDate(stringValue(raw.checkout ?? raw.check_out ?? raw.departure)),
-    pessoas: numberValue(raw.pessoas ?? raw.guests ?? raw.hospedes ?? raw.adults) ?? 1,
+    nome: stringValue(raw.nome ?? raw.name ?? raw.guest_name ?? raw.cliente_nome ?? guest?.name ?? guest?.nome),
+    cpf: stringValue(raw.cpf ?? raw.document ?? raw.documento ?? guest?.document ?? guest?.cpf),
+    telefone: stringValue(raw.telefone ?? raw.phone ?? raw.whatsapp ?? guest?.phone ?? guest?.telefone),
+    quarto: numberValue(raw.quarto ?? raw.room_number ?? raw.room_id ?? room?.number ?? room?.numero ?? room?.id),
+    checkin: normalizeDate(stringValue(raw.checkin ?? raw.check_in ?? raw.arrival ?? raw.arrival_date ?? raw.start_date)),
+    checkout: normalizeDate(stringValue(raw.checkout ?? raw.check_out ?? raw.departure ?? raw.departure_date ?? raw.end_date)),
+    pessoas: numberValue(raw.pessoas ?? raw.guests ?? raw.hospedes ?? raw.adults ?? raw.number_of_guests) ?? 1,
+    valorDiaria: moneyValue(raw.valor_diaria ?? raw.daily_rate ?? price?.daily_rate),
+    valorTotal: moneyValue(raw.valor_total ?? raw.total_price ?? raw.total ?? raw.amount ?? price?.total ?? price?.amount),
+    diariaConfirmada: true,
     source: source === "booking" ? "Booking" : source,
-    externalId: stringValue(raw.external_id ?? raw.id ?? raw.booking_id ?? body.external_id),
+    externalId: stringValue(raw.external_id ?? raw.id ?? raw.booking_id ?? raw.reservation_id ?? body.external_id),
     companyId,
   };
 
-  const missing = firstMissingField(draft);
+  const missing = firstMissingField(draft, { requireCpf: false });
   if (missing) throw new Error(`Payload incompleto. Campo faltando: ${missing}`);
 
   const created = await createReservation(draft);
@@ -157,6 +217,17 @@ async function createReservation(draft: Draft) {
     clientId = existingClient?.id ?? null;
   }
 
+  if (!clientId && draft.telefone) {
+    const { data: existingClient, error: clientLookupError } = await supabase
+      .from("clients")
+      .select("id")
+      .eq("company_id", draft.companyId)
+      .eq("telefone", draft.telefone)
+      .maybeSingle();
+    if (clientLookupError) throw clientLookupError;
+    clientId = existingClient?.id ?? null;
+  }
+
   if (!clientId) {
     const { data: client, error: clientError } = await supabase
       .from("clients")
@@ -175,8 +246,8 @@ async function createReservation(draft: Draft) {
   }
 
   const diarias = daysBetween(draft.checkin, draft.checkout);
-  const valorDiaria = Number(room.preco ?? 0);
-  const valorTotal = Math.max(0, diarias * valorDiaria);
+  const valorDiaria = Number(draft.valorDiaria ?? room.preco ?? 0);
+  const valorTotal = Math.max(0, Number(draft.valorTotal ?? diarias * valorDiaria));
   const { data: reservation, error: reservationError } = await supabase
     .from("reservations")
     .insert({
@@ -192,7 +263,7 @@ async function createReservation(draft: Draft) {
       valor_total: valorTotal,
       valor_pago: 0,
       pago: false,
-      pagamento: "pendente",
+      pagamento: draft.diariaConfirmada ? "diaria confirmada" : "pendente",
       status: "reservado",
       canal: draft.source ?? "Integracao",
       horario_reserva: new Date().toTimeString().slice(0, 5),
@@ -238,6 +309,23 @@ async function upsertSession(phone: string, chatId: string, companyId: string, s
   if (error) throw error;
 }
 
+async function sendWhatsAppBusinessText(to: string, text: string) {
+  if (!whatsappBusinessToken || !whatsappPhoneNumberId) return;
+  await fetch(`https://graph.facebook.com/v20.0/${whatsappPhoneNumberId}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${whatsappBusinessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to,
+      type: "text",
+      text: { preview_url: false, body: text },
+    }),
+  }).catch(() => null);
+}
+
 async function sendWahaText(chatId: string, text: string) {
   if (!wahaBaseUrl || !wahaApiKey) return;
   await fetch(`${wahaBaseUrl.replace(/\/$/, "")}/api/sendText`, {
@@ -265,16 +353,33 @@ async function createEvent(source: string, externalId: string | null, payload: R
 
 function detectSource(body: Record<string, unknown>) {
   const source = String(body.source ?? body.origem ?? "").toLowerCase();
-  if (source.includes("booking")) return "booking";
+  if (body.object === "whatsapp_business_account" || extractWhatsAppBusinessMessage(body)) return "whatsapp_business";
+  if (source.includes("booking") || body.booking_id || body.reservation_id) return "booking";
   if (body.event || body.payload) return "waha";
   return source || "external";
 }
 
 function externalEventId(body: Record<string, unknown>, source: string) {
+  const whatsapp = extractWhatsAppBusinessMessage(body);
   const payload = (body.payload ?? body) as Record<string, unknown>;
   return stringValue(
-    payload.id ?? body.id ?? body.external_id ?? body.booking_id ?? `${source}-${Date.now()}-${Math.random()}`,
+    whatsapp?.messageId ?? payload.id ?? body.id ?? body.external_id ?? body.booking_id ?? body.reservation_id ?? `${source}-${Date.now()}-${Math.random()}`,
   );
+}
+
+function extractWhatsAppBusinessMessage(body: Record<string, unknown>) {
+  const entry = Array.isArray(body.entry) ? objectValue(body.entry[0]) : undefined;
+  const change = Array.isArray(entry?.changes) ? objectValue(entry.changes[0]) : undefined;
+  const value = objectValue(change?.value);
+  const message = Array.isArray(value?.messages) ? objectValue(value.messages[0]) : undefined;
+  const contact = Array.isArray(value?.contacts) ? objectValue(value.contacts[0]) : undefined;
+  const text = objectValue(message?.text);
+  const profile = objectValue(contact?.profile);
+  const phone = onlyDigits(stringValue(message?.from));
+  const name = stringValue(profile?.name);
+  const bodyText = stringValue(text?.body);
+  const messageId = stringValue(message?.id);
+  return phone && bodyText ? { phone, text: bodyText, name, messageId } : null;
 }
 
 function parseMessage(text: string, stage?: string | null, previous?: Draft | null): Draft {
@@ -286,6 +391,9 @@ function parseMessage(text: string, stage?: string | null, previous?: Draft | nu
   parsed.checkin = normalizeDate(stringFromRegex(normalized, /\b(?:checkin|check-in|entrada)\s*[:#-]?\s*(\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|\d{4}-\d{2}-\d{2})/i));
   parsed.checkout = normalizeDate(stringFromRegex(normalized, /\b(?:checkout|check-out|saida)\s*[:#-]?\s*(\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|\d{4}-\d{2}-\d{2})/i));
   parsed.nome = cleanName(stringFromRegex(stripAccents(text), /\b(?:nome|hospede|cliente)\s*[:#-]?\s*([A-Za-z' ]{3,80})/i));
+  parsed.valorDiaria = moneyValue(stringFromRegex(normalized, /\b(?:diaria|valor|preco)\s*[:#-]?\s*(?:r\$\s*)?([\d.,]+)/i));
+  parsed.valorTotal = moneyValue(stringFromRegex(normalized, /\b(?:total)\s*[:#-]?\s*(?:r\$\s*)?([\d.,]+)/i));
+  parsed.diariaConfirmada = /\b(confirmo|confirmado|fechado|ok|pode reservar|reserva|reservar|aceito)\b/i.test(normalized) && Boolean(parsed.valorDiaria ?? parsed.valorTotal ?? previous?.valorDiaria ?? previous?.valorTotal);
 
   if (stage && !text.includes(":")) {
     if (stage === "nome") parsed.nome = cleanName(text);
@@ -294,6 +402,8 @@ function parseMessage(text: string, stage?: string | null, previous?: Draft | nu
     if (stage === "checkin") parsed.checkin = normalizeDate(text);
     if (stage === "checkout") parsed.checkout = normalizeDate(text);
     if (stage === "pessoas") parsed.pessoas = Number(onlyDigits(text));
+    if (stage === "valorDiaria") parsed.valorDiaria = moneyValue(text);
+    if (stage === "diariaConfirmada") parsed.diariaConfirmada = /\b(sim|confirmo|confirmado|fechado|ok|aceito|pode)\b/i.test(normalized);
   }
 
   if (!parsed.nome && !previous?.nome && /\breserva\b/i.test(normalized)) {
@@ -309,24 +419,28 @@ function mergeDraft(previous: Draft | null | undefined, next: Draft) {
   ) as Draft;
 }
 
-function firstMissingField(draft: Draft) {
+function firstMissingField(draft: Draft, options: { requireCpf?: boolean; requireDailyConfirmation?: boolean } = {}) {
   if (!draft.nome) return "nome";
-  if (!draft.cpf) return "cpf";
+  if (options.requireCpf && !draft.cpf) return "cpf";
   if (!draft.quarto) return "quarto";
   if (!draft.checkin) return "checkin";
   if (!draft.checkout) return "checkout";
   if (!draft.pessoas) return "pessoas";
+  if (options.requireDailyConfirmation && !draft.valorDiaria && !draft.valorTotal) return "valorDiaria";
+  if (options.requireDailyConfirmation && !draft.diariaConfirmada) return "diariaConfirmada";
   return null;
 }
 
 function questionFor(field: string) {
   const questions: Record<string, string> = {
     nome: "Para iniciar a reserva, me informe o nome completo do hospede.",
-    cpf: "Agora me envie o CPF do hospede.",
+    cpf: "Se tiver, envie o CPF do hospede. Se nao tiver, pode mandar o restante dos dados.",
     quarto: "Qual quarto deseja reservar?",
     checkin: "Qual a data de entrada? Exemplo: 20/07/2026.",
     checkout: "Qual a data de saida? Exemplo: 22/07/2026.",
     pessoas: "Quantas pessoas ficarao hospedadas?",
+    valorDiaria: "Qual diaria/valor foi combinado? Exemplo: diaria R$ 180.",
+    diariaConfirmada: "O cliente confirmou a diaria? Responda com confirmado, fechado ou ok para eu reservar.",
   };
   return questions[field] ?? "Pode me enviar os dados da reserva?";
 }
@@ -379,6 +493,18 @@ function numberValue(value: unknown) {
   return Number.isFinite(number) && number > 0 ? number : undefined;
 }
 
+function moneyValue(value: unknown) {
+  const text = stringValue(value);
+  if (!text) return undefined;
+  const normalized = text.replace(/[^\d.,-]/g, "").replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".");
+  const number = Number(normalized);
+  return Number.isFinite(number) && number > 0 ? number : undefined;
+}
+
+function objectValue(value: unknown) {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+}
+
 function numberFromRegex(text: string, regex: RegExp) {
   const match = text.match(regex);
   return match ? Number(match[1]) : undefined;
@@ -393,6 +519,10 @@ function cleanName(value?: string | null) {
   const text = value?.trim().replace(/\s+/g, " ");
   if (!text || onlyDigits(text).length > 6) return undefined;
   return text.slice(0, 80);
+}
+
+function normalizeText(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 }
 
 function json(body: unknown, status = 200) {

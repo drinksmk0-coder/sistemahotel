@@ -138,12 +138,23 @@ function DashboardEstrategico() {
   const roomRows = useMemo(() => buildRoomRows(filteredReservations, rooms, sales, filteredExpenses), [filteredReservations, filteredExpenses, rooms, sales]);
   const trends = useMemo(() => buildMonthlyStory(filteredReservations, sales, filteredExpenses, year), [filteredExpenses, filteredReservations, sales, year]);
 
-  const receita = filteredReservations.reduce((sum, reservation) => sum + reservationRevenue(reservation), 0) +
-    sales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
+  const receitaHospedagem = filteredReservations.reduce((sum, reservation) => sum + reservationRevenue(reservation), 0);
+  const receitaExtra = sales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0);
+  const receita = receitaHospedagem + receitaExtra;
   const despesas = filteredExpenses.reduce((sum, expense) => sum + Number(expense.valor ?? 0), 0);
   const lucro = receita - despesas;
   const margem = receita > 0 ? Math.round((lucro / receita) * 100) : 0;
   const totalReservas = filteredReservations.filter((reservation) => reservation.status !== "cancelado").length;
+  const diasPeriodo = periodDays(year, month);
+  const uhsDisponiveis = rooms.length * diasPeriodo;
+  const uhsVendidas = occupiedRoomNights(filteredReservations);
+  const taxaOcupacao = safePercent(uhsVendidas, uhsDisponiveis);
+  const diariaMedia = safeDivide(receitaHospedagem, uhsVendidas);
+  const revpar = safeDivide(receitaHospedagem, uhsDisponiveis);
+  const trevpar = safeDivide(receita, uhsDisponiveis);
+  const goppar = safeDivide(lucro, uhsDisponiveis);
+  const clientesPeriodo = uniqueReservationClients(filteredReservations);
+  const mediaPorCliente = safeDivide(receita, clientesPeriodo);
   const avaliacaoMedia = average(feedbacks.map((feedback) => Number(feedback.nota_geral ?? 0)).filter(Boolean));
   const ocupacao30 = futureOccupancy(filteredReservations, rooms.length, today, 30);
   const forecast = useMemo(() => buildForecast(filteredReservations, rooms.length, today), [filteredReservations, rooms.length, today]);
@@ -206,13 +217,64 @@ function DashboardEstrategico() {
         </nav>
 
         <main className="min-w-0 space-y-3">
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 2xl:grid-cols-5">
             <StoryKpi icon={<BedDouble />} label="Reservas" value={String(totalReservas)} hint="período filtrado" tone="pine" />
             <StoryKpi icon={<DollarSign />} label="Receita" value={fmtBRL(receita)} hint="reservas + vendas" tone="sage" />
             <StoryKpi icon={<DollarSign />} label="Despesas" value={fmtBRL(despesas)} hint="custos lançados" tone="brick" />
             <StoryKpi icon={<TrendingUp />} label="Margem" value={`${margem}%`} hint={fmtBRL(lucro)} tone="brass" />
             <StoryKpi icon={<Star />} label="Avaliação" value={avaliacaoMedia ? avaliacaoMedia.toFixed(1) : "—"} hint={`${feedbacks.length} avaliações`} tone="pine" />
           </div>
+
+          <section className="grid gap-2 md:grid-cols-2 2xl:grid-cols-3">
+            <HotelMetricCard
+              label="Taxa de Ocupação"
+              value={`${taxaOcupacao.toFixed(1)}%`}
+              formula={`${uhsVendidas} UHs vendidas / ${uhsDisponiveis} UHs disponíveis`}
+              meaning="Mostra quanto da capacidade operacional ficou ocupada no período filtrado."
+              strategy={occupancyStrategy(taxaOcupacao)}
+              tone="pine"
+            />
+            <HotelMetricCard
+              label="Diária Média"
+              value={fmtBRL(diariaMedia)}
+              formula={`${fmtBRL(receitaHospedagem)} / ${uhsVendidas} UHs vendidas`}
+              meaning="Mostra o preço médio pago por quarto vendido, desconsiderando cortesias, manutenção e uso interno."
+              strategy={adrStrategy(diariaMedia, revpar)}
+              tone="sage"
+            />
+            <HotelMetricCard
+              label="RevPAR"
+              value={fmtBRL(revpar)}
+              formula={`${fmtBRL(receitaHospedagem)} / ${uhsDisponiveis} UHs disponíveis`}
+              meaning="Mede a eficiência comercial considerando todos os quartos disponíveis, vendidos ou não."
+              strategy={revparStrategy(revpar, diariaMedia, taxaOcupacao)}
+              tone="brass"
+            />
+            <HotelMetricCard
+              label="TRevPAR"
+              value={fmtBRL(trevpar)}
+              formula={`${fmtBRL(receita)} / ${uhsDisponiveis} UHs disponíveis`}
+              meaning="Inclui hospedagem e receitas extras, como consumo, restaurante, bar, serviços, day use e eventos."
+              strategy={trevparStrategy(receitaExtra, receita)}
+              tone="pine"
+            />
+            <HotelMetricCard
+              label="Média por Cliente"
+              value={fmtBRL(mediaPorCliente)}
+              formula={`${fmtBRL(receita)} / ${clientesPeriodo} cliente(s)`}
+              meaning="Mostra quanto cada cliente gerou em média somando hospedagem e extras no período."
+              strategy={clientAverageStrategy(mediaPorCliente)}
+              tone="sage"
+            />
+            <HotelMetricCard
+              label="GOPPAR"
+              value={fmtBRL(goppar)}
+              formula={`${fmtBRL(lucro)} / ${uhsDisponiveis} UHs disponíveis`}
+              meaning="Mostra o lucro operacional bruto por quarto disponível depois das despesas lançadas."
+              strategy={gopparStrategy(goppar)}
+              tone={goppar < 0 ? "brick" : "brass"}
+            />
+          </section>
 
           <div className="grid gap-3 lg:grid-cols-[1fr_0.8fr_1fr]">
             <ChartCard title="Avaliação por canal" icon={<BarChart3 />}>
@@ -358,6 +420,43 @@ function StoryKpi({ icon, label, value, hint, tone }: { icon: React.ReactNode; l
       <div className="truncate font-serif text-[clamp(1rem,1.25vw,1.28rem)] font-bold leading-tight text-pine-dark">{value}</div>
       <p className="truncate text-[10px] text-muted-foreground">{hint}</p>
     </div>
+  );
+}
+
+function HotelMetricCard({
+  label,
+  value,
+  formula,
+  meaning,
+  strategy,
+  tone,
+}: {
+  label: string;
+  value: string;
+  formula: string;
+  meaning: string;
+  strategy: string;
+  tone: "pine" | "sage" | "brass" | "brick";
+}) {
+  const toneClass = {
+    pine: "border-pine/35 bg-pine/5",
+    sage: "border-sage/45 bg-sage-bg/55",
+    brass: "border-brass/50 bg-brass/10",
+    brick: "border-brick/45 bg-brick/10",
+  }[tone];
+  return (
+    <article className={`min-w-0 rounded-lg border p-3 shadow-sm ${toneClass}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="truncate text-[11px] font-bold uppercase text-pine-dark">{label}</h2>
+          <p className="mt-1 font-serif text-xl font-bold text-pine-dark">{value}</p>
+        </div>
+        <Activity className="h-4 w-4 shrink-0 text-brass" />
+      </div>
+      <p className="mt-2 text-[11px] font-semibold text-pine-dark">Cálculo: {formula}</p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{meaning}</p>
+      <p className="mt-2 rounded-md bg-white/65 px-2 py-1.5 text-xs leading-relaxed text-pine-dark">{strategy}</p>
+    </article>
   );
 }
 
@@ -608,6 +707,93 @@ function costInsight(rows: Record<string, unknown>[]) {
 
 function reservationRevenue(reservation: Reservation) {
   return Number(reservation.valor_pago ?? 0) || Number(reservation.valor_total ?? 0);
+}
+
+function occupiedRoomNights(reservations: Reservation[]) {
+  return reservations.reduce((sum, reservation) => {
+    if (!isPaidSoldReservation(reservation)) return sum;
+    return sum + reservationNights(reservation);
+  }, 0);
+}
+
+function uniqueReservationClients(reservations: Reservation[]) {
+  const clients = new Set<string>();
+  reservations.forEach((reservation) => {
+    if (!isPaidSoldReservation(reservation)) return;
+    clients.add(readClientId(reservation) ?? reservationGuestName(reservation));
+  });
+  return clients.size;
+}
+
+function isPaidSoldReservation(reservation: Reservation) {
+  const status = normalizeText(String(reservation.status ?? ""));
+  const revenue = reservationRevenue(reservation);
+  if (status.includes("cancel") || status.includes("manutencao") || status.includes("cortesia") || status.includes("interno")) return false;
+  return revenue > 0;
+}
+
+function reservationNights(reservation: Reservation) {
+  const saved = Number((reservation as { diarias?: number | null }).diarias ?? 0);
+  if (Number.isFinite(saved) && saved > 0) return saved;
+  if (!reservation.checkin || !reservation.checkout) return 0;
+  const start = new Date(`${reservation.checkin}T00:00:00`).getTime();
+  const end = new Date(`${reservation.checkout}T00:00:00`).getTime();
+  return Math.max(1, Math.round((end - start) / 86400000));
+}
+
+function periodDays(year: string, month: string) {
+  if (year !== "todos" && month !== "todos") return new Date(Number(year), Number(month), 0).getDate();
+  if (year !== "todos") return isLeapYear(Number(year)) ? 366 : 365;
+  return 30;
+}
+
+function isLeapYear(year: number) {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+
+function safeDivide(value: number, divider: number) {
+  return divider > 0 ? value / divider : 0;
+}
+
+function safePercent(value: number, divider: number) {
+  return safeDivide(value, divider) * 100;
+}
+
+function occupancyStrategy(value: number) {
+  if (value >= 80) return "Alta ocupação: reduzir descontos e priorizar canais diretos ou quartos com melhor margem.";
+  if (value <= 35) return "Ocupação baixa: ativar campanha no WhatsApp, Booking e clientes recorrentes para preencher quartos vazios.";
+  return "Ocupação saudável: acompanhar diária média para não vender volume sacrificando preço.";
+}
+
+function adrStrategy(adr: number, revpar: number) {
+  if (!adr) return "Sem diária média ainda: confirme valores de reservas pagas para alimentar a análise.";
+  if (revpar < adr * 0.45) return "Boa diária, mas baixa ocupação: melhorar distribuição e ofertas sem derrubar demais o preço.";
+  return "Preço médio consistente: teste aumento gradual em datas de maior procura.";
+}
+
+function revparStrategy(revpar: number, adr: number, occupancy: number) {
+  if (!revpar) return "RevPAR zerado: ainda faltam reservas pagas no período selecionado.";
+  if (occupancy < 45) return "RevPAR pressionado por ocupação: foque em volume e canais com menor comissão.";
+  if (adr && revpar > adr * 0.7) return "RevPAR forte: preservar tarifa e controlar overbooking/cancelamentos.";
+  return "Use o RevPAR para comparar meses: ele mostra se preço e ocupação estão trabalhando juntos.";
+}
+
+function trevparStrategy(extraRevenue: number, totalRevenue: number) {
+  if (!totalRevenue) return "Sem receita no período: cadastre hospedagens e consumos para medir o indicador.";
+  if (extraRevenue / totalRevenue < 0.12) return "Extras baixos: oferecer café, frigobar, day use ou serviços no check-in e pós-venda.";
+  return "Receitas extras participam bem do faturamento: manter ofertas de consumo e serviços anexos.";
+}
+
+function clientAverageStrategy(value: number) {
+  if (!value) return "Sem média por cliente: depende de reservas/vendas associadas ao período.";
+  if (value < 150) return "Ticket médio baixo: criar combos de hospedagem + consumo e ofertas para clientes recorrentes.";
+  return "Bom ticket por cliente: proteger qualidade do atendimento e estimular retorno direto.";
+}
+
+function gopparStrategy(value: number) {
+  if (value < 0) return "GOPPAR negativo: despesas superaram receitas. Revise custos operacionais e canais com comissão alta.";
+  if (value < 50) return "Lucro por quarto disponível apertado: priorizar margem, reduzir desperdícios e elevar receita extra.";
+  return "GOPPAR positivo: operação gera lucro por quarto disponível; acompanhe para sustentar o ganho.";
 }
 
 function readChannel(reservation: Reservation) {
