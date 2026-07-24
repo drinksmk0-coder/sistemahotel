@@ -133,7 +133,7 @@ function Empresa() {
 
 function CompanyForm({ company, onSave }: { company: Company; onSave: (patch: Partial<Company>) => void }) {
   const [form, setForm] = useState(company);
-  useEffect(() => setForm(company), [company.id]);
+  useEffect(() => setForm(company), [company]);
   const set = (key: keyof Company, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
   return (

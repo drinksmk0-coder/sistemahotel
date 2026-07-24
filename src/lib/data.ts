@@ -283,7 +283,6 @@ export function useUpdate<T extends TableName>(table: T, invalidate: string[]) {
   return useMutation({
     mutationFn: async ({ id, patch }: { id: string | number; patch: Record<string, unknown> }) => {
       const key = table === "rooms" ? "numero" : "id";
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let query = (supabase.from(table as never) as any).update(patch).eq(key, id);
       if (TENANT_TABLES.has(table) && table !== "companies" && table !== "rooms" && company.data?.id) {
         query = query.eq("company_id", company.data.id);
@@ -302,7 +301,6 @@ export function useDelete(table: TableName, invalidate: string[]) {
   return useMutation({
     mutationFn: async (id: string | number) => {
       const key = table === "rooms" ? "numero" : "id";
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let query = (supabase.from(table as never) as any).delete().eq(key, id);
       if (TENANT_TABLES.has(table) && table !== "companies" && company.data?.id) {
         query = query.eq("company_id", company.data.id);
