@@ -168,7 +168,7 @@ function SystemCustomization({ companyId }: { companyId: string }) {
   }
 
   return (
-    <section className="mt-5 card-surface p-4">
+    <section id="configuracoes-sistema" className="mt-5 scroll-mt-6 card-surface p-4">
       <div className="mb-4 flex items-center gap-2">
         <Palette className="h-5 w-5 text-brass" />
         <div>
