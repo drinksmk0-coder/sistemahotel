@@ -21,6 +21,9 @@ function Clientes() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [q, setQ] = useState("");
+  const [createdFrom, setCreatedFrom] = useState("");
+  const [createdTo, setCreatedTo] = useState("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const spentByClient = useMemo(() => {
     const m = new Map<string, number>();
@@ -31,13 +34,19 @@ function Clientes() {
     return m;
   }, [reservations]);
 
-  const filtered = clients.filter(
-    (c) =>
+  const filtered = clients.filter((c) => {
+    const created = (c.created_at || "").slice(0, 10);
+    const matchesSearch =
       c.nome.toLowerCase().includes(q.toLowerCase()) ||
       (c.telefone ?? "").includes(q) ||
       (c.documento ?? "").includes(q) ||
-      (c.cpf ?? "").includes(q),
-  );
+      (c.cpf ?? "").includes(q);
+    const matchesFrom = !createdFrom || created >= createdFrom;
+    const matchesTo = !createdTo || created <= createdTo;
+    return matchesSearch && matchesFrom && matchesTo;
+  });
+  const filteredIds = filtered.map((client) => client.id);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
 
   function exportCSV() {
     downloadCSV(`clientes-${todayISO()}.csv`, [
@@ -97,14 +106,51 @@ function Clientes() {
         }
       />
 
-      <div className="relative mb-4 max-w-sm">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          className="field pl-9"
-          placeholder="Buscar por nome, telefone…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+      <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_auto]">
+        <div className="grid gap-3 md:grid-cols-[1.4fr_1fr_1fr]">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="field pl-9"
+              placeholder="Buscar por nome, telefone…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </div>
+          <Field label="Cadastrado de">
+            <input className="field" type="date" value={createdFrom} onChange={(e) => setCreatedFrom(e.target.value)} />
+          </Field>
+          <Field label="Até">
+            <input className="field" type="date" value={createdTo} onChange={(e) => setCreatedTo(e.target.value)} />
+          </Field>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => setSelectedIds(allFilteredSelected ? [] : filteredIds)}
+            disabled={filtered.length === 0}
+          >
+            {allFilteredSelected ? "Limpar seleção" : "Selecionar todos"}
+          </button>
+          <button
+            type="button"
+            className="rounded-md bg-brick-bg px-3 py-2 text-sm font-semibold text-brick"
+            disabled={selectedIds.length === 0 || remove.isPending}
+            onClick={async () => {
+              if (!window.confirm(`Excluir ${selectedIds.length} cliente(s) selecionado(s)? Reservas vinculadas podem impedir a exclusão.`)) return;
+              try {
+                await Promise.all(selectedIds.map((id) => remove.mutateAsync(id)));
+                toast.success("Clientes excluídos");
+                setSelectedIds([]);
+              } catch (e) {
+                toast.error(e instanceof Error ? e.message : "Falha ao excluir clientes");
+              }
+            }}
+          >
+            Excluir selecionados
+          </button>
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -114,12 +160,25 @@ function Clientes() {
           {filtered.map((c) => (
             <div key={c.id} className="card-surface p-4">
               <div className="flex items-start justify-between">
-                <div>
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={selectedIds.includes(c.id)}
+                    onChange={(e) =>
+                      setSelectedIds((ids) =>
+                        e.target.checked ? [...new Set([...ids, c.id])] : ids.filter((id) => id !== c.id),
+                      )
+                    }
+                    aria-label={`Selecionar ${c.nome}`}
+                  />
+                  <div>
                   <p className="font-serif text-lg font-bold">{c.nome}</p>
                 {c.telefone && <p className="text-sm text-muted-foreground">{c.telefone}</p>}
                 {(c as Client & { email?: string | null }).email && (
                   <p className="text-sm text-muted-foreground">{(c as Client & { email?: string | null }).email}</p>
                 )}
+                  </div>
                 </div>
                 <Badge tone={c.tipo === "cliente fixo" ? "brass" : "sage"}>{c.tipo}</Badge>
               </div>

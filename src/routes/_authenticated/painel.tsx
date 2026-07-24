@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BedDouble,
   CalendarClock,
@@ -942,13 +942,35 @@ function CafePainel({
 }) {
   const [showItemForm, setShowItemForm] = useState(false);
   const [tab, setTab] = useState<"visao" | "produtos" | "servido">("visao");
+  const breakfastStorageKey = `hotelreal.breakfastServed.${today}`;
+  const [breakfastServedIds, setBreakfastServedIds] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(localStorage.getItem(`hotelreal.breakfastServed.${today}`) ?? "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
   const rooms = activeToday
     .map((reservation) => ({
+      reservationId: reservation.id,
       quarto: reservation.quarto,
       pessoas: Number(reservation.pessoas ?? 1),
       hospede: reservationGuestName(reservation),
     }))
     .sort((a, b) => a.quarto - b.quarto);
+  const breakfastServedCount = rooms.filter((room) => breakfastServedIds.includes(room.reservationId)).length;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(breakfastStorageKey, JSON.stringify(breakfastServedIds));
+  }, [breakfastServedIds, breakfastStorageKey]);
+
+  function toggleBreakfastServed(reservationId: string) {
+    setBreakfastServedIds((ids) =>
+      ids.includes(reservationId) ? ids.filter((id) => id !== reservationId) : [...ids, reservationId],
+    );
+  }
 
   const activeItems = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "cafe"));
   const todayProductions = kitchenProductions.filter((row) => row.data === today);
@@ -988,10 +1010,11 @@ function CafePainel({
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Stat icon={<Coffee />} label="Pessoas hoje" value={String(ocupantesHoje)} hint="Base para compra" />
         <Stat icon={<BedDouble />} label="Quartos ocupados" value={String(activeToday.length)} hint={`Capacidade total: ${capacidadeTotal}`} />
         <Stat icon={<ClipboardCheck />} label="Itens ativos" value={String(activeItems.length)} hint="Cadastrados na cozinha" />
+        <Stat icon={<ClipboardCheck />} label="Café servido" value={`${breakfastServedCount}/${rooms.length}`} hint="Quartos marcados" />
         <Stat icon={<AlertTriangle />} label="Reposição" value={String(lowItems.length)} hint="Estoque abaixo do mínimo" />
       </div>
 
@@ -1354,6 +1377,7 @@ function CafePainel({
                   <th className="p-3">Quarto</th>
                   <th className="p-3">Pessoas</th>
                   <th className="p-3">Hospede</th>
+                  <th className="p-3">Café</th>
                 </tr>
               </thead>
               <tbody>
@@ -1362,6 +1386,19 @@ function CafePainel({
                     <td className="p-3 font-semibold">Quarto {row.quarto}</td>
                     <td className="p-3">{row.pessoas}</td>
                     <td className="p-3 text-muted-foreground">{row.hospede}</td>
+                    <td className="p-3">
+                      <button
+                        type="button"
+                        className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                          breakfastServedIds.includes(row.reservationId)
+                            ? "bg-sage-bg text-pine-dark"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                        onClick={() => toggleBreakfastServed(row.reservationId)}
+                      >
+                        {breakfastServedIds.includes(row.reservationId) ? "Tomou café" : "Marcar"}
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
