@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession, useRole, useProfile, type AppRole } from "@/hooks/use-auth";
 import { setCurrentCompanyId, useCurrentCompany } from "@/lib/data";
 import { useQueryClient } from "@tanstack/react-query";
+import { applySystemSettings, getSystemSettings } from "@/lib/system-settings";
 
 const TABS = [
   { to: "/painel", label: "Painel", icon: BarChart3, roles: ["dono", "recepcao", "limpeza", "cafe"] },
@@ -83,6 +84,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const mobileTabs = visibleTabs.filter((tab) => MOBILE_PRIMARY_TABS.includes(tab.to as (typeof MOBILE_PRIMARY_TABS)[number])).slice(0, 4);
   const showCompanySelector = role === "dono" && currentCompany.companies.length > 1;
   const companyName = currentCompany.data?.nome ?? "Hotel Real";
+  const [systemSettings, setSystemSettings] = useState(() => getSystemSettings(currentCompany.data?.id));
+
+  useEffect(() => {
+    const settings = getSystemSettings(currentCompany.data?.id);
+    setSystemSettings(settings);
+    applySystemSettings(settings);
+    const handleSettings = (event: Event) => {
+      const next = (event as CustomEvent).detail ?? getSystemSettings(currentCompany.data?.id);
+      setSystemSettings(next);
+      applySystemSettings(next);
+    };
+    window.addEventListener("hotelreal:settings", handleSettings);
+    return () => window.removeEventListener("hotelreal:settings", handleSettings);
+  }, [currentCompany.data?.id]);
 
   async function signOut() {
     await qc.cancelQueries();
@@ -92,16 +107,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
   }
 
   const sidebar = (
-    <aside className="flex h-full w-[min(15rem,84vw)] flex-col border-r border-pine-dark/70 bg-pine-dark text-primary-foreground shadow-2xl xl:w-60">
+    <aside
+      className="flex h-full w-[min(15rem,84vw)] flex-col border-r border-black/20 text-primary-foreground shadow-2xl xl:w-60"
+      style={{ backgroundColor: systemSettings.primaryColor }}
+    >
       <div className="border-b border-white/15 p-4">
         <div className="flex items-center gap-3">
           <img
-            src="/hotel-real-logo.png"
-            alt="Hotel Real Cruzilia"
+            src={systemSettings.logo}
+            alt={companyName}
             className="h-12 w-12 rounded-md bg-white object-contain p-1 shadow"
           />
           <div className="min-w-0">
-            <h1 className="truncate font-serif text-lg font-bold text-white">Hotel Real</h1>
+            <h1 className="truncate font-serif text-lg font-bold text-white">{companyName}</h1>
             <p className="text-[11px] uppercase tracking-wider text-brass">
               {role ? ROLE_SUBTITLES[role] : "Aguardando acesso"}
             </p>
@@ -141,8 +159,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
               to={t.to}
               onClick={() => setMenuOpen(false)}
               className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition ${
-                active ? "bg-brass text-pine-dark shadow" : "text-white/82 hover:bg-white/10 hover:text-white"
+                active ? "text-pine-dark shadow" : "text-white/82 hover:bg-white/10 hover:text-white"
               }`}
+              style={active ? { backgroundColor: systemSettings.accentColor } : undefined}
             >
               <Icon className="h-4 w-4" />
               {t.label}

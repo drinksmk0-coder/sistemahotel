@@ -14,7 +14,7 @@ import {
   type Product,
   type Sale,
 } from "@/lib/data";
-import { fmtBRL, fmtDate, todayISO, downloadCSV } from "@/lib/format";
+import { fmtBRL, fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { PAYMENT_METHODS } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, EmptyState } from "@/components/ui-kit";
@@ -57,7 +57,7 @@ function Vendas() {
   const cafeStock = products.filter((p) => p.ativo && p.categoria.toLowerCase().includes("café"));
 
   function exportCSV() {
-    downloadCSV(`vendas-${today}.csv`, [
+    downloadExcel(`vendas-${today}.xls`, [
       ["Data", "Quarto", "Categoria", "Item", "Qtd", "Unitário", "Total", "Pago", "Pendente", "Status", "Pagamento"],
       ...sales.map((s) => [
         s.data,
@@ -87,7 +87,7 @@ function Vendas() {
         action={
           <div className="flex gap-2">
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> CSV
+              <Download className="h-4 w-4" /> Excel
             </button>
             <button onClick={() => setProductOpen(true)} className="btn-ghost flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Produto

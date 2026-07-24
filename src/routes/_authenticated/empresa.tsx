@@ -1,11 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
+import { ImagePlus, Palette, Plus, Save } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Field, Modal } from "@/components/ui-kit";
 import { useCurrentCompany, useInsert, useRooms, useUpdate, type Company, type Room } from "@/lib/data";
 import { fmtBRL } from "@/lib/format";
+import {
+  GUEST_FIELD_KEYS,
+  getSystemSettings,
+  saveSystemSettings,
+  type GuestFieldKey,
+  type SystemSettings,
+} from "@/lib/system-settings";
 
 export const Route = createFileRoute("/_authenticated/empresa")({
   component: Empresa,
@@ -52,6 +59,8 @@ function Empresa() {
           )
         }
       />
+
+      <SystemCustomization companyId={current.data.id} />
 
       <section className="mt-5 card-surface overflow-x-auto">
         <div className="border-b border-border p-4">
@@ -128,6 +137,96 @@ function Empresa() {
         />
       )}
     </div>
+  );
+}
+
+const GUEST_FIELD_LABELS: Record<GuestFieldKey, string> = {
+  cpf: "CPF",
+  telefone: "Telefone",
+  estado: "Estado/UF",
+  estadoCivil: "Estado civil",
+  nascimento: "Data de nascimento",
+};
+
+function SystemCustomization({ companyId }: { companyId: string }) {
+  const [settings, setSettings] = useState<SystemSettings>(() => getSystemSettings(companyId));
+
+  function updateRequired(field: GuestFieldKey, value: boolean) {
+    setSettings((current) => ({
+      ...current,
+      requiredGuestFields: { ...current.requiredGuestFields, [field]: value },
+    }));
+  }
+
+  function readLogo(file?: File) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) return toast.error("Selecione uma imagem.");
+    if (file.size > 700_000) return toast.error("Use uma imagem de até 700 KB.");
+    const reader = new FileReader();
+    reader.onload = () => setSettings((current) => ({ ...current, logo: String(reader.result) }));
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <section className="mt-5 card-surface p-4">
+      <div className="mb-4 flex items-center gap-2">
+        <Palette className="h-5 w-5 text-brass" />
+        <div>
+          <h3 className="font-serif text-lg font-bold">Configurações do sistema</h3>
+          <p className="text-xs text-muted-foreground">Personalização disponível somente para o dono desta empresa.</p>
+        </div>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-2">
+        <div className="space-y-3 rounded-lg border border-border p-3">
+          <h4 className="text-sm font-bold text-pine-dark">Marca e aparência</h4>
+          <div className="flex items-center gap-3">
+            <img src={settings.logo} alt="Prévia da logo" className="h-16 w-16 rounded-lg border bg-white object-contain p-1" />
+            <label className="btn-ghost flex cursor-pointer items-center gap-2 text-xs">
+              <ImagePlus className="h-4 w-4" />
+              Escolher logo
+              <input type="file" accept="image/*" className="hidden" onChange={(event) => readLogo(event.target.files?.[0])} />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Cor principal">
+              <input className="h-10 w-full cursor-pointer rounded border" type="color" value={settings.primaryColor} onChange={(event) => setSettings((current) => ({ ...current, primaryColor: event.target.value }))} />
+            </Field>
+            <Field label="Cor de destaque">
+              <input className="h-10 w-full cursor-pointer rounded border" type="color" value={settings.accentColor} onChange={(event) => setSettings((current) => ({ ...current, accentColor: event.target.value }))} />
+            </Field>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border p-3">
+          <h4 className="text-sm font-bold text-pine-dark">Campos obrigatórios do hóspede</h4>
+          <p className="mb-3 text-xs text-muted-foreground">Desative o que não precisa ser exigido em uma nova reserva.</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {GUEST_FIELD_KEYS.map((field) => (
+              <label key={field} className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2 text-sm">
+                <span>{GUEST_FIELD_LABELS[field]}</span>
+                <input
+                  type="checkbox"
+                  checked={settings.requiredGuestFields[field]}
+                  onChange={(event) => updateRequired(field, event.target.checked)}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        className="btn-primary mt-4 flex items-center gap-2"
+        onClick={() => {
+          saveSystemSettings(companyId, settings);
+          toast.success("Configurações aplicadas");
+        }}
+      >
+        <Save className="h-4 w-4" /> Aplicar configurações
+      </button>
+    </section>
   );
 }
 

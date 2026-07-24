@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Download, Pencil, Trash2, Save } from "lucide-react";
 import { useFeedbacks, useUpdate, useDelete, type Feedback } from "@/lib/data";
-import { fmtDate, todayISO, downloadCSV } from "@/lib/format";
+import { fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { PageHeader } from "@/components/AppLayout";
 import { Stars, Badge, EmptyState, Modal, Field } from "@/components/ui-kit";
 
@@ -12,11 +12,11 @@ export const Route = createFileRoute("/_authenticated/avaliacoes")({
 
 const CRITERIA = [
   { key: "nota_geral", label: "Geral" },
+  { key: "nota_atendimento", label: "Funcionários" },
+  { key: "nota_chuveiro", label: "Comodidades" },
   { key: "nota_limpeza", label: "Limpeza" },
   { key: "nota_conforto", label: "Conforto" },
-  { key: "nota_atendimento", label: "Atendimento" },
-  { key: "nota_wifi", label: "Wi-Fi" },
-  { key: "nota_chuveiro", label: "Chuveiro" },
+  { key: "nota_wifi", label: "Wi-Fi gratuito" },
 ] as const;
 
 function Avaliacoes() {
@@ -49,9 +49,15 @@ function Avaliacoes() {
 
   const recomendam = filtrados.filter((f) => f.recomendaria);
   const nps = filtrados.length ? Math.round((recomendam.length / filtrados.length) * 100) : 0;
+  const overall = averages.find((item) => item.key === "nota_geral")?.avg ?? 0;
+  const displayScore = overall ? (overall * 2).toFixed(1).replace(".", ",") : "—";
+  const scoreLabel = overall >= 4.5 ? "Excepcional" : overall >= 4 ? "Fabuloso" : overall >= 3 ? "Muito bom" : overall ? "Em evolução" : "Sem avaliações";
+  const positiveComments = filtrados
+    .filter((feedback) => Number(feedback.nota_geral ?? 0) >= 4 && feedback.comentario)
+    .slice(0, 3);
 
   function exportCSV() {
-    downloadCSV(`avaliacoes-${todayISO()}.csv`, [
+    downloadExcel(`avaliacoes-${todayISO()}.xls`, [
       ["Data", "Hóspede", "Quarto", "Geral", "Limpeza", "Conforto", "Atendimento", "WiFi", "Chuveiro", "Recomenda", "Comentário", "Sugestão"],
       ...filtrados.map((f) => [
         f.created_at.slice(0, 10),
@@ -96,13 +102,26 @@ function Avaliacoes() {
               ))}
             </select>
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> CSV
+              <Download className="h-4 w-4" /> Excel
             </button>
           </div>
         }
       />
 
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <section className="mb-5 overflow-hidden rounded-xl border border-pine/20 bg-[linear-gradient(135deg,var(--pine-dark),var(--pine))] p-4 text-white shadow-md">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brass">Avaliações de hóspedes</p>
+            <h3 className="mt-1 font-serif text-2xl font-bold">{scoreLabel}</h3>
+            <p className="text-sm text-white/75">{filtrados.length} avaliação(ões) recebida(s)</p>
+          </div>
+          <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-brass font-serif text-3xl font-bold text-pine-dark">
+            {displayScore}
+          </div>
+        </div>
+      </section>
+
+      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
         <div className="stat-card">
           <p className="text-xs uppercase text-muted-foreground">Recomendariam</p>
           <p className="font-serif text-2xl font-bold">{nps}%</p>
@@ -116,6 +135,22 @@ function Avaliacoes() {
           </div>
         ))}
       </div>
+
+      {positiveComments.length > 0 && (
+        <section className="mb-6 rounded-xl border border-border bg-card p-4 shadow-sm">
+          <h3 className="font-serif text-lg font-bold text-pine-dark">Veja o que os hóspedes mais gostaram</h3>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            {positiveComments.map((feedback) => (
+              <blockquote key={feedback.id} className="rounded-lg bg-sage-bg/60 p-3 text-sm text-pine-dark">
+                “{feedback.comentario}”
+                <footer className="mt-2 text-xs font-semibold text-muted-foreground">
+                  {feedback.hospede_nome ?? "Hóspede"}{feedback.quarto ? ` · Quarto ${feedback.quarto}` : ""}
+                </footer>
+              </blockquote>
+            ))}
+          </div>
+        </section>
+      )}
 
       {filtrados.length === 0 ? (
         <EmptyState text="Nenhuma avaliação recebida ainda. Divulgue o QR code nos quartos!" />

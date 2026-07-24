@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import { Download, Pencil, Plus, Printer, Search, Trash2 } from "lucide-react";
 import { useClients, useDelete, useInsert, useReservations, useUpdate, type Client } from "@/lib/data";
-import { fmtBRL, fmtDate, downloadCSV, todayISO } from "@/lib/format";
+import { fmtBRL, fmtDate, downloadExcel, todayISO } from "@/lib/format";
 import { CLIENT_TYPES, BR_STATES, stateFromPhone } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
@@ -49,7 +49,7 @@ function Clientes() {
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
 
   function exportCSV() {
-    downloadCSV(`clientes-${todayISO()}.csv`, [
+    downloadExcel(`clientes-${todayISO()}.xls`, [
       [
         "Nome",
         "Tipo",
@@ -97,7 +97,7 @@ function Clientes() {
         action={
           <div className="flex gap-2">
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> CSV
+              <Download className="h-4 w-4" /> Excel
             </button>
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Novo cliente
@@ -201,6 +201,28 @@ function Clientes() {
                 <span className="font-semibold">{fmtBRL(spentByClient.get(c.id) ?? 0)}</span>
               </div>
               <div className="mt-3 flex justify-end gap-1.5">
+                <button
+                  type="button"
+                  className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      tipo: "cadastro",
+                      nome: c.nome,
+                      cpf: c.cpf ?? "",
+                      telefone: c.telefone ?? "",
+                      email: (c as Client & { email?: string | null }).email ?? "",
+                      nascimento: c.data_nascimento ? fmtDate(c.data_nascimento) : "",
+                      estadoCivil: c.estado_civil ?? "",
+                      profissao: c.profissao ?? "",
+                      origem: [c.cidade, c.estado, "Brasil"].filter(Boolean).join(" / "),
+                      endereco: [(c as Client & { cep?: string | null }).cep, c.bairro].filter(Boolean).join(" / "),
+                    });
+                    window.open(`/imprimir?${params.toString()}`, "_blank", "noopener,noreferrer");
+                  }}
+                  title="Imprimir ficha do hóspede"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                </button>
                 <button
                   type="button"
                   className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground"

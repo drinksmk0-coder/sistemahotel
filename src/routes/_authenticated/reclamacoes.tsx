@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Plus, Download } from "lucide-react";
 import { useRooms, useComplaints, useInsert, useUpdate } from "@/lib/data";
-import { fmtDate, todayISO, downloadCSV } from "@/lib/format";
+import { fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { COMPLAINT_CATEGORIES, COMPLAINT_SEVERITY, COMPLAINT_STATUS, WIFI_DEVICES, complaintLabel, complaintStatusLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
@@ -35,7 +35,7 @@ function Reclamacoes() {
   );
 
   function exportCSV() {
-    downloadCSV(`reclamacoes-${todayISO()}.csv`, [
+    downloadExcel(`reclamacoes-${todayISO()}.xls`, [
       ["Data", "Quarto", "Categoria", "Gravidade", "Origem", "Aparelho", "Hóspede", "Status", "Descrição"],
       ...complaints.map((c) => [
         c.created_at.slice(0, 10),
@@ -59,7 +59,7 @@ function Reclamacoes() {
         action={
           <div className="flex gap-2">
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> CSV
+              <Download className="h-4 w-4" /> Excel
             </button>
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Nova reclamação
