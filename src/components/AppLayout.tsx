@@ -3,6 +3,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   BarChart3,
   BedDouble,
+  CalendarRange,
   CreditCard,
   DollarSign,
   FileWarning,
@@ -25,13 +26,19 @@ import { useQueryClient } from "@tanstack/react-query";
 import { applySystemSettings, getSystemSettings } from "@/lib/system-settings";
 
 const TABS = [
-  { to: "/painel", label: "Painel", icon: BarChart3, roles: ["dono", "recepcao", "limpeza", "cafe"] },
+  {
+    to: "/painel",
+    label: "Painel",
+    icon: BarChart3,
+    roles: ["dono", "recepcao", "limpeza", "cafe"],
+  },
   { to: "/dashboard-estrategico", label: "Estratégico", icon: LayoutDashboard, roles: ["dono"] },
   { to: "/financeiro", label: "Financeiro", icon: WalletCards, roles: ["dono"] },
   { to: "/vendas-produtos", label: "Produtos", icon: PackageSearch, roles: ["dono", "recepcao"] },
   { to: "/dashboard-quartos", label: "Quartos", icon: BedDouble, roles: ["dono", "recepcao"] },
   { to: "/mapa", label: "Mapa", icon: BedDouble, roles: ["dono", "recepcao"] },
   { to: "/reservas", label: "Reservas", icon: CreditCard, roles: ["dono", "recepcao"] },
+  { to: "/tarifario", label: "Tarifário", icon: CalendarRange, roles: ["dono"] },
   { to: "/clientes", label: "Clientes", icon: Users, roles: ["dono", "recepcao"] },
   { to: "/vendas", label: "Vendas", icon: DollarSign, roles: ["dono", "recepcao"] },
   { to: "/despesas", label: "Despesas", icon: FileWarning, roles: ["dono"] },
@@ -85,10 +92,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [menuOpen, setMenuOpen] = useState(false);
   const visibleTabs = TABS.filter((tab) => !role || tab.roles.includes(role));
-  const mobileTabs = visibleTabs.filter((tab) => MOBILE_PRIMARY_TABS.includes(tab.to as (typeof MOBILE_PRIMARY_TABS)[number])).slice(0, 4);
+  const mobileTabs = visibleTabs
+    .filter((tab) => MOBILE_PRIMARY_TABS.includes(tab.to as (typeof MOBILE_PRIMARY_TABS)[number]))
+    .slice(0, 4);
   const showCompanySelector = role === "dono" && currentCompany.companies.length > 1;
   const companyName = currentCompany.data?.nome ?? "Hotel Real";
-  const [systemSettings, setSystemSettings] = useState(() => getSystemSettings(currentCompany.data?.id));
+  const [systemSettings, setSystemSettings] = useState(() =>
+    getSystemSettings(currentCompany.data?.id),
+  );
 
   useEffect(() => {
     const settings = getSystemSettings(currentCompany.data?.id);
@@ -132,7 +143,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
         {showCompanySelector ? (
           <label className="mt-4 block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase text-white/70">Empresa</span>
+            <span className="mb-1 block text-[11px] font-semibold uppercase text-white/70">
+              Empresa
+            </span>
             <select
               className="field border-white/20 bg-white/95 text-sm text-foreground"
               value={currentCompany.data?.id ?? ""}
@@ -163,7 +176,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
               to={t.to}
               onClick={() => setMenuOpen(false)}
               className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition ${
-                active ? "text-pine-dark shadow" : "text-white/82 hover:bg-white/10 hover:text-white"
+                active
+                  ? "text-pine-dark shadow"
+                  : "text-white/82 hover:bg-white/10 hover:text-white"
               }`}
               style={active ? { backgroundColor: systemSettings.accentColor } : undefined}
             >
@@ -177,10 +192,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <div className="border-t border-white/15 p-4">
         <Clock />
         <div className="mt-3">
-          <div className="truncate text-xs font-semibold text-white">{profile?.nome ?? user?.email}</div>
-          <div className="text-[11px] text-white/65">{role ? ROLE_LABELS[role] : "Aguardando liberacao"}</div>
+          <div className="truncate text-xs font-semibold text-white">
+            {profile?.nome ?? user?.email}
+          </div>
+          <div className="text-[11px] text-white/65">
+            {role ? ROLE_LABELS[role] : "Aguardando liberacao"}
+          </div>
         </div>
-        <button onClick={signOut} className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-white/20 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10">
+        <button
+          onClick={signOut}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-white/20 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10"
+        >
           <LogOut className="h-4 w-4" />
           Sair
         </button>
@@ -201,7 +223,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <div className="fixed inset-y-0 left-0 z-40 hidden xl:block">{sidebar}</div>
 
       {menuOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 xl:hidden" onClick={() => setMenuOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 bg-black/40 xl:hidden"
+          onClick={() => setMenuOpen(false)}
+        >
           <div className="h-full" onClick={(e) => e.stopPropagation()}>
             <button
               className="absolute left-[min(15rem,84vw)] top-4 rounded-r-md bg-card p-2 shadow"
@@ -245,7 +270,15 @@ export function AppLayout({ children }: { children: ReactNode }) {
   );
 }
 
-export function PageHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>

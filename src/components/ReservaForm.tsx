@@ -8,11 +8,20 @@ import {
   type Client,
   type Room,
   type Complaint,
+  type RateRule,
 } from "@/lib/data";
 import { fmtBRL, todayISO, nightsBetween } from "@/lib/format";
-import { BR_STATES, CLIENT_TYPES, PAYMENT_METHODS, SALES_CHANNELS, complaintLabel, stateFromPhone } from "@/lib/constants";
+import {
+  BR_STATES,
+  CLIENT_TYPES,
+  PAYMENT_METHODS,
+  SALES_CHANNELS,
+  complaintLabel,
+  stateFromPhone,
+} from "@/lib/constants";
 import { Modal, Field } from "@/components/ui-kit";
 import { getSystemSettings } from "@/lib/system-settings";
+import { quoteStay } from "@/lib/rates";
 
 export type ReservaRow = {
   quarto: number;
@@ -56,6 +65,7 @@ export function ReservaForm({
   clients,
   reservations,
   complaints,
+  rateRules,
   editing,
   fixedRoom,
   initialCheckin,
@@ -66,6 +76,7 @@ export function ReservaForm({
   clients: Client[];
   reservations: Reservation[];
   complaints: Complaint[];
+  rateRules?: RateRule[];
   editing?: Reservation | null;
   fixedRoom?: number;
   initialCheckin?: string;
@@ -86,7 +97,8 @@ export function ReservaForm({
 
   const initRoom = editing?.quarto ?? fixedRoom ?? rooms[0]?.numero ?? 0;
   const initialCheckinValue = editing?.checkin ?? initialCheckin ?? todayISO();
-  const initialCheckoutValue = editing?.checkout ?? (initialCheckin ? addDaysISO(initialCheckin, 1) : "");
+  const initialCheckoutValue =
+    editing?.checkout ?? (initialCheckin ? addDaysISO(initialCheckin, 1) : "");
   const [quarto, setQuarto] = useState<number>(initRoom);
   const [clienteId, setClienteId] = useState(editing?.cliente_id ?? "");
   const [nome, setNome] = useState(editing && !editing.cliente_id ? editing.cliente_nome : "");
@@ -108,7 +120,9 @@ export function ReservaForm({
   const [checkout, setCheckout] = useState(initialCheckoutValue);
   const [horarioReserva, setHorarioReserva] = useState(editing?.horario_reserva?.slice(0, 5) ?? "");
   const [horarioCheckin, setHorarioCheckin] = useState(editing?.horario_checkin?.slice(0, 5) ?? "");
-  const [horarioCheckout, setHorarioCheckout] = useState(editing?.horario_checkout?.slice(0, 5) ?? "");
+  const [horarioCheckout, setHorarioCheckout] = useState(
+    editing?.horario_checkout?.slice(0, 5) ?? "",
+  );
   const [diarias, setDiarias] = useState<string>(
     String(editing?.diarias ?? nightsBetween(initialCheckinValue, initialCheckoutValue)),
   );
@@ -121,24 +135,45 @@ export function ReservaForm({
   const [pessoas, setPessoas] = useState<string>(String(editing?.pessoas ?? 1));
   const [cobrancaPorPessoa, setCobrancaPorPessoa] = useState(
     editing
-      ? Number(editing.valor_total) >= Number(editing.valor_diaria) * Number(editing.diarias) * Math.max(1, Number(editing.pessoas))
+      ? Number(editing.valor_total) >=
+          Number(editing.valor_diaria) *
+            Number(editing.diarias) *
+            Math.max(1, Number(editing.pessoas))
       : false,
   );
+  const [tarifaAutomatica, setTarifaAutomatica] = useState(!editing);
   const [canal, setCanal] = useState<string>(editing?.canal ?? SALES_CHANNELS[0]);
   const [motivoEstadia, setMotivoEstadia] = useState(editing?.motivo_estadia ?? "");
   const [override, setOverride] = useState(false);
   const requiredFields = getSystemSettings().requiredGuestFields;
 
   const nights = Math.max(0, parseIntNumber(diarias));
-  const diariaValor = parseNumber(valorDiaria);
+  const pessoasCount = Math.max(1, parseIntNumber(pessoas, 1));
+  const selectedRoom = rooms.find((room) => room.numero === quarto);
+  const rateQuote = useMemo(
+    () => quoteStay(selectedRoom, rateRules ?? [], checkin, checkout, pessoasCount),
+    [checkin, checkout, pessoasCount, rateRules, selectedRoom],
+  );
+  const appliedRateNames = useMemo(
+    () => [...new Set(rateQuote.appliedRules.map((item) => item.name))],
+    [rateQuote.appliedRules],
+  );
+
+  const valorDiariaExibido =
+    tarifaAutomatica && rateQuote.nights > 0
+      ? rateQuote.averageNightly.toFixed(2).replace(".", ",")
+      : valorDiaria;
+  const diariaValor = parseNumber(valorDiariaExibido);
   const descontoValor = parseNumber(desconto);
   const valorPagoNumber = parseNumber(valorPago);
-  const pessoasCount = Math.max(1, parseIntNumber(pessoas, 1));
   const multiplicadorHospedes = cobrancaPorPessoa ? pessoasCount : 1;
   const bruto = nights * diariaValor * multiplicadorHospedes;
   const total = Math.max(0, bruto - descontoValor);
   const overlap =
-    quarto && checkin && checkout && hasActiveOverlap(reservations, quarto, checkin, checkout, editing?.id);
+    quarto &&
+    checkin &&
+    checkout &&
+    hasActiveOverlap(reservations, quarto, checkin, checkout, editing?.id);
   const block = roomBlock(complaints, quarto);
   const blocked = !!block && !override;
   const status = statusFromPayment(total, valorPagoNumber);
@@ -148,7 +183,10 @@ export function ReservaForm({
     const query = nome.trim().toLowerCase();
     if (clienteId || query.length < 2) return [];
     return clients
-      .filter((client) => !client.tipo.startsWith("desativado:") && client.nome.toLowerCase().includes(query))
+      .filter(
+        (client) =>
+          !client.tipo.startsWith("desativado:") && client.nome.toLowerCase().includes(query),
+      )
       .slice(0, 8);
   }, [clients, clienteId, nome]);
 
@@ -206,11 +244,15 @@ export function ReservaForm({
     if (!cleanName || hasNumber(cleanName) || cleanName.split(" ").length < 2) {
       return toast.error("Informe o nome completo do hóspede, sem números.");
     }
-    if (requiredFields.cpf && onlyDigits(cleanCpf).length !== 11) return toast.error("CPF obrigatório. Informe os 11 dígitos.");
-    if (requiredFields.telefone && onlyDigits(cleanPhone).length < 10) return toast.error("Telefone obrigatório. Informe DDD e número.");
-    if (requiredFields.nascimento && !requiredNascimento) return toast.error("Data de nascimento obrigatória.");
+    if (requiredFields.cpf && onlyDigits(cleanCpf).length !== 11)
+      return toast.error("CPF obrigatório. Informe os 11 dígitos.");
+    if (requiredFields.telefone && onlyDigits(cleanPhone).length < 10)
+      return toast.error("Telefone obrigatório. Informe DDD e número.");
+    if (requiredFields.nascimento && !requiredNascimento)
+      return toast.error("Data de nascimento obrigatória.");
     if (requiredFields.estado && !requiredEstado) return toast.error("Estado obrigatório.");
-    if (requiredFields.estadoCivil && !requiredEstadoCivil) return toast.error("Estado civil obrigatório.");
+    if (requiredFields.estadoCivil && !requiredEstadoCivil)
+      return toast.error("Estado civil obrigatório.");
     const wasOccupied = editing?.status === "ocupado";
     onSave({
       quarto,
@@ -248,13 +290,19 @@ export function ReservaForm({
       status: effectiveStatus,
       checkin_at:
         effectiveStatus === "ocupado"
-          ? (wasOccupied ? editing?.checkin_at ?? new Date().toISOString() : new Date().toISOString())
-          : editing?.checkin_at ?? null,
+          ? wasOccupied
+            ? (editing?.checkin_at ?? new Date().toISOString())
+            : new Date().toISOString()
+          : (editing?.checkin_at ?? null),
     });
   }
 
   return (
-    <Modal open onClose={onClose} title={editing ? `Editar reserva — Quarto ${editing.quarto}` : "Nova reserva"}>
+    <Modal
+      open
+      onClose={onClose}
+      title={editing ? `Editar reserva — Quarto ${editing.quarto}` : "Nova reserva"}
+    >
       <form onSubmit={submit} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Quarto">
@@ -266,8 +314,7 @@ export function ReservaForm({
                 const num = Number(e.target.value);
                 setQuarto(num);
                 setOverride(false);
-                const room = rooms.find((r) => r.numero === num);
-                if (room) setValorDiaria(numberInput(room.preco));
+                setTarifaAutomatica(true);
               }}
             >
               {rooms.map((r) => (
@@ -282,12 +329,41 @@ export function ReservaForm({
               type="text"
               inputMode="decimal"
               className="field"
-              value={valorDiaria}
+              value={valorDiariaExibido}
               placeholder="0,00"
-              onChange={(e) => setValorDiaria(e.target.value.replace(/[^\d,.]/g, ""))}
+              onChange={(e) => {
+                setTarifaAutomatica(false);
+                setValorDiaria(e.target.value.replace(/[^\d,.]/g, ""));
+              }}
             />
           </Field>
         </div>
+
+        {!editing && rateQuote.nights > 0 && (
+          <div className="rounded-lg border border-pine/20 bg-sage-bg p-3 text-sm text-pine-dark">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="font-bold">Tarifa calculada automaticamente</p>
+                <p className="text-xs">
+                  {appliedRateNames.join(" + ")} · média {fmtBRL(rateQuote.averageNightly)} por
+                  noite · total {fmtBRL(rateQuote.total)}
+                </p>
+              </div>
+              {!tarifaAutomatica && (
+                <button
+                  type="button"
+                  className="rounded-md bg-pine px-3 py-1 text-xs font-bold text-white"
+                  onClick={() => setTarifaAutomatica(true)}
+                >
+                  Reaplicar tarifa
+                </button>
+              )}
+            </div>
+            {!tarifaAutomatica && (
+              <p className="mt-2 text-xs font-semibold text-brick">Valor alterado manualmente.</p>
+            )}
+          </div>
+        )}
 
         <Field label="Cliente">
           <div className="relative">
@@ -322,7 +398,9 @@ export function ReservaForm({
                   >
                     <span className="font-semibold">{client.nome}</span>
                     <span className="ml-2 text-xs text-muted-foreground">
-                      {[client.telefone, client.estado, client.profissao].filter(Boolean).join(" · ")}
+                      {[client.telefone, client.estado, client.profissao]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   </button>
                 ))}
@@ -334,14 +412,32 @@ export function ReservaForm({
           <>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Telefone">
-                <input className="field" value={telefone} onChange={(e) => handlePhoneChange(e.target.value)} maxLength={17} required={requiredFields.telefone} />
+                <input
+                  className="field"
+                  value={telefone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  maxLength={17}
+                  required={requiredFields.telefone}
+                />
               </Field>
               <Field label="E-mail">
-                <input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} />
+                <input
+                  className="field"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  maxLength={120}
+                />
               </Field>
             </div>
             <Field label="CPF">
-              <input className="field" value={cpf} onChange={(e) => setCpf(formatCpfBR(e.target.value))} maxLength={14} required={requiredFields.cpf} />
+              <input
+                className="field"
+                value={cpf}
+                onChange={(e) => setCpf(formatCpfBR(e.target.value))}
+                maxLength={14}
+                required={requiredFields.cpf}
+              />
             </Field>
             <div className="grid grid-cols-3 gap-3">
               <Field label="Tipo de hóspede">
@@ -350,16 +446,25 @@ export function ReservaForm({
                   value={tipoCliente}
                   onChange={(e) => {
                     setTipoCliente(e.target.value);
-                    if (e.target.value.toLowerCase().includes("empresa")) setPagamento("transferência");
+                    if (e.target.value.toLowerCase().includes("empresa"))
+                      setPagamento("transferência");
                   }}
                 >
                   {CLIENT_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
                   ))}
                 </select>
               </Field>
               <Field label="Nascimento">
-                <input type="date" className="field" value={nascimento} onChange={(e) => setNascimento(e.target.value)} required={requiredFields.nascimento} />
+                <input
+                  type="date"
+                  className="field"
+                  value={nascimento}
+                  onChange={(e) => setNascimento(e.target.value)}
+                  required={requiredFields.nascimento}
+                />
               </Field>
               <Field label="Sexo">
                 <select className="field" value={sexo} onChange={(e) => setSexo(e.target.value)}>
@@ -371,29 +476,61 @@ export function ReservaForm({
               </Field>
             </div>
             <Field label="Profissão">
-              <input className="field" value={profissao} onChange={(e) => setProfissao(e.target.value)} maxLength={60} />
+              <input
+                className="field"
+                value={profissao}
+                onChange={(e) => setProfissao(e.target.value)}
+                maxLength={60}
+              />
             </Field>
             <div className="grid grid-cols-3 gap-3">
               <Field label="Cidade">
-                <input className="field" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={60} />
+                <input
+                  className="field"
+                  value={cidade}
+                  onChange={(e) => setCidade(e.target.value)}
+                  maxLength={60}
+                />
               </Field>
               <Field label="UF">
-                <select className="field" value={estado} onChange={(e) => setEstado(e.target.value)} required={requiredFields.estado}>
+                <select
+                  className="field"
+                  value={estado}
+                  onChange={(e) => setEstado(e.target.value)}
+                  required={requiredFields.estado}
+                >
                   {BR_STATES.map((uf) => (
-                    <option key={uf} value={uf}>{uf}</option>
+                    <option key={uf} value={uf}>
+                      {uf}
+                    </option>
                   ))}
                 </select>
               </Field>
               <Field label="Bairro">
-                <input className="field" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={80} />
+                <input
+                  className="field"
+                  value={bairro}
+                  onChange={(e) => setBairro(e.target.value)}
+                  maxLength={80}
+                />
               </Field>
             </div>
             <Field label="CEP">
-              <input className="field" value={cep} onChange={(e) => setCep(e.target.value)} maxLength={10} placeholder="Opcional" />
+              <input
+                className="field"
+                value={cep}
+                onChange={(e) => setCep(e.target.value)}
+                maxLength={10}
+                placeholder="Opcional"
+              />
             </Field>
             <div className="grid grid-cols-3 gap-3">
               <Field label="Estado civil">
-                <select className="field" value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)}>
+                <select
+                  className="field"
+                  value={estadoCivil}
+                  onChange={(e) => setEstadoCivil(e.target.value)}
+                >
                   <option value="">—</option>
                   <option value="solteiro">Solteiro(a)</option>
                   <option value="casado">Casado(a)</option>
@@ -403,7 +540,11 @@ export function ReservaForm({
                 </select>
               </Field>
               <Field label="Tem filhos?">
-                <select className="field" value={temFilhos ? "sim" : "nao"} onChange={(e) => setTemFilhos(e.target.value === "sim")}>
+                <select
+                  className="field"
+                  value={temFilhos ? "sim" : "nao"}
+                  onChange={(e) => setTemFilhos(e.target.value === "sim")}
+                >
                   <option value="nao">Não</option>
                   <option value="sim">Sim</option>
                 </select>
@@ -521,21 +662,30 @@ export function ReservaForm({
             <div>
               <p className="text-sm font-semibold text-pine-dark">Como a diária é cobrada?</p>
               <p className="text-xs text-muted-foreground">
-                Por quarto mantém uma diária por noite. Por pessoa multiplica também pela quantidade de hóspedes.
+                Por quarto mantém uma diária por noite. Por pessoa multiplica também pela quantidade
+                de hóspedes.
               </p>
             </div>
             <div className="flex rounded-lg border border-border bg-card p-1">
               <button
                 type="button"
                 className={`rounded-md px-3 py-1.5 text-xs font-bold ${!cobrancaPorPessoa ? "bg-pine text-white" : "text-muted-foreground"}`}
-                onClick={() => setCobrancaPorPessoa(false)}
+                onClick={() => {
+                  setValorDiaria(valorDiariaExibido);
+                  setTarifaAutomatica(false);
+                  setCobrancaPorPessoa(false);
+                }}
               >
                 Por quarto
               </button>
               <button
                 type="button"
                 className={`rounded-md px-3 py-1.5 text-xs font-bold ${cobrancaPorPessoa ? "bg-pine text-white" : "text-muted-foreground"}`}
-                onClick={() => setCobrancaPorPessoa(true)}
+                onClick={() => {
+                  setValorDiaria(valorDiariaExibido);
+                  setTarifaAutomatica(false);
+                  setCobrancaPorPessoa(true);
+                }}
               >
                 Por pessoa
               </button>
@@ -545,7 +695,11 @@ export function ReservaForm({
 
         <div className="grid grid-cols-2 gap-3">
           <Field label="Forma de pagamento">
-            <select className="field" value={pagamento} onChange={(e) => setPagamento(e.target.value)}>
+            <select
+              className="field"
+              value={pagamento}
+              onChange={(e) => setPagamento(e.target.value)}
+            >
               {PAYMENT_METHODS.map((m) => (
                 <option key={m} value={m}>
                   {m}
@@ -566,7 +720,11 @@ export function ReservaForm({
         </div>
 
         <Field label="Motivo da estadia">
-          <select className="field" value={motivoEstadia} onChange={(e) => setMotivoEstadia(e.target.value)}>
+          <select
+            className="field"
+            value={motivoEstadia}
+            onChange={(e) => setMotivoEstadia(e.target.value)}
+          >
             <option value="">—</option>
             <option value="trabalho">Trabalho</option>
             <option value="lazer">Lazer</option>
@@ -581,7 +739,9 @@ export function ReservaForm({
           <button
             type="button"
             className="btn-ghost text-xs"
-            onClick={() => setPaymentShortcut(Math.round((total / 2) * 100) / 100, "Metade do valor aplicada")}
+            onClick={() =>
+              setPaymentShortcut(Math.round((total / 2) * 100) / 100, "Metade do valor aplicada")
+            }
           >
             Pagar metade (reserva)
           </button>
@@ -683,9 +843,12 @@ function formatCpfBR(value: string | null | undefined) {
 }
 
 function formatPhoneBR(value: string | null | undefined) {
-  const digits = onlyDigits(value).replace(/^55(?=\d{10,11}$)/, "").slice(0, 11);
+  const digits = onlyDigits(value)
+    .replace(/^55(?=\d{10,11}$)/, "")
+    .slice(0, 11);
   if (digits.length <= 2) return digits;
   if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  if (digits.length <= 10)
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }

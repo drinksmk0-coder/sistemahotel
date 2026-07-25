@@ -6,7 +6,10 @@ import { todayISO } from "@/lib/format";
 type TenantRow = { company_id: string };
 export type Room = Tables<"rooms"> & TenantRow;
 export type Client = Tables<"clients"> & TenantRow;
-export type Reservation = Tables<"reservations"> & TenantRow;
+export type Reservation = Tables<"reservations"> &
+  TenantRow & {
+    group_id?: string | null;
+  };
 export type Sale = Tables<"sales"> & TenantRow;
 export type Product = Tables<"products"> & TenantRow;
 export type KitchenItem = Tables<"kitchen_items"> & TenantRow;
@@ -14,7 +17,42 @@ export type KitchenProduction = Tables<"kitchen_productions"> & TenantRow;
 export type Complaint = Tables<"complaints"> & Partial<TenantRow>;
 export type Feedback = Tables<"feedbacks"> & Partial<TenantRow>;
 export type IntegrationEvent = Tables<"integration_events"> & Partial<TenantRow>;
-export type WhatsappReservationSession = Tables<"whatsapp_reservation_sessions"> & Partial<TenantRow>;
+export type WhatsappReservationSession = Tables<"whatsapp_reservation_sessions"> &
+  Partial<TenantRow>;
+
+export type RateRule = {
+  id: string;
+  company_id: string;
+  nome: string;
+  inicio: string;
+  fim: string;
+  configuracao_quarto: string | null;
+  valor_base: number;
+  hospedes_inclusos: number;
+  adicional_hospede: number;
+  minimo_diarias: number;
+  prioridade: number;
+  ativo: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReservationGroup = {
+  id: string;
+  company_id: string;
+  nome: string;
+  responsavel_nome: string;
+  responsavel_telefone: string | null;
+  checkin: string;
+  checkout: string;
+  canal: string | null;
+  observacoes: string | null;
+  status: "ativo" | "finalizado" | "cancelado";
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export type Company = {
   id: string;
@@ -98,6 +136,8 @@ const TENANT_TABLES = new Set([
   "company_invites",
   "company_members",
   "expenses",
+  "rate_rules",
+  "reservation_groups",
 ]);
 
 function selectedCompanyStorageKey(userId?: string) {
@@ -132,7 +172,10 @@ export function useCurrentCompany() {
   const company = (() => {
     const list = companies.data ?? [];
     if (!list.length) return null;
-    const stored = typeof window !== "undefined" ? localStorage.getItem(selectedCompanyStorageKey(auth.data ?? undefined)) : null;
+    const stored =
+      typeof window !== "undefined"
+        ? localStorage.getItem(selectedCompanyStorageKey(auth.data ?? undefined))
+        : null;
     return list.find((c) => c.id === stored) ?? list[0];
   })();
 
@@ -146,14 +189,19 @@ export function setCurrentCompanyId(userId: string | undefined, companyId: strin
   }
 }
 
-function useTenantQuery<T>(table: string, order: string, options?: { ascending?: boolean; limit?: number }) {
+function useTenantQuery<T>(
+  table: string,
+  order: string,
+  options?: { ascending?: boolean; limit?: number },
+) {
   const company = useCurrentCompany();
   return useQuery({
     queryKey: [table, company.data?.id],
     enabled: !!company.data,
     queryFn: async () => {
       let query = supabase.from(table as never).select("*") as any;
-      if (TENANT_TABLES.has(table) && table !== "company_members") query = query.eq("company_id", company.data!.id);
+      if (TENANT_TABLES.has(table) && table !== "company_members")
+        query = query.eq("company_id", company.data!.id);
       if (table === "company_members") query = query.eq("company_id", company.data!.id);
       query = query.order(order, { ascending: options?.ascending ?? true });
       if (options?.limit) query = query.limit(options.limit);
@@ -203,7 +251,10 @@ export function useKitchenItems() {
 }
 
 export function useKitchenProductions() {
-  return useTenantQuery<KitchenProduction>("kitchen_productions", "data", { ascending: false, limit: 120 });
+  return useTenantQuery<KitchenProduction>("kitchen_productions", "data", {
+    ascending: false,
+    limit: 120,
+  });
 }
 
 export function useComplaints() {
@@ -215,11 +266,16 @@ export function useFeedbacks() {
 }
 
 export function useIntegrationEvents() {
-  return useTenantQuery<IntegrationEvent>("integration_events", "created_at", { ascending: false, limit: 50 });
+  return useTenantQuery<IntegrationEvent>("integration_events", "created_at", {
+    ascending: false,
+    limit: 50,
+  });
 }
 
 export function useWhatsappReservationSessions() {
-  return useTenantQuery<WhatsappReservationSession>("whatsapp_reservation_sessions", "updated_at", { ascending: false });
+  return useTenantQuery<WhatsappReservationSession>("whatsapp_reservation_sessions", "updated_at", {
+    ascending: false,
+  });
 }
 
 export function useCompanyMembers() {
@@ -231,11 +287,21 @@ export function useCompanyInvites() {
 }
 
 export function useCompanyIntegrations() {
-  return useTenantQuery<CompanyIntegration>("company_integrations", "created_at", { ascending: false });
+  return useTenantQuery<CompanyIntegration>("company_integrations", "created_at", {
+    ascending: false,
+  });
 }
 
 export function useExpenses() {
   return useTenantQuery<Expense>("expenses", "data", { ascending: false });
+}
+
+export function useRateRules() {
+  return useTenantQuery<RateRule>("rate_rules", "prioridade", { ascending: false });
+}
+
+export function useReservationGroups() {
+  return useTenantQuery<ReservationGroup>("reservation_groups", "created_at", { ascending: false });
 }
 
 // Generic table mutations
@@ -245,6 +311,8 @@ type TableName =
   | "company_invites"
   | "company_integrations"
   | "expenses"
+  | "rate_rules"
+  | "reservation_groups"
   | "clients"
   | "reservations"
   | "sales"
@@ -266,7 +334,10 @@ export function useInsert<T extends TableName>(table: T, invalidate: string[]) {
         TENANT_TABLES.has(table) && table !== "companies" && company.data?.id && !row.company_id
           ? { ...row, company_id: company.data.id }
           : row;
-      const { data, error } = await supabase.from(table as never).insert(withCompany as never).select();
+      const { data, error } = await supabase
+        .from(table as never)
+        .insert(withCompany as never)
+        .select();
       if (error) throw error;
       return data;
     },
@@ -284,7 +355,12 @@ export function useUpdate<T extends TableName>(table: T, invalidate: string[]) {
     mutationFn: async ({ id, patch }: { id: string | number; patch: Record<string, unknown> }) => {
       const key = table === "rooms" ? "numero" : "id";
       let query = (supabase.from(table as never) as any).update(patch).eq(key, id);
-      if (TENANT_TABLES.has(table) && table !== "companies" && table !== "rooms" && company.data?.id) {
+      if (
+        TENANT_TABLES.has(table) &&
+        table !== "companies" &&
+        table !== "rooms" &&
+        company.data?.id
+      ) {
         query = query.eq("company_id", company.data.id);
       }
       if (table === "rooms" && company.data?.id) query = query.eq("company_id", company.data.id);
@@ -331,9 +407,7 @@ export function roomStatusToday(
   // OR whose reservation is marked "ocupado" keeps the room OCUPADO until the
   // stay is finalized (checkout) on the reservations page. This is why a paid
   // room stays red even on/after the checkout date.
-  const occupado = active.find(
-    (r) => r.checkin <= today && (r.pago || r.status === "ocupado"),
-  );
+  const occupado = active.find((r) => r.checkin <= today && (r.pago || r.status === "ocupado"));
   if (occupado) return "ocupado";
   // A stay covering today that is not fully paid = reservado.
   const occ = active.find((r) => r.checkin <= today && r.checkout >= today);
@@ -343,7 +417,10 @@ export function roomStatusToday(
   return "livre";
 }
 
-export function activeReservationForRoom(reservations: Reservation[], numero: number): Reservation | null {
+export function activeReservationForRoom(
+  reservations: Reservation[],
+  numero: number,
+): Reservation | null {
   const today = todayISO();
   const active = reservations
     .filter(
@@ -391,7 +468,6 @@ export function roomBlock(complaints: Complaint[], numero: number): Complaint | 
     ) ?? null
   );
 }
-
 
 export function hasActiveOverlap(
   reservations: Reservation[],

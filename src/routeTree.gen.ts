@@ -18,6 +18,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedVendasProdutosRouteImport } from './routes/_authenticated/vendas-produtos'
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
+import { Route as AuthenticatedTarifarioRouteImport } from './routes/_authenticated/tarifario'
 import { Route as AuthenticatedReservasRouteImport } from './routes/_authenticated/reservas'
 import { Route as AuthenticatedReclamacoesRouteImport } from './routes/_authenticated/reclamacoes'
 import { Route as AuthenticatedQrcodesRouteImport } from './routes/_authenticated/qrcodes'
@@ -76,6 +77,11 @@ const AuthenticatedVendasProdutosRoute =
 const AuthenticatedVendasRoute = AuthenticatedVendasRouteImport.update({
   id: '/vendas',
   path: '/vendas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTarifarioRoute = AuthenticatedTarifarioRouteImport.update({
+  id: '/tarifario',
+  path: '/tarifario',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedReservasRoute = AuthenticatedReservasRouteImport.update({
@@ -174,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/qrcodes': typeof AuthenticatedQrcodesRoute
   '/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/reservas': typeof AuthenticatedReservasRoute
+  '/tarifario': typeof AuthenticatedTarifarioRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
 }
@@ -198,6 +205,7 @@ export interface FileRoutesByTo {
   '/qrcodes': typeof AuthenticatedQrcodesRoute
   '/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/reservas': typeof AuthenticatedReservasRoute
+  '/tarifario': typeof AuthenticatedTarifarioRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
 }
@@ -224,6 +232,7 @@ export interface FileRoutesById {
   '/_authenticated/qrcodes': typeof AuthenticatedQrcodesRoute
   '/_authenticated/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/_authenticated/reservas': typeof AuthenticatedReservasRoute
+  '/_authenticated/tarifario': typeof AuthenticatedTarifarioRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
   '/_authenticated/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
 }
@@ -250,6 +259,7 @@ export interface FileRouteTypes {
     | '/qrcodes'
     | '/reclamacoes'
     | '/reservas'
+    | '/tarifario'
     | '/vendas'
     | '/vendas-produtos'
   fileRoutesByTo: FileRoutesByTo
@@ -274,6 +284,7 @@ export interface FileRouteTypes {
     | '/qrcodes'
     | '/reclamacoes'
     | '/reservas'
+    | '/tarifario'
     | '/vendas'
     | '/vendas-produtos'
   id:
@@ -299,6 +310,7 @@ export interface FileRouteTypes {
     | '/_authenticated/qrcodes'
     | '/_authenticated/reclamacoes'
     | '/_authenticated/reservas'
+    | '/_authenticated/tarifario'
     | '/_authenticated/vendas'
     | '/_authenticated/vendas-produtos'
   fileRoutesById: FileRoutesById
@@ -376,6 +388,13 @@ declare module '@tanstack/react-router' {
       path: '/vendas'
       fullPath: '/vendas'
       preLoaderRoute: typeof AuthenticatedVendasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tarifario': {
+      id: '/_authenticated/tarifario'
+      path: '/tarifario'
+      fullPath: '/tarifario'
+      preLoaderRoute: typeof AuthenticatedTarifarioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/reservas': {
@@ -494,6 +513,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedQrcodesRoute: typeof AuthenticatedQrcodesRoute
   AuthenticatedReclamacoesRoute: typeof AuthenticatedReclamacoesRoute
   AuthenticatedReservasRoute: typeof AuthenticatedReservasRoute
+  AuthenticatedTarifarioRoute: typeof AuthenticatedTarifarioRoute
   AuthenticatedVendasRoute: typeof AuthenticatedVendasRoute
   AuthenticatedVendasProdutosRoute: typeof AuthenticatedVendasProdutosRoute
 }
@@ -514,6 +534,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedQrcodesRoute: AuthenticatedQrcodesRoute,
   AuthenticatedReclamacoesRoute: AuthenticatedReclamacoesRoute,
   AuthenticatedReservasRoute: AuthenticatedReservasRoute,
+  AuthenticatedTarifarioRoute: AuthenticatedTarifarioRoute,
   AuthenticatedVendasRoute: AuthenticatedVendasRoute,
   AuthenticatedVendasProdutosRoute: AuthenticatedVendasProdutosRoute,
 }

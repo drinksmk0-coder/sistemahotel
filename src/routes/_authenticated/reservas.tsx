@@ -1,7 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Download, Pencil, ArrowLeftRight, Ban, MessageCircle, Star, Trash2 } from "lucide-react";
+import {
+  Plus,
+  Download,
+  Pencil,
+  ArrowLeftRight,
+  Ban,
+  MessageCircle,
+  Star,
+  Trash2,
+  UsersRound,
+} from "lucide-react";
 import {
   useRooms,
   useClients,
@@ -10,17 +21,25 @@ import {
   useDelete,
   useInsert,
   useUpdate,
+  useRateRules,
+  useReservationGroups,
+  useCurrentCompany,
   statusFromPayment,
   hasActiveOverlap,
   roomBlock,
   type Client,
   type Reservation,
 } from "@/lib/data";
+import { supabase } from "@/integrations/supabase/client";
 import { fmtBRL, fmtDate, fmtTime, todayISO, downloadExcel } from "@/lib/format";
 import { ROOM_BLOCK_REASONS, complaintLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
 import { ReservaForm, type ReservaRow } from "@/components/ReservaForm";
+import {
+  GroupReservationForm,
+  type GroupReservationPayload,
+} from "@/components/GroupReservationForm";
 
 export const Route = createFileRoute("/_authenticated/reservas")({
   component: Reservas,
@@ -39,13 +58,20 @@ function Reservas() {
   const { data: clients = [] } = useClients();
   const { data: reservations = [] } = useReservations();
   const { data: complaints = [] } = useComplaints();
+  const { data: rateRules = [] } = useRateRules();
+  const { data: reservationGroups = [] } = useReservationGroups();
+  const currentCompany = useCurrentCompany();
+  const queryClient = useQueryClient();
   const insert = useInsert("reservations", ["reservations"]);
+  const insertGroup = useInsert("reservation_groups", ["reservation_groups"]);
   const insertClient = useInsert("clients", ["clients"]);
   const insertComplaint = useInsert("complaints", ["complaints"]);
   const update = useUpdate("reservations", ["reservations"]);
   const remove = useDelete("reservations", ["reservations"]);
   const updateRoom = useUpdate("rooms", ["rooms"]);
   const [open, setOpen] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [groupBusy, setGroupBusy] = useState(false);
   const [editing, setEditing] = useState<Reservation | null>(null);
   const [moving, setMoving] = useState<Reservation | null>(null);
   const [filter, setFilter] = useState("ativas");
@@ -150,7 +176,9 @@ function Reservas() {
     if (existing) {
       const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();
       if (!sameName) {
-        throw new Error(`Telefone já cadastrado para ${existing.nome}. Se for a mesma pessoa, selecione o cliente cadastrado.`);
+        throw new Error(
+          `Telefone já cadastrado para ${existing.nome}. Se for a mesma pessoa, selecione o cliente cadastrado.`,
+        );
       }
       return { ...cleanRow, cliente_id: existing.id, cliente_nome: existing.nome };
     }
@@ -170,11 +198,50 @@ function Reservas() {
       bairro: row.cliente_bairro || null,
       estado_civil: row.cliente_estado_civil || null,
       tem_filhos: row.cliente_tem_filhos ?? null,
-      quantidade_filhos: row.cliente_tem_filhos ? row.cliente_quantidade_filhos ?? 0 : null,
+      quantidade_filhos: row.cliente_tem_filhos ? (row.cliente_quantidade_filhos ?? 0) : null,
     })) as unknown as Client[];
 
     const client = created[0];
     return client ? { ...cleanRow, cliente_id: client.id, cliente_nome: client.nome } : cleanRow;
+  }
+
+  async function createGroupReservation(payload: GroupReservationPayload) {
+    if (!currentCompany.data?.id) {
+      toast.error("Empresa não encontrada.");
+      return;
+    }
+    setGroupBusy(true);
+    let createdGroupId = "";
+    try {
+      const created = (await insertGroup.mutateAsync(payload.group)) as unknown as {
+        id: string;
+      }[];
+      createdGroupId = created[0]?.id ?? "";
+      if (!createdGroupId) throw new Error("Não foi possível criar o grupo.");
+
+      const rows = payload.reservations.map((reservation) => ({
+        ...reservation,
+        company_id: currentCompany.data!.id,
+        group_id: createdGroupId,
+      }));
+      const { error } = await supabase.from("reservations" as never).insert(rows as never);
+      if (error) throw error;
+
+      await queryClient.invalidateQueries({ queryKey: ["reservations"] });
+      await queryClient.invalidateQueries({ queryKey: ["reservation_groups"] });
+      toast.success(`${rows.length} reservas criadas no grupo.`);
+      setGroupOpen(false);
+    } catch (error) {
+      if (createdGroupId) {
+        await (supabase.from("reservation_groups" as never) as any)
+          .delete()
+          .eq("id", createdGroupId)
+          .eq("company_id", currentCompany.data.id);
+      }
+      toast.error(error instanceof Error ? error.message : "Erro ao criar reserva em grupo.");
+    } finally {
+      setGroupBusy(false);
+    }
   }
 
   return (
@@ -186,6 +253,12 @@ function Reservas() {
           <div className="flex gap-2">
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
               <Download className="h-4 w-4" /> Excel
+            </button>
+            <button
+              onClick={() => setGroupOpen(true)}
+              className="btn-ghost flex items-center gap-1.5"
+            >
+              <UsersRound className="h-4 w-4" /> Reserva em grupo
             </button>
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Nova reserva
@@ -229,10 +302,21 @@ function Reservas() {
                   <td className="p-3 text-muted-foreground">
                     {fmtDate(r.checkin)} {fmtTime(r.horario_checkin)} → {fmtDate(r.checkout)}{" "}
                     {fmtTime(r.horario_checkout)}
-                    {r.motivo_estadia && <div className="mt-1 text-xs">Motivo: {r.motivo_estadia}</div>}
+                    {r.motivo_estadia && (
+                      <div className="mt-1 text-xs">Motivo: {r.motivo_estadia}</div>
+                    )}
+                    {r.group_id && (
+                      <div className="mt-1 text-xs font-semibold text-pine">
+                        Grupo:{" "}
+                        {reservationGroups.find((group) => group.id === r.group_id)?.nome ??
+                          "Reserva em grupo"}
+                      </div>
+                    )}
                   </td>
                   <td className="p-3">
-                    <div>{fmtBRL(r.valor_pago)} / {fmtBRL(r.valor_total)}</div>
+                    <div>
+                      {fmtBRL(r.valor_pago)} / {fmtBRL(r.valor_total)}
+                    </div>
                     <Badge tone={r.pago ? "sage" : "brass"}>
                       {r.pago ? "quitado" : Number(r.valor_pago) > 0 ? "sinal pago" : "a receber"}
                     </Badge>
@@ -264,6 +348,7 @@ function Reservas() {
           clients={clients}
           reservations={reservations}
           complaints={complaints}
+          rateRules={rateRules}
           editing={editing}
           onClose={() => {
             setOpen(false);
@@ -271,26 +356,45 @@ function Reservas() {
           }}
           onSave={(row) => {
             if (editing) {
-              rowWithClient(row).then((prepared) => update.mutate(
-                { id: editing.id, patch: prepared },
-                {
-                  onSuccess: () => {
-                    toast.success("Reserva atualizada");
-                    setEditing(null);
-                  },
-                  onError: (e: Error) => toast.error(e.message),
-                },
-              )).catch((e: Error) => toast.error(e.message));
+              rowWithClient(row)
+                .then((prepared) =>
+                  update.mutate(
+                    { id: editing.id, patch: prepared },
+                    {
+                      onSuccess: () => {
+                        toast.success("Reserva atualizada");
+                        setEditing(null);
+                      },
+                      onError: (e: Error) => toast.error(e.message),
+                    },
+                  ),
+                )
+                .catch((e: Error) => toast.error(e.message));
             } else {
-              rowWithClient(row).then((prepared) => insert.mutate(prepared as never, {
-                onSuccess: () => {
-                  toast.success("Reserva criada");
-                  setOpen(false);
-                },
-                onError: (e: Error) => toast.error(e.message),
-              })).catch((e: Error) => toast.error(e.message));
+              rowWithClient(row)
+                .then((prepared) =>
+                  insert.mutate(prepared as never, {
+                    onSuccess: () => {
+                      toast.success("Reserva criada");
+                      setOpen(false);
+                    },
+                    onError: (e: Error) => toast.error(e.message),
+                  }),
+                )
+                .catch((e: Error) => toast.error(e.message));
             }
           }}
+        />
+      )}
+
+      {groupOpen && (
+        <GroupReservationForm
+          rooms={rooms}
+          reservations={reservations}
+          rateRules={rateRules}
+          busy={groupBusy}
+          onClose={() => setGroupOpen(false)}
+          onSave={createGroupReservation}
         />
       )}
 
@@ -430,14 +534,22 @@ function RowActions({
           className="rounded-md bg-slate-bg px-2 py-1 text-xs font-semibold text-slate"
           onClick={() =>
             update.mutate(
-              { id: reservation.id, patch: { status: "finalizado", horario_checkout: reservation.horario_checkout ?? currentTime() } },
+              {
+                id: reservation.id,
+                patch: {
+                  status: "finalizado",
+                  horario_checkout: reservation.horario_checkout ?? currentTime(),
+                },
+              },
               {
                 onSuccess: () => {
                   updateRoom.mutate(
                     { id: reservation.quarto, patch: { situacao: "limpeza" } },
                     {
-                      onSuccess: () => toast.success("Check-out realizado; quarto enviado para limpeza"),
-                      onError: (e: Error) => toast.error(`Check-out feito, mas falhou ao marcar limpeza: ${e.message}`),
+                      onSuccess: () =>
+                        toast.success("Check-out realizado; quarto enviado para limpeza"),
+                      onError: (e: Error) =>
+                        toast.error(`Check-out feito, mas falhou ao marcar limpeza: ${e.message}`),
                     },
                   );
                 },
@@ -515,14 +627,22 @@ function RowActions({
       <button
         className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
         onClick={() => {
-          if (!window.confirm(`Cancelar a reserva de ${reservation.cliente_nome}? O registro será mantido no histórico.`)) return;
-          update.mutate({
-            id: reservation.id,
-            patch: { status: "cancelado" },
-          }, {
-            onSuccess: () => toast.success("Reserva cancelada"),
-            onError: (e: Error) => toast.error(e.message),
-          });
+          if (
+            !window.confirm(
+              `Cancelar a reserva de ${reservation.cliente_nome}? O registro será mantido no histórico.`,
+            )
+          )
+            return;
+          update.mutate(
+            {
+              id: reservation.id,
+              patch: { status: "cancelado" },
+            },
+            {
+              onSuccess: () => toast.success("Reserva cancelada"),
+              onError: (e: Error) => toast.error(e.message),
+            },
+          );
         }}
         title="Cancelar reserva"
       >
@@ -531,7 +651,8 @@ function RowActions({
       <button
         className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
         onClick={() => {
-          if (!window.confirm(`Excluir definitivamente a reserva de ${reservation.cliente_nome}?`)) return;
+          if (!window.confirm(`Excluir definitivamente a reserva de ${reservation.cliente_nome}?`))
+            return;
           remove.mutate(reservation.id, {
             onSuccess: () => toast.success("Reserva excluída"),
             onError: (e: Error) => toast.error(e.message),
@@ -566,7 +687,13 @@ function MoveRoomModal({
   const [desc, setDesc] = useState("");
   const [override, setOverride] = useState(false);
 
-  const overlap = hasActiveOverlap(reservations, newRoom, reservation.checkin, reservation.checkout, reservation.id);
+  const overlap = hasActiveOverlap(
+    reservations,
+    newRoom,
+    reservation.checkin,
+    reservation.checkout,
+    reservation.id,
+  );
   const block = roomBlock(complaints ?? [], newRoom);
   const blocked = !!block && !override;
 
@@ -577,7 +704,14 @@ function MoveRoomModal({
           Hóspede atualmente no quarto <strong>{reservation.quarto}</strong>.
         </p>
         <Field label="Novo quarto">
-          <select className="field" value={newRoom} onChange={(e) => { setNewRoom(Number(e.target.value)); setOverride(false); }}>
+          <select
+            className="field"
+            value={newRoom}
+            onChange={(e) => {
+              setNewRoom(Number(e.target.value));
+              setOverride(false);
+            }}
+          >
             {others.map((r) => (
               <option key={r.numero} value={r.numero}>
                 {r.numero} ({r.andar}º)
@@ -598,7 +732,12 @@ function MoveRoomModal({
         </Field>
         {reason && (
           <Field label="Detalhe (opcional)">
-            <input className="field" value={desc} onChange={(e) => setDesc(e.target.value)} maxLength={200} />
+            <input
+              className="field"
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+              maxLength={200}
+            />
           </Field>
         )}
 
@@ -653,7 +792,11 @@ function MoveRoomModal({
 function whatsappReceiptUrl(reservation: Reservation, client?: Client) {
   const phone = whatsappPhone(client?.telefone);
   if (!phone) return "";
-  const status = reservation.pago ? "Quitado" : Number(reservation.valor_pago) > 0 ? "Sinal pago / saldo pendente" : "Pendente";
+  const status = reservation.pago
+    ? "Quitado"
+    : Number(reservation.valor_pago) > 0
+      ? "Sinal pago / saldo pendente"
+      : "Pendente";
   const balance = Math.max(0, Number(reservation.valor_total) - Number(reservation.valor_pago));
   const line = "------------------------------";
   const message = [
