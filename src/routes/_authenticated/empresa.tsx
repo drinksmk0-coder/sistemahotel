@@ -8,6 +8,7 @@ import { useCurrentCompany, useInsert, useRooms, useUpdate, type Company, type R
 import { fmtBRL } from "@/lib/format";
 import {
   GUEST_FIELD_KEYS,
+  buildHarmonicPalette,
   getSystemSettings,
   saveSystemSettings,
   type GuestFieldKey,
@@ -167,6 +168,15 @@ function SystemCustomization({ companyId }: { companyId: string }) {
     reader.readAsDataURL(file);
   }
 
+  function applyDesignerPalette(primaryColor: string, theme = settings.theme) {
+    setSettings((current) => ({
+      ...current,
+      ...buildHarmonicPalette(primaryColor, theme),
+      theme,
+      autoPalette: true,
+    }));
+  }
+
   return (
     <section id="configuracoes-sistema" className="mt-5 scroll-mt-6 card-surface p-4">
       <div className="mb-4 flex items-center gap-2">
@@ -190,7 +200,16 @@ function SystemCustomization({ companyId }: { companyId: string }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Cor principal">
-              <input className="h-10 w-full cursor-pointer rounded border" type="color" value={settings.primaryColor} onChange={(event) => setSettings((current) => ({ ...current, primaryColor: event.target.value }))} />
+              <input
+                className="h-10 w-full cursor-pointer rounded border"
+                type="color"
+                value={settings.primaryColor}
+                onChange={(event) => {
+                  const primaryColor = event.target.value;
+                  if (settings.autoPalette) applyDesignerPalette(primaryColor);
+                  else setSettings((current) => ({ ...current, primaryColor }));
+                }}
+              />
             </Field>
             <Field label="Cor de destaque">
               <input className="h-10 w-full cursor-pointer rounded border" type="color" value={settings.accentColor} onChange={(event) => setSettings((current) => ({ ...current, accentColor: event.target.value }))} />
@@ -201,10 +220,15 @@ function SystemCustomization({ companyId }: { companyId: string }) {
               className="field"
               value={settings.theme}
               onChange={(event) =>
-                setSettings((current) => ({
-                  ...current,
-                  theme: event.target.value as SystemSettings["theme"],
-                }))
+                settings.autoPalette
+                  ? applyDesignerPalette(
+                      settings.primaryColor,
+                      event.target.value as SystemSettings["theme"],
+                    )
+                  : setSettings((current) => ({
+                      ...current,
+                      theme: event.target.value as SystemSettings["theme"],
+                    }))
               }
             >
               <option value="light">Claro</option>
@@ -248,6 +272,23 @@ function SystemCustomization({ companyId }: { companyId: string }) {
             A cor principal e a de destaque passam a valer em menus, botões, cabeçalhos,
             seleções, cards, tabelas e gráficos de todas as páginas.
           </p>
+          <label className="flex items-start justify-between gap-3 rounded-lg border border-brass/35 bg-brass/10 p-3">
+            <span>
+              <span className="block text-sm font-bold text-pine-dark">Designer automático</span>
+              <span className="block text-[11px] leading-relaxed text-muted-foreground">
+                Ao escolher a cor principal, o sistema calcula destaque, fundos, contraste e seis
+                cores harmônicas para os gráficos.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.autoPalette}
+              onChange={(event) => {
+                if (event.target.checked) applyDesignerPalette(settings.primaryColor);
+                else setSettings((current) => ({ ...current, autoPalette: false }));
+              }}
+            />
+          </label>
         </div>
 
         <div className="space-y-5">

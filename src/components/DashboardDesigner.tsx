@@ -1,16 +1,33 @@
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import {
   Eye,
   EyeOff,
   GripVertical,
   LayoutDashboard,
+  Maximize2,
   RotateCcw,
   Save,
   Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
 
-export type DashboardChartType = "bar" | "line" | "area" | "pie";
+export type DashboardChartType =
+  | "bar"
+  | "horizontalBar"
+  | "line"
+  | "area"
+  | "pie"
+  | "doughnut"
+  | "radar"
+  | "composed";
 
 export type DashboardWidgetSettings = {
   id: string;
@@ -37,6 +54,9 @@ type StoredLayout = {
   order: string[];
   widgets: Record<string, DashboardWidgetSettings>;
 };
+
+const MIN_WIDGET_HEIGHT = 56;
+const MAX_WIDGET_HEIGHT = 900;
 
 function storageKey(companyId: string | null | undefined, dashboardId: string) {
   return `hotelreal.dashboard.${companyId ?? "default"}.${dashboardId}`;
@@ -98,6 +118,15 @@ export function DashboardDesigner({
   const [editing, setEditing] = useState(false);
   const [layout, setLayout] = useState(() => loadLayout(companyId, dashboardId, widgets));
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [resizing, setResizing] = useState<{
+    id: string;
+    startX: number;
+    startY: number;
+    startColumns: number;
+    startHeight: number;
+    gridWidth: number;
+  } | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const widgetById = useMemo(
     () => new Map(widgets.map((widget) => [widget.id, widget])),
     [widgets],
@@ -105,6 +134,44 @@ export function DashboardDesigner({
   const orderedWidgets = layout.order
     .map((id) => widgetById.get(id))
     .filter((widget): widget is DashboardWidget => Boolean(widget));
+
+  useEffect(() => {
+    if (!resizing) return;
+    function onPointerMove(event: PointerEvent) {
+      const columnWidth = Math.max(56, (resizing!.gridWidth - 33) / 12);
+      const columns = Math.min(
+        12,
+        Math.max(1, Math.round(resizing!.startColumns + (event.clientX - resizing!.startX) / columnWidth)),
+      );
+      const height = Math.min(
+        MAX_WIDGET_HEIGHT,
+        Math.max(
+          MIN_WIDGET_HEIGHT,
+          Math.round((resizing!.startHeight + event.clientY - resizing!.startY) / 4) * 4,
+        ),
+      );
+      setLayout((current) => ({
+        ...current,
+        widgets: {
+          ...current.widgets,
+          [resizing!.id]: {
+            ...current.widgets[resizing!.id],
+            columns,
+            height,
+          },
+        },
+      }));
+    }
+    function onPointerUp() {
+      setResizing(null);
+    }
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [resizing]);
 
   function updateWidget(id: string, patch: Partial<DashboardWidgetSettings>) {
     setLayout((current) => ({
@@ -124,6 +191,22 @@ export function DashboardDesigner({
       return { ...current, order };
     });
     setDraggedId(null);
+  }
+
+  function startResize(
+    event: ReactPointerEvent<HTMLButtonElement>,
+    settings: DashboardWidgetSettings,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    setResizing({
+      id: settings.id,
+      startX: event.clientX,
+      startY: event.clientY,
+      startColumns: settings.columns,
+      startHeight: settings.height,
+      gridWidth: gridRef.current?.clientWidth ?? 1200,
+    });
   }
 
   function save() {
@@ -180,7 +263,7 @@ export function DashboardDesigner({
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+      <div ref={gridRef} className="grid grid-cols-1 gap-3 lg:grid-cols-12">
         {orderedWidgets.map((widget) => {
           const settings = layout.widgets[widget.id] ?? defaultSettings(widget);
           if (settings.hidden && !editing) return null;
@@ -188,25 +271,32 @@ export function DashboardDesigner({
             "--widget-color": settings.color,
             borderTopColor: settings.color,
             gridColumn: `span ${Math.min(12, Math.max(1, settings.columns))} / span ${Math.min(12, Math.max(1, settings.columns))}`,
-            minHeight: settings.height,
+            height: editing ? Math.max(140, settings.height) : settings.height,
             opacity: settings.hidden ? 0.5 : 1,
           } as CSSProperties;
 
           return (
             <div
               key={widget.id}
-              draggable={editing}
-              onDragStart={() => setDraggedId(widget.id)}
               onDragOver={(event) => editing && event.preventDefault()}
               onDrop={() => moveWidget(widget.id)}
-              className={`min-w-0 overflow-hidden rounded-lg border-t-4 ${
+              className={`relative min-w-0 overflow-hidden rounded-lg border-t-4 ${
                 editing ? "border border-dashed border-brass bg-card p-2 shadow-md" : ""
               }`}
               style={wrapperStyle}
             >
               {editing && (
                 <div className="mb-2 grid gap-2 rounded-md bg-muted p-2 sm:grid-cols-[auto_1fr_repeat(4,auto)]">
-                  <GripVertical className="mt-2 h-4 w-4 cursor-grab text-muted-foreground" />
+                  <button
+                    type="button"
+                    draggable
+                    onDragStart={() => setDraggedId(widget.id)}
+                    className="mt-1 cursor-grab rounded p-1 text-muted-foreground hover:bg-card active:cursor-grabbing"
+                    aria-label={`Mover ${settings.title}`}
+                    title="Arraste para mover"
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </button>
                   <input
                     className="field min-w-0 py-1 text-xs"
                     aria-label={`Título de ${widget.title}`}
@@ -224,31 +314,38 @@ export function DashboardDesigner({
                   </label>
                   <label className="text-[10px] font-semibold text-muted-foreground">
                     Largura
-                    <select
-                      className="field block py-1 text-xs"
+                    <input
+                      className="field block w-20 py-1 text-xs"
+                      type="number"
+                      min={1}
+                      max={12}
+                      step={1}
                       value={settings.columns}
                       onChange={(event) =>
-                        updateWidget(widget.id, { columns: Number(event.target.value) })
+                        updateWidget(widget.id, {
+                          columns: Math.min(12, Math.max(1, Number(event.target.value) || 1)),
+                        })
                       }
-                    >
-                      {[2, 3, 4, 6, 8, 9, 12].map((columns) => (
-                        <option key={columns} value={columns}>{columns}/12</option>
-                      ))}
-                    </select>
+                    />
                   </label>
                   <label className="text-[10px] font-semibold text-muted-foreground">
                     Altura
-                    <select
-                      className="field block py-1 text-xs"
+                    <input
+                      className="field block w-24 py-1 text-xs"
+                      type="number"
+                      min={MIN_WIDGET_HEIGHT}
+                      max={MAX_WIDGET_HEIGHT}
+                      step={1}
                       value={settings.height}
                       onChange={(event) =>
-                        updateWidget(widget.id, { height: Number(event.target.value) })
+                        updateWidget(widget.id, {
+                          height: Math.min(
+                            MAX_WIDGET_HEIGHT,
+                            Math.max(MIN_WIDGET_HEIGHT, Number(event.target.value) || MIN_WIDGET_HEIGHT),
+                          ),
+                        })
                       }
-                    >
-                      {[90, 120, 180, 240, 300, 420, 560].map((height) => (
-                        <option key={height} value={height}>{height}px</option>
-                      ))}
-                    </select>
+                    />
                   </label>
                   {widget.chartTypes?.length ? (
                     <label className="text-[10px] font-semibold text-muted-foreground">
@@ -279,6 +376,17 @@ export function DashboardDesigner({
                 </div>
               )}
               {widget.render(settings)}
+              {editing && (
+                <button
+                  type="button"
+                  onPointerDown={(event) => startResize(event, settings)}
+                  className="absolute bottom-1 right-1 z-20 cursor-se-resize rounded-tl-lg border border-brass/45 bg-brass p-2 text-pine-dark shadow"
+                  aria-label={`Redimensionar ${settings.title}`}
+                  title="Arraste para redimensionar largura e altura"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           );
         })}
