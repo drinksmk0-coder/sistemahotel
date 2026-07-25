@@ -32,6 +32,7 @@ import {
   useReservations,
   useRooms,
   useSales,
+  useCurrentCompany,
   type Client,
   type Expense,
   type Feedback,
@@ -42,6 +43,7 @@ import {
 import { fmtBRL, todayISO } from "@/lib/format";
 import { ReceivablesPanel } from "@/components/ReceivablesPanel";
 import { PeriodSelector } from "@/components/DashboardKit";
+import { DashboardDesigner, type DashboardWidget } from "@/components/DashboardDesigner";
 import {
   calculateHotelKpis,
   inRange,
@@ -82,6 +84,7 @@ function DashboardEstrategico() {
   const { data: expenses = [] } = useExpenses();
   const { data: clients = [] } = useClients();
   const { data: feedbacks = [] } = useFeedbacks();
+  const currentCompany = useCurrentCompany();
   const [section, setSection] = useState<DashboardSection>("geral");
   const [period, setPeriod] = useState<DashboardPeriod>("mes");
   const range = periodRange(period, today);
@@ -157,6 +160,123 @@ function DashboardEstrategico() {
       sum + Math.max(0, Number(reservation.valor_total) - Number(reservation.valor_pago)),
     0,
   );
+  const dashboardWidgets: DashboardWidget[] = [
+    {
+      id: "reservas",
+      title: "Reservas",
+      kind: "kpi",
+      render: (settings) => (
+        <StoryKpi icon={<BedDouble />} label={settings.title} value={String(totalReservas)} hint="período filtrado" tone="pine" />
+      ),
+    },
+    {
+      id: "receita",
+      title: "Receita",
+      kind: "kpi",
+      defaultColor: "var(--chart-2)",
+      render: (settings) => (
+        <StoryKpi icon={<DollarSign />} label={settings.title} value={fmtBRL(receita)} hint="reservas + vendas" tone="sage" />
+      ),
+    },
+    {
+      id: "a-receber",
+      title: "A receber",
+      kind: "kpi",
+      defaultColor: "var(--brass)",
+      render: (settings) => (
+        <StoryKpi icon={<DollarSign />} label={settings.title} value={fmtBRL(aReceber)} hint="saldo das reservas" tone="brass" />
+      ),
+    },
+    {
+      id: "ocupacao",
+      title: "Ocupação",
+      kind: "kpi",
+      render: (settings) => (
+        <StoryKpi icon={<Activity />} label={settings.title} value={`${taxaOcupacao.toFixed(1)}%`} hint={`${uhsVendidas}/${uhsDisponiveis} UHs`} tone="pine" />
+      ),
+    },
+    {
+      id: "lucro",
+      title: "Lucro",
+      kind: "kpi",
+      defaultColor: lucro >= 0 ? "var(--chart-2)" : "var(--brick)",
+      render: (settings) => (
+        <StoryKpi icon={<TrendingUp />} label={settings.title} value={fmtBRL(lucro)} hint={`${margem}% de margem`} tone={lucro >= 0 ? "sage" : "brick"} />
+      ),
+    },
+    {
+      id: "ticket",
+      title: "Ticket médio",
+      kind: "kpi",
+      defaultColor: "var(--chart-2)",
+      render: (settings) => (
+        <StoryKpi icon={<Users />} label={settings.title} value={fmtBRL(mediaPorCliente)} hint={`${clientesPeriodo} cliente(s)`} tone="sage" />
+      ),
+    },
+    ...[
+      {
+        id: "to",
+        title: "Taxa de Ocupação",
+        value: `${taxaOcupacao.toFixed(1)}%`,
+        formula: `${uhsVendidas} UHs vendidas / ${uhsDisponiveis} UHs disponíveis`,
+        meaning: "Mostra a proporção da capacidade operacional utilizada no período selecionado.",
+        strategy: occupancyStrategy(taxaOcupacao),
+        tone: "pine" as const,
+      },
+      {
+        id: "adr",
+        title: "Diária Média (ADR)",
+        value: fmtBRL(diariaMedia),
+        formula: `${fmtBRL(receitaHospedagem)} / ${uhsVendidas} UHs vendidas`,
+        meaning: "Mostra o preço médio por UH vendida, sem cortesias, uso interno ou manutenção.",
+        strategy: adrStrategy(diariaMedia, revpar),
+        tone: "sage" as const,
+      },
+      {
+        id: "revpar",
+        title: "RevPAR",
+        value: fmtBRL(revpar),
+        formula: `${fmtBRL(receitaHospedagem)} / ${uhsDisponiveis} UHs disponíveis`,
+        meaning: "Mede a eficiência comercial considerando todas as UHs disponíveis, vendidas ou não.",
+        strategy: revparStrategy(revpar, diariaMedia, taxaOcupacao),
+        tone: "brass" as const,
+      },
+      {
+        id: "trevpar",
+        title: "TRevPAR",
+        value: fmtBRL(trevpar),
+        formula: `${fmtBRL(receita)} / ${uhsDisponiveis} UHs disponíveis`,
+        meaning: "Inclui hospedagem e receitas extras, como consumo, serviços, eventos e day use.",
+        strategy: trevparStrategy(receitaExtra, receita),
+        tone: "pine" as const,
+      },
+      {
+        id: "goppar",
+        title: "GOPPAR",
+        value: fmtBRL(goppar),
+        formula: `${fmtBRL(lucro)} / ${uhsDisponiveis} UHs disponíveis`,
+        meaning: "Mostra o lucro operacional bruto por UH disponível depois das despesas.",
+        strategy: gopparStrategy(goppar),
+        tone: goppar < 0 ? "brick" as const : "brass" as const,
+      },
+    ].map((metric): DashboardWidget => ({
+      id: metric.id,
+      title: metric.title,
+      kind: "kpi",
+      defaultColumns: 2,
+      defaultHeight: 145,
+      render: (settings) => (
+        <HotelMetricCard
+          label={settings.title}
+          value={metric.value}
+          formula={metric.formula}
+          meaning={metric.meaning}
+          strategy={metric.strategy}
+          tone={metric.tone}
+        />
+      ),
+    })),
+  ];
 
   const allChannels = channelRows;
   const activeStateRows = stateRows.length
@@ -221,93 +341,11 @@ function DashboardEstrategico() {
         </nav>
 
         <main className="min-w-0 space-y-3">
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-            <StoryKpi
-              icon={<BedDouble />}
-              label="Reservas"
-              value={String(totalReservas)}
-              hint="período filtrado"
-              tone="pine"
-            />
-            <StoryKpi
-              icon={<DollarSign />}
-              label="Receita"
-              value={fmtBRL(receita)}
-              hint="reservas + vendas"
-              tone="sage"
-            />
-            <StoryKpi
-              icon={<DollarSign />}
-              label="A receber"
-              value={fmtBRL(aReceber)}
-              hint="saldo das reservas"
-              tone="brass"
-            />
-            <StoryKpi
-              icon={<Activity />}
-              label="Ocupação"
-              value={`${taxaOcupacao.toFixed(1)}%`}
-              hint={`${uhsVendidas}/${uhsDisponiveis} UHs`}
-              tone="pine"
-            />
-            <StoryKpi
-              icon={<TrendingUp />}
-              label="Lucro"
-              value={fmtBRL(lucro)}
-              hint={`${margem}% de margem`}
-              tone={lucro >= 0 ? "sage" : "brick"}
-            />
-            <StoryKpi
-              icon={<Users />}
-              label="Ticket médio"
-              value={fmtBRL(mediaPorCliente)}
-              hint={`${clientesPeriodo} cliente(s)`}
-              tone="sage"
-            />
-          </div>
-
-          <section className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
-            <HotelMetricCard
-              label="Taxa de Ocupação"
-              value={`${taxaOcupacao.toFixed(1)}%`}
-              formula={`${uhsVendidas} UHs vendidas / ${uhsDisponiveis} UHs disponíveis`}
-              meaning="Mostra a proporção da capacidade operacional utilizada no período selecionado."
-              strategy={occupancyStrategy(taxaOcupacao)}
-              tone="pine"
-            />
-            <HotelMetricCard
-              label="Diária Média (ADR)"
-              value={fmtBRL(diariaMedia)}
-              formula={`${fmtBRL(receitaHospedagem)} / ${uhsVendidas} UHs vendidas`}
-              meaning="Mostra o preço médio por UH vendida, sem cortesias, uso interno ou manutenção."
-              strategy={adrStrategy(diariaMedia, revpar)}
-              tone="sage"
-            />
-            <HotelMetricCard
-              label="RevPAR"
-              value={fmtBRL(revpar)}
-              formula={`${fmtBRL(receitaHospedagem)} / ${uhsDisponiveis} UHs disponíveis`}
-              meaning="Mede a eficiência comercial considerando todas as UHs disponíveis, vendidas ou não."
-              strategy={revparStrategy(revpar, diariaMedia, taxaOcupacao)}
-              tone="brass"
-            />
-            <HotelMetricCard
-              label="TRevPAR"
-              value={fmtBRL(trevpar)}
-              formula={`${fmtBRL(receita)} / ${uhsDisponiveis} UHs disponíveis`}
-              meaning="Inclui hospedagem e receitas extras, como consumo, bar, restaurante, serviços, eventos e day use."
-              strategy={trevparStrategy(receitaExtra, receita)}
-              tone="pine"
-            />
-            <HotelMetricCard
-              label="GOPPAR"
-              value={fmtBRL(goppar)}
-              formula={`${fmtBRL(lucro)} / ${uhsDisponiveis} UHs disponíveis`}
-              meaning="Mostra o lucro operacional bruto por UH disponível depois das despesas operacionais."
-              strategy={gopparStrategy(goppar)}
-              tone={goppar < 0 ? "brick" : "brass"}
-            />
-          </section>
+          <DashboardDesigner
+            companyId={currentCompany.data?.id}
+            dashboardId="estrategico-kpis"
+            widgets={dashboardWidgets}
+          />
 
           {section === "geral" && (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
