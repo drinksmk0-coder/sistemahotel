@@ -19,6 +19,12 @@ import {
   ResponsiveContainer,
   AreaChart,
   Area,
+  ComposedChart,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
   LineChart,
   Line,
   BarChart,
@@ -75,10 +81,8 @@ import {
   ShortList,
 } from "@/components/DashboardKit";
 import {
-  calculateHotelKpis,
   expensesTotal,
   inRange,
-  normalizeChannel,
   percentChange,
   periodRange,
   reservationReceived,
@@ -131,8 +135,11 @@ function Painel() {
       .reduce((s, v) => s + Number(v.total), 0);
 
   const aReceber = reservations
-    .filter((r) => !r.pago && r.status !== "cancelado" && r.status !== "finalizado")
-    .reduce((s, r) => s + (Number(r.valor_total) - Number(r.valor_pago)), 0);
+    .filter((r) => r.status !== "cancelado" && r.status !== "manutencao")
+    .reduce(
+      (s, r) => s + Math.max(0, Number(r.valor_total) - Number(r.valor_pago)),
+      0,
+    );
 
   const despesasMes = expenses
     .filter((e) => (e.data || "").slice(0, 7) === month)
@@ -323,6 +330,17 @@ function Painel() {
         cancellationAlert={alerta}
         companyId={currentCompany.data?.id}
       />
+    );
+  }
+
+  if (!role) {
+    return (
+      <section className="card-surface p-6">
+        <p className="text-sm font-semibold text-pine-dark">Carregando seu painel operacional…</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Aguarde enquanto o sistema identifica seu perfil de acesso.
+        </p>
+      </section>
     );
   }
 
@@ -717,7 +735,6 @@ function OwnerCompactDashboard({
   );
   const cost = expensesTotal(periodExpenses);
   const profit = revenue - cost;
-  const hotelKpis = calculateHotelKpis({ rooms, reservations, sales, expenses, range });
   const pending = reservations
     .filter((reservation) => reservation.status !== "cancelado")
     .reduce(
@@ -729,15 +746,6 @@ function OwnerCompactDashboard({
     (room) => roomStatusToday(reservations, room.numero, today, room.situacao) === "ocupado",
   ).length;
   const occupancy = rooms.length ? (occupied / rooms.length) * 100 : 0;
-
-  const channelMap = new Map<string, number>();
-  periodReservations.forEach((reservation) => {
-    const channel = normalizeChannel(reservation.canal);
-    channelMap.set(channel, (channelMap.get(channel) ?? 0) + reservationRevenue(reservation));
-  });
-  const channelRows = [...channelMap]
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value);
 
   const paymentMap = new Map<string, number>();
   periodReservations.forEach((reservation) => {
@@ -823,68 +831,6 @@ function OwnerCompactDashboard({
       ),
     },
     {
-      id: "occupancy-rate",
-      title: "Taxa de Ocupação",
-      kind: "kpi",
-      render: (settings) => (
-        <CompactKpi
-          label={settings.title}
-          value={`${hotelKpis.occupancyRate.toFixed(1)}%`}
-          hint={`${hotelKpis.soldRoomNights}/${hotelKpis.availableRoomNights} UHs`}
-        />
-      ),
-    },
-    {
-      id: "adr",
-      title: "Diária Média (ADR)",
-      kind: "kpi",
-      render: (settings) => (
-        <CompactKpi
-          label={settings.title}
-          value={fmtBRL(hotelKpis.adr)}
-          hint="Hospedagem / UHs vendidas"
-        />
-      ),
-    },
-    {
-      id: "revpar",
-      title: "RevPAR",
-      kind: "kpi",
-      defaultColor: "var(--brass)",
-      render: (settings) => (
-        <CompactKpi
-          label={settings.title}
-          value={fmtBRL(hotelKpis.revpar)}
-          hint="Hospedagem / UHs disponíveis"
-        />
-      ),
-    },
-    {
-      id: "trevpar",
-      title: "TRevPAR",
-      kind: "kpi",
-      render: (settings) => (
-        <CompactKpi
-          label={settings.title}
-          value={fmtBRL(hotelKpis.trevpar)}
-          hint="Receita total / UHs disponíveis"
-        />
-      ),
-    },
-    {
-      id: "goppar",
-      title: "GOPPAR",
-      kind: "kpi",
-      defaultColor: "var(--chart-2)",
-      render: (settings) => (
-        <CompactKpi
-          label={settings.title}
-          value={fmtBRL(hotelKpis.goppar)}
-          hint="Lucro operacional / UHs disponíveis"
-        />
-      ),
-    },
-    {
       id: "receivables",
       title: "Clientes e cobranças pendentes",
       kind: "content",
@@ -893,23 +839,15 @@ function OwnerCompactDashboard({
       render: () => <ReceivablesPanel reservations={reservations} clients={clients} compact />,
     },
     {
-      id: "channels",
-      title: "Receita por canal",
-      kind: "chart",
-      defaultColor: "var(--chart-1)",
-      chartTypes: ["pie", "bar", "line", "area"],
-      render: (settings) => (
-        <EditableSingleSeriesChart rows={channelRows} settings={settings} currency />
-      ),
-    },
-    {
       id: "payments",
       title: "Formas de pagamento",
-      kind: "chart",
+      kind: "content",
       defaultColor: "var(--chart-3)",
-      chartTypes: ["bar", "pie", "line", "area"],
       render: (settings) => (
-        <EditableSingleSeriesChart rows={paymentRows} settings={settings} currency />
+        <ShortList
+          title={settings.title}
+          rows={paymentRows.map((row) => ({ label: row.name, value: fmtBRL(row.value) }))}
+        />
       ),
     },
     {
@@ -933,8 +871,8 @@ function OwnerCompactDashboard({
   return (
     <div className="space-y-3 pb-6">
       <DashboardHeader
-        title="Painel de Operação"
-        subtitle="Só o que exige uma decisão hoje."
+        title="Painel Administrativo e Financeiro"
+        subtitle="Caixa, cobranças, reservas, quartos e pendências que exigem ação hoje."
         period={period}
         onPeriodChange={setPeriod}
       />
@@ -952,6 +890,8 @@ function OwnerCompactDashboard({
         companyId={companyId}
         dashboardId="painel-dono"
         widgets={dashboardWidgets}
+        title="Personalizar Painel administrativo"
+        description="Edite os KPIs, gráficos e blocos do Painel; largura e altura são livres"
       />
     </div>
   );
@@ -966,14 +906,20 @@ function EditableSingleSeriesChart({
   settings: DashboardWidgetSettings;
   currency?: boolean;
 }) {
-  const chartHeight = Math.max(120, settings.height - 55);
+  const chartHeight = Math.max(56, settings.height - 55);
   const tooltipFormatter = (value: number) => (currency ? fmtBRL(value) : value);
   let chart: React.ReactNode;
 
-  if (settings.chartType === "pie") {
+  if (settings.chartType === "pie" || settings.chartType === "doughnut") {
     chart = (
       <PieChart>
-        <Pie data={rows} dataKey="value" nameKey="name" innerRadius="42%" outerRadius="76%">
+        <Pie
+          data={rows}
+          dataKey="value"
+          nameKey="name"
+          innerRadius={settings.chartType === "doughnut" ? "48%" : 0}
+          outerRadius="76%"
+        >
           {rows.map((row, index) => (
             <Cell
               key={row.name}
@@ -984,6 +930,16 @@ function EditableSingleSeriesChart({
         <Tooltip formatter={tooltipFormatter} />
         <Legend wrapperStyle={{ fontSize: 10 }} />
       </PieChart>
+    );
+  } else if (settings.chartType === "radar") {
+    chart = (
+      <RadarChart data={rows} outerRadius="72%">
+        <PolarGrid stroke="var(--border)" />
+        <PolarAngleAxis dataKey="name" tick={{ fontSize: 10 }} />
+        <PolarRadiusAxis tick={{ fontSize: 9 }} />
+        <Tooltip formatter={tooltipFormatter} />
+        <Radar dataKey="value" name="Valor" stroke={settings.color} fill={settings.color} fillOpacity={0.3} />
+      </RadarChart>
     );
   } else if (settings.chartType === "line") {
     chart = (
@@ -1012,12 +968,36 @@ function EditableSingleSeriesChart({
         />
       </AreaChart>
     );
-  } else {
+  } else if (settings.chartType === "composed") {
     chart = (
-      <BarChart data={rows} margin={{ left: 0, right: 14 }}>
+      <ComposedChart data={rows} margin={{ left: 0, right: 14 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
         <YAxis tick={{ fontSize: 9 }} />
+        <Tooltip formatter={tooltipFormatter} />
+        <Area dataKey="value" fill={settings.color} stroke={settings.color} fillOpacity={0.15} />
+        <Line dataKey="value" name="Valor" stroke={settings.color} strokeWidth={3} />
+      </ComposedChart>
+    );
+  } else {
+    chart = (
+      <BarChart
+        data={rows}
+        layout={settings.chartType === "horizontalBar" ? "vertical" : "horizontal"}
+        margin={settings.chartType === "horizontalBar" ? { left: 70, right: 14 } : { left: 0, right: 14 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        {settings.chartType === "horizontalBar" ? (
+          <>
+            <XAxis type="number" tick={{ fontSize: 9 }} />
+            <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={72} />
+          </>
+        ) : (
+          <>
+            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 9 }} />
+          </>
+        )}
         <Tooltip formatter={tooltipFormatter} />
         <Bar dataKey="value" name="Valor" fill={settings.color} radius={[4, 4, 0, 0]} />
       </BarChart>
@@ -1739,37 +1719,33 @@ function CafePainel({
             </div>
             {kitchenChart.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Lance o que ficou disponível e o que foi servido para gerar os gráficos.
+                Lance o que ficou disponível e o que foi servido para gerar a conferência.
               </p>
             ) : (
-              <ResponsiveContainer width="100%" height={230}>
-                <BarChart data={kitchenChart} margin={{ left: -18, right: 8, top: 4 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="nome" tick={{ fontSize: 11 }} interval={0} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar
-                    dataKey="esperado"
-                    name="Previsto"
-                    fill="var(--brass)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="produzido"
-                    name="Disponível/comprado"
-                    fill="var(--pine)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar
-                    dataKey="servido"
-                    name="Consumido"
-                    fill="var(--sage)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                  <Bar dataKey="sobra" name="Sobra" fill="var(--slate)" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[620px] text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-left uppercase text-muted-foreground">
+                      <th className="py-2 pr-3">Item</th>
+                      <th className="py-2 pr-3 text-right">Previsto</th>
+                      <th className="py-2 pr-3 text-right">Disponível</th>
+                      <th className="py-2 pr-3 text-right">Consumido</th>
+                      <th className="py-2 text-right">Sobra/perda</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {kitchenChart.map((row) => (
+                      <tr key={row.id} className="border-b border-border/60">
+                        <td className="py-2 pr-3 font-semibold text-pine-dark">{row.nome}</td>
+                        <td className="py-2 pr-3 text-right">{formatQty(row.esperado)}</td>
+                        <td className="py-2 pr-3 text-right">{formatQty(row.produzido)}</td>
+                        <td className="py-2 pr-3 text-right">{formatQty(row.servido)}</td>
+                        <td className="py-2 text-right">{formatQty(row.sobra + row.perda)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
           <section className="card-surface p-4">

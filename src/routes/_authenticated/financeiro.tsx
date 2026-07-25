@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -17,6 +19,7 @@ import {
 } from "recharts";
 import {
   useClients,
+  useCurrentCompany,
   useExpenses,
   useReservations,
   useSales,
@@ -41,13 +44,16 @@ import {
 } from "@/lib/dashboard-utils";
 import {
   AlertBanner,
-  ChartPanel,
   DashboardHeader,
   DashboardTabs,
-  FunnelRow,
   FunnelStage,
 } from "@/components/DashboardKit";
 import { ReceivablesPanel } from "@/components/ReceivablesPanel";
+import {
+  DashboardDesigner,
+  type DashboardWidget,
+  type DashboardWidgetSettings,
+} from "@/components/DashboardDesigner";
 
 export const Route = createFileRoute("/_authenticated/financeiro")({
   component: Financeiro,
@@ -65,6 +71,7 @@ function Financeiro() {
   const { data: sales = [] } = useSales();
   const { data: expenses = [] } = useExpenses();
   const { data: clients = [] } = useClients();
+  const currentCompany = useCurrentCompany();
   const range = periodRange(period, today);
 
   const periodReservations = reservations.filter((reservation) => inRange(reservation.checkin, range));
@@ -156,22 +163,194 @@ function Financeiro() {
     [reservations, today],
   );
 
-  const stateRows = useMemo(() => {
-    const clientsById = new Map(clients.map((client) => [client.id, client]));
-    const map = new Map<string, number>();
-    periodReservations.forEach((reservation) => {
-      const state = normalizeLabel(
-        reservation.cliente_id ? clientsById.get(reservation.cliente_id)?.estado : null,
-        "N/I",
-      ).toUpperCase();
-      map.set(state, (map.get(state) ?? 0) + reservationRevenue(reservation));
-    });
-    return [...map].map(([state, value]) => ({ state, value })).sort((a, b) => b.value - a.value);
-  }, [clients, periodReservations]);
-
   const recentOta = otaTrend.slice(-3);
   const otaDirection =
     recentOta.length > 1 ? recentOta[recentOta.length - 1].ota - recentOta[0].ota : 0;
+  const kpiWidgets: DashboardWidget[] = [
+    {
+      id: "receita-bruta",
+      title: "Receita bruta",
+      kind: "kpi",
+      render: (settings) => (
+        <FunnelStage label={settings.title} value={fmtBRL(gross)} hint="hospedagem + produtos" />
+      ),
+    },
+    {
+      id: "recebido",
+      title: "Recebido",
+      kind: "kpi",
+      render: (settings) => (
+        <FunnelStage
+          label={settings.title}
+          value={fmtBRL(received)}
+          percentValue={percent(received, gross)}
+          tone="sage"
+        />
+      ),
+    },
+    {
+      id: "a-receber",
+      title: "A receber",
+      kind: "kpi",
+      render: (settings) => (
+        <FunnelStage
+          label={settings.title}
+          value={fmtBRL(pending)}
+          percentValue={percent(pending, gross)}
+          tone="brass"
+        />
+      ),
+    },
+    {
+      id: "despesas",
+      title: "Despesas",
+      kind: "kpi",
+      render: (settings) => (
+        <FunnelStage
+          label={settings.title}
+          value={fmtBRL(expenseTotal)}
+          percentValue={percent(expenseTotal, received)}
+          tone="brick"
+        />
+      ),
+    },
+    {
+      id: "lucro-liquido",
+      title: "Lucro líquido",
+      kind: "kpi",
+      render: (settings) => (
+        <FunnelStage
+          label={settings.title}
+          value={fmtBRL(profit)}
+          percentValue={percent(profit, received)}
+          tone={profit >= 0 ? "sage" : "brick"}
+        />
+      ),
+    },
+    {
+      id: "vencidos",
+      title: "Vencidos",
+      kind: "kpi",
+      render: (settings) => (
+        <FunnelStage
+          label={settings.title}
+          value={fmtBRL(overdue)}
+          hint={`${overdueReservations.length} reserva(s)`}
+          tone="brick"
+        />
+      ),
+    },
+  ];
+  const analysisWidgets: DashboardWidget[] = [
+    {
+      id: "composicao",
+      title: `Composição — ${tabLabel(tab)}`,
+      kind: "chart",
+      defaultColumns: 5,
+      defaultHeight: 300,
+      defaultColor: "var(--chart-1)",
+      chartTypes: ["doughnut", "pie", "bar", "horizontalBar", "line", "area"],
+      render: (settings) => (
+        <FinancialCompositionChart rows={composition} settings={settings} />
+      ),
+    },
+    {
+      id: "canais-pago-pendente",
+      title: "Pago x pendente por canal",
+      kind: "chart",
+      defaultColumns: 7,
+      defaultHeight: 300,
+      defaultColor: "var(--chart-1)",
+      chartTypes: ["horizontalBar", "bar", "line", "area"],
+      render: (settings) => (
+        <FinancialSeriesChart
+          rows={channelRows}
+          categoryKey="name"
+          series={[
+            { key: "pago", label: "Pago", color: settings.color },
+            { key: "pendente", label: "Pendente", color: "var(--chart-4)" },
+          ]}
+          settings={settings}
+        />
+      ),
+    },
+    {
+      id: "historico-financeiro",
+      title: "Receita, despesa e lucro — 12 meses",
+      kind: "chart",
+      defaultColumns: 12,
+      defaultHeight: 340,
+      defaultColor: "var(--chart-1)",
+      chartTypes: ["line", "area", "bar"],
+      render: (settings) => (
+        <FinancialSeriesChart
+          rows={monthly}
+          categoryKey="label"
+          series={[
+            { key: "receita", label: "Receita", color: settings.color },
+            { key: "despesas", label: "Despesas", color: "var(--chart-4)" },
+            { key: "lucro", label: "Lucro", color: "var(--chart-3)" },
+          ]}
+          settings={settings}
+        />
+      ),
+    },
+    ...(tab === "canal"
+      ? [
+          {
+            id: "ota-direto",
+            title: "% OTA x canais diretos — 12 meses",
+            kind: "chart" as const,
+            defaultColumns: 7,
+            defaultHeight: 300,
+            defaultColor: "var(--chart-4)",
+            chartTypes: ["line", "area", "bar"] as DashboardWidget["chartTypes"],
+            render: (settings: DashboardWidgetSettings) => (
+              <FinancialSeriesChart
+                rows={otaTrend}
+                categoryKey="label"
+                series={[
+                  { key: "ota", label: "OTAs", color: settings.color },
+                  { key: "direto", label: "Diretos", color: "var(--chart-1)" },
+                ]}
+                settings={settings}
+                percentAxis
+              />
+            ),
+          },
+          {
+            id: "custo-ota",
+            title: "Custo da dependência de OTA",
+            kind: "content" as const,
+            defaultColumns: 5,
+            defaultHeight: 300,
+            render: (settings: DashboardWidgetSettings) => (
+              <section className="card-surface h-full p-4">
+                <h2 className="text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>
+                <div className="grid h-[calc(100%-2rem)] place-content-center gap-4 text-center">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                      Receita via OTA
+                    </p>
+                    <p className="font-serif text-2xl font-bold text-pine-dark">
+                      {fmtBRL(ota.revenue)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">
+                      Comissão perdida
+                    </p>
+                    <p className="font-serif text-2xl font-bold text-brick">
+                      {fmtBRL(ota.commission)}
+                    </p>
+                  </div>
+                </div>
+              </section>
+            ),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <div className="space-y-3 pb-6">
@@ -188,14 +367,13 @@ function Financeiro() {
         </AlertBanner>
       )}
 
-      <FunnelRow>
-        <FunnelStage label="Receita bruta" value={fmtBRL(gross)} hint="hospedagem + produtos" />
-        <FunnelStage label="Recebido" value={fmtBRL(received)} percentValue={percent(received, gross)} tone="sage" />
-        <FunnelStage label="A receber" value={fmtBRL(pending)} percentValue={percent(pending, gross)} tone="brass" />
-        <FunnelStage label="Despesas" value={fmtBRL(expenseTotal)} percentValue={percent(expenseTotal, received)} tone="brick" />
-        <FunnelStage label="Lucro líquido" value={fmtBRL(profit)} percentValue={percent(profit, received)} tone={profit >= 0 ? "sage" : "brick"} />
-        <FunnelStage label="Vencidos" value={fmtBRL(overdue)} hint={`${overdueReservations.length} reserva(s)`} tone="brick" />
-      </FunnelRow>
+      <DashboardDesigner
+        companyId={currentCompany.data?.id}
+        dashboardId="financeiro-kpis"
+        widgets={kpiWidgets}
+        title="Personalizar indicadores financeiros"
+        description="Mova, redimensione, altere fundo, transparência e destaque de cada cartão"
+      />
 
       <DashboardTabs
         value={tab}
@@ -207,83 +385,16 @@ function Financeiro() {
         ]}
       />
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-        <ChartPanel title={`Composição — ${tabLabel(tab)}`} span={6}>
-          <ResponsiveContainer width="100%" height={210}>
-            <PieChart>
-              <Pie data={composition} dataKey="value" nameKey="name" innerRadius={52} outerRadius={82} paddingAngle={2}>
-                {composition.map((row, index) => <Cell key={row.name} fill={COLORS[index % COLORS.length]} />)}
-              </Pie>
-              <Tooltip formatter={(value: number) => fmtBRL(value)} />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartPanel>
-
-        <ChartPanel title="Pago x pendente por canal" span={6}>
-          <ResponsiveContainer width="100%" height={210}>
-            <BarChart data={channelRows} layout="vertical" margin={{ left: 20, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis type="number" tick={{ fontSize: 10 }} />
-              <YAxis type="category" dataKey="name" width={76} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(value: number) => fmtBRL(value)} />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Bar dataKey="pago" name="Pago" fill="var(--pine)" radius={[0, 3, 3, 0]} />
-              <Bar dataKey="pendente" name="Pendente" fill="var(--sage)" radius={[0, 3, 3, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartPanel>
-
-        <ChartPanel title="Receita, despesa e lucro — 12 meses" span={6}>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={monthly}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="label" tick={{ fontSize: 9 }} />
-              <YAxis tick={{ fontSize: 9 }} />
-              <Tooltip formatter={(value: number) => fmtBRL(value)} />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Bar dataKey="receita" name="Receita" stackId="financeiro" fill="var(--pine)" />
-              <Bar dataKey="despesas" name="Despesas" stackId="financeiro" fill="var(--brick)" />
-              <Line type="monotone" dataKey="lucro" name="Lucro" stroke="var(--brass)" strokeWidth={2} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartPanel>
-
-        <ChartPanel title="Receita por estado" span={6}>
-          <StateBubbleGrid rows={stateRows} />
-        </ChartPanel>
-      </div>
+      <DashboardDesigner
+        companyId={currentCompany.data?.id}
+        dashboardId={`financeiro-analises-${tab}`}
+        widgets={analysisWidgets}
+        title="Personalizar análises financeiras"
+        description="Escolha tipo de gráfico, tamanho, posição, cores, fundo e transparência"
+      />
 
       {tab === "canal" && (
         <>
-          <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-            <ChartPanel title="% OTA x canais diretos — 12 meses" span={6}>
-              <ResponsiveContainer width="100%" height={210}>
-                <LineChart data={otaTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="label" tick={{ fontSize: 9 }} />
-                  <YAxis domain={[0, 100]} tick={{ fontSize: 9 }} />
-                  <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                  <Line dataKey="ota" name="OTAs" stroke="var(--brick)" strokeWidth={2} />
-                  <Line dataKey="direto" name="Diretos" stroke="var(--pine)" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </ChartPanel>
-            <ChartPanel title="Custo da dependência de OTA" span={6}>
-              <div className="grid h-[210px] place-content-center gap-3 text-center">
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground">Receita via OTA</p>
-                  <p className="font-serif text-2xl font-bold text-pine-dark">{fmtBRL(ota.revenue)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground">Comissão perdida</p>
-                  <p className="font-serif text-2xl font-bold text-brick">{fmtBRL(ota.commission)}</p>
-                  <p className="text-xs text-muted-foreground">Esse valor ficaria no hotel em reservas diretas.</p>
-                </div>
-              </div>
-            </ChartPanel>
-          </div>
           <AlertBanner title={`${ota.share.toFixed(1)}% da receita de hospedagem vem de OTAs`} tone="brass">
             A dependência {otaDirection > 0 ? "subiu" : otaDirection < 0 ? "caiu" : "ficou estável"}{" "}
             {Math.abs(otaDirection).toFixed(1)} ponto(s) nos últimos 3 meses. A comissão estimada no período é{" "}
@@ -297,24 +408,156 @@ function Financeiro() {
   );
 }
 
-function StateBubbleGrid({ rows }: { rows: { state: string; value: number }[] }) {
-  const max = Math.max(1, ...rows.map((row) => row.value));
+function FinancialCompositionChart({
+  rows,
+  settings,
+}: {
+  rows: { name: string; value: number }[];
+  settings: DashboardWidgetSettings;
+}) {
+  if (settings.chartType !== "pie" && settings.chartType !== "doughnut") {
+    return (
+      <FinancialSeriesChart
+        rows={rows}
+        categoryKey="name"
+        series={[{ key: "value", label: "Valor", color: settings.color }]}
+        settings={settings}
+      />
+    );
+  }
   return (
-    <div className="grid min-h-[210px] grid-cols-3 place-items-center gap-2 rounded-md bg-[linear-gradient(135deg,var(--paper),var(--sage-bg))] p-3 sm:grid-cols-5">
-      {rows.length ? rows.slice(0, 10).map((row) => {
-        const size = 38 + (row.value / max) * 38;
-        return (
-          <div
-            key={row.state}
-            className="grid place-items-center rounded-full border-4 border-white bg-pine text-[10px] font-bold text-white shadow"
-            style={{ width: size, height: size }}
-            title={`${row.state}: ${fmtBRL(row.value)}`}
-          >
-            {row.state}
-          </div>
-        );
-      }) : <p className="col-span-full text-xs text-muted-foreground">Cadastre o estado dos clientes para visualizar o mapa.</p>}
-    </div>
+    <FinancialChartFrame settings={settings}>
+      <PieChart>
+        <Pie
+          data={rows.slice(0, 10)}
+          dataKey="value"
+          nameKey="name"
+          innerRadius={settings.chartType === "doughnut" ? "48%" : 0}
+          outerRadius="74%"
+          paddingAngle={2}
+        >
+          {rows.slice(0, 10).map((row, index) => (
+            <Cell
+              key={row.name}
+              fill={index === 0 ? settings.color : COLORS[index % COLORS.length]}
+            />
+          ))}
+        </Pie>
+        <Tooltip formatter={(value: number) => fmtBRL(value)} />
+        <Legend wrapperStyle={{ fontSize: 10 }} />
+      </PieChart>
+    </FinancialChartFrame>
+  );
+}
+
+function FinancialSeriesChart({
+  rows,
+  categoryKey,
+  series,
+  settings,
+  percentAxis = false,
+}: {
+  rows: Record<string, string | number>[];
+  categoryKey: string;
+  series: { key: string; label: string; color: string }[];
+  settings: DashboardWidgetSettings;
+  percentAxis?: boolean;
+}) {
+  const tooltipFormatter = (value: number) =>
+    percentAxis ? `${Number(value).toFixed(1)}%` : fmtBRL(value);
+  let chart: React.ReactNode;
+  if (settings.chartType === "line") {
+    chart = (
+      <LineChart data={rows} margin={{ left: 0, right: 14 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey={categoryKey} tick={{ fontSize: 9 }} />
+        <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9 }} />
+        <Tooltip formatter={tooltipFormatter} />
+        <Legend wrapperStyle={{ fontSize: 10 }} />
+        {series.map((item) => (
+          <Line
+            key={item.key}
+            type="monotone"
+            dataKey={item.key}
+            name={item.label}
+            stroke={item.color}
+            strokeWidth={2.5}
+          />
+        ))}
+      </LineChart>
+    );
+  } else if (settings.chartType === "area") {
+    chart = (
+      <AreaChart data={rows} margin={{ left: 0, right: 14 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey={categoryKey} tick={{ fontSize: 9 }} />
+        <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9 }} />
+        <Tooltip formatter={tooltipFormatter} />
+        <Legend wrapperStyle={{ fontSize: 10 }} />
+        {series.map((item) => (
+          <Area
+            key={item.key}
+            type="monotone"
+            dataKey={item.key}
+            name={item.label}
+            stroke={item.color}
+            fill={item.color}
+            fillOpacity={0.16}
+          />
+        ))}
+      </AreaChart>
+    );
+  } else {
+    const horizontal = settings.chartType === "horizontalBar";
+    chart = (
+      <BarChart
+        data={rows}
+        layout={horizontal ? "vertical" : "horizontal"}
+        margin={horizontal ? { left: 62, right: 14 } : { left: 0, right: 14 }}
+      >
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        {horizontal ? (
+          <>
+            <XAxis type="number" domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9 }} />
+            <YAxis type="category" dataKey={categoryKey} width={68} tick={{ fontSize: 9 }} />
+          </>
+        ) : (
+          <>
+            <XAxis dataKey={categoryKey} tick={{ fontSize: 9 }} />
+            <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9 }} />
+          </>
+        )}
+        <Tooltip formatter={tooltipFormatter} />
+        <Legend wrapperStyle={{ fontSize: 10 }} />
+        {series.map((item) => (
+          <Bar
+            key={item.key}
+            dataKey={item.key}
+            name={item.label}
+            fill={item.color}
+            radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
+          />
+        ))}
+      </BarChart>
+    );
+  }
+  return <FinancialChartFrame settings={settings}>{chart}</FinancialChartFrame>;
+}
+
+function FinancialChartFrame({
+  settings,
+  children,
+}: {
+  settings: DashboardWidgetSettings;
+  children: React.ReactElement;
+}) {
+  return (
+    <section className="chart-surface h-full p-3 shadow-sm">
+      <h2 className="mb-2 text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>
+      <ResponsiveContainer width="100%" height={Math.max(72, settings.height - 54)}>
+        {children}
+      </ResponsiveContainer>
+    </section>
   );
 }
 

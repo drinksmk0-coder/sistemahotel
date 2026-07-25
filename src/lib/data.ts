@@ -430,10 +430,64 @@ export function activeReservationForRoom(
         r.status !== "finalizado" &&
         r.status !== "manutencao" &&
         r.checkin <= today &&
-        r.checkout >= today,
+        (r.checkout >= today || r.status === "ocupado"),
     )
     .sort((a, b) => b.checkin.localeCompare(a.checkin));
   return active[0] ?? null;
+}
+
+export type ReservationFinancialState =
+  | "quitada"
+  | "reserva_futura"
+  | "pagamento_parcial"
+  | "reserva_vencida"
+  | "estadia_vencida"
+  | "checkout_com_saldo";
+
+export type ReservationFinancialSummary = {
+  total: number;
+  paid: number;
+  balance: number;
+  daysOverdue: number;
+  state: ReservationFinancialState;
+};
+
+export function reservationFinancialSummary(
+  reservation: Reservation,
+  today = todayISO(),
+): ReservationFinancialSummary {
+  const total = Math.max(0, Number(reservation.valor_total) || 0);
+  const paid = Math.max(0, Number(reservation.valor_pago) || 0);
+  const balance = Math.max(0, total - paid);
+  const daysOverdue =
+    reservation.checkout < today ? differenceInCalendarDays(today, reservation.checkout) : 0;
+
+  let state: ReservationFinancialState;
+  if (balance <= 0) state = "quitada";
+  else if (reservation.status === "finalizado") state = "checkout_com_saldo";
+  else if (reservation.status === "ocupado" && reservation.checkout < today)
+    state = "estadia_vencida";
+  else if (reservation.status === "reservado" && reservation.checkout < today)
+    state = "reserva_vencida";
+  else if (paid > 0) state = "pagamento_parcial";
+  else state = "reserva_futura";
+
+  return { total, paid, balance, daysOverdue, state };
+}
+
+export function reservationNeedsFinancialAttention(
+  reservation: Reservation,
+  today = todayISO(),
+): boolean {
+  if (reservation.status === "cancelado" || reservation.status === "manutencao") return false;
+  const summary = reservationFinancialSummary(reservation, today);
+  return summary.balance > 0 && reservation.checkout < today;
+}
+
+function differenceInCalendarDays(laterISO: string, earlierISO: string): number {
+  const later = new Date(`${laterISO}T12:00:00`);
+  const earlier = new Date(`${earlierISO}T12:00:00`);
+  return Math.max(0, Math.round((later.getTime() - earlier.getTime()) / 86_400_000));
 }
 
 // Future / upcoming reservations for a room (checkout still ahead), so the desk

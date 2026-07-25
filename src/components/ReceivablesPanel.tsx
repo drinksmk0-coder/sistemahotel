@@ -1,5 +1,10 @@
 import { AlertTriangle, CalendarClock, CircleDollarSign, MessageCircle } from "lucide-react";
-import { type Client, type Reservation } from "@/lib/data";
+import {
+  reservationFinancialSummary,
+  type Client,
+  type Reservation,
+  type ReservationFinancialState,
+} from "@/lib/data";
 import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
 
 interface ReceivablesPanelProps {
@@ -14,44 +19,35 @@ interface ReceivableRow {
   total: number;
   paid: number;
   balance: number;
-  isPartial: boolean;
-  isCheckoutPending: boolean;
-  isOverdueSevenDays: boolean;
+  daysOverdue: number;
+  state: ReservationFinancialState;
 }
 
 export function ReceivablesPanel({ reservations, clients, compact = false }: ReceivablesPanelProps) {
   const today = todayISO();
-  const sevenDaysAgo = dateOffsetISO(today, -7);
   const clientsById = new Map(clients.map((client) => [client.id, client]));
   const rows = reservations
     .filter((reservation) => reservation.status !== "cancelado" && reservation.status !== "manutencao")
     .map((reservation): ReceivableRow => {
-      const total = Math.max(0, Number(reservation.valor_total) || 0);
-      const paid = Math.max(0, Number(reservation.valor_pago) || 0);
-      const balance = Math.max(0, total - paid);
+      const summary = reservationFinancialSummary(reservation, today);
       return {
         reservation,
         client: reservation.cliente_id ? clientsById.get(reservation.cliente_id) : undefined,
-        total,
-        paid,
-        balance,
-        isPartial: paid > 0 && paid < total,
-        isCheckoutPending: reservation.checkout <= today,
-        isOverdueSevenDays: reservation.checkout < sevenDaysAgo,
+        ...summary,
       };
     })
     .filter((row) => row.balance > 0)
     .sort((a, b) => {
-      if (a.isOverdueSevenDays !== b.isOverdueSevenDays) return a.isOverdueSevenDays ? -1 : 1;
+      if (a.daysOverdue !== b.daysOverdue) return b.daysOverdue - a.daysOverdue;
       return a.reservation.checkout.localeCompare(b.reservation.checkout);
     });
 
-  const totalContracted = rows.reduce((sum, row) => sum + row.total, 0);
   const totalPaid = rows.reduce((sum, row) => sum + row.paid, 0);
   const totalBalance = rows.reduce((sum, row) => sum + row.balance, 0);
-  const partialRows = rows.filter((row) => row.isPartial);
-  const checkoutRows = rows.filter((row) => row.isCheckoutPending);
-  const overdueRows = rows.filter((row) => row.isOverdueSevenDays);
+  const partialRows = rows.filter((row) => row.state === "pagamento_parcial");
+  const expiredStayRows = rows.filter((row) => row.state === "estadia_vencida");
+  const checkoutDebtRows = rows.filter((row) => row.state === "checkout_com_saldo");
+  const expiredBookingRows = rows.filter((row) => row.state === "reserva_vencida");
 
   return (
     <section className="rounded-lg border border-brass/40 bg-card p-3 shadow-sm">
@@ -62,7 +58,7 @@ export function ReceivablesPanel({ reservations, clients, compact = false }: Rec
             Clientes com saldo pendente
           </h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Checkouts sem quitação, pagamentos parciais e reservas vencidas há mais de 7 dias.
+            Pagamentos parciais, estadias vencidas e checkouts concluídos sem quitação.
           </p>
         </div>
         <span className="rounded-full bg-brick-bg px-2.5 py-1 text-xs font-bold text-brick">
@@ -70,9 +66,8 @@ export function ReceivablesPanel({ reservations, clients, compact = false }: Rec
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
         <ReceivableKpi label="Total a receber" value={fmtBRL(totalBalance)} hint={`${fmtBRL(totalPaid)} já recebido`} tone="brick" />
-        <ReceivableKpi label="Receita contratada" value={fmtBRL(totalContracted)} hint="reservas com saldo" tone="pine" />
         <ReceivableKpi
           label="Pagamento parcial"
           value={fmtBRL(partialRows.reduce((sum, row) => sum + row.balance, 0))}
@@ -80,10 +75,22 @@ export function ReceivablesPanel({ reservations, clients, compact = false }: Rec
           tone="brass"
         />
         <ReceivableKpi
-          label="Vencidas +7 dias"
-          value={fmtBRL(overdueRows.reduce((sum, row) => sum + row.balance, 0))}
-          hint={`${overdueRows.length} reserva(s)`}
+          label="Estadia vencida"
+          value={fmtBRL(expiredStayRows.reduce((sum, row) => sum + row.balance, 0))}
+          hint={`${expiredStayRows.length} ainda ocupada(s)`}
           tone="brick"
+        />
+        <ReceivableKpi
+          label="Checkout com saldo"
+          value={fmtBRL(checkoutDebtRows.reduce((sum, row) => sum + row.balance, 0))}
+          hint={`${checkoutDebtRows.length} encerrada(s)`}
+          tone="brick"
+        />
+        <ReceivableKpi
+          label="Reserva vencida"
+          value={fmtBRL(expiredBookingRows.reduce((sum, row) => sum + row.balance, 0))}
+          hint={`${expiredBookingRows.length} sem check-in`}
+          tone="pine"
         />
       </div>
 
@@ -121,10 +128,14 @@ export function ReceivablesPanel({ reservations, clients, compact = false }: Rec
                     </td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap gap-1">
-                        {row.isOverdueSevenDays && <StatusChip icon={<AlertTriangle />} label="+7 dias" tone="brick" />}
-                        {row.isCheckoutPending && <StatusChip icon={<CalendarClock />} label="checkout pendente" tone="brass" />}
-                        {row.isPartial && <StatusChip label="pagamento parcial" tone="sage" />}
-                        {!row.isPartial && !row.isCheckoutPending && <StatusChip label="reserva futura" tone="pine" />}
+                        <FinancialStatusChip state={row.state} />
+                        {row.daysOverdue >= 7 && (
+                          <StatusChip
+                            icon={<AlertTriangle />}
+                            label={`${row.daysOverdue} dias vencida`}
+                            tone="brick"
+                          />
+                        )}
                       </div>
                     </td>
                     <td className="py-2 pr-3 text-right">{fmtBRL(row.total)}</td>
@@ -153,9 +164,10 @@ export function ReceivablesPanel({ reservations, clients, compact = false }: Rec
         </div>
       )}
 
-      {checkoutRows.length > 0 && (
+      {expiredStayRows.length + checkoutDebtRows.length + expiredBookingRows.length > 0 && (
         <p className="mt-2 text-[11px] text-muted-foreground">
-          {checkoutRows.length} checkout(s) concluído(s) ou vencido(s) ainda possuem saldo.
+          Reservas vencidas permanecem visíveis até a baixa do pagamento. Finalizar o checkout não
+          elimina o saldo a receber.
         </p>
       )}
     </section>
@@ -210,6 +222,34 @@ function StatusChip({
   );
 }
 
+function FinancialStatusChip({ state }: { state: ReservationFinancialState }) {
+  const statuses: Record<
+    ReservationFinancialState,
+    { label: string; tone: "pine" | "sage" | "brass" | "brick"; icon?: React.ReactNode }
+  > = {
+    quitada: { label: "quitada", tone: "sage" },
+    reserva_futura: { label: "reserva futura", tone: "pine" },
+    pagamento_parcial: { label: "pagamento parcial", tone: "sage" },
+    reserva_vencida: {
+      label: "reserva vencida sem check-in",
+      tone: "brass",
+      icon: <CalendarClock />,
+    },
+    estadia_vencida: {
+      label: "estadia vencida / ainda ocupada",
+      tone: "brick",
+      icon: <AlertTriangle />,
+    },
+    checkout_com_saldo: {
+      label: "checkout concluído com saldo",
+      tone: "brick",
+      icon: <CircleDollarSign />,
+    },
+  };
+  const status = statuses[state];
+  return <StatusChip {...status} />;
+}
+
 function normalizePhone(phone: string | null | undefined): string {
   const digits = String(phone ?? "").replace(/\D/g, "");
   if (!digits) return "";
@@ -217,19 +257,18 @@ function normalizePhone(phone: string | null | undefined): string {
 }
 
 function collectionMessage(row: ReceivableRow): string {
+  const context = {
+    quitada: "",
+    reserva_futura: "referente à sua reserva",
+    pagamento_parcial: "restante do pagamento parcial da sua hospedagem",
+    reserva_vencida: "referente à reserva cuja data de saída já venceu",
+    estadia_vencida: "referente à hospedagem com diária vencida",
+    checkout_com_saldo: "pendente após a conclusão do checkout",
+  }[row.state];
   return [
     `Olá, ${row.reservation.cliente_nome}!`,
-    `Identificamos um saldo de ${fmtBRL(row.balance)} referente à hospedagem no quarto ${row.reservation.quarto}, com checkout em ${fmtDate(row.reservation.checkout)}.`,
+    `Identificamos um saldo de ${fmtBRL(row.balance)} ${context}, no quarto ${row.reservation.quarto}, com checkout em ${fmtDate(row.reservation.checkout)}.`,
     `Valor total: ${fmtBRL(row.total)}. Valor já pago: ${fmtBRL(row.paid)}.`,
     "Podemos ajudar com a regularização do pagamento?",
   ].join("\n\n");
-}
-
-function dateOffsetISO(iso: string, days: number): string {
-  const date = new Date(`${iso}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }

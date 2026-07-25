@@ -30,6 +30,7 @@ export type Database = {
           id: string
           nome: string
           quantidade_filhos: number | null
+          pais: string
           profissao: string | null
           sexo: string | null
           tem_filhos: boolean | null
@@ -52,6 +53,7 @@ export type Database = {
           id?: string
           nome: string
           quantidade_filhos?: number | null
+          pais?: string
           profissao?: string | null
           sexo?: string | null
           tem_filhos?: boolean | null
@@ -74,6 +76,7 @@ export type Database = {
           id?: string
           nome?: string
           quantidade_filhos?: number | null
+          pais?: string
           profissao?: string | null
           sexo?: string | null
           tem_filhos?: boolean | null
@@ -410,6 +413,7 @@ export type Database = {
           created_by: string | null
           desconto: number
           diarias: number
+          codigo_externo: string | null
           horario_checkin: string | null
           horario_checkout: string | null
           horario_reserva: string | null
@@ -436,6 +440,7 @@ export type Database = {
           created_by?: string | null
           desconto?: number
           diarias?: number
+          codigo_externo?: string | null
           horario_checkin?: string | null
           horario_checkout?: string | null
           horario_reserva?: string | null
@@ -462,6 +467,7 @@ export type Database = {
           created_by?: string | null
           desconto?: number
           diarias?: number
+          codigo_externo?: string | null
           horario_checkin?: string | null
           horario_checkout?: string | null
           horario_reserva?: string | null

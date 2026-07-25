@@ -167,7 +167,10 @@ export function ReservaForm({
   const descontoValor = parseNumber(desconto);
   const valorPagoNumber = parseNumber(valorPago);
   const multiplicadorHospedes = cobrancaPorPessoa ? pessoasCount : 1;
-  const bruto = nights * diariaValor * multiplicadorHospedes;
+  const bruto =
+    tarifaAutomatica && rateQuote.nights > 0
+      ? rateQuote.total
+      : nights * diariaValor * multiplicadorHospedes;
   const total = Math.max(0, bruto - descontoValor);
   const overlap =
     quarto &&

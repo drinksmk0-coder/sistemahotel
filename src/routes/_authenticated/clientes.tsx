@@ -2,19 +2,39 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Download, Pencil, Plus, Power, Printer, Search } from "lucide-react";
-import { useClients, useInsert, useReservations, useUpdate, type Client } from "@/lib/data";
+import {
+  useClients,
+  useCurrentCompany,
+  useInsert,
+  useReservations,
+  useUpdate,
+  type Client,
+} from "@/lib/data";
 import { fmtBRL, fmtDate, downloadExcel, todayISO } from "@/lib/format";
 import { CLIENT_TYPES, BR_STATES, stateFromPhone } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
+import { getSystemSettings, type SystemSettings } from "@/lib/system-settings";
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   component: Clientes,
 });
 
+function normalizeText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function Clientes() {
   const { data: clients = [] } = useClients();
   const { data: reservations = [] } = useReservations();
+  const currentCompany = useCurrentCompany();
+  const requiredGuestFields = getSystemSettings(
+    currentCompany.data?.id,
+  ).requiredGuestFields;
   const insert = useInsert("clients", ["clients"]);
   const update = useUpdate("clients", ["clients", "reservations"]);
   const [open, setOpen] = useState(false);
@@ -66,6 +86,7 @@ function Clientes() {
         "Bairro",
         "Cidade",
         "Estado",
+        "País",
         "CEP",
         "Visitas",
         "Cadastrado em",
@@ -84,6 +105,7 @@ function Clientes() {
         c.bairro,
         c.cidade,
         c.estado,
+        c.pais,
         (c as Client & { cep?: string | null }).cep ?? "",
         c.visitas,
         c.created_at.slice(0, 10),
@@ -207,6 +229,7 @@ function Clientes() {
                 )}
                 {c.bairro && <p>Bairro: {c.bairro}</p>}
                 {(c.cidade || c.estado) && <p>{[c.cidade, c.estado].filter(Boolean).join(" / ")}</p>}
+                {c.pais && <p>País: {c.pais}</p>}
                 {(c as Client & { cep?: string | null }).cep && <p>CEP: {(c as Client & { cep?: string | null }).cep}</p>}
                 {c.profissao && <p>{c.profissao}</p>}
                 {c.data_nascimento && <p>Nasc.: {fmtDate(c.data_nascimento)}</p>}
@@ -272,6 +295,7 @@ function Clientes() {
         <ClientForm
           clients={clients}
           editing={editing}
+          requiredGuestFields={requiredGuestFields}
           onClose={() => {
             setOpen(false);
             setEditing(null);
@@ -317,10 +341,12 @@ function ClientForm({
   editing,
   onClose,
   onSave,
+  requiredGuestFields,
 }: {
   clients: Client[];
   editing: Client | null;
   onClose: () => void;
+  requiredGuestFields: SystemSettings["requiredGuestFields"];
   onSave: (
     row: Pick<
       Client,
@@ -334,6 +360,7 @@ function ClientForm({
       | "profissao"
       | "cidade"
       | "estado"
+      | "pais"
       | "cep"
       | "sexo"
       | "bairro"
@@ -357,6 +384,7 @@ function ClientForm({
   const [quantidadeFilhos, setQuantidadeFilhos] = useState(editing?.quantidade_filhos != null ? String(editing.quantidade_filhos) : "");
   const [cidade, setCidade] = useState(editing?.cidade ?? "");
   const [estado, setEstado] = useState(editing?.estado ?? "");
+  const [pais, setPais] = useState(editing?.pais ?? "Brasil");
   const [cep, setCep] = useState((editing as (Client & { cep?: string | null }) | null)?.cep ?? "");
 
   const cpfDigits = onlyDigits(cpf);
@@ -382,16 +410,20 @@ function ClientForm({
             toast.error("Informe o nome completo, sem números.");
             return;
           }
-          if (cpfDigits.length !== 11) {
+          if (requiredGuestFields.cpf && cpfDigits.length !== 11) {
             toast.error("CPF obrigatório. Informe os 11 dígitos.");
             return;
           }
-          if (telefoneDigits.length < 10) {
+          if (requiredGuestFields.telefone && telefoneDigits.length < 10) {
             toast.error("Telefone obrigatório. Informe DDD e número.");
             return;
           }
-          if (!nascimento || !estado || !estadoCivil) {
-            toast.error("Data de nascimento, estado e estado civil são obrigatórios.");
+          if (
+            (requiredGuestFields.nascimento && !nascimento) ||
+            (requiredGuestFields.estado && pais === "Brasil" && !estado) ||
+            (requiredGuestFields.estadoCivil && !estadoCivil)
+          ) {
+            toast.error("Preencha os campos obrigatórios definidos nas configurações.");
             return;
           }
           onSave({
@@ -410,6 +442,7 @@ function ClientForm({
             quantidade_filhos: temFilhos ? Number(quantidadeFilhos || 0) : null,
             cidade: cidade.trim() || null,
             estado: estado || null,
+            pais: pais.trim() || "Brasil",
             cep: cep.trim() || null,
           });
         }}
@@ -439,7 +472,7 @@ function ClientForm({
                 if (uf) setEstado(uf);
               }}
               maxLength={20}
-              required
+              required={requiredGuestFields.telefone}
               aria-invalid={telefoneJaCadastrado}
             />
             {telefoneJaCadastrado && (
@@ -457,7 +490,7 @@ function ClientForm({
               value={cpf}
               onChange={(e) => setCpf(formatCpfBR(e.target.value))}
               maxLength={14}
-              required
+              required={requiredGuestFields.cpf}
               aria-invalid={cpfJaCadastrado}
             />
             {cpfJaCadastrado && (
@@ -465,7 +498,13 @@ function ClientForm({
             )}
           </Field>
           <Field label="Data de nascimento">
-            <input type="date" className="field" value={nascimento} onChange={(e) => setNascimento(e.target.value)} required />
+            <input
+              type="date"
+              className="field"
+              value={nascimento}
+              onChange={(e) => setNascimento(e.target.value)}
+              required={requiredGuestFields.nascimento}
+            />
           </Field>
         </div>
         <Field label="Profissão">
@@ -482,7 +521,12 @@ function ClientForm({
             </select>
           </Field>
           <Field label="Estado civil">
-            <select className="field" value={estadoCivil} onChange={(e) => setEstadoCivil(e.target.value)} required>
+            <select
+              className="field"
+              value={estadoCivil}
+              onChange={(e) => setEstadoCivil(e.target.value)}
+              required={requiredGuestFields.estadoCivil}
+            >
               <option value="">—</option>
               <option value="solteiro">Solteiro(a)</option>
               <option value="casado">Casado(a)</option>
@@ -521,11 +565,34 @@ function ClientForm({
           <input className="field" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={80} />
         </Field>
         <div className="grid grid-cols-2 gap-3">
+          <Field label="País">
+            <input
+              className="field"
+              value={pais}
+              onChange={(e) => {
+                setPais(e.target.value);
+                if (normalizeText(e.target.value) !== "brasil") setEstado("");
+              }}
+              list="country-options"
+              maxLength={60}
+            />
+            <datalist id="country-options">
+              {["Brasil", "Argentina", "Chile", "Estados Unidos", "Portugal", "Espanha", "França", "Alemanha", "Itália", "Reino Unido", "Angola", "África do Sul", "China", "Japão", "Índia", "Austrália"].map((country) => (
+                <option key={country} value={country} />
+              ))}
+            </datalist>
+          </Field>
           <Field label="Cidade">
             <input className="field" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={60} />
           </Field>
           <Field label="Estado">
-            <select className="field" value={estado} onChange={(e) => setEstado(e.target.value)} required>
+            <select
+              className="field"
+              value={estado}
+              onChange={(e) => setEstado(e.target.value)}
+              required={requiredGuestFields.estado && normalizeText(pais) === "brasil"}
+              disabled={normalizeText(pais) !== "brasil"}
+            >
               <option value="">—</option>
               {BR_STATES.map((uf) => (
                 <option key={uf} value={uf}>

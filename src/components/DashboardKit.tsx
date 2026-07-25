@@ -17,7 +17,7 @@ export function DashboardHeader({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-brass">
-            Hotel Real Cruzília
+            Gestão hoteleira inteligente
           </p>
           <h1 className="font-serif text-xl font-bold">{title}</h1>
           <p className="text-xs text-white/75">{subtitle}</p>
@@ -215,7 +215,7 @@ export function ChartPanel({
   }[span];
   return (
     <section
-      className={`min-w-0 rounded-lg border border-border bg-card p-3 shadow-sm ${spanClass}`}
+      className={`chart-surface p-3 shadow-sm ${spanClass}`}
     >
       <h2 className="text-xs font-bold uppercase text-pine-dark">{title}</h2>
       {subtitle && <p className="mb-2 text-[10px] text-muted-foreground">{subtitle}</p>}

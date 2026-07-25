@@ -27,6 +27,8 @@ import {
   statusFromPayment,
   hasActiveOverlap,
   roomBlock,
+  reservationFinancialSummary,
+  reservationNeedsFinancialAttention,
   type Client,
   type Reservation,
 } from "@/lib/data";
@@ -63,7 +65,6 @@ function Reservas() {
   const currentCompany = useCurrentCompany();
   const queryClient = useQueryClient();
   const insert = useInsert("reservations", ["reservations"]);
-  const insertGroup = useInsert("reservation_groups", ["reservation_groups"]);
   const insertClient = useInsert("clients", ["clients"]);
   const insertComplaint = useInsert("complaints", ["complaints"]);
   const update = useUpdate("reservations", ["reservations"]);
@@ -79,6 +80,8 @@ function Reservas() {
   const filtered = useMemo(() => {
     if (filter === "ativas")
       return reservations.filter((r) => !["finalizado", "cancelado"].includes(r.status));
+    if (filter === "pendencias")
+      return reservations.filter((r) => reservationNeedsFinancialAttention(r));
     if (filter === "todas") return reservations;
     return reservations.filter((r) => r.status === filter);
   }, [reservations, filter]);
@@ -211,33 +214,21 @@ function Reservas() {
       return;
     }
     setGroupBusy(true);
-    let createdGroupId = "";
     try {
-      const created = (await insertGroup.mutateAsync(payload.group)) as unknown as {
-        id: string;
-      }[];
-      createdGroupId = created[0]?.id ?? "";
-      if (!createdGroupId) throw new Error("Não foi possível criar o grupo.");
-
-      const rows = payload.reservations.map((reservation) => ({
-        ...reservation,
-        company_id: currentCompany.data!.id,
-        group_id: createdGroupId,
-      }));
-      const { error } = await supabase.from("reservations" as never).insert(rows as never);
+      const { error } = await (supabase as any).rpc("create_group_reservation", {
+        p_group: {
+          ...payload.group,
+          company_id: currentCompany.data.id,
+        },
+        p_reservations: payload.reservations,
+      });
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: ["reservations"] });
       await queryClient.invalidateQueries({ queryKey: ["reservation_groups"] });
-      toast.success(`${rows.length} reservas criadas no grupo.`);
+      toast.success(`${payload.reservations.length} reservas criadas no grupo.`);
       setGroupOpen(false);
     } catch (error) {
-      if (createdGroupId) {
-        await (supabase.from("reservation_groups" as never) as any)
-          .delete()
-          .eq("id", createdGroupId)
-          .eq("company_id", currentCompany.data.id);
-      }
       toast.error(error instanceof Error ? error.message : "Erro ao criar reserva em grupo.");
     } finally {
       setGroupBusy(false);
@@ -268,7 +259,7 @@ function Reservas() {
       />
 
       <div className="mb-4 flex flex-wrap gap-1.5 text-sm">
-        {["ativas", "reservado", "ocupado", "finalizado", "todas"].map((f) => (
+        {["ativas", "pendencias", "reservado", "ocupado", "finalizado", "todas"].map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -295,8 +286,14 @@ function Reservas() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id} className="border-b border-border/50">
+              {filtered.map((r) => {
+                const financial = reservationFinancialSummary(r);
+                const needsAttention = reservationNeedsFinancialAttention(r);
+                return (
+                <tr
+                  key={r.id}
+                  className={`border-b border-border/50 ${needsAttention ? "bg-brick-bg/35" : ""}`}
+                >
                   <td className="p-3 font-serif text-lg font-bold">{r.quarto}</td>
                   <td className="p-3">{r.cliente_nome}</td>
                   <td className="p-3 text-muted-foreground">
@@ -320,6 +317,16 @@ function Reservas() {
                     <Badge tone={r.pago ? "sage" : "brass"}>
                       {r.pago ? "quitado" : Number(r.valor_pago) > 0 ? "sinal pago" : "a receber"}
                     </Badge>
+                    {needsAttention && (
+                      <div className="mt-1 text-xs font-bold text-brick">
+                        {financial.state === "checkout_com_saldo"
+                          ? "Checkout com saldo"
+                          : financial.state === "estadia_vencida"
+                            ? "Estadia vencida"
+                            : "Reserva vencida"}
+                        {financial.daysOverdue > 0 ? ` · ${financial.daysOverdue} dia(s)` : ""}
+                      </div>
+                    )}
                   </td>
                   <td className="p-3">
                     <Badge tone={statusTone[r.status]}>{r.status}</Badge>
@@ -336,7 +343,8 @@ function Reservas() {
                     />
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -452,6 +460,8 @@ function RowActions({
 }) {
   const done = ["finalizado", "cancelado"].includes(reservation.status);
   const total = Number(reservation.valor_total);
+  const paid = Number(reservation.valor_pago) || 0;
+  const balance = Math.max(0, total - paid);
   const receiptUrl = whatsappReceiptUrl(reservation, client);
   const reviewUrl = whatsappReviewUrl(reservation, client);
   return (
@@ -489,10 +499,7 @@ function RowActions({
                   patch: {
                     valor_pago: total,
                     pago: true,
-                    status: "ocupado",
-                    checkin_at: reservation.checkin_at ?? new Date().toISOString(),
                     horario_reserva: reservation.horario_reserva ?? currentTime(),
-                    horario_checkin: reservation.horario_checkin ?? currentTime(),
                   },
                 },
                 {
@@ -532,7 +539,14 @@ function RowActions({
       {reservation.status === "ocupado" && (
         <button
           className="rounded-md bg-slate-bg px-2 py-1 text-xs font-semibold text-slate"
-          onClick={() =>
+          onClick={() => {
+            if (
+              balance > 0 &&
+              !window.confirm(
+                `Ainda faltam ${fmtBRL(balance)}. Deseja concluir o checkout com saldo pendente? A dívida continuará no painel financeiro para cobrança.`,
+              )
+            )
+              return;
             update.mutate(
               {
                 id: reservation.id,
@@ -555,10 +569,10 @@ function RowActions({
                 },
                 onError: (e: Error) => toast.error(e.message),
               },
-            )
-          }
+            );
+          }}
         >
-          Check-out
+          {balance > 0 ? "Checkout com saldo" : "Check-out"}
         </button>
       )}
       {reservation.status === "ocupado" && (
