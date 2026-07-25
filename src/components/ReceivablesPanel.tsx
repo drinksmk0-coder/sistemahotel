@@ -1,15 +1,17 @@
 import { AlertTriangle, CalendarClock, CircleDollarSign, MessageCircle } from "lucide-react";
 import {
-  reservationFinancialSummary,
   type Client,
   type Reservation,
   type ReservationFinancialState,
+  type Sale,
 } from "@/lib/data";
 import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
+import { buildGuestAccount } from "@/lib/guest-account";
 
 interface ReceivablesPanelProps {
   reservations: Reservation[];
   clients: Client[];
+  sales: Sale[];
   compact?: boolean;
 }
 
@@ -21,19 +23,37 @@ interface ReceivableRow {
   balance: number;
   daysOverdue: number;
   state: ReservationFinancialState;
+  lodgingTotal: number;
+  extrasTotal: number;
 }
 
-export function ReceivablesPanel({ reservations, clients, compact = false }: ReceivablesPanelProps) {
+export function ReceivablesPanel({
+  reservations,
+  clients,
+  sales,
+  compact = false,
+}: ReceivablesPanelProps) {
   const today = todayISO();
   const clientsById = new Map(clients.map((client) => [client.id, client]));
   const rows = reservations
-    .filter((reservation) => reservation.status !== "cancelado" && reservation.status !== "manutencao")
+    .filter(
+      (reservation) => reservation.status !== "cancelado" && reservation.status !== "manutencao",
+    )
     .map((reservation): ReceivableRow => {
-      const summary = reservationFinancialSummary(reservation, today);
+      const account = buildGuestAccount(reservation, sales);
+      const daysOverdue =
+        reservation.checkout < today ? differenceInCalendarDays(today, reservation.checkout) : 0;
+      const state = accountState(reservation, account.paid, account.balance, today);
       return {
         reservation,
         client: reservation.cliente_id ? clientsById.get(reservation.cliente_id) : undefined,
-        ...summary,
+        total: account.total,
+        paid: account.paid,
+        balance: account.balance,
+        daysOverdue,
+        state,
+        lodgingTotal: account.lodgingTotal,
+        extrasTotal: account.extrasTotal,
       };
     })
     .filter((row) => row.balance > 0)
@@ -67,7 +87,12 @@ export function ReceivablesPanel({ reservations, clients, compact = false }: Rec
       </div>
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-        <ReceivableKpi label="Total a receber" value={fmtBRL(totalBalance)} hint={`${fmtBRL(totalPaid)} já recebido`} tone="brick" />
+        <ReceivableKpi
+          label="Total a receber"
+          value={fmtBRL(totalBalance)}
+          hint={`${fmtBRL(totalPaid)} já recebido`}
+          tone="brick"
+        />
         <ReceivableKpi
           label="Pagamento parcial"
           value={fmtBRL(partialRows.reduce((sum, row) => sum + row.balance, 0))}
@@ -99,7 +124,9 @@ export function ReceivablesPanel({ reservations, clients, compact = false }: Rec
           Nenhuma reserva com saldo pendente.
         </p>
       ) : (
-        <div className={`mt-3 overflow-x-auto ${compact ? "max-h-72" : "max-h-[30rem]"} overflow-y-auto`}>
+        <div
+          className={`mt-3 overflow-x-auto ${compact ? "max-h-72" : "max-h-[30rem]"} overflow-y-auto`}
+        >
           <table className="w-full min-w-[760px] text-xs">
             <thead className="sticky top-0 bg-card">
               <tr className="border-b border-border text-left text-muted-foreground">
@@ -119,12 +146,21 @@ export function ReceivablesPanel({ reservations, clients, compact = false }: Rec
                 return (
                   <tr key={row.reservation.id} className="border-b border-border/60">
                     <td className="py-2 pr-3">
-                      <strong className="block text-pine-dark">{row.reservation.cliente_nome}</strong>
-                      <span className="text-muted-foreground">{row.client?.telefone || "Sem telefone"}</span>
+                      <strong className="block text-pine-dark">
+                        {row.reservation.cliente_nome}
+                      </strong>
+                      <span className="text-muted-foreground">
+                        {row.client?.telefone || "Sem telefone"}
+                      </span>
                     </td>
                     <td className="py-2 pr-3">
                       <span className="block font-semibold">Quarto {row.reservation.quarto}</span>
-                      <span className="text-muted-foreground">checkout {fmtDate(row.reservation.checkout)}</span>
+                      <span className="text-muted-foreground">
+                        checkout {fmtDate(row.reservation.checkout)}
+                      </span>
+                      <span className="block text-[10px] text-muted-foreground">
+                        Diárias {fmtBRL(row.lodgingTotal)} + consumo {fmtBRL(row.extrasTotal)}
+                      </span>
                     </td>
                     <td className="py-2 pr-3">
                       <div className="flex flex-wrap gap-1">
@@ -140,7 +176,9 @@ export function ReceivablesPanel({ reservations, clients, compact = false }: Rec
                     </td>
                     <td className="py-2 pr-3 text-right">{fmtBRL(row.total)}</td>
                     <td className="py-2 pr-3 text-right text-sage">{fmtBRL(row.paid)}</td>
-                    <td className="py-2 pr-3 text-right font-bold text-brick">{fmtBRL(row.balance)}</td>
+                    <td className="py-2 pr-3 text-right font-bold text-brick">
+                      {fmtBRL(row.balance)}
+                    </td>
                     <td className="py-2 text-right">
                       {phone ? (
                         <a
@@ -191,7 +229,9 @@ function ReceivableKpi({
     brick: "border-t-brick bg-brick/10",
   }[tone];
   return (
-    <article className={`min-w-0 rounded-md border border-border border-t-4 px-2.5 py-2 ${toneClass}`}>
+    <article
+      className={`min-w-0 rounded-md border border-border border-t-4 px-2.5 py-2 ${toneClass}`}
+    >
       <p className="truncate text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
       <p className="truncate font-serif text-base font-bold text-pine-dark">{value}</p>
       <p className="truncate text-[10px] text-muted-foreground">{hint}</p>
@@ -215,7 +255,9 @@ function StatusChip({
     brick: "bg-brick-bg text-brick",
   }[tone];
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${toneClass}`}>
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${toneClass}`}
+    >
       {icon && <span className="[&>svg]:h-3 [&>svg]:w-3">{icon}</span>}
       {label}
     </span>
@@ -268,7 +310,27 @@ function collectionMessage(row: ReceivableRow): string {
   return [
     `Olá, ${row.reservation.cliente_nome}!`,
     `Identificamos um saldo de ${fmtBRL(row.balance)} ${context}, no quarto ${row.reservation.quarto}, com checkout em ${fmtDate(row.reservation.checkout)}.`,
-    `Valor total: ${fmtBRL(row.total)}. Valor já pago: ${fmtBRL(row.paid)}.`,
+    `Conta total: ${fmtBRL(row.total)} (diárias ${fmtBRL(row.lodgingTotal)} + consumo ${fmtBRL(row.extrasTotal)}). Valor já pago: ${fmtBRL(row.paid)}.`,
     "Podemos ajudar com a regularização do pagamento?",
   ].join("\n\n");
+}
+
+function accountState(
+  reservation: Reservation,
+  paid: number,
+  balance: number,
+  today: string,
+): ReservationFinancialState {
+  if (balance <= 0) return "quitada";
+  if (reservation.status === "finalizado") return "checkout_com_saldo";
+  if (reservation.status === "ocupado" && reservation.checkout < today) return "estadia_vencida";
+  if (reservation.status === "reservado" && reservation.checkout < today) return "reserva_vencida";
+  if (paid > 0) return "pagamento_parcial";
+  return "reserva_futura";
+}
+
+function differenceInCalendarDays(laterISO: string, earlierISO: string): number {
+  const later = new Date(`${laterISO}T12:00:00`);
+  const earlier = new Date(`${earlierISO}T12:00:00`);
+  return Math.max(0, Math.round((later.getTime() - earlier.getTime()) / 86_400_000));
 }

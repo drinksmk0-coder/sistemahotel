@@ -136,10 +136,7 @@ function Painel() {
 
   const aReceber = reservations
     .filter((r) => r.status !== "cancelado" && r.status !== "manutencao")
-    .reduce(
-      (s, r) => s + Math.max(0, Number(r.valor_total) - Number(r.valor_pago)),
-      0,
-    );
+    .reduce((s, r) => s + Math.max(0, Number(r.valor_total) - Number(r.valor_pago)), 0);
 
   const despesasMes = expenses
     .filter((e) => (e.data || "").slice(0, 7) === month)
@@ -453,7 +450,7 @@ function Painel() {
       </div>
 
       <div className="mt-3">
-        <ReceivablesPanel reservations={reservations} clients={clients} compact />
+        <ReceivablesPanel reservations={reservations} clients={clients} sales={sales} compact />
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-4">
@@ -836,7 +833,9 @@ function OwnerCompactDashboard({
       kind: "content",
       defaultColumns: 12,
       defaultHeight: 240,
-      render: () => <ReceivablesPanel reservations={reservations} clients={clients} compact />,
+      render: () => (
+        <ReceivablesPanel reservations={reservations} clients={clients} sales={sales} compact />
+      ),
     },
     {
       id: "payments",
@@ -938,7 +937,13 @@ function EditableSingleSeriesChart({
         <PolarAngleAxis dataKey="name" tick={{ fontSize: 10 }} />
         <PolarRadiusAxis tick={{ fontSize: 9 }} />
         <Tooltip formatter={tooltipFormatter} />
-        <Radar dataKey="value" name="Valor" stroke={settings.color} fill={settings.color} fillOpacity={0.3} />
+        <Radar
+          dataKey="value"
+          name="Valor"
+          stroke={settings.color}
+          fill={settings.color}
+          fillOpacity={0.3}
+        />
       </RadarChart>
     );
   } else if (settings.chartType === "line") {
@@ -948,7 +953,13 @@ function EditableSingleSeriesChart({
         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
         <YAxis tick={{ fontSize: 9 }} />
         <Tooltip formatter={tooltipFormatter} />
-        <Line type="monotone" dataKey="value" name="Valor" stroke={settings.color} strokeWidth={3} />
+        <Line
+          type="monotone"
+          dataKey="value"
+          name="Valor"
+          stroke={settings.color}
+          strokeWidth={3}
+        />
       </LineChart>
     );
   } else if (settings.chartType === "area") {
@@ -984,7 +995,9 @@ function EditableSingleSeriesChart({
       <BarChart
         data={rows}
         layout={settings.chartType === "horizontalBar" ? "vertical" : "horizontal"}
-        margin={settings.chartType === "horizontalBar" ? { left: 70, right: 14 } : { left: 0, right: 14 }}
+        margin={
+          settings.chartType === "horizontalBar" ? { left: 70, right: 14 } : { left: 0, right: 14 }
+        }
       >
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         {settings.chartType === "horizontalBar" ? (

@@ -4,13 +4,10 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type DragEvent as ReactDragEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import {
-  ArrowDown,
-  ArrowUp,
   Eye,
   EyeOff,
   GripVertical,
@@ -23,14 +20,7 @@ import {
 import { toast } from "sonner";
 
 export type DashboardChartType =
-  | "bar"
-  | "horizontalBar"
-  | "line"
-  | "area"
-  | "pie"
-  | "doughnut"
-  | "radar"
-  | "composed";
+  "bar" | "horizontalBar" | "line" | "area" | "pie" | "doughnut" | "radar" | "composed";
 
 export type DashboardWidgetSettings = {
   id: string;
@@ -128,7 +118,11 @@ export function DashboardDesigner({
 }) {
   const [editing, setEditing] = useState(false);
   const [layout, setLayout] = useState(() => loadLayout(companyId, dashboardId, widgets));
-  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<{
+    id: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [resizing, setResizing] = useState<{
     id: string;
     startX: number;
@@ -138,6 +132,8 @@ export function DashboardDesigner({
     gridWidth: number;
   } | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
+  const draggedIdRef = useRef<string | null>(null);
+  const lastPointerRef = useRef({ x: 0, y: 0 });
   const autoScrollFrameRef = useRef<number | null>(null);
   const autoScrollDirectionRef = useRef(0);
   const widgetById = useMemo(
@@ -154,7 +150,10 @@ export function DashboardDesigner({
       const columnWidth = Math.max(56, (resizing!.gridWidth - 33) / 12);
       const columns = Math.min(
         12,
-        Math.max(1, Math.round(resizing!.startColumns + (event.clientX - resizing!.startX) / columnWidth)),
+        Math.max(
+          1,
+          Math.round(resizing!.startColumns + (event.clientX - resizing!.startX) / columnWidth),
+        ),
       );
       const height = Math.min(
         MAX_WIDGET_HEIGHT,
@@ -205,42 +204,82 @@ export function DashboardDesigner({
     }));
   }
 
-  function moveWidget(targetId: string) {
+  function moveWidgetNear(targetId: string, placeAfter: boolean) {
+    const draggedId = draggedIdRef.current;
     if (!draggedId || draggedId === targetId) return;
     setLayout((current) => {
       const order = current.order.filter((id) => id !== draggedId);
-      order.splice(order.indexOf(targetId), 0, draggedId);
+      const targetIndex = order.indexOf(targetId);
+      if (targetIndex < 0) return current;
+      order.splice(targetIndex + (placeAfter ? 1 : 0), 0, draggedId);
+      if (order.every((id, index) => id === current.order[index])) return current;
       return { ...current, order };
     });
-    setDraggedId(null);
-    stopAutoScroll();
   }
 
   function moveWidgetToEdge(edge: "start" | "end") {
+    const draggedId = draggedIdRef.current;
     if (!draggedId) return;
     setLayout((current) => {
       const order = current.order.filter((id) => id !== draggedId);
       if (edge === "start") order.unshift(draggedId);
       else order.push(draggedId);
+      if (order.every((id, index) => id === current.order[index])) return current;
       return { ...current, order };
     });
-    setDraggedId(null);
-    stopAutoScroll();
   }
 
-  function moveWidgetBy(id: string, offset: -1 | 1) {
-    setLayout((current) => {
-      const currentIndex = current.order.indexOf(id);
-      const targetIndex = Math.min(
-        current.order.length - 1,
-        Math.max(0, currentIndex + offset),
-      );
-      if (currentIndex < 0 || currentIndex === targetIndex) return current;
-      const order = [...current.order];
-      order.splice(currentIndex, 1);
-      order.splice(targetIndex, 0, id);
-      return { ...current, order };
-    });
+  function reorderAtPoint(clientX: number, clientY: number) {
+    const grid = gridRef.current;
+    const draggedId = draggedIdRef.current;
+    if (!grid || !draggedId) return;
+
+    const gridRect = grid.getBoundingClientRect();
+    if (
+      clientX < gridRect.left ||
+      clientX > gridRect.right ||
+      clientY < gridRect.top - 24 ||
+      clientY > gridRect.bottom + 24
+    ) {
+      return;
+    }
+
+    const candidates = Array.from(
+      grid.querySelectorAll<HTMLElement>("[data-dashboard-widget-id]"),
+    ).filter((element) => element.dataset.dashboardWidgetId !== draggedId);
+
+    if (!candidates.length) return;
+    if (clientY <= gridRect.top + 18) {
+      moveWidgetToEdge("start");
+      return;
+    }
+    if (clientY >= gridRect.bottom - 18) {
+      moveWidgetToEdge("end");
+      return;
+    }
+
+    let closest = candidates[0];
+    let closestDistance = Number.POSITIVE_INFINITY;
+    for (const candidate of candidates) {
+      const rect = candidate.getBoundingClientRect();
+      const dx =
+        clientX < rect.left ? rect.left - clientX : clientX > rect.right ? clientX - rect.right : 0;
+      const dy =
+        clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
+      const distance = Math.hypot(dx, dy);
+      if (distance < closestDistance) {
+        closest = candidate;
+        closestDistance = distance;
+      }
+    }
+
+    const rect = closest.getBoundingClientRect();
+    const sameRow =
+      clientY >= rect.top + rect.height * 0.25 && clientY <= rect.bottom - rect.height * 0.25;
+    const placeAfter = sameRow
+      ? clientX > rect.left + rect.width / 2
+      : clientY > rect.top + rect.height / 2;
+    moveWidgetNear(closest.dataset.dashboardWidgetId!, placeAfter);
   }
 
   function stopAutoScroll() {
@@ -257,6 +296,7 @@ export function DashboardDesigner({
       return;
     }
     window.scrollBy(0, autoScrollDirectionRef.current * 14);
+    reorderAtPoint(lastPointerRef.current.x, lastPointerRef.current.y);
     autoScrollFrameRef.current = window.requestAnimationFrame(runAutoScroll);
   }
 
@@ -271,16 +311,50 @@ export function DashboardDesigner({
     }
   }
 
-  function startDragging(event: ReactDragEvent<HTMLButtonElement>, id: string) {
-    event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", id);
-    setDraggedId(id);
+  function startDragging(event: ReactPointerEvent<HTMLButtonElement>, id: string) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    draggedIdRef.current = id;
+    lastPointerRef.current = { x: event.clientX, y: event.clientY };
+    setDragging({ id, x: event.clientX, y: event.clientY });
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "grabbing";
   }
 
   function finishDragging() {
-    setDraggedId(null);
+    draggedIdRef.current = null;
+    setDragging(null);
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
     stopAutoScroll();
   }
+
+  useEffect(() => {
+    if (!dragging) return;
+
+    function onPointerMove(event: PointerEvent) {
+      lastPointerRef.current = { x: event.clientX, y: event.clientY };
+      setDragging((current) =>
+        current ? { ...current, x: event.clientX, y: event.clientY } : current,
+      );
+      reorderAtPoint(event.clientX, event.clientY);
+      updateAutoScroll(event.clientY);
+    }
+
+    function onPointerUp() {
+      finishDragging();
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp, { once: true });
+    window.addEventListener("pointercancel", onPointerUp, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [dragging?.id]);
 
   function startResize(
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -318,18 +392,24 @@ export function DashboardDesigner({
           <LayoutDashboard className="h-4 w-4 text-brass" />
           <div>
             <p className="text-xs font-bold text-pine-dark">{title}</p>
-            <p className="text-[10px] text-muted-foreground">
-              {description}
-            </p>
+            <p className="text-[10px] text-muted-foreground">{description}</p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           {editing && (
             <>
-              <button type="button" className="btn-ghost flex items-center gap-1 text-xs" onClick={reset}>
+              <button
+                type="button"
+                className="btn-ghost flex items-center gap-1 text-xs"
+                onClick={reset}
+              >
                 <RotateCcw className="h-3.5 w-3.5" /> Restaurar
               </button>
-              <button type="button" className="btn-primary flex items-center gap-1 text-xs" onClick={save}>
+              <button
+                type="button"
+                className="btn-primary flex items-center gap-1 text-xs"
+                onClick={save}
+              >
                 <Save className="h-3.5 w-3.5" /> Salvar layout
               </button>
             </>
@@ -347,37 +427,13 @@ export function DashboardDesigner({
 
       {editing && (
         <div className="rounded-lg border border-brass/40 bg-brass/10 px-3 py-2 text-xs text-pine-dark">
-          Arraste pelo ícone e defina título, cor, largura, altura ou tipo. A altura aceita desde
-          36 px; cards muito pequenos podem ocultar parte do conteúdo. Itens ocultos continuam
+          Arraste pelo ícone e defina título, cor, largura, altura ou tipo. A altura aceita desde 36
+          px; cards muito pequenos podem ocultar parte do conteúdo. Itens ocultos continuam
           disponíveis neste modo.
         </div>
       )}
 
-      <div
-        ref={gridRef}
-        className="grid grid-cols-1 gap-3 lg:grid-cols-12"
-        onDragOver={(event) => {
-          if (!editing || !draggedId) return;
-          event.preventDefault();
-          event.dataTransfer.dropEffect = "move";
-          updateAutoScroll(event.clientY);
-        }}
-        onDragLeave={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-            stopAutoScroll();
-          }
-        }}
-      >
-        {editing && draggedId && (
-          <button
-            type="button"
-            className="sticky top-2 z-30 col-span-full rounded-lg border-2 border-dashed border-brass bg-brass/95 px-3 py-2 text-xs font-bold text-pine-dark shadow-lg"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={() => moveWidgetToEdge("start")}
-          >
-            Solte aqui para mover para o início
-          </button>
-        )}
+      <div ref={gridRef} className="grid grid-cols-1 gap-3 lg:grid-cols-12">
         {orderedWidgets.map((widget) => {
           const settings = layout.widgets[widget.id] ?? defaultSettings(widget);
           if (settings.hidden && !editing) return null;
@@ -387,21 +443,18 @@ export function DashboardDesigner({
             borderTopColor: settings.color,
             background: `color-mix(in srgb, ${settings.backgroundColor} ${settings.backgroundOpacity}%, transparent)`,
             gridColumn: `span ${Math.min(12, Math.max(1, settings.columns))} / span ${Math.min(12, Math.max(1, settings.columns))}`,
-            height: editing ? Math.max(140, settings.height) : settings.height,
-            opacity: settings.hidden ? 0.5 : 1,
+            height: settings.height,
+            opacity: settings.hidden ? 0.5 : dragging?.id === widget.id ? 0.35 : 1,
           } as CSSProperties;
 
           return (
             <div
               key={widget.id}
-              onDragOver={(event) => {
-                if (!editing) return;
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-              }}
-              onDrop={() => moveWidget(widget.id)}
-              className={`dashboard-widget relative min-w-0 overflow-hidden rounded-lg border-t-4 ${
-                editing ? "border border-dashed border-brass bg-card p-2 shadow-md" : ""
+              data-dashboard-widget-id={widget.id}
+              className={`dashboard-widget relative min-w-0 rounded-lg border-t-4 ${
+                editing
+                  ? "overflow-visible border border-dashed border-brass bg-card p-2 shadow-md"
+                  : "overflow-hidden"
               }`}
               style={wrapperStyle}
             >
@@ -409,35 +462,13 @@ export function DashboardDesigner({
                 <div className="mb-2 grid gap-2 rounded-md bg-muted p-2 sm:grid-cols-[auto_1fr_repeat(4,auto)]">
                   <button
                     type="button"
-                    draggable={editing}
-                    onDragStart={(event) => startDragging(event, widget.id)}
-                    onDragEnd={finishDragging}
-                    className="mt-1 cursor-grab rounded p-1 text-muted-foreground hover:bg-card active:cursor-grabbing"
+                    onPointerDown={(event) => startDragging(event, widget.id)}
+                    className="mt-1 cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-card active:cursor-grabbing"
                     aria-label={`Mover ${settings.title}`}
-                    title="Arraste para mover"
+                    title="Segure e arraste com o mouse para qualquer posição"
                   >
                     <GripVertical className="h-4 w-4" />
                   </button>
-                  <div className="flex items-start gap-1">
-                    <button
-                      type="button"
-                      className="rounded border border-border bg-card p-1 text-muted-foreground hover:text-pine"
-                      onClick={() => moveWidgetBy(widget.id, -1)}
-                      aria-label={`Mover ${settings.title} uma posição para cima`}
-                      title="Mover uma posição para cima"
-                    >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded border border-border bg-card p-1 text-muted-foreground hover:text-pine"
-                      onClick={() => moveWidgetBy(widget.id, 1)}
-                      aria-label={`Mover ${settings.title} uma posição para baixo`}
-                      title="Mover uma posição para baixo"
-                    >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
                   <input
                     className="field min-w-0 py-1 text-xs"
                     aria-label={`Título de ${widget.title}`}
@@ -531,7 +562,10 @@ export function DashboardDesigner({
                         updateWidget(widget.id, {
                           height: Math.min(
                             MAX_WIDGET_HEIGHT,
-                            Math.max(MIN_WIDGET_HEIGHT, Number(event.target.value) || MIN_WIDGET_HEIGHT),
+                            Math.max(
+                              MIN_WIDGET_HEIGHT,
+                              Number(event.target.value) || MIN_WIDGET_HEIGHT,
+                            ),
                           ),
                         })
                       }
@@ -550,11 +584,15 @@ export function DashboardDesigner({
                         }
                       >
                         {widget.chartTypes.map((type) => (
-                          <option key={type} value={type}>{type}</option>
+                          <option key={type} value={type}>
+                            {type}
+                          </option>
                         ))}
                       </select>
                     </label>
-                  ) : <span />}
+                  ) : (
+                    <span />
+                  )}
                   <button
                     type="button"
                     className="self-end rounded-md border border-border bg-card p-2"
@@ -580,17 +618,16 @@ export function DashboardDesigner({
             </div>
           );
         })}
-        {editing && draggedId && (
-          <button
-            type="button"
-            className="col-span-full rounded-lg border-2 border-dashed border-brass bg-brass/15 px-3 py-3 text-xs font-bold text-pine-dark"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={() => moveWidgetToEdge("end")}
-          >
-            Solte aqui para mover para o final
-          </button>
-        )}
       </div>
+      {dragging && (
+        <div
+          className="pointer-events-none fixed z-[100] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-brass bg-card/95 px-3 py-2 text-xs font-bold text-pine-dark shadow-xl"
+          style={{ left: dragging.x, top: dragging.y }}
+        >
+          <GripVertical className="mr-1 inline h-4 w-4" />
+          {layout.widgets[dragging.id]?.title ?? "Mover item"}
+        </div>
+      )}
     </section>
   );
 }

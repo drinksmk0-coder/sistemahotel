@@ -74,7 +74,9 @@ function Financeiro() {
   const currentCompany = useCurrentCompany();
   const range = periodRange(period, today);
 
-  const periodReservations = reservations.filter((reservation) => inRange(reservation.checkin, range));
+  const periodReservations = reservations.filter((reservation) =>
+    inRange(reservation.checkin, range),
+  );
   const periodSales = sales.filter((sale) => inRange(sale.data, range));
   const periodExpenses = expenses.filter((expense) => inRange(expense.data, range));
 
@@ -99,24 +101,41 @@ function Financeiro() {
   );
 
   const composition = useMemo(() => {
-    if (tab === "despesa") return groupValues(periodExpenses, (expense) => normalizeLabel(expense.categoria), (expense) => Number(expense.valor));
-    if (tab === "canal") return groupValues(periodReservations, (reservation) => normalizeChannel(reservation.canal), reservationRevenue);
+    if (tab === "despesa")
+      return groupValues(
+        periodExpenses,
+        (expense) => normalizeLabel(expense.categoria),
+        (expense) => Number(expense.valor),
+      );
+    if (tab === "canal")
+      return groupValues(
+        periodReservations,
+        (reservation) => normalizeChannel(reservation.canal),
+        reservationRevenue,
+      );
     const reservationPayments = groupValues(
       periodReservations,
       (reservation) => normalizeLabel(reservation.pagamento),
       reservationReceived,
     );
-    const salePayments = groupValues(periodSales, (sale) => normalizeLabel(sale.pagamento), saleReceived);
+    const salePayments = groupValues(
+      periodSales,
+      (sale) => normalizeLabel(sale.pagamento),
+      saleReceived,
+    );
     return mergeGroups(reservationPayments, salePayments);
   }, [periodExpenses, periodReservations, periodSales, tab]);
 
   const channelRows = useMemo(
     () =>
-      groupReservations(periodReservations, (reservation) => normalizeChannel(reservation.canal)).map((row) => ({
+      groupReservations(periodReservations, (reservation) =>
+        normalizeChannel(reservation.canal),
+      ).map((row) => ({
         name: row.name,
         pago: row.rows.reduce((sum, reservation) => sum + reservationReceived(reservation), 0),
         pendente: row.rows.reduce(
-          (sum, reservation) => sum + Math.max(0, reservationRevenue(reservation) - reservationReceived(reservation)),
+          (sum, reservation) =>
+            sum + Math.max(0, reservationRevenue(reservation) - reservationReceived(reservation)),
           0,
         ),
       })),
@@ -126,12 +145,16 @@ function Financeiro() {
   const monthly = useMemo(
     () =>
       lastMonths(today).map((month) => {
-        const monthReservations = reservations.filter((reservation) => reservation.checkin.startsWith(month.key));
+        const monthReservations = reservations.filter((reservation) =>
+          reservation.checkin.startsWith(month.key),
+        );
         const monthSales = sales.filter((sale) => sale.data.startsWith(month.key));
         const monthExpenses = expenses.filter((expense) => expense.data.startsWith(month.key));
         const receita =
-          monthReservations.reduce((sum, reservation) => sum + reservationReceived(reservation), 0) +
-          monthSales.reduce((sum, sale) => sum + saleReceived(sale), 0);
+          monthReservations.reduce(
+            (sum, reservation) => sum + reservationReceived(reservation),
+            0,
+          ) + monthSales.reduce((sum, sale) => sum + saleReceived(sale), 0);
         const despesas = expensesTotal(monthExpenses);
         return { ...month, receita, despesas, lucro: receita - despesas };
       }),
@@ -142,9 +165,13 @@ function Financeiro() {
     const otaRevenue = periodReservations
       .filter((reservation) => isOtaChannel(reservation.canal))
       .reduce((sum, reservation) => sum + reservationRevenue(reservation), 0);
-    const reservationTotal = periodReservations.reduce((sum, reservation) => sum + reservationRevenue(reservation), 0);
+    const reservationTotal = periodReservations.reduce(
+      (sum, reservation) => sum + reservationRevenue(reservation),
+      0,
+    );
     const commission = periodReservations.reduce(
-      (sum, reservation) => sum + reservationRevenue(reservation) * otaCommissionRate(reservation.canal),
+      (sum, reservation) =>
+        sum + reservationRevenue(reservation) * otaCommissionRate(reservation.canal),
       0,
     );
     return { revenue: otaRevenue, share: percent(otaRevenue, reservationTotal), commission };
@@ -153,7 +180,9 @@ function Financeiro() {
   const otaTrend = useMemo(
     () =>
       lastMonths(today).map((month) => {
-        const rows = reservations.filter((reservation) => reservation.checkin.startsWith(month.key));
+        const rows = reservations.filter((reservation) =>
+          reservation.checkin.startsWith(month.key),
+        );
         const total = rows.reduce((sum, reservation) => sum + reservationRevenue(reservation), 0);
         const otaValue = rows
           .filter((reservation) => isOtaChannel(reservation.canal))
@@ -250,9 +279,7 @@ function Financeiro() {
       defaultHeight: 300,
       defaultColor: "var(--chart-1)",
       chartTypes: ["doughnut", "pie", "bar", "horizontalBar", "line", "area"],
-      render: (settings) => (
-        <FinancialCompositionChart rows={composition} settings={settings} />
-      ),
+      render: (settings) => <FinancialCompositionChart rows={composition} settings={settings} />,
     },
     {
       id: "canais-pago-pendente",
@@ -363,7 +390,8 @@ function Financeiro() {
 
       {overdue > 0 && (
         <AlertBanner title={`${fmtBRL(overdue)} vencidos aguardando cobrança`}>
-          Existem {overdueReservations.length} checkout(s) com saldo. Use os botões de WhatsApp na lista abaixo.
+          Existem {overdueReservations.length} checkout(s) com saldo. Use os botões de WhatsApp na
+          lista abaixo.
         </AlertBanner>
       )}
 
@@ -395,15 +423,19 @@ function Financeiro() {
 
       {tab === "canal" && (
         <>
-          <AlertBanner title={`${ota.share.toFixed(1)}% da receita de hospedagem vem de OTAs`} tone="brass">
+          <AlertBanner
+            title={`${ota.share.toFixed(1)}% da receita de hospedagem vem de OTAs`}
+            tone="brass"
+          >
             A dependência {otaDirection > 0 ? "subiu" : otaDirection < 0 ? "caiu" : "ficou estável"}{" "}
-            {Math.abs(otaDirection).toFixed(1)} ponto(s) nos últimos 3 meses. A comissão estimada no período é{" "}
-            {fmtBRL(ota.commission)}. Reforce WhatsApp, Instagram e site para hóspedes recorrentes.
+            {Math.abs(otaDirection).toFixed(1)} ponto(s) nos últimos 3 meses. A comissão estimada no
+            período é {fmtBRL(ota.commission)}. Reforce WhatsApp, Instagram e site para hóspedes
+            recorrentes.
           </AlertBanner>
         </>
       )}
 
-      <ReceivablesPanel reservations={reservations} clients={clients} />
+      <ReceivablesPanel reservations={reservations} clients={clients} sales={sales} />
     </div>
   );
 }
@@ -518,7 +550,11 @@ function FinancialSeriesChart({
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         {horizontal ? (
           <>
-            <XAxis type="number" domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9 }} />
+            <XAxis
+              type="number"
+              domain={percentAxis ? [0, 100] : undefined}
+              tick={{ fontSize: 9 }}
+            />
             <YAxis type="category" dataKey={categoryKey} width={68} tick={{ fontSize: 9 }} />
           </>
         ) : (

@@ -23,12 +23,11 @@ import {
   useUpdate,
   useRateRules,
   useReservationGroups,
+  useSales,
   useCurrentCompany,
   statusFromPayment,
   hasActiveOverlap,
   roomBlock,
-  reservationFinancialSummary,
-  reservationNeedsFinancialAttention,
   type Client,
   type Reservation,
 } from "@/lib/data";
@@ -42,6 +41,8 @@ import {
   GroupReservationForm,
   type GroupReservationPayload,
 } from "@/components/GroupReservationForm";
+import { GuestPaymentModal } from "@/components/GuestPaymentModal";
+import { buildGuestAccount, type GuestAccount } from "@/lib/guest-account";
 
 export const Route = createFileRoute("/_authenticated/reservas")({
   component: Reservas,
@@ -62,6 +63,7 @@ function Reservas() {
   const { data: complaints = [] } = useComplaints();
   const { data: rateRules = [] } = useRateRules();
   const { data: reservationGroups = [] } = useReservationGroups();
+  const { data: sales = [] } = useSales();
   const currentCompany = useCurrentCompany();
   const queryClient = useQueryClient();
   const insert = useInsert("reservations", ["reservations"]);
@@ -81,10 +83,16 @@ function Reservas() {
     if (filter === "ativas")
       return reservations.filter((r) => !["finalizado", "cancelado"].includes(r.status));
     if (filter === "pendencias")
-      return reservations.filter((r) => reservationNeedsFinancialAttention(r));
+      return reservations.filter(
+        (reservation) =>
+          reservation.status !== "cancelado" &&
+          reservation.status !== "manutencao" &&
+          reservation.checkout < todayISO() &&
+          buildGuestAccount(reservation, sales).balance > 0,
+      );
     if (filter === "todas") return reservations;
     return reservations.filter((r) => r.status === filter);
-  }, [reservations, filter]);
+  }, [reservations, sales, filter]);
 
   function exportCSV() {
     const rows: (string | number | null)[][] = [
@@ -287,62 +295,76 @@ function Reservas() {
             </thead>
             <tbody>
               {filtered.map((r) => {
-                const financial = reservationFinancialSummary(r);
-                const needsAttention = reservationNeedsFinancialAttention(r);
+                const account = buildGuestAccount(r, sales);
+                const daysOverdue =
+                  r.checkout < todayISO() ? calendarDayDifference(todayISO(), r.checkout) : 0;
+                const needsAttention =
+                  r.status !== "cancelado" &&
+                  r.status !== "manutencao" &&
+                  daysOverdue > 0 &&
+                  account.balance > 0;
                 return (
-                <tr
-                  key={r.id}
-                  className={`border-b border-border/50 ${needsAttention ? "bg-brick-bg/35" : ""}`}
-                >
-                  <td className="p-3 font-serif text-lg font-bold">{r.quarto}</td>
-                  <td className="p-3">{r.cliente_nome}</td>
-                  <td className="p-3 text-muted-foreground">
-                    {fmtDate(r.checkin)} {fmtTime(r.horario_checkin)} → {fmtDate(r.checkout)}{" "}
-                    {fmtTime(r.horario_checkout)}
-                    {r.motivo_estadia && (
-                      <div className="mt-1 text-xs">Motivo: {r.motivo_estadia}</div>
-                    )}
-                    {r.group_id && (
-                      <div className="mt-1 text-xs font-semibold text-pine">
-                        Grupo:{" "}
-                        {reservationGroups.find((group) => group.id === r.group_id)?.nome ??
-                          "Reserva em grupo"}
+                  <tr
+                    key={r.id}
+                    className={`border-b border-border/50 ${needsAttention ? "bg-brick-bg/35" : ""}`}
+                  >
+                    <td className="p-3 font-serif text-lg font-bold">{r.quarto}</td>
+                    <td className="p-3">{r.cliente_nome}</td>
+                    <td className="p-3 text-muted-foreground">
+                      {fmtDate(r.checkin)} {fmtTime(r.horario_checkin)} → {fmtDate(r.checkout)}{" "}
+                      {fmtTime(r.horario_checkout)}
+                      {r.motivo_estadia && (
+                        <div className="mt-1 text-xs">Motivo: {r.motivo_estadia}</div>
+                      )}
+                      {r.group_id && (
+                        <div className="mt-1 text-xs font-semibold text-pine">
+                          Grupo:{" "}
+                          {reservationGroups.find((group) => group.id === r.group_id)?.nome ??
+                            "Reserva em grupo"}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div>
+                        {fmtBRL(r.valor_pago)} / {fmtBRL(r.valor_total)}
                       </div>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <div>
-                      {fmtBRL(r.valor_pago)} / {fmtBRL(r.valor_total)}
-                    </div>
-                    <Badge tone={r.pago ? "sage" : "brass"}>
-                      {r.pago ? "quitado" : Number(r.valor_pago) > 0 ? "sinal pago" : "a receber"}
-                    </Badge>
-                    {needsAttention && (
-                      <div className="mt-1 text-xs font-bold text-brick">
-                        {financial.state === "checkout_com_saldo"
-                          ? "Checkout com saldo"
-                          : financial.state === "estadia_vencida"
-                            ? "Estadia vencida"
-                            : "Reserva vencida"}
-                        {financial.daysOverdue > 0 ? ` · ${financial.daysOverdue} dia(s)` : ""}
+                      <div className="text-xs text-muted-foreground">
+                        Consumos: {fmtBRL(account.extrasTotal)}
                       </div>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <Badge tone={statusTone[r.status]}>{r.status}</Badge>
-                  </td>
-                  <td className="p-3 text-right">
-                    <RowActions
-                      reservation={r}
-                      update={update}
-                      remove={remove}
-                      updateRoom={updateRoom}
-                      client={clients.find((c) => c.id === r.cliente_id)}
-                      onEdit={() => setEditing(r)}
-                      onMove={() => setMoving(r)}
-                    />
-                  </td>
-                </tr>
+                      <Badge tone={account.balance <= 0 ? "sage" : "brass"}>
+                        {account.balance <= 0
+                          ? "conta quitada"
+                          : account.paid > 0
+                            ? `parcial · falta ${fmtBRL(account.balance)}`
+                            : `a receber ${fmtBRL(account.balance)}`}
+                      </Badge>
+                      {needsAttention && (
+                        <div className="mt-1 text-xs font-bold text-brick">
+                          {r.status === "finalizado"
+                            ? "Checkout com saldo"
+                            : r.status === "ocupado"
+                              ? "Estadia vencida"
+                              : "Reserva vencida"}
+                          {daysOverdue > 0 ? ` · ${daysOverdue} dia(s)` : ""}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <Badge tone={statusTone[r.status]}>{r.status}</Badge>
+                    </td>
+                    <td className="p-3 text-right">
+                      <RowActions
+                        reservation={r}
+                        account={account}
+                        update={update}
+                        remove={remove}
+                        updateRoom={updateRoom}
+                        client={clients.find((c) => c.id === r.cliente_id)}
+                        onEdit={() => setEditing(r)}
+                        onMove={() => setMoving(r)}
+                      />
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
@@ -443,6 +465,7 @@ function Reservas() {
 
 function RowActions({
   reservation,
+  account,
   update,
   remove,
   updateRoom,
@@ -451,6 +474,7 @@ function RowActions({
   onMove,
 }: {
   reservation: Reservation;
+  account: GuestAccount;
   update: ReturnType<typeof useUpdate>;
   remove: ReturnType<typeof useDelete>;
   updateRoom: ReturnType<typeof useUpdate>;
@@ -460,13 +484,13 @@ function RowActions({
 }) {
   const done = ["finalizado", "cancelado"].includes(reservation.status);
   const total = Number(reservation.valor_total);
-  const paid = Number(reservation.valor_pago) || 0;
-  const balance = Math.max(0, total - paid);
+  const balance = account.balance;
+  const [paymentOpen, setPaymentOpen] = useState(false);
   const receiptUrl = whatsappReceiptUrl(reservation, client);
   const reviewUrl = whatsappReviewUrl(reservation, client);
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
-      {!done && !reservation.pago && (
+      {!done && account.lodgingPaid <= 0 && (
         <>
           <button
             className="rounded-md bg-brass-bg px-2 py-1 text-xs font-semibold text-[oklch(0.4_0.06_74)]"
@@ -490,33 +514,27 @@ function RowActions({
           >
             Sinal
           </button>
-          <button
-            className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
-            onClick={() =>
-              update.mutate(
-                {
-                  id: reservation.id,
-                  patch: {
-                    valor_pago: total,
-                    pago: true,
-                    horario_reserva: reservation.horario_reserva ?? currentTime(),
-                  },
-                },
-                {
-                  onSuccess: () => toast.success("Pagamento total registrado"),
-                  onError: (e: Error) => toast.error(e.message),
-                },
-              )
-            }
-          >
-            Pagar total
-          </button>
         </>
+      )}
+      {balance > 0 && reservation.status !== "cancelado" && (
+        <button
+          className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
+          onClick={() => setPaymentOpen(true)}
+        >
+          Receber conta
+        </button>
       )}
       {reservation.status === "reservado" && (
         <button
           className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
-          onClick={() =>
+          onClick={() => {
+            if (
+              account.lodgingPaid < account.lodgingTotal &&
+              !window.confirm(
+                `A hospedagem ainda tem ${fmtBRL(account.lodgingTotal - account.lodgingPaid)} de diárias pendentes. Deseja realizar o check-in mesmo assim?`,
+              )
+            )
+              return;
             update.mutate(
               {
                 id: reservation.id,
@@ -530,10 +548,10 @@ function RowActions({
                 onSuccess: () => toast.success("Check-in realizado"),
                 onError: (e: Error) => toast.error(e.message),
               },
-            )
-          }
+            );
+          }}
         >
-          Check-in
+          {account.lodgingPaid < account.lodgingTotal ? "Check-in com saldo" : "Check-in"}
         </button>
       )}
       {reservation.status === "ocupado" && (
@@ -676,8 +694,15 @@ function RowActions({
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
+      {paymentOpen && <GuestPaymentModal account={account} onClose={() => setPaymentOpen(false)} />}
     </div>
   );
+}
+
+function calendarDayDifference(laterISO: string, earlierISO: string): number {
+  const later = new Date(`${laterISO}T12:00:00`);
+  const earlier = new Date(`${earlierISO}T12:00:00`);
+  return Math.max(0, Math.round((later.getTime() - earlier.getTime()) / 86_400_000));
 }
 
 function MoveRoomModal({

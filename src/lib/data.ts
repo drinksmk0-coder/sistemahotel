@@ -10,7 +10,10 @@ export type Reservation = Tables<"reservations"> &
   TenantRow & {
     group_id?: string | null;
   };
-export type Sale = Tables<"sales"> & TenantRow;
+export type Sale = Tables<"sales"> &
+  TenantRow & {
+    cliente_id?: string | null;
+  };
 export type Product = Tables<"products"> & TenantRow;
 export type KitchenItem = Tables<"kitchen_items"> & TenantRow;
 export type KitchenProduction = Tables<"kitchen_productions"> & TenantRow;
@@ -120,6 +123,37 @@ export type Expense = {
   created_at: string;
 };
 
+export type GuestPayment = {
+  id: string;
+  company_id: string;
+  reservation_id: string;
+  cliente_id: string | null;
+  amount: number;
+  method: string;
+  source: "hospedagem" | "consumo" | "conta";
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type SystemIssue = {
+  id: string;
+  company_id: string;
+  title: string;
+  description: string | null;
+  severity: "baixa" | "media" | "alta" | "critica";
+  status: "aberto" | "investigando" | "resolvido";
+  source: "manual" | "frontend" | "integracao" | "chatbot";
+  page_url: string | null;
+  error_code: string | null;
+  context: Record<string, unknown>;
+  occurrences: number;
+  first_seen_at: string;
+  last_seen_at: string;
+  resolved_at: string | null;
+  created_by: string | null;
+};
+
 const TENANT_TABLES = new Set([
   "rooms",
   "clients",
@@ -138,6 +172,8 @@ const TENANT_TABLES = new Set([
   "expenses",
   "rate_rules",
   "reservation_groups",
+  "guest_payments",
+  "system_issues",
 ]);
 
 function selectedCompanyStorageKey(userId?: string) {
@@ -304,6 +340,17 @@ export function useReservationGroups() {
   return useTenantQuery<ReservationGroup>("reservation_groups", "created_at", { ascending: false });
 }
 
+export function useGuestPayments() {
+  return useTenantQuery<GuestPayment>("guest_payments", "created_at", { ascending: false });
+}
+
+export function useSystemIssues() {
+  return useTenantQuery<SystemIssue>("system_issues", "last_seen_at", {
+    ascending: false,
+    limit: 200,
+  });
+}
+
 // Generic table mutations
 type TableName =
   | "companies"
@@ -313,6 +360,8 @@ type TableName =
   | "expenses"
   | "rate_rules"
   | "reservation_groups"
+  | "guest_payments"
+  | "system_issues"
   | "clients"
   | "reservations"
   | "sales"
@@ -324,6 +373,44 @@ type TableName =
   | "kitchen_productions"
   | "integration_events"
   | "whatsapp_reservation_sessions";
+
+export function useRegisterGuestPayment() {
+  const qc = useQueryClient();
+  const company = useCurrentCompany();
+  return useMutation({
+    mutationFn: async ({
+      reservationId,
+      amount,
+      method,
+      notes,
+    }: {
+      reservationId: string;
+      amount: number;
+      method: string;
+      notes?: string;
+    }) => {
+      if (!company.data?.id) throw new Error("Empresa não encontrada.");
+      const { data, error } = await (supabase as any).rpc("register_guest_payment", {
+        p_reservation_id: reservationId,
+        p_amount: amount,
+        p_method: method,
+        p_notes: notes?.trim() || null,
+      });
+      if (error) throw error;
+      return data as {
+        reservation_id: string;
+        amount_received: number;
+        previous_balance: number;
+        remaining_balance: number;
+      };
+    },
+    onSuccess: () => {
+      ["reservations", "sales", "guest_payments"].forEach((key) =>
+        qc.invalidateQueries({ queryKey: [key] }),
+      );
+    },
+  });
+}
 
 export function useInsert<T extends TableName>(table: T, invalidate: string[]) {
   const qc = useQueryClient();

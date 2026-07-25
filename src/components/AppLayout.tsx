@@ -3,6 +3,7 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   BarChart3,
   BedDouble,
+  Bot,
   CalendarRange,
   CreditCard,
   DollarSign,
@@ -24,6 +25,7 @@ import { useSession, useRole, useProfile, type AppRole } from "@/hooks/use-auth"
 import { setCurrentCompanyId, useCurrentCompany } from "@/lib/data";
 import { useQueryClient } from "@tanstack/react-query";
 import { applySystemSettings, getSystemSettings } from "@/lib/system-settings";
+import { SystemMonitor } from "@/components/SystemMonitor";
 
 const TABS = [
   {
@@ -43,6 +45,12 @@ const TABS = [
   { to: "/vendas", label: "Vendas", icon: DollarSign, roles: ["dono", "recepcao"] },
   { to: "/despesas", label: "Despesas", icon: FileWarning, roles: ["dono"] },
   { to: "/reclamacoes", label: "Reclamacoes", icon: MessageSquare, roles: ["dono", "recepcao"] },
+  {
+    to: "/assistente",
+    label: "Assistente 24h",
+    icon: Bot,
+    roles: ["dono", "recepcao", "limpeza", "cafe"],
+  },
   { to: "/avaliacoes", label: "Avaliacoes", icon: Star, roles: ["dono", "recepcao"] },
   { to: "/qrcodes", label: "QR Codes", icon: QrCode, roles: ["dono", "recepcao"] },
   { to: "/integracoes", label: "Integracoes", icon: Settings, roles: ["dono"] },
@@ -212,6 +220,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen">
+      <SystemMonitor />
       <button
         className="fixed left-4 top-4 z-50 rounded-md bg-pine p-2 text-white shadow-lg xl:hidden"
         onClick={() => setMenuOpen(true)}

@@ -186,8 +186,7 @@ function DashboardEstrategico() {
   );
   const previousReservations = reservations.filter(
     (reservation) =>
-      reservation.status !== "manutencao" &&
-      reservationOverlapsRange(reservation, previousRange),
+      reservation.status !== "manutencao" && reservationOverlapsRange(reservation, previousRange),
   );
   const previousYearReservations = reservations.filter(
     (reservation) =>
@@ -205,12 +204,7 @@ function DashboardEstrategico() {
     clientById,
     "estado_civil",
   );
-  const genderRows = buildProfileDistribution(
-    filteredReservations,
-    clients,
-    clientById,
-    "sexo",
-  );
+  const genderRows = buildProfileDistribution(filteredReservations, clients, clientById, "sexo");
   const professionRows = buildProfileDistribution(
     filteredReservations,
     clients,
@@ -258,7 +252,13 @@ function DashboardEstrategico() {
       kind: "kpi",
       defaultColor: "var(--brass)",
       render: (settings) => (
-        <StoryKpi icon={<DollarSign />} label={settings.title} value={fmtBRL(aReceber)} hint="saldo das reservas" tone="brass" />
+        <StoryKpi
+          icon={<DollarSign />}
+          label={settings.title}
+          value={fmtBRL(aReceber)}
+          hint="saldo das reservas"
+          tone="brass"
+        />
       ),
     },
     {
@@ -339,7 +339,8 @@ function DashboardEstrategico() {
         title: "RevPAR",
         value: fmtBRL(revpar),
         formula: `${fmtBRL(receitaHospedagem)} / ${uhsDisponiveis} UHs disponíveis`,
-        meaning: "Mede a eficiência comercial considerando todas as UHs disponíveis, vendidas ou não.",
+        meaning:
+          "Mede a eficiência comercial considerando todas as UHs disponíveis, vendidas ou não.",
         strategy: revparStrategy(revpar, diariaMedia, taxaOcupacao),
         tone: "brass" as const,
         previousDelta: percentChange(revpar, previousHotelKpis.revpar),
@@ -363,7 +364,7 @@ function DashboardEstrategico() {
         formula: `${fmtBRL(lucro)} / ${uhsDisponiveis} UHs disponíveis`,
         meaning: "Mostra o lucro operacional bruto por UH disponível depois das despesas.",
         strategy: gopparStrategy(goppar),
-        tone: goppar < 0 ? "brick" as const : "brass" as const,
+        tone: goppar < 0 ? ("brick" as const) : ("brass" as const),
         previousDelta: percentChange(goppar, previousHotelKpis.goppar),
         yearDelta: percentChange(goppar, previousYearHotelKpis.goppar),
       },
@@ -470,9 +471,7 @@ function DashboardEstrategico() {
       defaultColumns: 4,
       defaultHeight: 330,
       defaultColor: "var(--chart-2)",
-      render: (settings) => (
-        <FutureOccupancyGauge settings={settings} value={ocupacao30} />
-      ),
+      render: (settings) => <FutureOccupancyGauge settings={settings} value={ocupacao30} />,
     },
   ];
   const clientWidgets: DashboardWidget[] = [
@@ -622,9 +621,7 @@ function DashboardEstrategico() {
         <EditableStrategicChart
           rows={roomRows.slice(0, 8)}
           categoryKey="Quarto"
-          series={[
-            { key: "receitaRaw", label: "Receita", color: settings.color, currency: true },
-          ]}
+          series={[{ key: "receitaRaw", label: "Receita", color: settings.color, currency: true }]}
           settings={settings}
         />
       ),
@@ -652,7 +649,12 @@ function DashboardEstrategico() {
       defaultColumns: 12,
       defaultHeight: 330,
       render: () => (
-        <ReceivablesPanel reservations={filteredReservations} clients={clients} compact />
+        <ReceivablesPanel
+          reservations={filteredReservations}
+          clients={clients}
+          sales={sales}
+          compact
+        />
       ),
     },
     {
@@ -950,7 +952,11 @@ function HotelMetricCard({
 
 function DeltaPill({ label, value }: { label: string; value?: number | null }) {
   if (value == null || !Number.isFinite(value)) {
-    return <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">{label}: sem base</span>;
+    return (
+      <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">
+        {label}: sem base
+      </span>
+    );
   }
   const improved = value >= 0;
   const Icon = improved ? ArrowUpRight : ArrowDownRight;
@@ -1265,7 +1271,12 @@ function FutureOccupancyGauge({
           endAngle={0}
         >
           <RadialBar dataKey="value" cornerRadius={10} background />
-          <text x="50%" y="54%" textAnchor="middle" className="fill-pine-dark font-serif text-3xl font-bold">
+          <text
+            x="50%"
+            y="54%"
+            textAnchor="middle"
+            className="fill-pine-dark font-serif text-3xl font-bold"
+          >
             {value}%
           </text>
           <text x="50%" y="68%" textAnchor="middle" className="fill-muted-foreground text-xs">
@@ -1299,7 +1310,11 @@ function WorldGuestBubbleMap({
         role="img"
         aria-label="Mapa mundial da origem dos hóspedes"
       >
-        <g fill="color-mix(in srgb, var(--pine) 18%, var(--card))" stroke="var(--border)" strokeWidth="2">
+        <g
+          fill="color-mix(in srgb, var(--pine) 18%, var(--card))"
+          stroke="var(--border)"
+          strokeWidth="2"
+        >
           <path d="M42 94 L95 55 177 61 222 98 190 132 153 142 131 195 92 174 73 130 Z" />
           <path d="M185 196 L224 206 249 252 236 321 202 286 184 237 Z" />
           <path d="M332 78 L377 54 423 73 449 112 420 132 391 121 367 142 335 121 Z" />
@@ -1324,7 +1339,14 @@ function WorldGuestBubbleMap({
               >
                 <title>{`${row.name}: ${row.value} hóspede(s) · ${fmtBRL(row.receita)}`}</title>
               </circle>
-              <text x={point.x} y={point.y + 4} textAnchor="middle" fill="white" fontSize="10" fontWeight="700">
+              <text
+                x={point.x}
+                y={point.y + 4}
+                textAnchor="middle"
+                fill="white"
+                fontSize="10"
+                fontWeight="700"
+              >
                 {row.code}
               </text>
             </g>
@@ -1443,10 +1465,14 @@ function buildProfileDistribution(
   field: ProfileField,
 ) {
   const referenced = new Set(
-    reservations.map((reservation) => readClientId(reservation)).filter((id): id is string => Boolean(id)),
+    reservations
+      .map((reservation) => readClientId(reservation))
+      .filter((id): id is string => Boolean(id)),
   );
   const source = referenced.size
-    ? [...referenced].map((id) => clientById.get(id)).filter((client): client is Client => Boolean(client))
+    ? [...referenced]
+        .map((id) => clientById.get(id))
+        .filter((client): client is Client => Boolean(client))
     : clients;
   const counts = new Map<string, number>();
   source.forEach((client) => {
@@ -1498,17 +1524,14 @@ function countryIdentity(client?: Client) {
   return { code: "OTHER", name: "Não informado" };
 }
 
-function buildProfileRevenue(
-  reservations: Reservation[],
-  clientById: Map<string, Client>,
-) {
+function buildProfileRevenue(reservations: Reservation[], clientById: Map<string, Client>) {
   const rows = new Map<string, number>();
   reservations.forEach((reservation) => {
     const client = clientById.get(readClientId(reservation) ?? "");
     const country = countryIdentity(client);
     const label =
       country.code === "BR" && client?.estado
-        ? BRAZIL_STATE_NAMES[normalizeState(client.estado)] ?? client.estado
+        ? (BRAZIL_STATE_NAMES[normalizeState(client.estado)] ?? client.estado)
         : country.name;
     rows.set(label, (rows.get(label) ?? 0) + reservationRevenue(reservation));
   });
@@ -1953,7 +1976,11 @@ const COUNTRY_ALIASES = [
   { code: "BR", name: "Brasil", aliases: ["brasil", "brazil", "br"] },
   { code: "AR", name: "Argentina", aliases: ["argentina", "ar"] },
   { code: "CL", name: "Chile", aliases: ["chile", "cl"] },
-  { code: "US", name: "Estados Unidos", aliases: ["estados unidos", "eua", "usa", "united states"] },
+  {
+    code: "US",
+    name: "Estados Unidos",
+    aliases: ["estados unidos", "eua", "usa", "united states"],
+  },
   { code: "CA", name: "Canadá", aliases: ["canada", "ca"] },
   { code: "MX", name: "México", aliases: ["mexico", "mx"] },
   { code: "PT", name: "Portugal", aliases: ["portugal", "pt"] },
@@ -1961,7 +1988,11 @@ const COUNTRY_ALIASES = [
   { code: "FR", name: "França", aliases: ["franca", "france", "fr"] },
   { code: "DE", name: "Alemanha", aliases: ["alemanha", "germany", "de"] },
   { code: "IT", name: "Itália", aliases: ["italia", "italy", "it"] },
-  { code: "GB", name: "Reino Unido", aliases: ["reino unido", "inglaterra", "united kingdom", "gb"] },
+  {
+    code: "GB",
+    name: "Reino Unido",
+    aliases: ["reino unido", "inglaterra", "united kingdom", "gb"],
+  },
   { code: "AO", name: "Angola", aliases: ["angola", "ao"] },
   { code: "ZA", name: "África do Sul", aliases: ["africa do sul", "south africa", "za"] },
   { code: "CN", name: "China", aliases: ["china", "cn"] },
