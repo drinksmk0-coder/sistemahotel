@@ -63,7 +63,6 @@ function Reservas() {
   const currentCompany = useCurrentCompany();
   const queryClient = useQueryClient();
   const insert = useInsert("reservations", ["reservations"]);
-  const insertGroup = useInsert("reservation_groups", ["reservation_groups"]);
   const insertClient = useInsert("clients", ["clients"]);
   const insertComplaint = useInsert("complaints", ["complaints"]);
   const update = useUpdate("reservations", ["reservations"]);
@@ -211,33 +210,21 @@ function Reservas() {
       return;
     }
     setGroupBusy(true);
-    let createdGroupId = "";
     try {
-      const created = (await insertGroup.mutateAsync(payload.group)) as unknown as {
-        id: string;
-      }[];
-      createdGroupId = created[0]?.id ?? "";
-      if (!createdGroupId) throw new Error("Não foi possível criar o grupo.");
-
-      const rows = payload.reservations.map((reservation) => ({
-        ...reservation,
-        company_id: currentCompany.data!.id,
-        group_id: createdGroupId,
-      }));
-      const { error } = await supabase.from("reservations" as never).insert(rows as never);
+      const { error } = await (supabase as any).rpc("create_group_reservation", {
+        p_group: {
+          ...payload.group,
+          company_id: currentCompany.data.id,
+        },
+        p_reservations: payload.reservations,
+      });
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: ["reservations"] });
       await queryClient.invalidateQueries({ queryKey: ["reservation_groups"] });
-      toast.success(`${rows.length} reservas criadas no grupo.`);
+      toast.success(`${payload.reservations.length} reservas criadas no grupo.`);
       setGroupOpen(false);
     } catch (error) {
-      if (createdGroupId) {
-        await (supabase.from("reservation_groups" as never) as any)
-          .delete()
-          .eq("id", createdGroupId)
-          .eq("company_id", currentCompany.data.id);
-      }
       toast.error(error instanceof Error ? error.message : "Erro ao criar reserva em grupo.");
     } finally {
       setGroupBusy(false);
