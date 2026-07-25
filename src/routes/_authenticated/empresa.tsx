@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ImagePlus, Palette, Plus, Save } from "lucide-react";
+import { BarChart3, ImagePlus, Palette, Plus, Save } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Field, Modal } from "@/components/ui-kit";
 import { useCurrentCompany, useInsert, useRooms, useUpdate, type Company, type Room } from "@/lib/data";
@@ -196,22 +196,108 @@ function SystemCustomization({ companyId }: { companyId: string }) {
               <input className="h-10 w-full cursor-pointer rounded border" type="color" value={settings.accentColor} onChange={(event) => setSettings((current) => ({ ...current, accentColor: event.target.value }))} />
             </Field>
           </div>
+          <Field label="Tema da página inteira">
+            <select
+              className="field"
+              value={settings.theme}
+              onChange={(event) =>
+                setSettings((current) => ({
+                  ...current,
+                  theme: event.target.value as SystemSettings["theme"],
+                }))
+              }
+            >
+              <option value="light">Claro</option>
+              <option value="soft">Suave</option>
+              <option value="dark">Escuro</option>
+            </select>
+          </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Fundo">
+              <input
+                className="h-10 w-full cursor-pointer rounded border"
+                type="color"
+                value={settings.backgroundColor}
+                onChange={(event) =>
+                  setSettings((current) => ({ ...current, backgroundColor: event.target.value }))
+                }
+              />
+            </Field>
+            <Field label="Cards">
+              <input
+                className="h-10 w-full cursor-pointer rounded border"
+                type="color"
+                value={settings.surfaceColor}
+                onChange={(event) =>
+                  setSettings((current) => ({ ...current, surfaceColor: event.target.value }))
+                }
+              />
+            </Field>
+            <Field label="Texto">
+              <input
+                className="h-10 w-full cursor-pointer rounded border"
+                type="color"
+                value={settings.textColor}
+                onChange={(event) =>
+                  setSettings((current) => ({ ...current, textColor: event.target.value }))
+                }
+              />
+            </Field>
+          </div>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            A cor principal e a de destaque passam a valer em menus, botões, cabeçalhos,
+            seleções, cards, tabelas e gráficos de todas as páginas.
+          </p>
         </div>
 
-        <div className="rounded-lg border border-border p-3">
-          <h4 className="text-sm font-bold text-pine-dark">Campos obrigatórios do hóspede</h4>
-          <p className="mb-3 text-xs text-muted-foreground">Desative o que não precisa ser exigido em uma nova reserva.</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {GUEST_FIELD_KEYS.map((field) => (
-              <label key={field} className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2 text-sm">
-                <span>{GUEST_FIELD_LABELS[field]}</span>
-                <input
-                  type="checkbox"
-                  checked={settings.requiredGuestFields[field]}
-                  onChange={(event) => updateRequired(field, event.target.checked)}
-                />
-              </label>
-            ))}
+        <div className="space-y-5">
+          <div className="rounded-lg border border-border p-3">
+            <div className="mb-3 flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-brass" />
+              <div>
+                <h4 className="text-sm font-bold text-pine-dark">Paleta dos gráficos</h4>
+                <p className="text-xs text-muted-foreground">
+                  Defina as seis cores usadas nas séries e comparações.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+              {settings.chartPalette.map((color, index) => (
+                <label key={`${index}-${color}`} className="text-center text-[10px] font-semibold text-muted-foreground">
+                  Cor {index + 1}
+                  <input
+                    className="mt-1 h-10 w-full cursor-pointer rounded border"
+                    type="color"
+                    value={color}
+                    onChange={(event) =>
+                      setSettings((current) => ({
+                        ...current,
+                        chartPalette: current.chartPalette.map((item, itemIndex) =>
+                          itemIndex === index ? event.target.value : item,
+                        ),
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border p-3">
+            <h4 className="text-sm font-bold text-pine-dark">Campos obrigatórios do hóspede</h4>
+            <p className="mb-3 text-xs text-muted-foreground">Desative o que não precisa ser exigido em uma nova reserva.</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {GUEST_FIELD_KEYS.map((field) => (
+                <label key={field} className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2 text-sm">
+                  <span>{GUEST_FIELD_LABELS[field]}</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.requiredGuestFields[field]}
+                    onChange={(event) => updateRequired(field, event.target.checked)}
+                  />
+                </label>
+              ))}
+            </div>
           </div>
         </div>
       </div>

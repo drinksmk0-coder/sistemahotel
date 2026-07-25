@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import {
   ResponsiveContainer,
+  AreaChart,
+  Area,
   LineChart,
   Line,
   BarChart,
@@ -42,6 +44,7 @@ import {
   useExpenses,
   useInsert,
   useUpdate,
+  useCurrentCompany,
   roomStatusToday,
   type Room,
   type Reservation,
@@ -59,6 +62,11 @@ import { PageHeader } from "@/components/AppLayout";
 import { Badge } from "@/components/ui-kit";
 import { useRole, useSession } from "@/hooks/use-auth";
 import { ReceivablesPanel } from "@/components/ReceivablesPanel";
+import {
+  DashboardDesigner,
+  type DashboardWidget,
+  type DashboardWidgetSettings,
+} from "@/components/DashboardDesigner";
 import {
   AlertBanner,
   ChartPanel,
@@ -100,6 +108,7 @@ function Painel() {
   const { data: complaints = [] } = useComplaints();
   const { data: feedbacks = [] } = useFeedbacks();
   const { data: expenses = [] } = useExpenses();
+  const currentCompany = useCurrentCompany();
   const updateRoom = useUpdate("rooms", ["rooms"]);
   const insertComplaint = useInsert("complaints", ["complaints"]);
   const updateComplaint = useUpdate("complaints", ["complaints"]);
@@ -312,6 +321,7 @@ function Painel() {
         complaints={complaints}
         expenseLaunchAlert={expenseLaunchAlert}
         cancellationAlert={alerta}
+        companyId={currentCompany.data?.id}
       />
     );
   }
@@ -664,6 +674,7 @@ function OwnerCompactDashboard({
   complaints,
   expenseLaunchAlert,
   cancellationAlert,
+  companyId,
 }: {
   period: DashboardPeriod;
   setPeriod: (period: DashboardPeriod) => void;
@@ -676,6 +687,7 @@ function OwnerCompactDashboard({
   complaints: Complaint[];
   expenseLaunchAlert: boolean;
   cancellationAlert: boolean;
+  companyId?: string;
 }) {
   const range = periodRange(period, today);
   const previousRange = periodRange(period, today, -1);
@@ -757,6 +769,167 @@ function OwnerCompactDashboard({
       highlight: count >= 2,
     }));
 
+  const dashboardWidgets: DashboardWidget[] = [
+    {
+      id: "revenue",
+      title: "Receita recebida",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={fmtBRL(revenue)}
+          previousDelta={percentChange(revenue, previousRevenue)}
+          yearDelta={percentChange(revenue, yearRevenue)}
+        />
+      ),
+    },
+    {
+      id: "pending",
+      title: "A receber",
+      kind: "kpi",
+      defaultColor: "var(--brass)",
+      render: (settings) => <CompactKpi label={settings.title} value={fmtBRL(pending)} />,
+    },
+    {
+      id: "expenses",
+      title: "Despesas",
+      kind: "kpi",
+      defaultColor: "var(--brick)",
+      render: (settings) => (
+        <CompactKpi label={settings.title} value={fmtBRL(cost)} lowerIsBetter />
+      ),
+    },
+    {
+      id: "profit",
+      title: "Lucro",
+      kind: "kpi",
+      defaultColor: "var(--chart-2)",
+      render: (settings) => <CompactKpi label={settings.title} value={fmtBRL(profit)} />,
+    },
+    {
+      id: "occupancy-now",
+      title: "Ocupação agora",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi label={settings.title} value={`${occupancy.toFixed(1)}%`} />
+      ),
+    },
+    {
+      id: "free-rooms",
+      title: "Quartos livres",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi label={settings.title} value={String(rooms.length - occupied)} />
+      ),
+    },
+    {
+      id: "occupancy-rate",
+      title: "Taxa de Ocupação",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={`${hotelKpis.occupancyRate.toFixed(1)}%`}
+          hint={`${hotelKpis.soldRoomNights}/${hotelKpis.availableRoomNights} UHs`}
+        />
+      ),
+    },
+    {
+      id: "adr",
+      title: "Diária Média (ADR)",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={fmtBRL(hotelKpis.adr)}
+          hint="Hospedagem / UHs vendidas"
+        />
+      ),
+    },
+    {
+      id: "revpar",
+      title: "RevPAR",
+      kind: "kpi",
+      defaultColor: "var(--brass)",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={fmtBRL(hotelKpis.revpar)}
+          hint="Hospedagem / UHs disponíveis"
+        />
+      ),
+    },
+    {
+      id: "trevpar",
+      title: "TRevPAR",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={fmtBRL(hotelKpis.trevpar)}
+          hint="Receita total / UHs disponíveis"
+        />
+      ),
+    },
+    {
+      id: "goppar",
+      title: "GOPPAR",
+      kind: "kpi",
+      defaultColor: "var(--chart-2)",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={fmtBRL(hotelKpis.goppar)}
+          hint="Lucro operacional / UHs disponíveis"
+        />
+      ),
+    },
+    {
+      id: "receivables",
+      title: "Clientes e cobranças pendentes",
+      kind: "content",
+      defaultColumns: 12,
+      defaultHeight: 240,
+      render: () => <ReceivablesPanel reservations={reservations} clients={clients} compact />,
+    },
+    {
+      id: "channels",
+      title: "Receita por canal",
+      kind: "chart",
+      defaultColor: "var(--chart-1)",
+      chartTypes: ["pie", "bar", "line", "area"],
+      render: (settings) => (
+        <EditableSingleSeriesChart rows={channelRows} settings={settings} currency />
+      ),
+    },
+    {
+      id: "payments",
+      title: "Formas de pagamento",
+      kind: "chart",
+      defaultColor: "var(--chart-3)",
+      chartTypes: ["bar", "pie", "line", "area"],
+      render: (settings) => (
+        <EditableSingleSeriesChart rows={paymentRows} settings={settings} currency />
+      ),
+    },
+    {
+      id: "largest-expenses",
+      title: "Maiores despesas",
+      kind: "content",
+      defaultColumns: 6,
+      defaultHeight: 260,
+      render: (settings) => <ShortList title={settings.title} rows={expenseRows} />,
+    },
+    {
+      id: "problem-rooms",
+      title: "Quartos com problemas",
+      kind: "content",
+      defaultColumns: 6,
+      defaultHeight: 260,
+      render: (settings) => <ShortList title={settings.title} rows={problemRooms} />,
+    },
+  ];
+
   return (
     <div className="space-y-3 pb-6">
       <DashboardHeader
@@ -775,89 +948,88 @@ function OwnerCompactDashboard({
           Revise os motivos e as regras de confirmação das reservas.
         </AlertBanner>
       )}
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-        <CompactKpi
-          label="Receita recebida"
-          value={fmtBRL(revenue)}
-          previousDelta={percentChange(revenue, previousRevenue)}
-          yearDelta={percentChange(revenue, yearRevenue)}
-        />
-        <CompactKpi label="A receber" value={fmtBRL(pending)} />
-        <CompactKpi label="Despesas" value={fmtBRL(cost)} lowerIsBetter />
-        <CompactKpi label="Lucro" value={fmtBRL(profit)} />
-        <CompactKpi label="Ocupação agora" value={`${occupancy.toFixed(1)}%`} />
-        <CompactKpi label="Quartos livres" value={String(rooms.length - occupied)} />
-      </div>
-      <section aria-labelledby="hotel-kpis-title">
-        <h2 id="hotel-kpis-title" className="mb-2 text-xs font-bold uppercase text-pine-dark">
-          Indicadores hoteleiros por UH
-        </h2>
-        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
-          <CompactKpi
-            label="Taxa de Ocupação"
-            value={`${hotelKpis.occupancyRate.toFixed(1)}%`}
-            hint={`${hotelKpis.soldRoomNights}/${hotelKpis.availableRoomNights} UHs`}
-          />
-          <CompactKpi
-            label="Diária Média (ADR)"
-            value={fmtBRL(hotelKpis.adr)}
-            hint="Hospedagem / UHs vendidas"
-          />
-          <CompactKpi
-            label="RevPAR"
-            value={fmtBRL(hotelKpis.revpar)}
-            hint="Hospedagem / UHs disponíveis"
-          />
-          <CompactKpi
-            label="TRevPAR"
-            value={fmtBRL(hotelKpis.trevpar)}
-            hint="Receita total / UHs disponíveis"
-          />
-          <CompactKpi
-            label="GOPPAR"
-            value={fmtBRL(hotelKpis.goppar)}
-            hint="Lucro operacional / UHs disponíveis"
-          />
-        </div>
-      </section>
-      <ReceivablesPanel reservations={reservations} clients={clients} compact />
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-        <ChartPanel title="Receita por canal" span={6}>
-          <ResponsiveContainer width="100%" height={210}>
-            <PieChart>
-              <Pie
-                data={channelRows}
-                dataKey="value"
-                nameKey="name"
-                innerRadius={52}
-                outerRadius={82}
-              >
-                {channelRows.map((row, index) => (
-                  <Cell key={row.name} fill={index % 2 ? "var(--sage)" : "var(--pine)"} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value: number) => fmtBRL(value)} />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartPanel>
-        <ChartPanel title="Formas de pagamento" span={6}>
-          <ResponsiveContainer width="100%" height={210}>
-            <BarChart data={paymentRows} layout="vertical" margin={{ left: 34, right: 10 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis type="number" tick={{ fontSize: 9 }} />
-              <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9 }} />
-              <Tooltip formatter={(value: number) => fmtBRL(value)} />
-              <Bar dataKey="value" name="Recebido" fill="var(--pine)" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartPanel>
-      </div>
-      <div className="grid gap-3 lg:grid-cols-2">
-        <ShortList title="Maiores despesas" rows={expenseRows} />
-        <ShortList title="Quartos com problemas" rows={problemRooms} />
-      </div>
+      <DashboardDesigner
+        companyId={companyId}
+        dashboardId="painel-dono"
+        widgets={dashboardWidgets}
+      />
     </div>
+  );
+}
+
+function EditableSingleSeriesChart({
+  rows,
+  settings,
+  currency = false,
+}: {
+  rows: { name: string; value: number }[];
+  settings: DashboardWidgetSettings;
+  currency?: boolean;
+}) {
+  const chartHeight = Math.max(120, settings.height - 55);
+  const tooltipFormatter = (value: number) => (currency ? fmtBRL(value) : value);
+  let chart: React.ReactNode;
+
+  if (settings.chartType === "pie") {
+    chart = (
+      <PieChart>
+        <Pie data={rows} dataKey="value" nameKey="name" innerRadius="42%" outerRadius="76%">
+          {rows.map((row, index) => (
+            <Cell
+              key={row.name}
+              fill={index === 0 ? settings.color : `var(--chart-${(index % 6) + 1})`}
+            />
+          ))}
+        </Pie>
+        <Tooltip formatter={tooltipFormatter} />
+        <Legend wrapperStyle={{ fontSize: 10 }} />
+      </PieChart>
+    );
+  } else if (settings.chartType === "line") {
+    chart = (
+      <LineChart data={rows} margin={{ left: 0, right: 14 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+        <YAxis tick={{ fontSize: 9 }} />
+        <Tooltip formatter={tooltipFormatter} />
+        <Line type="monotone" dataKey="value" name="Valor" stroke={settings.color} strokeWidth={3} />
+      </LineChart>
+    );
+  } else if (settings.chartType === "area") {
+    chart = (
+      <AreaChart data={rows} margin={{ left: 0, right: 14 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+        <YAxis tick={{ fontSize: 9 }} />
+        <Tooltip formatter={tooltipFormatter} />
+        <Area
+          type="monotone"
+          dataKey="value"
+          name="Valor"
+          stroke={settings.color}
+          fill={settings.color}
+          fillOpacity={0.25}
+        />
+      </AreaChart>
+    );
+  } else {
+    chart = (
+      <BarChart data={rows} margin={{ left: 0, right: 14 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+        <YAxis tick={{ fontSize: 9 }} />
+        <Tooltip formatter={tooltipFormatter} />
+        <Bar dataKey="value" name="Valor" fill={settings.color} radius={[4, 4, 0, 0]} />
+      </BarChart>
+    );
+  }
+
+  return (
+    <ChartPanel title={settings.title} span={12}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
+        {chart}
+      </ResponsiveContainer>
+    </ChartPanel>
   );
 }
 

@@ -92,6 +92,12 @@
   --border: oklch(0.84 0.025 85);
   --input: oklch(0.84 0.025 85);
   --ring: oklch(0.68 0.11 74);
+  --chart-1: var(--pine);
+  --chart-2: var(--sage);
+  --chart-3: var(--brass);
+  --chart-4: var(--brick);
+  --chart-5: #2f8a72;
+  --chart-6: #6f8f7a;
 }
 
 @layer base {
@@ -105,6 +111,11 @@
     -webkit-font-smoothing: antialiased;
     min-width: 320px;
     overflow-x: hidden;
+  }
+  html[data-system-theme="dark"] body {
+    background-image:
+      radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--pine) 18%, transparent), transparent 28rem),
+      radial-gradient(circle at 85% 90%, color-mix(in srgb, var(--brass) 10%, transparent), transparent 24rem);
   }
   h1, h2, h3, .font-serif {
     font-family: var(--font-serif);
