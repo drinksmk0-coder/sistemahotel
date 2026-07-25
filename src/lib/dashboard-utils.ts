@@ -1,10 +1,27 @@
-import { type Expense, type Reservation, type Sale } from "@/lib/data";
+import { type Expense, type Reservation, type Room, type Sale } from "@/lib/data";
 
 export type DashboardPeriod = "dia" | "mes" | "ano";
 
 export interface DateRange {
   start: string;
   end: string;
+}
+
+export interface HotelKpis {
+  operationalRooms: number;
+  periodDays: number;
+  availableRoomNights: number;
+  soldRoomNights: number;
+  lodgingRevenue: number;
+  extraRevenue: number;
+  totalRevenue: number;
+  operatingExpenses: number;
+  grossOperatingProfit: number;
+  occupancyRate: number;
+  adr: number;
+  revpar: number;
+  trevpar: number;
+  goppar: number;
 }
 
 export function periodRange(period: DashboardPeriod, today: string, offset = 0): DateRange {
@@ -32,7 +49,8 @@ export function rangeDays(range: DateRange): number {
   return Math.max(
     1,
     Math.round(
-      (new Date(`${range.end}T12:00:00`).getTime() - new Date(`${range.start}T12:00:00`).getTime()) /
+      (new Date(`${range.end}T12:00:00`).getTime() -
+        new Date(`${range.start}T12:00:00`).getTime()) /
         86_400_000,
     ) + 1,
   );
@@ -41,6 +59,71 @@ export function rangeDays(range: DateRange): number {
 export function inRange(value: string | null | undefined, range: DateRange): boolean {
   const key = String(value ?? "").slice(0, 10);
   return Boolean(key && key >= range.start && key <= range.end);
+}
+
+export function reservationOverlapsRange(reservation: Reservation, range: DateRange): boolean {
+  if (!reservation.checkin || !reservation.checkout) return false;
+  return reservation.checkin <= range.end && reservation.checkout > range.start;
+}
+
+export function calculateHotelKpis({
+  rooms,
+  reservations,
+  sales,
+  expenses,
+  range,
+}: {
+  rooms: Room[];
+  reservations: Reservation[];
+  sales: Sale[];
+  expenses: Expense[];
+  range: DateRange;
+}): HotelKpis {
+  const operationalRooms = rooms.filter(
+    (room) => normalizeText(String(room.situacao ?? "")) !== "manutencao",
+  ).length;
+  const periodDays = rangeDays(range);
+  const availableRoomNights = operationalRooms * periodDays;
+
+  const soldReservations = reservations.filter(
+    (reservation) =>
+      isCommercialReservation(reservation) && reservationOverlapsRange(reservation, range),
+  );
+  const soldRoomNights = soldReservations.reduce(
+    (sum, reservation) => sum + roomNights(reservation, range),
+    0,
+  );
+  const lodgingRevenue = soldReservations.reduce((sum, reservation) => {
+    const totalNights = roomNights(reservation);
+    const nightsInRange = roomNights(reservation, range);
+    const reservationValue = Math.max(0, Number(reservation.valor_total) || 0);
+    return sum + (totalNights > 0 ? reservationValue * (nightsInRange / totalNights) : 0);
+  }, 0);
+  const extraRevenue = sales
+    .filter((sale) => inRange(sale.data, range))
+    .reduce((sum, sale) => sum + saleRevenue(sale), 0);
+  const totalRevenue = lodgingRevenue + extraRevenue;
+  const operatingExpenses = expenses
+    .filter((expense) => inRange(expense.data, range))
+    .reduce((sum, expense) => sum + Math.max(0, Number(expense.valor) || 0), 0);
+  const grossOperatingProfit = totalRevenue - operatingExpenses;
+
+  return {
+    operationalRooms,
+    periodDays,
+    availableRoomNights,
+    soldRoomNights,
+    lodgingRevenue,
+    extraRevenue,
+    totalRevenue,
+    operatingExpenses,
+    grossOperatingProfit,
+    occupancyRate: percent(soldRoomNights, availableRoomNights),
+    adr: safeDivide(lodgingRevenue, soldRoomNights),
+    revpar: safeDivide(lodgingRevenue, availableRoomNights),
+    trevpar: safeDivide(totalRevenue, availableRoomNights),
+    goppar: safeDivide(grossOperatingProfit, availableRoomNights),
+  };
 }
 
 export function reservationRevenue(reservation: Reservation): number {
@@ -74,7 +157,10 @@ export function percent(part: number, total: number): number {
   return total > 0 ? (part / total) * 100 : 0;
 }
 
-export function normalizeLabel(value: string | null | undefined, fallback = "Não informado"): string {
+export function normalizeLabel(
+  value: string | null | undefined,
+  fallback = "Não informado",
+): string {
   const clean = String(value ?? "").trim();
   return clean || fallback;
 }
@@ -122,9 +208,27 @@ export function roomNights(reservation: Reservation, range?: DateRange): number 
   return Math.max(
     1,
     Math.round(
-      (new Date(`${end}T12:00:00`).getTime() - new Date(`${start}T12:00:00`).getTime()) / 86_400_000,
+      (new Date(`${end}T12:00:00`).getTime() - new Date(`${start}T12:00:00`).getTime()) /
+        86_400_000,
     ),
   );
+}
+
+function isCommercialReservation(reservation: Reservation): boolean {
+  const status = normalizeText(String(reservation.status ?? ""));
+  if (
+    status.includes("cancel") ||
+    status.includes("manutencao") ||
+    status.includes("cortesia") ||
+    status.includes("interno")
+  ) {
+    return false;
+  }
+  return Math.max(0, Number(reservation.valor_total) || 0) > 0;
+}
+
+function safeDivide(value: number, divider: number): number {
+  return divider > 0 ? value / divider : 0;
 }
 
 export function localISO(date: Date): string {

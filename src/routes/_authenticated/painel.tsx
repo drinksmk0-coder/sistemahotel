@@ -67,6 +67,7 @@ import {
   ShortList,
 } from "@/components/DashboardKit";
 import {
+  calculateHotelKpis,
   expensesTotal,
   inRange,
   normalizeChannel,
@@ -116,7 +117,9 @@ function Painel() {
     reservations
       .filter((r) => (r.checkin || "").slice(0, 7) === month)
       .reduce((s, r) => s + Number(r.valor_pago), 0) +
-    sales.filter((s) => (s.data || "").slice(0, 7) === month).reduce((s, v) => s + Number(v.total), 0);
+    sales
+      .filter((s) => (s.data || "").slice(0, 7) === month)
+      .reduce((s, v) => s + Number(v.total), 0);
 
   const aReceber = reservations
     .filter((r) => !r.pago && r.status !== "cancelado" && r.status !== "finalizado")
@@ -155,7 +158,8 @@ function Painel() {
     [previousMonth, reservations, sales, expenses, feedbacks, rooms.length],
   );
   const previousYearMetrics = useMemo(
-    () => buildMonthMetrics(previousYearMonth, reservations, sales, expenses, feedbacks, rooms.length),
+    () =>
+      buildMonthMetrics(previousYearMonth, reservations, sales, expenses, feedbacks, rooms.length),
     [previousYearMonth, reservations, sales, expenses, feedbacks, rooms.length],
   );
 
@@ -170,7 +174,10 @@ function Painel() {
   const wifiCount = complaints.filter((c) => c.categoria === "wifi").length;
 
   // --- Temporal series (last 30 days) ---
-  const series = useMemo(() => buildSeries(reservations, sales, today), [reservations, sales, today]);
+  const series = useMemo(
+    () => buildSeries(reservations, sales, today),
+    [reservations, sales, today],
+  );
   const totals = useMemo(
     () =>
       series.reduce(
@@ -185,7 +192,9 @@ function Painel() {
     [series],
   );
   const alerta = totals.cancelamentos > totals.comparecimento && totals.cancelamentos > 0;
-  const dailyAverage = series.length ? series.reduce((sum, day) => sum + day.receita, 0) / series.length : 0;
+  const dailyAverage = series.length
+    ? series.reduce((sum, day) => sum + day.receita, 0) / series.length
+    : 0;
   const monthlySeries = useMemo(
     () => buildMonthlySeries(month, reservations, sales, expenses),
     [month, reservations, sales, expenses],
@@ -200,14 +209,25 @@ function Painel() {
   const decisionAverage = decisionSeries.length
     ? decisionSeries.reduce((sum, item) => sum + item.receita, 0) / decisionSeries.length
     : 0;
-  const forecastSeries = useMemo(() => buildForecastSeries(reservations, rooms.length, today), [reservations, rooms.length, today]);
+  const forecastSeries = useMemo(
+    () => buildForecastSeries(reservations, rooms.length, today),
+    [reservations, rooms.length, today],
+  );
   const expenseLaunchAlert = useMemo(
     () => shouldWarnMissingExpenses(expenses, reservations, today),
     [expenses, reservations, today],
   );
   const currentRevpar = revparForMonth(month, currentMetrics.receita, rooms.length);
-  const previousMonthRevpar = revparForMonth(previousMonth, previousMonthMetrics.receita, rooms.length);
-  const previousYearRevpar = revparForMonth(previousYearMonth, previousYearMetrics.receita, rooms.length);
+  const previousMonthRevpar = revparForMonth(
+    previousMonth,
+    previousMonthMetrics.receita,
+    rooms.length,
+  );
+  const previousYearRevpar = revparForMonth(
+    previousYearMonth,
+    previousYearMetrics.receita,
+    rooms.length,
+  );
 
   const receitaPorQuarto = useMemo(() => {
     const m = new Map<number, number>();
@@ -221,7 +241,9 @@ function Painel() {
   }, [reservations, sales]);
 
   const arrivalsToday = reservations.filter((r) => r.status !== "cancelado" && r.checkin === today);
-  const departuresToday = reservations.filter((r) => r.status !== "cancelado" && r.checkout === today);
+  const departuresToday = reservations.filter(
+    (r) => r.status !== "cancelado" && r.checkout === today,
+  );
 
   if (role === "limpeza") {
     return (
@@ -304,8 +326,9 @@ function Painel() {
           <div>
             <p className="font-semibold">Atenção: cancelamentos acima do comparecimento</p>
             <p>
-              Nos últimos 30 dias houve {totals.cancelamentos} cancelamento(s) contra {totals.comparecimento}{" "}
-              comparecimento(s), com receita de {fmtBRL(totals.receita)}. Vale investigar o motivo dos cancelamentos.
+              Nos últimos 30 dias houve {totals.cancelamentos} cancelamento(s) contra{" "}
+              {totals.comparecimento} comparecimento(s), com receita de {fmtBRL(totals.receita)}.
+              Vale investigar o motivo dos cancelamentos.
             </p>
           </div>
         </div>
@@ -317,18 +340,49 @@ function Painel() {
           <div>
             <p className="font-semibold">Atenção: hotel ocupado sem lançamento de despesas</p>
             <p>
-              Há hóspedes ativos e nenhum custo registrado nos últimos dias. Confira café, limpeza, reposição e compras para a margem não ficar artificialmente alta.
+              Há hóspedes ativos e nenhum custo registrado nos últimos dias. Confira café, limpeza,
+              reposição e compras para a margem não ficar artificialmente alta.
             </p>
           </div>
         </div>
       )}
 
       <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        <PipelineCard tone="brass" title="Disponibilidade" value={`${livres}`} label="quartos livres" hint={`${ocupados} ocupados · ${reservados} reservados`} />
-        <PipelineCard tone="pine" title="Hospedagem" value={`${ocupacao}%`} label="ocupação hoje" hint={`${ocupantesHoje} ocupantes · capacidade ${capacidadeTotal}`} />
-        <PipelineCard tone="sage" title="Receita" value={fmtBRL(receitaMes)} label="receita do mês" hint={`A receber: ${fmtBRL(aReceber)}`} />
-        <PipelineCard tone="brick" title="Operação" value={String(abertas.length)} label="reclamações abertas" hint={`${wifiCount} sobre Wi-Fi`} />
-        <PipelineCard tone="pine" title="Experiência" value={media ? media.toFixed(1) : "—"} label="avaliação média" hint={`${feedbacks.length} avaliações`} />
+        <PipelineCard
+          tone="brass"
+          title="Disponibilidade"
+          value={`${livres}`}
+          label="quartos livres"
+          hint={`${ocupados} ocupados · ${reservados} reservados`}
+        />
+        <PipelineCard
+          tone="pine"
+          title="Hospedagem"
+          value={`${ocupacao}%`}
+          label="ocupação hoje"
+          hint={`${ocupantesHoje} ocupantes · capacidade ${capacidadeTotal}`}
+        />
+        <PipelineCard
+          tone="sage"
+          title="Receita"
+          value={fmtBRL(receitaMes)}
+          label="receita do mês"
+          hint={`A receber: ${fmtBRL(aReceber)}`}
+        />
+        <PipelineCard
+          tone="brick"
+          title="Operação"
+          value={String(abertas.length)}
+          label="reclamações abertas"
+          hint={`${wifiCount} sobre Wi-Fi`}
+        />
+        <PipelineCard
+          tone="pine"
+          title="Experiência"
+          value={media ? media.toFixed(1) : "—"}
+          label="avaliação média"
+          hint={`${feedbacks.length} avaliações`}
+        />
       </div>
 
       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
@@ -377,7 +431,9 @@ function Painel() {
       <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-4">
         <div className="card-surface border-t-4 border-t-pine bg-[linear-gradient(180deg,rgba(35,77,56,0.08),var(--card)_42%)] p-3">
           <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-            <h3 className="section-title text-sm">Receita por {period === "dia" ? "hora" : period === "mes" ? "dia do mês" : "mês"}</h3>
+            <h3 className="section-title text-sm">
+              Receita por {period === "dia" ? "hora" : period === "mes" ? "dia do mês" : "mês"}
+            </h3>
             <PerformanceLegend />
           </div>
           <ResponsiveContainer width="100%" height={176}>
@@ -402,10 +458,26 @@ function Painel() {
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v: number, name: string) => (name === "Receita" ? fmtBRL(v) : `${v}%`)} />
+              <Tooltip
+                formatter={(v: number, name: string) => (name === "Receita" ? fmtBRL(v) : `${v}%`)}
+              />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="ocupacao" name="Ocupação" stroke="var(--sage)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="receita" name="Receita" stroke="var(--brass)" strokeWidth={2} dot={false} />
+              <Line
+                type="monotone"
+                dataKey="ocupacao"
+                name="Ocupação"
+                stroke="var(--sage)"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="receita"
+                name="Receita"
+                stroke="var(--brass)"
+                strokeWidth={2}
+                dot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -421,7 +493,10 @@ function Painel() {
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="receita" name="Receita" radius={[4, 4, 0, 0]}>
                 {monthlySeries.map((entry) => (
-                  <Cell key={`receita-${entry.key}`} fill={performanceColor(entry.receita, monthlyAverage)} />
+                  <Cell
+                    key={`receita-${entry.key}`}
+                    fill={performanceColor(entry.receita, monthlyAverage)}
+                  />
                 ))}
               </Bar>
               <Bar dataKey="despesas" name="Despesas" fill="var(--brick)" radius={[4, 4, 0, 0]} />
@@ -438,8 +513,22 @@ function Painel() {
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="comparecimento" name="Comparecimento" stroke="var(--sage)" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="cancelamentos" name="Cancelamentos" stroke="var(--brick)" strokeWidth={2} dot={false} />
+              <Line
+                type="monotone"
+                dataKey="comparecimento"
+                name="Comparecimento"
+                stroke="var(--sage)"
+                strokeWidth={2}
+                dot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="cancelamentos"
+                name="Cancelamentos"
+                stroke="var(--brick)"
+                strokeWidth={2}
+                dot={false}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -469,8 +558,28 @@ function Painel() {
         <OperationalReports
           kitchenItems={kitchenItems}
           kitchenProductions={kitchenProductions}
-          cleaningRooms={rooms.filter((room) => roomStatusToday(reservations, room.numero, today, (room as { situacao?: string | null }).situacao) === "limpeza").length}
-          maintenanceRooms={rooms.filter((room) => roomStatusToday(reservations, room.numero, today, (room as { situacao?: string | null }).situacao) === "manutencao").length}
+          cleaningRooms={
+            rooms.filter(
+              (room) =>
+                roomStatusToday(
+                  reservations,
+                  room.numero,
+                  today,
+                  (room as { situacao?: string | null }).situacao,
+                ) === "limpeza",
+            ).length
+          }
+          maintenanceRooms={
+            rooms.filter(
+              (room) =>
+                roomStatusToday(
+                  reservations,
+                  room.numero,
+                  today,
+                  (room as { situacao?: string | null }).situacao,
+                ) === "manutencao",
+            ).length
+          }
           today={today}
         />
       </div>
@@ -480,7 +589,7 @@ function Painel() {
         {receitaPorQuarto.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sem receita registrada ainda.</p>
         ) : (
-            <ResponsiveContainer width="100%" height={188}>
+          <ResponsiveContainer width="100%" height={188}>
             <BarChart data={receitaPorQuarto} margin={{ left: -10, right: 8, top: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="quarto" tick={{ fontSize: 11 }} />
@@ -510,7 +619,10 @@ function Painel() {
                 const cats = complaints.filter((c) => c.quarto === q);
                 const topCat = mostCommon(cats.map((c) => c.categoria));
                 return (
-                  <li key={q} className="flex items-center justify-between rounded-lg bg-brick-bg/50 px-3 py-2">
+                  <li
+                    key={q}
+                    className="flex items-center justify-between rounded-lg bg-brick-bg/50 px-3 py-2"
+                  >
                     <div>
                       <span className="font-semibold">Quarto {q}</span>
                       <span className="ml-2 text-xs text-muted-foreground">
@@ -569,20 +681,38 @@ function OwnerCompactDashboard({
   const previousRange = periodRange(period, today, -1);
   const previousYearToday = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`;
   const previousYearRange = periodRange(period, previousYearToday);
-  const periodReservations = reservations.filter((reservation) => inRange(reservation.checkin, range));
-  const previousReservations = reservations.filter((reservation) => inRange(reservation.checkin, previousRange));
-  const yearReservations = reservations.filter((reservation) => inRange(reservation.checkin, previousYearRange));
+  const periodReservations = reservations.filter((reservation) =>
+    inRange(reservation.checkin, range),
+  );
+  const previousReservations = reservations.filter((reservation) =>
+    inRange(reservation.checkin, previousRange),
+  );
+  const yearReservations = reservations.filter((reservation) =>
+    inRange(reservation.checkin, previousYearRange),
+  );
   const periodSales = sales.filter((sale) => inRange(sale.data, range));
   const periodExpenses = expenses.filter((expense) => inRange(expense.data, range));
-  const revenue = periodReservations.reduce((sum, reservation) => sum + reservationReceived(reservation), 0) +
+  const revenue =
+    periodReservations.reduce((sum, reservation) => sum + reservationReceived(reservation), 0) +
     periodSales.reduce((sum, sale) => sum + saleReceived(sale), 0);
-  const previousRevenue = previousReservations.reduce((sum, reservation) => sum + reservationReceived(reservation), 0);
-  const yearRevenue = yearReservations.reduce((sum, reservation) => sum + reservationReceived(reservation), 0);
+  const previousRevenue = previousReservations.reduce(
+    (sum, reservation) => sum + reservationReceived(reservation),
+    0,
+  );
+  const yearRevenue = yearReservations.reduce(
+    (sum, reservation) => sum + reservationReceived(reservation),
+    0,
+  );
   const cost = expensesTotal(periodExpenses);
   const profit = revenue - cost;
+  const hotelKpis = calculateHotelKpis({ rooms, reservations, sales, expenses, range });
   const pending = reservations
     .filter((reservation) => reservation.status !== "cancelado")
-    .reduce((sum, reservation) => sum + Math.max(0, reservationRevenue(reservation) - reservationReceived(reservation)), 0);
+    .reduce(
+      (sum, reservation) =>
+        sum + Math.max(0, reservationRevenue(reservation) - reservationReceived(reservation)),
+      0,
+    );
   const occupied = rooms.filter(
     (room) => roomStatusToday(reservations, room.numero, today, room.situacao) === "ocupado",
   ).length;
@@ -593,25 +723,39 @@ function OwnerCompactDashboard({
     const channel = normalizeChannel(reservation.canal);
     channelMap.set(channel, (channelMap.get(channel) ?? 0) + reservationRevenue(reservation));
   });
-  const channelRows = [...channelMap].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  const channelRows = [...channelMap]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
 
   const paymentMap = new Map<string, number>();
   periodReservations.forEach((reservation) => {
     const payment = reservation.pagamento || "Não informado";
     paymentMap.set(payment, (paymentMap.get(payment) ?? 0) + reservationReceived(reservation));
   });
-  const paymentRows = [...paymentMap].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  const paymentRows = [...paymentMap]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
   const expenseRows = periodExpenses
     .slice()
     .sort((a, b) => Number(b.valor) - Number(a.valor))
-    .map((expense) => ({ label: expense.descricao, value: fmtBRL(expense.valor), hint: expense.categoria }));
+    .map((expense) => ({
+      label: expense.descricao,
+      value: fmtBRL(expense.valor),
+      hint: expense.categoria,
+    }));
   const complaintMap = new Map<number, number>();
   complaints
     .filter((complaint) => complaint.status !== "resolvido" && complaint.quarto != null)
-    .forEach((complaint) => complaintMap.set(complaint.quarto!, (complaintMap.get(complaint.quarto!) ?? 0) + 1));
+    .forEach((complaint) =>
+      complaintMap.set(complaint.quarto!, (complaintMap.get(complaint.quarto!) ?? 0) + 1),
+    );
   const problemRooms = [...complaintMap]
     .sort((a, b) => b[1] - a[1])
-    .map(([room, count]) => ({ label: `Quarto ${room}`, value: `${count} aberta(s)`, highlight: count >= 2 }));
+    .map(([room, count]) => ({
+      label: `Quarto ${room}`,
+      value: `${count} aberta(s)`,
+      highlight: count >= 2,
+    }));
 
   return (
     <div className="space-y-3 pb-6">
@@ -632,20 +776,65 @@ function OwnerCompactDashboard({
         </AlertBanner>
       )}
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-        <CompactKpi label="Receita recebida" value={fmtBRL(revenue)} previousDelta={percentChange(revenue, previousRevenue)} yearDelta={percentChange(revenue, yearRevenue)} />
+        <CompactKpi
+          label="Receita recebida"
+          value={fmtBRL(revenue)}
+          previousDelta={percentChange(revenue, previousRevenue)}
+          yearDelta={percentChange(revenue, yearRevenue)}
+        />
         <CompactKpi label="A receber" value={fmtBRL(pending)} />
         <CompactKpi label="Despesas" value={fmtBRL(cost)} lowerIsBetter />
         <CompactKpi label="Lucro" value={fmtBRL(profit)} />
         <CompactKpi label="Ocupação agora" value={`${occupancy.toFixed(1)}%`} />
         <CompactKpi label="Quartos livres" value={String(rooms.length - occupied)} />
       </div>
+      <section aria-labelledby="hotel-kpis-title">
+        <h2 id="hotel-kpis-title" className="mb-2 text-xs font-bold uppercase text-pine-dark">
+          Indicadores hoteleiros por UH
+        </h2>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
+          <CompactKpi
+            label="Taxa de Ocupação"
+            value={`${hotelKpis.occupancyRate.toFixed(1)}%`}
+            hint={`${hotelKpis.soldRoomNights}/${hotelKpis.availableRoomNights} UHs`}
+          />
+          <CompactKpi
+            label="Diária Média (ADR)"
+            value={fmtBRL(hotelKpis.adr)}
+            hint="Hospedagem / UHs vendidas"
+          />
+          <CompactKpi
+            label="RevPAR"
+            value={fmtBRL(hotelKpis.revpar)}
+            hint="Hospedagem / UHs disponíveis"
+          />
+          <CompactKpi
+            label="TRevPAR"
+            value={fmtBRL(hotelKpis.trevpar)}
+            hint="Receita total / UHs disponíveis"
+          />
+          <CompactKpi
+            label="GOPPAR"
+            value={fmtBRL(hotelKpis.goppar)}
+            hint="Lucro operacional / UHs disponíveis"
+          />
+        </div>
+      </section>
       <ReceivablesPanel reservations={reservations} clients={clients} compact />
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
         <ChartPanel title="Receita por canal" span={6}>
           <ResponsiveContainer width="100%" height={210}>
             <PieChart>
-              <Pie data={channelRows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={82}>
-                {channelRows.map((row, index) => <Cell key={row.name} fill={index % 2 ? "var(--sage)" : "var(--pine)"} />)}
+              <Pie
+                data={channelRows}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={52}
+                outerRadius={82}
+              >
+                {channelRows.map((row, index) => (
+                  <Cell key={row.name} fill={index % 2 ? "var(--sage)" : "var(--pine)"} />
+                ))}
               </Pie>
               <Tooltip formatter={(value: number) => fmtBRL(value)} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -704,22 +893,52 @@ function RecepcaoPainel({
 
   return (
     <div>
-      <PageHeader
-        title="Recepcao"
-        subtitle="Entradas, saidas, quartos e cobrancas de hoje."
-      />
+      <PageHeader title="Recepcao" subtitle="Entradas, saidas, quartos e cobrancas de hoje." />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
-        <Stat icon={<BedDouble />} label="Ocupacao" value={`${ocupacao}%`} hint={`${ocupados} ocupados · ${reservados} reservados · ${livres} livres`} />
-        <Stat icon={<CalendarClock />} label="Entradas hoje" value={String(arrivalsToday.length)} hint="Reservas com check-in hoje" />
-        <Stat icon={<DoorOpen />} label="Saidas hoje" value={String(departuresToday.length)} hint="Reservas com check-out hoje" />
-        <Stat icon={<DollarSign />} label="A receber" value={fmtBRL(aReceber)} hint="Reservas em aberto" />
-        <Stat icon={<MessageSquareWarning />} label="Alertas" value={String(abertas)} hint={`${ocupantesHoje} ocupantes no hotel`} />
+        <Stat
+          icon={<BedDouble />}
+          label="Ocupacao"
+          value={`${ocupacao}%`}
+          hint={`${ocupados} ocupados · ${reservados} reservados · ${livres} livres`}
+        />
+        <Stat
+          icon={<CalendarClock />}
+          label="Entradas hoje"
+          value={String(arrivalsToday.length)}
+          hint="Reservas com check-in hoje"
+        />
+        <Stat
+          icon={<DoorOpen />}
+          label="Saidas hoje"
+          value={String(departuresToday.length)}
+          hint="Reservas com check-out hoje"
+        />
+        <Stat
+          icon={<DollarSign />}
+          label="A receber"
+          value={fmtBRL(aReceber)}
+          hint="Reservas em aberto"
+        />
+        <Stat
+          icon={<MessageSquareWarning />}
+          label="Alertas"
+          value={String(abertas)}
+          hint={`${ocupantesHoje} ocupantes no hotel`}
+        />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <TodayList title="Check-ins de hoje" empty="Nenhuma entrada prevista." reservations={arrivalsToday} />
-        <TodayList title="Check-outs de hoje" empty="Nenhuma saida prevista." reservations={departuresToday} />
+        <TodayList
+          title="Check-ins de hoje"
+          empty="Nenhuma entrada prevista."
+          reservations={arrivalsToday}
+        />
+        <TodayList
+          title="Check-outs de hoje"
+          empty="Nenhuma saida prevista."
+          reservations={departuresToday}
+        />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -735,9 +954,15 @@ function RecepcaoPainel({
           <AlertList
             items={[
               aReceber > 0 ? `Cobrar ${fmtBRL(aReceber)} em reservas com saldo pendente.` : "",
-              arrivalsToday.length > 0 ? `${arrivalsToday.length} entrada(s) para conferir documento e pagamento.` : "",
-              departuresToday.length > 0 ? `${departuresToday.length} saída(s) para confirmar consumo e liberar limpeza.` : "",
-              lowReception.length > 0 ? `${lowReception.length} item(ns) administrativo(s) abaixo do mínimo.` : "",
+              arrivalsToday.length > 0
+                ? `${arrivalsToday.length} entrada(s) para conferir documento e pagamento.`
+                : "",
+              departuresToday.length > 0
+                ? `${departuresToday.length} saída(s) para confirmar consumo e liberar limpeza.`
+                : "",
+              lowReception.length > 0
+                ? `${lowReception.length} item(ns) administrativo(s) abaixo do mínimo.`
+                : "",
             ]}
           />
         </section>
@@ -768,7 +993,9 @@ function OwnerDashboardHero({
     <section className="mb-3 overflow-hidden rounded-md border border-pine/20 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine),var(--brass))] text-white shadow-sm">
       <div className="flex flex-col gap-2 px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">Hotel Real Cruzilia</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">
+            Hotel Real Cruzilia
+          </p>
           <h1 className="font-serif text-lg font-bold md:text-xl">Dashboard de operação</h1>
           <p className="mt-0.5 max-w-2xl text-[11px] text-white/80 md:text-xs">
             Ocupação, receita, clientes, canais e operação em uma visão de decisão.
@@ -843,13 +1070,19 @@ function PipelineCard({
 
   return (
     <section className="relative min-w-0 overflow-hidden rounded-md border border-border bg-card shadow-sm">
-      <div className={`bg-gradient-to-r ${toneClass} px-2.5 py-1 text-center text-[10px] font-bold uppercase text-white`}>
+      <div
+        className={`bg-gradient-to-r ${toneClass} px-2.5 py-1 text-center text-[10px] font-bold uppercase text-white`}
+      >
         {title}
       </div>
       <div className="min-h-[44px] px-2 py-1.5">
         <div className="min-w-0">
-          <p className="break-words font-serif text-[clamp(0.82rem,1vw,1.02rem)] font-bold leading-tight text-pine-dark">{value}</p>
-          <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight text-foreground">{label}</p>
+          <p className="break-words font-serif text-[clamp(0.82rem,1vw,1.02rem)] font-bold leading-tight text-pine-dark">
+            {value}
+          </p>
+          <p className="mt-0.5 truncate text-[10px] font-semibold leading-tight text-foreground">
+            {label}
+          </p>
           <p className="mt-0.5 truncate text-[9px] leading-tight text-muted-foreground">{hint}</p>
         </div>
       </div>
@@ -866,8 +1099,19 @@ function MiniSpark({ tone }: { tone: "pine" | "brass" | "sage" | "brick" }) {
   }[tone];
   return (
     <svg viewBox="0 0 90 54" className="h-7 w-full" aria-hidden="true">
-      <path d="M4 48 L4 24 L16 34 L28 14 L42 22 L54 18 L68 38 L84 12 L84 48 Z" fill={stroke} opacity="0.16" />
-      <path d="M4 24 L16 34 L28 14 L42 22 L54 18 L68 38 L84 12" fill="none" stroke={stroke} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4 48 L4 24 L16 34 L28 14 L42 22 L54 18 L68 38 L84 12 L84 48 Z"
+        fill={stroke}
+        opacity="0.16"
+      />
+      <path
+        d="M4 24 L16 34 L28 14 L42 22 L54 18 L68 38 L84 12"
+        fill="none"
+        stroke={stroke}
+        strokeWidth="4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -905,7 +1149,15 @@ function LimpezaPainel({
     })
     .sort((a, b) => a.numero - b.numero);
   const maintenanceRooms = rooms
-    .filter((room) => roomStatusToday(reservations, room.numero, today, (room as { situacao?: string | null }).situacao) === "manutencao")
+    .filter(
+      (room) =>
+        roomStatusToday(
+          reservations,
+          room.numero,
+          today,
+          (room as { situacao?: string | null }).situacao,
+        ) === "manutencao",
+    )
     .sort((a, b) => a.numero - b.numero);
   const cleaningStock = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "limpeza"));
   const lowCleaning = cleaningStock.filter(isLowStock);
@@ -914,7 +1166,9 @@ function LimpezaPainel({
       (complaint) =>
         complaint.status !== "resolvido" &&
         (complaint.origem === "limpeza" ||
-          ["papel_higienico", "sabonete", "toalha", "manutencao", "reposicao_quarto"].includes(complaint.categoria)),
+          ["papel_higienico", "sabonete", "toalha", "manutencao", "reposicao_quarto"].includes(
+            complaint.categoria,
+          )),
     )
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   const [tab, setTab] = useState<"quartos" | "estoque" | "solicitacoes">("quartos");
@@ -927,10 +1181,30 @@ function LimpezaPainel({
       />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat icon={<ClipboardCheck />} label="Para limpar" value={String(cleaningRooms.length)} hint="Inclui check-outs de hoje" />
-        <Stat icon={<DoorOpen />} label="Saídas hoje" value={String(departuresToday.length)} hint="Quartos liberando" />
-        <Stat icon={<AlertTriangle />} label="Manutenção" value={String(maintenanceRooms.length)} hint="Não liberar para hóspede" />
-        <Stat icon={<MessageSquareWarning />} label="Solicitações" value={String(openCleaningRequests.length)} hint="Reposição ou problema aberto" />
+        <Stat
+          icon={<ClipboardCheck />}
+          label="Para limpar"
+          value={String(cleaningRooms.length)}
+          hint="Inclui check-outs de hoje"
+        />
+        <Stat
+          icon={<DoorOpen />}
+          label="Saídas hoje"
+          value={String(departuresToday.length)}
+          hint="Quartos liberando"
+        />
+        <Stat
+          icon={<AlertTriangle />}
+          label="Manutenção"
+          value={String(maintenanceRooms.length)}
+          hint="Não liberar para hóspede"
+        />
+        <Stat
+          icon={<MessageSquareWarning />}
+          label="Solicitações"
+          value={String(openCleaningRequests.length)}
+          hint="Reposição ou problema aberto"
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -958,7 +1232,10 @@ function LimpezaPainel({
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-8 2xl:grid-cols-10">
               {cleaningRooms.map((room) => (
-                <div key={room.numero} className="rounded-md border border-brass/45 bg-brass/10 px-3 py-4 text-center">
+                <div
+                  key={room.numero}
+                  className="rounded-md border border-brass/45 bg-brass/10 px-3 py-4 text-center"
+                >
                   <div className="font-serif text-2xl font-bold text-pine-dark">{room.numero}</div>
                   <div className="mt-1 text-[11px] uppercase text-muted-foreground">Quarto</div>
                   <div className="mt-3 grid gap-1">
@@ -988,10 +1265,18 @@ function LimpezaPainel({
             <h3 className="section-title mb-3 text-base">Alertas da limpeza</h3>
             <AlertList
               items={[
-                cleaningRooms.length > 0 ? `${cleaningRooms.length} quarto(s) precisam ser liberados para a recepção.` : "",
-                maintenanceRooms.length > 0 ? `${maintenanceRooms.length} quarto(s) em manutenção não devem ser liberados.` : "",
-                lowCleaning.length > 0 ? `${lowCleaning.length} item(ns) precisam de reposição.` : "",
-                lowCleaning.some((item) => normalizeText(item.nome).includes("papel")) ? "Verificar papel higiênico nos quartos antes de liberar." : "",
+                cleaningRooms.length > 0
+                  ? `${cleaningRooms.length} quarto(s) precisam ser liberados para a recepção.`
+                  : "",
+                maintenanceRooms.length > 0
+                  ? `${maintenanceRooms.length} quarto(s) em manutenção não devem ser liberados.`
+                  : "",
+                lowCleaning.length > 0
+                  ? `${lowCleaning.length} item(ns) precisam de reposição.`
+                  : "",
+                lowCleaning.some((item) => normalizeText(item.nome).includes("papel"))
+                  ? "Verificar papel higiênico nos quartos antes de liberar."
+                  : "",
               ]}
             />
           </section>
@@ -1011,16 +1296,22 @@ function LimpezaPainel({
         <section className="mt-5 card-surface p-5">
           <h3 className="section-title mb-3 text-lg">Solicitações abertas</h3>
           <p className="mb-3 rounded-lg bg-sage-bg px-3 py-2 text-xs text-pine-dark">
-            Sem WAHA o sistema abre o WhatsApp com a mensagem pronta. Com WAHA, dá para enviar automaticamente para o grupo do hotel ou para a pessoa responsável.
+            Sem WAHA o sistema abre o WhatsApp com a mensagem pronta. Com WAHA, dá para enviar
+            automaticamente para o grupo do hotel ou para a pessoa responsável.
           </p>
           {openCleaningRequests.length === 0 ? (
             <p className="text-sm text-muted-foreground">Nenhuma solicitação aberta agora.</p>
           ) : (
             <div className="space-y-2">
               {openCleaningRequests.map((request) => (
-                <div key={request.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                <div
+                  key={request.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm"
+                >
                   <div>
-                    <p className="font-semibold">Quarto {request.quarto ?? "-"} · {complaintLabel(request.categoria)}</p>
+                    <p className="font-semibold">
+                      Quarto {request.quarto ?? "-"} · {complaintLabel(request.categoria)}
+                    </p>
                     <p className="text-muted-foreground">{request.descricao ?? "Sem descrição."}</p>
                   </div>
                   <div className="flex gap-2">
@@ -1035,7 +1326,12 @@ function LimpezaPainel({
                     <button
                       type="button"
                       className="rounded-md bg-pine px-3 py-1.5 text-xs font-semibold text-white"
-                      onClick={() => updateComplaint.mutate({ id: request.id, patch: { status: "resolvido", resolved_at: new Date().toISOString() } })}
+                      onClick={() =>
+                        updateComplaint.mutate({
+                          id: request.id,
+                          patch: { status: "resolvido", resolved_at: new Date().toISOString() },
+                        })
+                      }
                     >
                       Resolver
                     </button>
@@ -1052,7 +1348,9 @@ function LimpezaPainel({
           <h3 className="section-title mb-3 text-lg">Quartos em manutenção</h3>
           <div className="flex flex-wrap gap-2">
             {maintenanceRooms.map((room) => (
-              <Badge key={room.numero} tone="brick">Quarto {room.numero}</Badge>
+              <Badge key={room.numero} tone="brick">
+                Quarto {room.numero}
+              </Badge>
             ))}
           </div>
         </section>
@@ -1061,7 +1359,13 @@ function LimpezaPainel({
   );
 }
 
-function QuickCleaningRequest({ room, insertComplaint }: { room: number; insertComplaint: ReturnType<typeof useInsert> }) {
+function QuickCleaningRequest({
+  room,
+  insertComplaint,
+}: {
+  room: number;
+  insertComplaint: ReturnType<typeof useInsert>;
+}) {
   const options = [
     ["papel_higienico", "Papel"],
     ["sabonete", "Sabonete"],
@@ -1120,7 +1424,9 @@ function CafePainel({
   const [breakfastServedIds, setBreakfastServedIds] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
     try {
-      return JSON.parse(localStorage.getItem(`hotelreal.breakfastServed.${today}`) ?? "[]") as string[];
+      return JSON.parse(
+        localStorage.getItem(`hotelreal.breakfastServed.${today}`) ?? "[]",
+      ) as string[];
     } catch {
       return [];
     }
@@ -1133,7 +1439,9 @@ function CafePainel({
       hospede: reservationGuestName(reservation),
     }))
     .sort((a, b) => a.quarto - b.quarto);
-  const breakfastServedCount = rooms.filter((room) => breakfastServedIds.includes(room.reservationId)).length;
+  const breakfastServedCount = rooms.filter((room) =>
+    breakfastServedIds.includes(room.reservationId),
+  ).length;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1142,22 +1450,33 @@ function CafePainel({
 
   function toggleBreakfastServed(reservationId: string) {
     setBreakfastServedIds((ids) =>
-      ids.includes(reservationId) ? ids.filter((id) => id !== reservationId) : [...ids, reservationId],
+      ids.includes(reservationId)
+        ? ids.filter((id) => id !== reservationId)
+        : [...ids, reservationId],
     );
   }
 
   const activeItems = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "cafe"));
   const todayProductions = kitchenProductions.filter((row) => row.data === today);
-  const lowItems = activeItems.filter((item) => Number(item.estoque_atual ?? 0) <= Number(item.estoque_minimo ?? 0));
+  const lowItems = activeItems.filter(
+    (item) => Number(item.estoque_atual ?? 0) <= Number(item.estoque_minimo ?? 0),
+  );
   const todayLeftover = todayProductions.reduce((sum, row) => sum + Number(row.sobra ?? 0), 0);
   const todayLoss = todayProductions.reduce((sum, row) => sum + Number(row.perda ?? 0), 0);
   const latestProductions = kitchenProductions.slice(0, 12);
   const kitchenChart = buildKitchenChart(activeItems, todayProductions, ocupantesHoje);
   const topConsumed = [...kitchenChart].sort((a, b) => b.servido - a.servido).slice(0, 5);
-  const overPrepared = kitchenChart.filter((row) => row.produzido > 0 && row.sobra + row.perda > row.produzido * 0.25);
-  const underPrepared = kitchenChart.filter((row) => row.esperado > 0 && row.produzido > 0 && row.produzido < row.esperado * 0.85);
+  const overPrepared = kitchenChart.filter(
+    (row) => row.produzido > 0 && row.sobra + row.perda > row.produzido * 0.25,
+  );
+  const underPrepared = kitchenChart.filter(
+    (row) => row.esperado > 0 && row.produzido > 0 && row.produzido < row.esperado * 0.85,
+  );
   const shoppingText = lowItems
-    .map((item) => `- ${item.nome}: estoque ${formatQty(item.estoque_atual)} ${item.unidade}, mínimo ${formatQty(item.estoque_minimo)} ${item.unidade}`)
+    .map(
+      (item) =>
+        `- ${item.nome}: estoque ${formatQty(item.estoque_atual)} ${item.unidade}, mínimo ${formatQty(item.estoque_minimo)} ${item.unidade}`,
+    )
     .join("\n");
 
   return (
@@ -1185,401 +1504,623 @@ function CafePainel({
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Stat icon={<Coffee />} label="Pessoas hoje" value={String(ocupantesHoje)} hint="Base para compra" />
-        <Stat icon={<BedDouble />} label="Quartos ocupados" value={String(activeToday.length)} hint={`Capacidade total: ${capacidadeTotal}`} />
-        <Stat icon={<ClipboardCheck />} label="Itens ativos" value={String(activeItems.length)} hint="Cadastrados na cozinha" />
-        <Stat icon={<ClipboardCheck />} label="Café servido" value={`${breakfastServedCount}/${rooms.length}`} hint="Quartos marcados" />
-        <Stat icon={<AlertTriangle />} label="Reposição" value={String(lowItems.length)} hint="Estoque abaixo do mínimo" />
+        <Stat
+          icon={<Coffee />}
+          label="Pessoas hoje"
+          value={String(ocupantesHoje)}
+          hint="Base para compra"
+        />
+        <Stat
+          icon={<BedDouble />}
+          label="Quartos ocupados"
+          value={String(activeToday.length)}
+          hint={`Capacidade total: ${capacidadeTotal}`}
+        />
+        <Stat
+          icon={<ClipboardCheck />}
+          label="Itens ativos"
+          value={String(activeItems.length)}
+          hint="Cadastrados na cozinha"
+        />
+        <Stat
+          icon={<ClipboardCheck />}
+          label="Café servido"
+          value={`${breakfastServedCount}/${rooms.length}`}
+          hint="Quartos marcados"
+        />
+        <Stat
+          icon={<AlertTriangle />}
+          label="Reposição"
+          value={String(lowItems.length)}
+          hint="Estoque abaixo do mínimo"
+        />
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Stat icon={<Coffee />} label="Sobra hoje" value={formatQty(todayLeftover)} hint="Registrado pela equipe" />
-        <Stat icon={<AlertTriangle />} label="Perda hoje" value={formatQty(todayLoss)} hint="Quebrou, venceu ou não aproveitou" />
+        <Stat
+          icon={<Coffee />}
+          label="Sobra hoje"
+          value={formatQty(todayLeftover)}
+          hint="Registrado pela equipe"
+        />
+        <Stat
+          icon={<AlertTriangle />}
+          label="Perda hoje"
+          value={formatQty(todayLoss)}
+          hint="Quebrou, venceu ou não aproveitou"
+        />
       </div>
 
-      {tab === "visao" && <div className="mt-5 grid grid-cols-1 gap-4 2xl:grid-cols-[1.35fr_1fr]">
-        <section className="card-surface p-4">
+      {tab === "visao" && (
+        <div className="mt-5 grid grid-cols-1 gap-4 2xl:grid-cols-[1.35fr_1fr]">
+          <section className="card-surface p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="section-title text-base">Relatório inteligente do café</h3>
+                <p className="text-xs text-muted-foreground">
+                  Compara previsto, disponível/comprado, servido, sobra e perda.
+                </p>
+              </div>
+              <Badge tone={overPrepared.length || underPrepared.length ? "brass" : "pine"}>
+                {overPrepared.length + underPrepared.length} alerta(s)
+              </Badge>
+            </div>
+            {kitchenChart.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Lance o que ficou disponível e o que foi servido para gerar os gráficos.
+              </p>
+            ) : (
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={kitchenChart} margin={{ left: -18, right: 8, top: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="nome" tick={{ fontSize: 11 }} interval={0} />
+                  <YAxis tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar
+                    dataKey="esperado"
+                    name="Previsto"
+                    fill="var(--brass)"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="produzido"
+                    name="Disponível/comprado"
+                    fill="var(--pine)"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="servido"
+                    name="Consumido"
+                    fill="var(--sage)"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar dataKey="sobra" name="Sobra" fill="var(--slate)" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </section>
+          <section className="card-surface p-4">
+            <h3 className="section-title mb-3 text-base">Alertas da cozinha</h3>
+            <AlertList
+              items={[
+                lowItems.length > 0 ? `${lowItems.length} item(ns) abaixo do estoque mínimo.` : "",
+                overPrepared.length > 0
+                  ? `${overPrepared.length} item(ns) com sobra/perda acima de 25%. Comprar menos na próxima vez.`
+                  : "",
+                underPrepared.length > 0
+                  ? `${underPrepared.length} item(ns) abaixo do previsto. Atenção para faltar.`
+                  : "",
+                topConsumed[0]
+                  ? `Mais consumido hoje: ${topConsumed[0].nome} (${formatQty(topConsumed[0].servido)}).`
+                  : "",
+              ]}
+            />
+            {topConsumed.length > 0 && (
+              <div className="mt-4">
+                <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+                  Mais consumidos
+                </p>
+                <div className="space-y-2">
+                  {topConsumed.map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex items-center justify-between rounded-md bg-sage-bg/45 px-3 py-2 text-sm"
+                    >
+                      <span className="font-semibold">{row.nome}</span>
+                      <span>{formatQty(row.servido)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+
+      {tab === "servido" && (
+        <section className="mt-5 card-surface p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h3 className="section-title text-base">Relatório inteligente do café</h3>
-              <p className="text-xs text-muted-foreground">Compara previsto, disponível/comprado, servido, sobra e perda.</p>
+              <h3 className="section-title text-lg">Lançar servido e sobras</h3>
+              <p className="text-sm text-muted-foreground">
+                Registre o que ficou disponível, o que foi servido, o que sobrou e o que perdeu.
+              </p>
             </div>
-            <Badge tone={overPrepared.length || underPrepared.length ? "brass" : "pine"}>
-              {overPrepared.length + underPrepared.length} alerta(s)
-            </Badge>
+            {lowItems.length > 0 && (
+              <a
+                className="rounded-md bg-brick px-3 py-2 text-xs font-semibold text-white"
+                href={`https://wa.me/553588001372?text=${encodeURIComponent(`Itens da cozinha para repor:\n${shoppingText}`)}`}
+                target="_blank"
+                rel="noopener"
+              >
+                Avisar dono
+              </a>
+            )}
           </div>
-          {kitchenChart.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Lance o que ficou disponível e o que foi servido para gerar os gráficos.</p>
+          {activeItems.length === 0 ? (
+            <p className="rounded-lg border border-border/70 p-3 text-sm text-muted-foreground">
+              Cadastre os produtos do café primeiro. Exemplos: pão, café, leite, suco, molho,
+              frutas, ovos.
+            </p>
           ) : (
-            <ResponsiveContainer width="100%" height={230}>
-              <BarChart data={kitchenChart} margin={{ left: -18, right: 8, top: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="nome" tick={{ fontSize: 11 }} interval={0} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="esperado" name="Previsto" fill="var(--brass)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="produzido" name="Disponível/comprado" fill="var(--pine)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="servido" name="Consumido" fill="var(--sage)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="sobra" name="Sobra" fill="var(--slate)" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </section>
-        <section className="card-surface p-4">
-          <h3 className="section-title mb-3 text-base">Alertas da cozinha</h3>
-          <AlertList
-            items={[
-              lowItems.length > 0 ? `${lowItems.length} item(ns) abaixo do estoque mínimo.` : "",
-              overPrepared.length > 0 ? `${overPrepared.length} item(ns) com sobra/perda acima de 25%. Comprar menos na próxima vez.` : "",
-              underPrepared.length > 0 ? `${underPrepared.length} item(ns) abaixo do previsto. Atenção para faltar.` : "",
-              topConsumed[0] ? `Mais consumido hoje: ${topConsumed[0].nome} (${formatQty(topConsumed[0].servido)}).` : "",
-            ]}
-          />
-          {topConsumed.length > 0 && (
-            <div className="mt-4">
-              <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Mais consumidos</p>
-              <div className="space-y-2">
-                {topConsumed.map((row) => (
-                  <div key={row.id} className="flex items-center justify-between rounded-md bg-sage-bg/45 px-3 py-2 text-sm">
-                    <span className="font-semibold">{row.nome}</span>
-                    <span>{formatQty(row.servido)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </section>
-      </div>}
-
-      {tab === "servido" && <section className="mt-5 card-surface p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="section-title text-lg">Lançar servido e sobras</h3>
-            <p className="text-sm text-muted-foreground">Registre o que ficou disponível, o que foi servido, o que sobrou e o que perdeu.</p>
-          </div>
-          {lowItems.length > 0 && (
-            <a
-              className="rounded-md bg-brick px-3 py-2 text-xs font-semibold text-white"
-              href={`https://wa.me/553588001372?text=${encodeURIComponent(`Itens da cozinha para repor:\n${shoppingText}`)}`}
-              target="_blank"
-              rel="noopener"
+            <form
+              className="grid gap-3 md:grid-cols-6"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                const data = new FormData(form);
+                const itemId = String(data.get("item_id") || activeItems[0]?.id || "");
+                if (!itemId) return;
+                insertKitchenProduction.mutate(
+                  {
+                    item_id: itemId,
+                    data: String(data.get("data") || today),
+                    turno: String(data.get("turno") || "cafe"),
+                    produzido: Number(data.get("produzido") || 0),
+                    servido: Number(data.get("servido") || 0),
+                    sobra: Number(data.get("sobra") || 0),
+                    perda: Number(data.get("perda") || 0),
+                    pessoas_servidas: Number(data.get("pessoas_servidas") || ocupantesHoje || 0),
+                    observacoes: String(data.get("observacoes") || "") || null,
+                  },
+                  { onSuccess: () => form.reset() },
+                );
+              }}
             >
-              Avisar dono
-            </a>
+              <label className="md:col-span-2 text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Item</span>
+                <select
+                  name="item_id"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                >
+                  {activeItems.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.nome}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Data</span>
+                <input
+                  name="data"
+                  type="date"
+                  defaultValue={today}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Turno</span>
+                <select
+                  name="turno"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                >
+                  <option value="cafe">Café</option>
+                  <option value="almoco">Almoço</option>
+                  <option value="jantar">Jantar</option>
+                  <option value="outro">Outro</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Pessoas</span>
+                <input
+                  name="pessoas_servidas"
+                  type="number"
+                  min="0"
+                  defaultValue={ocupantesHoje}
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">
+                  Disponível/comprado
+                </span>
+                <input
+                  name="produzido"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Servido</span>
+                <input
+                  name="servido"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Sobra</span>
+                <input
+                  name="sobra"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Perda</span>
+                <input
+                  name="perda"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="md:col-span-4 text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Observação</span>
+                <input
+                  name="observacoes"
+                  placeholder="Ex.: sobrou meia jarra de suco"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <div className="md:col-span-2 flex items-end">
+                <button
+                  type="submit"
+                  className="w-full rounded-md bg-pine px-4 py-2 font-semibold text-white"
+                  disabled={insertKitchenProduction.isPending}
+                >
+                  Salvar consumo
+                </button>
+              </div>
+            </form>
           )}
-        </div>
-        {activeItems.length === 0 ? (
-          <p className="rounded-lg border border-border/70 p-3 text-sm text-muted-foreground">
-            Cadastre os produtos do café primeiro. Exemplos: pão, café, leite, suco, molho, frutas, ovos.
-          </p>
-        ) : (
-          <form
-            className="grid gap-3 md:grid-cols-6"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const form = event.currentTarget;
-              const data = new FormData(form);
-              const itemId = String(data.get("item_id") || activeItems[0]?.id || "");
-              if (!itemId) return;
-              insertKitchenProduction.mutate(
-                {
-                  item_id: itemId,
-                  data: String(data.get("data") || today),
-                  turno: String(data.get("turno") || "cafe"),
-                  produzido: Number(data.get("produzido") || 0),
-                  servido: Number(data.get("servido") || 0),
-                  sobra: Number(data.get("sobra") || 0),
-                  perda: Number(data.get("perda") || 0),
-                  pessoas_servidas: Number(data.get("pessoas_servidas") || ocupantesHoje || 0),
-                  observacoes: String(data.get("observacoes") || "") || null,
-                },
-                { onSuccess: () => form.reset() },
-              );
-            }}
-          >
-            <label className="md:col-span-2 text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Item</span>
-              <select name="item_id" className="w-full rounded-md border border-border bg-background px-3 py-2">
-                {activeItems.map((item) => (
-                  <option key={item.id} value={item.id}>{item.nome}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Data</span>
-              <input name="data" type="date" defaultValue={today} className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Turno</span>
-              <select name="turno" className="w-full rounded-md border border-border bg-background px-3 py-2">
-                <option value="cafe">Café</option>
-                <option value="almoco">Almoço</option>
-                <option value="jantar">Jantar</option>
-                <option value="outro">Outro</option>
-              </select>
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Pessoas</span>
-              <input name="pessoas_servidas" type="number" min="0" defaultValue={ocupantesHoje} className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Disponível/comprado</span>
-              <input name="produzido" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Servido</span>
-              <input name="servido" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Sobra</span>
-              <input name="sobra" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Perda</span>
-              <input name="perda" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="md:col-span-4 text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Observação</span>
-              <input name="observacoes" placeholder="Ex.: sobrou meia jarra de suco" className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <div className="md:col-span-2 flex items-end">
-              <button type="submit" className="w-full rounded-md bg-pine px-4 py-2 font-semibold text-white" disabled={insertKitchenProduction.isPending}>
-                Salvar consumo
-              </button>
+        </section>
+      )}
+
+      {tab === "produtos" && (
+        <section className="mt-5 card-surface p-5">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="section-title text-lg">Produtos do café</h3>
+              <p className="text-sm text-muted-foreground">
+                Estoque, consumo por pessoa e alerta de reposição.
+              </p>
             </div>
-          </form>
-        )}
-      </section>}
-
-      {tab === "produtos" && <section className="mt-5 card-surface p-5">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h3 className="section-title text-lg">Produtos do café</h3>
-            <p className="text-sm text-muted-foreground">Estoque, consumo por pessoa e alerta de reposição.</p>
+            <button
+              type="button"
+              className="rounded-md bg-brass px-3 py-2 text-xs font-semibold text-pine-dark"
+              onClick={() => setShowItemForm((v) => !v)}
+            >
+              {showItemForm ? "Fechar" : "Novo item"}
+            </button>
           </div>
-          <button type="button" className="rounded-md bg-brass px-3 py-2 text-xs font-semibold text-pine-dark" onClick={() => setShowItemForm((v) => !v)}>
-            {showItemForm ? "Fechar" : "Novo item"}
-          </button>
-        </div>
 
-        {showItemForm && (
-          <form
-            className="mb-4 grid gap-3 rounded-lg border border-border/70 bg-sage-bg/40 p-3 md:grid-cols-6"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const form = event.currentTarget;
-              const data = new FormData(form);
-              insertKitchenItem.mutate(
-                {
-                  nome: String(data.get("nome") || "").trim(),
-                  categoria: String(data.get("categoria") || "Café da manhã"),
-                  unidade: String(data.get("unidade") || "un"),
-                  estoque_atual: Number(data.get("estoque_atual") || 0),
-                  estoque_minimo: Number(data.get("estoque_minimo") || 0),
-                  consumo_por_pessoa: Number(data.get("consumo_por_pessoa") || 0),
-                  observacoes: String(data.get("observacoes") || "") || null,
-                  ativo: true,
-                },
-                { onSuccess: () => form.reset() },
-              );
-            }}
-          >
-            <label className="md:col-span-2 text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Nome</span>
-              <input name="nome" required placeholder="Pão, leite, café..." className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Categoria</span>
-              <input name="categoria" defaultValue="Café da manhã" className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Unidade</span>
-              <select name="unidade" className="w-full rounded-md border border-border bg-background px-3 py-2">
-                <option value="un">un</option>
-                <option value="L">L</option>
-                <option value="ml">ml</option>
-                <option value="kg">kg</option>
-                <option value="g">g</option>
-                <option value="pct">pct</option>
-              </select>
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Estoque</span>
-              <input name="estoque_atual" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Mínimo</span>
-              <input name="estoque_minimo" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Por pessoa</span>
-              <input name="consumo_por_pessoa" type="number" min="0" step="0.01" inputMode="decimal" className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <label className="md:col-span-4 text-sm">
-              <span className="mb-1 block font-semibold text-muted-foreground">Observação</span>
-              <input name="observacoes" placeholder="Ex.: usar no café; comprar toda segunda" className="w-full rounded-md border border-border bg-background px-3 py-2" />
-            </label>
-            <div className="md:col-span-2 flex items-end">
-              <button type="submit" className="w-full rounded-md bg-pine px-4 py-2 font-semibold text-white" disabled={insertKitchenItem.isPending}>
-                Cadastrar item
-              </button>
-            </div>
-          </form>
-        )}
+          {showItemForm && (
+            <form
+              className="mb-4 grid gap-3 rounded-lg border border-border/70 bg-sage-bg/40 p-3 md:grid-cols-6"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = event.currentTarget;
+                const data = new FormData(form);
+                insertKitchenItem.mutate(
+                  {
+                    nome: String(data.get("nome") || "").trim(),
+                    categoria: String(data.get("categoria") || "Café da manhã"),
+                    unidade: String(data.get("unidade") || "un"),
+                    estoque_atual: Number(data.get("estoque_atual") || 0),
+                    estoque_minimo: Number(data.get("estoque_minimo") || 0),
+                    consumo_por_pessoa: Number(data.get("consumo_por_pessoa") || 0),
+                    observacoes: String(data.get("observacoes") || "") || null,
+                    ativo: true,
+                  },
+                  { onSuccess: () => form.reset() },
+                );
+              }}
+            >
+              <label className="md:col-span-2 text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Nome</span>
+                <input
+                  name="nome"
+                  required
+                  placeholder="Pão, leite, café..."
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Categoria</span>
+                <input
+                  name="categoria"
+                  defaultValue="Café da manhã"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Unidade</span>
+                <select
+                  name="unidade"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                >
+                  <option value="un">un</option>
+                  <option value="L">L</option>
+                  <option value="ml">ml</option>
+                  <option value="kg">kg</option>
+                  <option value="g">g</option>
+                  <option value="pct">pct</option>
+                </select>
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Estoque</span>
+                <input
+                  name="estoque_atual"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Mínimo</span>
+                <input
+                  name="estoque_minimo"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Por pessoa</span>
+                <input
+                  name="consumo_por_pessoa"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <label className="md:col-span-4 text-sm">
+                <span className="mb-1 block font-semibold text-muted-foreground">Observação</span>
+                <input
+                  name="observacoes"
+                  placeholder="Ex.: usar no café; comprar toda segunda"
+                  className="w-full rounded-md border border-border bg-background px-3 py-2"
+                />
+              </label>
+              <div className="md:col-span-2 flex items-end">
+                <button
+                  type="submit"
+                  className="w-full rounded-md bg-pine px-4 py-2 font-semibold text-white"
+                  disabled={insertKitchenItem.isPending}
+                >
+                  Cadastrar item
+                </button>
+              </div>
+            </form>
+          )}
 
-        {activeItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum item cadastrado ainda.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                  <th className="p-3">Item</th>
-                  <th className="p-3">Esperado hoje</th>
-                  <th className="p-3">Disponível hoje</th>
-                  <th className="p-3">Estoque</th>
-                  <th className="p-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeItems.map((item) => {
-                  const rows = todayProductions.filter((row) => row.item_id === item.id);
-                  const totals = sumKitchenRows(rows);
-                  const expected = Number(item.consumo_por_pessoa ?? 0) * ocupantesHoje;
-                  const status = kitchenStatus(item, totals, expected);
-                  return (
-                    <tr key={item.id} className="border-b border-border/50 align-top">
-                      <td className="p-3">
-                        <p className="font-semibold">{item.nome}</p>
-                        <p className="text-xs text-muted-foreground">{item.categoria} · {formatQty(item.consumo_por_pessoa)} {item.unidade}/pessoa</p>
-                      </td>
-                      <td className="p-3">{formatQty(expected)} {item.unidade}</td>
-                      <td className="p-3 text-xs text-muted-foreground">
-                        <p>Disponível: <span className="font-semibold text-foreground">{formatQty(totals.produzido)} {item.unidade}</span></p>
-                        <p>Servido: <span className="font-semibold text-foreground">{formatQty(totals.servido)} {item.unidade}</span></p>
-                        <p>Sobra: <span className="font-semibold text-foreground">{formatQty(totals.sobra)} {item.unidade}</span></p>
-                        <p>Perda: <span className="font-semibold text-foreground">{formatQty(totals.perda)} {item.unidade}</span></p>
-                      </td>
-                      <td className="p-3">
-                        <form
-                          className="flex min-w-[150px] gap-2"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            const data = new FormData(event.currentTarget);
-                            updateKitchenItem.mutate({
-                              id: item.id,
-                              patch: { estoque_atual: Number(data.get("estoque_atual") || 0) },
-                            });
-                          }}
-                        >
-                          <input
-                            name="estoque_atual"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            defaultValue={Number(item.estoque_atual ?? 0)}
-                            className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
-                          />
-                          <button type="submit" className="rounded-md border border-border px-2 py-1 text-xs font-semibold text-pine">
-                            Salvar
-                          </button>
-                        </form>
-                        <p className="mt-1 text-xs text-muted-foreground">Mín: {formatQty(item.estoque_minimo)} {item.unidade}</p>
-                      </td>
-                      <td className="p-3">
-                        <Badge tone={status.tone}>{status.label}</Badge>
-                        <p className="mt-1 max-w-[220px] text-xs text-muted-foreground">{status.hint}</p>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>}
-
-      {tab === "servido" && <section className="mt-5 card-surface p-5">
-        <h3 className="section-title mb-3 text-lg">Histórico recente do café</h3>
-        {latestProductions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum consumo lançado ainda.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                  <th className="p-3">Data</th>
-                  <th className="p-3">Item</th>
-                  <th className="p-3">Pessoas</th>
-                  <th className="p-3">Disponível</th>
-                  <th className="p-3">Servido</th>
-                  <th className="p-3">Sobra</th>
-                  <th className="p-3">Perda</th>
-                </tr>
-              </thead>
-              <tbody>
-                {latestProductions.map((row) => {
-                  const item = kitchenItems.find((i) => i.id === row.item_id);
-                  return (
-                    <tr key={row.id} className="border-b border-border/50">
-                      <td className="p-3">{row.data}</td>
-                      <td className="p-3 font-semibold">{item?.nome ?? "Item"}</td>
-                      <td className="p-3">{row.pessoas_servidas}</td>
-                      <td className="p-3">{formatQty(row.produzido)} {item?.unidade ?? ""}</td>
-                      <td className="p-3">{formatQty(row.servido)} {item?.unidade ?? ""}</td>
-                      <td className="p-3">{formatQty(row.sobra)} {item?.unidade ?? ""}</td>
-                      <td className="p-3">{formatQty(row.perda)} {item?.unidade ?? ""}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>}
-
-      {tab === "visao" && <section className="mt-5 card-surface p-5">
-        <h3 className="section-title mb-3 text-lg">Quartos com hóspedes</h3>
-        {rooms.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhum hospede ativo agora.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                  <th className="p-3">Quarto</th>
-                  <th className="p-3">Pessoas</th>
-                  <th className="p-3">Hospede</th>
-                  <th className="p-3">Café</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rooms.map((row) => (
-                  <tr key={row.quarto} className="border-b border-border/50">
-                    <td className="p-3 font-semibold">Quarto {row.quarto}</td>
-                    <td className="p-3">{row.pessoas}</td>
-                    <td className="p-3 text-muted-foreground">{row.hospede}</td>
-                    <td className="p-3">
-                      <button
-                        type="button"
-                        className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
-                          breakfastServedIds.includes(row.reservationId)
-                            ? "bg-sage-bg text-pine-dark"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                        onClick={() => toggleBreakfastServed(row.reservationId)}
-                      >
-                        {breakfastServedIds.includes(row.reservationId) ? "Tomou café" : "Marcar"}
-                      </button>
-                    </td>
+          {activeItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum item cadastrado ainda.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                    <th className="p-3">Item</th>
+                    <th className="p-3">Esperado hoje</th>
+                    <th className="p-3">Disponível hoje</th>
+                    <th className="p-3">Estoque</th>
+                    <th className="p-3">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>}
+                </thead>
+                <tbody>
+                  {activeItems.map((item) => {
+                    const rows = todayProductions.filter((row) => row.item_id === item.id);
+                    const totals = sumKitchenRows(rows);
+                    const expected = Number(item.consumo_por_pessoa ?? 0) * ocupantesHoje;
+                    const status = kitchenStatus(item, totals, expected);
+                    return (
+                      <tr key={item.id} className="border-b border-border/50 align-top">
+                        <td className="p-3">
+                          <p className="font-semibold">{item.nome}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.categoria} · {formatQty(item.consumo_por_pessoa)} {item.unidade}
+                            /pessoa
+                          </p>
+                        </td>
+                        <td className="p-3">
+                          {formatQty(expected)} {item.unidade}
+                        </td>
+                        <td className="p-3 text-xs text-muted-foreground">
+                          <p>
+                            Disponível:{" "}
+                            <span className="font-semibold text-foreground">
+                              {formatQty(totals.produzido)} {item.unidade}
+                            </span>
+                          </p>
+                          <p>
+                            Servido:{" "}
+                            <span className="font-semibold text-foreground">
+                              {formatQty(totals.servido)} {item.unidade}
+                            </span>
+                          </p>
+                          <p>
+                            Sobra:{" "}
+                            <span className="font-semibold text-foreground">
+                              {formatQty(totals.sobra)} {item.unidade}
+                            </span>
+                          </p>
+                          <p>
+                            Perda:{" "}
+                            <span className="font-semibold text-foreground">
+                              {formatQty(totals.perda)} {item.unidade}
+                            </span>
+                          </p>
+                        </td>
+                        <td className="p-3">
+                          <form
+                            className="flex min-w-[150px] gap-2"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              const data = new FormData(event.currentTarget);
+                              updateKitchenItem.mutate({
+                                id: item.id,
+                                patch: { estoque_atual: Number(data.get("estoque_atual") || 0) },
+                              });
+                            }}
+                          >
+                            <input
+                              name="estoque_atual"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              defaultValue={Number(item.estoque_atual ?? 0)}
+                              className="w-20 rounded-md border border-border bg-background px-2 py-1 text-sm"
+                            />
+                            <button
+                              type="submit"
+                              className="rounded-md border border-border px-2 py-1 text-xs font-semibold text-pine"
+                            >
+                              Salvar
+                            </button>
+                          </form>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Mín: {formatQty(item.estoque_minimo)} {item.unidade}
+                          </p>
+                        </td>
+                        <td className="p-3">
+                          <Badge tone={status.tone}>{status.label}</Badge>
+                          <p className="mt-1 max-w-[220px] text-xs text-muted-foreground">
+                            {status.hint}
+                          </p>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "servido" && (
+        <section className="mt-5 card-surface p-5">
+          <h3 className="section-title mb-3 text-lg">Histórico recente do café</h3>
+          {latestProductions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum consumo lançado ainda.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                    <th className="p-3">Data</th>
+                    <th className="p-3">Item</th>
+                    <th className="p-3">Pessoas</th>
+                    <th className="p-3">Disponível</th>
+                    <th className="p-3">Servido</th>
+                    <th className="p-3">Sobra</th>
+                    <th className="p-3">Perda</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {latestProductions.map((row) => {
+                    const item = kitchenItems.find((i) => i.id === row.item_id);
+                    return (
+                      <tr key={row.id} className="border-b border-border/50">
+                        <td className="p-3">{row.data}</td>
+                        <td className="p-3 font-semibold">{item?.nome ?? "Item"}</td>
+                        <td className="p-3">{row.pessoas_servidas}</td>
+                        <td className="p-3">
+                          {formatQty(row.produzido)} {item?.unidade ?? ""}
+                        </td>
+                        <td className="p-3">
+                          {formatQty(row.servido)} {item?.unidade ?? ""}
+                        </td>
+                        <td className="p-3">
+                          {formatQty(row.sobra)} {item?.unidade ?? ""}
+                        </td>
+                        <td className="p-3">
+                          {formatQty(row.perda)} {item?.unidade ?? ""}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "visao" && (
+        <section className="mt-5 card-surface p-5">
+          <h3 className="section-title mb-3 text-lg">Quartos com hóspedes</h3>
+          {rooms.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum hospede ativo agora.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                    <th className="p-3">Quarto</th>
+                    <th className="p-3">Pessoas</th>
+                    <th className="p-3">Hospede</th>
+                    <th className="p-3">Café</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rooms.map((row) => (
+                    <tr key={row.quarto} className="border-b border-border/50">
+                      <td className="p-3 font-semibold">Quarto {row.quarto}</td>
+                      <td className="p-3">{row.pessoas}</td>
+                      <td className="p-3 text-muted-foreground">{row.hospede}</td>
+                      <td className="p-3">
+                        <button
+                          type="button"
+                          className={`rounded-md px-3 py-1.5 text-xs font-semibold ${
+                            breakfastServedIds.includes(row.reservationId)
+                              ? "bg-sage-bg text-pine-dark"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                          onClick={() => toggleBreakfastServed(row.reservationId)}
+                        >
+                          {breakfastServedIds.includes(row.reservationId) ? "Tomou café" : "Marcar"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }
@@ -1604,7 +2145,10 @@ function SectorStockPanel({
   const [open, setOpen] = useState(false);
   const lowItems = items.filter(isLowStock);
   const stockText = lowItems
-    .map((item) => `- ${item.nome}: ${formatQty(item.estoque_atual)} ${item.unidade} (mínimo ${formatQty(item.estoque_minimo)})`)
+    .map(
+      (item) =>
+        `- ${item.nome}: ${formatQty(item.estoque_atual)} ${item.unidade} (mínimo ${formatQty(item.estoque_minimo)})`,
+    )
     .join("\n");
 
   return (
@@ -1625,16 +2169,35 @@ function SectorStockPanel({
               Avisar dono
             </a>
           )}
-          <button type="button" className="rounded-md bg-brass px-3 py-2 text-xs font-semibold text-pine-dark" onClick={() => setOpen((value) => !value)}>
+          <button
+            type="button"
+            className="rounded-md bg-brass px-3 py-2 text-xs font-semibold text-pine-dark"
+            onClick={() => setOpen((value) => !value)}
+          >
             {open ? "Fechar" : "Novo item"}
           </button>
         </div>
       </div>
 
       <div className="mb-3 grid grid-cols-3 gap-2">
-        <Stat icon={<ClipboardCheck />} label="Itens" value={String(items.length)} hint="Ativos no setor" />
-        <Stat icon={<AlertTriangle />} label="Reposição" value={String(lowItems.length)} hint="Abaixo do mínimo" />
-        <Stat icon={<TrendingDown />} label="Críticos" value={String(lowItems.filter((item) => Number(item.estoque_atual ?? 0) === 0).length)} hint="Estoque zerado" />
+        <Stat
+          icon={<ClipboardCheck />}
+          label="Itens"
+          value={String(items.length)}
+          hint="Ativos no setor"
+        />
+        <Stat
+          icon={<AlertTriangle />}
+          label="Reposição"
+          value={String(lowItems.length)}
+          hint="Abaixo do mínimo"
+        />
+        <Stat
+          icon={<TrendingDown />}
+          label="Críticos"
+          value={String(lowItems.filter((item) => Number(item.estoque_atual ?? 0) === 0).length)}
+          hint="Estoque zerado"
+        />
       </div>
 
       {open && (
@@ -1686,7 +2249,9 @@ function SectorStockPanel({
             <input name="estoque_minimo" type="number" min="0" step="0.01" className="field" />
           </label>
           <label className="text-sm">
-            <span className="mb-1 block font-semibold text-muted-foreground">Uso por quarto/pessoa</span>
+            <span className="mb-1 block font-semibold text-muted-foreground">
+              Uso por quarto/pessoa
+            </span>
             <input name="consumo_por_pessoa" type="number" min="0" step="0.01" className="field" />
           </label>
           <label className="md:col-span-2 text-sm">
@@ -1694,7 +2259,11 @@ function SectorStockPanel({
             <input name="observacoes" placeholder="Ex.: repor toda sexta" className="field" />
           </label>
           <div className="flex items-end">
-            <button type="submit" className="btn-primary w-full" disabled={insertKitchenItem.isPending}>
+            <button
+              type="submit"
+              className="btn-primary w-full"
+              disabled={insertKitchenItem.isPending}
+            >
               Cadastrar
             </button>
           </div>
@@ -1702,7 +2271,9 @@ function SectorStockPanel({
       )}
 
       {items.length === 0 ? (
-        <p className="rounded-md border border-border/70 p-3 text-sm text-muted-foreground">Nenhum item cadastrado para este setor.</p>
+        <p className="rounded-md border border-border/70 p-3 text-sm text-muted-foreground">
+          Nenhum item cadastrado para este setor.
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1733,13 +2304,26 @@ function SectorStockPanel({
                         });
                       }}
                     >
-                      <input name="estoque_atual" type="number" min="0" step="0.01" defaultValue={Number(item.estoque_atual ?? 0)} className="w-20 rounded-md border border-border bg-background px-2 py-1" />
-                      <button className="rounded-md border border-border px-2 py-1 text-xs font-semibold text-pine">Salvar</button>
+                      <input
+                        name="estoque_atual"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        defaultValue={Number(item.estoque_atual ?? 0)}
+                        className="w-20 rounded-md border border-border bg-background px-2 py-1"
+                      />
+                      <button className="rounded-md border border-border px-2 py-1 text-xs font-semibold text-pine">
+                        Salvar
+                      </button>
                     </form>
                   </td>
-                  <td className="p-2">{formatQty(item.estoque_minimo)} {item.unidade}</td>
                   <td className="p-2">
-                    <Badge tone={isLowStock(item) ? "brick" : "pine"}>{isLowStock(item) ? "Repor" : "Ok"}</Badge>
+                    {formatQty(item.estoque_minimo)} {item.unidade}
+                  </td>
+                  <td className="p-2">
+                    <Badge tone={isLowStock(item) ? "brick" : "pine"}>
+                      {isLowStock(item) ? "Repor" : "Ok"}
+                    </Badge>
                   </td>
                 </tr>
               ))}
@@ -1754,7 +2338,11 @@ function SectorStockPanel({
 function AlertList({ items }: { items: string[] }) {
   const visible = items.filter(Boolean);
   if (visible.length === 0) {
-    return <p className="rounded-md bg-sage-bg/60 px-3 py-2 text-sm text-pine-dark">Sem alertas críticos agora.</p>;
+    return (
+      <p className="rounded-md bg-sage-bg/60 px-3 py-2 text-sm text-pine-dark">
+        Sem alertas críticos agora.
+      </p>
+    );
   }
   return (
     <ul className="space-y-2 text-sm">
@@ -1768,7 +2356,11 @@ function AlertList({ items }: { items: string[] }) {
   );
 }
 
-function cleaningWhatsAppUrl(request: { quarto?: number | null; categoria: string; descricao?: string | null }) {
+function cleaningWhatsAppUrl(request: {
+  quarto?: number | null;
+  categoria: string;
+  descricao?: string | null;
+}) {
   const message = [
     "Hotel Real - solicitacao para a limpeza",
     `Quarto: ${request.quarto ?? "-"}`,
@@ -1784,7 +2376,8 @@ function cleaningWhatsAppUrl(request: { quarto?: number | null; categoria: strin
 function StaffSalesSummary({ sales }: { sales: Sale[] }) {
   const rows = groupMoney(
     sales,
-    (sale) => sale.created_by ? `Funcionário ${sale.created_by.slice(0, 8)}` : "Sem funcionário informado",
+    (sale) =>
+      sale.created_by ? `Funcionário ${sale.created_by.slice(0, 8)}` : "Sem funcionário informado",
     (sale) => Number(sale.total ?? 0),
   )
     .sort((a, b) => b.valor - a.valor)
@@ -1798,7 +2391,10 @@ function StaffSalesSummary({ sales }: { sales: Sale[] }) {
       ) : (
         <div className="space-y-2">
           {rows.map((row) => (
-            <div key={row.nome} className="flex items-center justify-between rounded-md bg-sage-bg/45 px-3 py-2 text-sm">
+            <div
+              key={row.nome}
+              className="flex items-center justify-between rounded-md bg-sage-bg/45 px-3 py-2 text-sm"
+            >
               <span className="font-semibold">{row.nome}</span>
               <span>{fmtBRL(row.valor)}</span>
             </div>
@@ -1811,13 +2407,27 @@ function StaffSalesSummary({ sales }: { sales: Sale[] }) {
 
 function EmployeeConsumptionSummary({ sales }: { sales: Sale[] }) {
   const internalSales = sales.filter((sale) => {
-    const text = `${sale.categoria ?? ""} ${sale.item ?? ""} ${sale.observacoes ?? ""}`.toLocaleLowerCase("pt-BR");
-    return text.includes("funcionario") || text.includes("funcionário") || text.includes("interno") || text.includes("agua") || text.includes("água");
+    const text =
+      `${sale.categoria ?? ""} ${sale.item ?? ""} ${sale.observacoes ?? ""}`.toLocaleLowerCase(
+        "pt-BR",
+      );
+    return (
+      text.includes("funcionario") ||
+      text.includes("funcionário") ||
+      text.includes("interno") ||
+      text.includes("agua") ||
+      text.includes("água")
+    );
   });
   const waterQty = internalSales
-    .filter((sale) => `${sale.item} ${sale.categoria ?? ""}`.toLocaleLowerCase("pt-BR").includes("gua"))
+    .filter((sale) =>
+      `${sale.item} ${sale.categoria ?? ""}`.toLocaleLowerCase("pt-BR").includes("gua"),
+    )
     .reduce((sum, sale) => sum + Number(sale.qtd ?? 0), 0);
-  const limitHint = waterQty > 0 ? `${formatQty(waterQty)} unidade(s) lançadas. Regra: 2 litros por funcionário/dia.` : "Regra sugerida: 2 litros por funcionário/dia.";
+  const limitHint =
+    waterQty > 0
+      ? `${formatQty(waterQty)} unidade(s) lançadas. Regra: 2 litros por funcionário/dia.`
+      : "Regra sugerida: 2 litros por funcionário/dia.";
 
   return (
     <section className="card-surface border-t-4 border-t-brass p-4">
@@ -1826,7 +2436,9 @@ function EmployeeConsumptionSummary({ sales }: { sales: Sale[] }) {
         <MiniMetric label="Lançamentos internos" value={String(internalSales.length)} />
         <MiniMetric label="Água funcionários" value={formatQty(waterQty)} />
       </div>
-      <p className="mt-3 rounded-md bg-brass-bg/55 px-3 py-2 text-xs text-[oklch(0.36_0.05_74)]">{limitHint}</p>
+      <p className="mt-3 rounded-md bg-brass-bg/55 px-3 py-2 text-xs text-[oklch(0.36_0.05_74)]">
+        {limitHint}
+      </p>
     </section>
   );
 }
@@ -1871,8 +2483,16 @@ function RevenueExpenseHighlights({
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 6);
   const chartRows = [
-    { nome: "Receitas", valor: revenueRows.reduce((sum, row) => sum + row.valor, 0), fill: "var(--pine)" },
-    { nome: "Despesas", valor: expenseRows.reduce((sum, row) => sum + row.valor, 0), fill: "var(--brick)" },
+    {
+      nome: "Receitas",
+      valor: revenueRows.reduce((sum, row) => sum + row.valor, 0),
+      fill: "var(--pine)",
+    },
+    {
+      nome: "Despesas",
+      valor: expenseRows.reduce((sum, row) => sum + row.valor, 0),
+      fill: "var(--brick)",
+    },
   ];
 
   return (
@@ -1880,7 +2500,9 @@ function RevenueExpenseHighlights({
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
         <div>
           <h3 className="section-title text-base">Receitas x despesas</h3>
-          <p className="text-xs text-muted-foreground">Mostra o que mais gera dinheiro e o que mais pesa no caixa.</p>
+          <p className="text-xs text-muted-foreground">
+            Mostra o que mais gera dinheiro e o que mais pesa no caixa.
+          </p>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.8fr_1.2fr]">
@@ -1924,12 +2546,35 @@ function OperationalReports({
   const receptionItems = kitchenItems.filter((item) => item.ativo && sectorMatch(item, "recepcao"));
   const todayKitchen = kitchenProductions.filter((row) => row.data === today);
   const served = todayKitchen.reduce((sum, row) => sum + Number(row.servido ?? 0), 0);
-  const waste = todayKitchen.reduce((sum, row) => sum + Number(row.sobra ?? 0) + Number(row.perda ?? 0), 0);
+  const waste = todayKitchen.reduce(
+    (sum, row) => sum + Number(row.sobra ?? 0) + Number(row.perda ?? 0),
+    0,
+  );
   const reports = [
-    { area: "Café", principal: `${formatQty(served)} consumido`, alerta: `${cafeItems.filter(isLowStock).length} reposição`, fill: "var(--brass)" },
-    { area: "Limpeza", principal: `${cleaningRooms} quarto(s)`, alerta: `${cleaningItems.filter(isLowStock).length} reposição`, fill: "var(--sage)" },
-    { area: "Recepção", principal: `${receptionItems.length} item(ns)`, alerta: `${receptionItems.filter(isLowStock).length} reposição`, fill: "var(--pine)" },
-    { area: "Manutenção", principal: `${maintenanceRooms} quarto(s)`, alerta: `${formatQty(waste)} sobra/perda`, fill: "var(--brick)" },
+    {
+      area: "Café",
+      principal: `${formatQty(served)} consumido`,
+      alerta: `${cafeItems.filter(isLowStock).length} reposição`,
+      fill: "var(--brass)",
+    },
+    {
+      area: "Limpeza",
+      principal: `${cleaningRooms} quarto(s)`,
+      alerta: `${cleaningItems.filter(isLowStock).length} reposição`,
+      fill: "var(--sage)",
+    },
+    {
+      area: "Recepção",
+      principal: `${receptionItems.length} item(ns)`,
+      alerta: `${receptionItems.filter(isLowStock).length} reposição`,
+      fill: "var(--pine)",
+    },
+    {
+      area: "Manutenção",
+      principal: `${maintenanceRooms} quarto(s)`,
+      alerta: `${formatQty(waste)} sobra/perda`,
+      fill: "var(--brick)",
+    },
   ];
 
   return (
@@ -1937,7 +2582,10 @@ function OperationalReports({
       <h3 className="section-title mb-3 text-base">Relatórios por área</h3>
       <div className="grid grid-cols-2 gap-2">
         {reports.map((row) => (
-          <div key={row.area} className="rounded-md border border-border/70 bg-background px-3 py-2">
+          <div
+            key={row.area}
+            className="rounded-md border border-border/70 bg-background px-3 py-2"
+          >
             <div className="mb-1 h-1 rounded-full" style={{ background: row.fill }} />
             <p className="text-xs font-semibold uppercase text-muted-foreground">{row.area}</p>
             <p className="font-serif text-lg font-bold leading-tight">{row.principal}</p>
@@ -1946,13 +2594,22 @@ function OperationalReports({
         ))}
       </div>
       <div className="mt-3 rounded-md bg-sage-bg/55 px-3 py-2 text-xs text-pine-dark">
-        Use esta leitura para comprar só o necessário: estoque baixo vira alerta, sobra/perda indica preparo acima da demanda.
+        Use esta leitura para comprar só o necessário: estoque baixo vira alerta, sobra/perda indica
+        preparo acima da demanda.
       </div>
     </section>
   );
 }
 
-function TopMoneyTable({ title, rows, empty }: { title: string; rows: { nome: string; valor: number }[]; empty: string }) {
+function TopMoneyTable({
+  title,
+  rows,
+  empty,
+}: {
+  title: string;
+  rows: { nome: string; valor: number }[];
+  empty: string;
+}) {
   return (
     <div>
       <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{title}</p>
@@ -1961,7 +2618,10 @@ function TopMoneyTable({ title, rows, empty }: { title: string; rows: { nome: st
       ) : (
         <div className="space-y-1.5">
           {rows.map((row) => (
-            <div key={row.nome} className="flex items-center justify-between gap-3 rounded-md bg-background px-3 py-2 text-sm">
+            <div
+              key={row.nome}
+              className="flex items-center justify-between gap-3 rounded-md bg-background px-3 py-2 text-sm"
+            >
               <span className="min-w-0 truncate">{row.nome}</span>
               <span className="shrink-0 font-semibold">{fmtBRL(row.valor)}</span>
             </div>
@@ -2008,7 +2668,10 @@ function buildKitchenChart(items: KitchenItem[], rows: KitchenProduction[], peop
         perda: totals.perda,
       };
     })
-    .filter((row) => row.esperado > 0 || row.produzido > 0 || row.servido > 0 || row.sobra > 0 || row.perda > 0);
+    .filter(
+      (row) =>
+        row.esperado > 0 || row.produzido > 0 || row.servido > 0 || row.sobra > 0 || row.perda > 0,
+    );
 }
 
 function isLowStock(item: KitchenItem) {
@@ -2018,20 +2681,45 @@ function isLowStock(item: KitchenItem) {
 function sectorMatch(item: KitchenItem, sector: "cafe" | "limpeza" | "recepcao") {
   const text = normalizeText(`${item.categoria} ${item.observacoes ?? ""}`);
   if (sector === "cafe") {
-    return text.includes("cafe") || text.includes("cozinha") || text.includes("alimento") || text.includes("bebida");
+    return (
+      text.includes("cafe") ||
+      text.includes("cozinha") ||
+      text.includes("alimento") ||
+      text.includes("bebida")
+    );
   }
   if (sector === "limpeza") {
-    return text.includes("limpeza") || text.includes("quarto") || text.includes("papel") || text.includes("toalha");
+    return (
+      text.includes("limpeza") ||
+      text.includes("quarto") ||
+      text.includes("papel") ||
+      text.includes("toalha")
+    );
   }
-  return text.includes("recepc") || text.includes("administr") || text.includes("sulfite") || text.includes("internet") || text.includes("caneta");
+  return (
+    text.includes("recepc") ||
+    text.includes("administr") ||
+    text.includes("sulfite") ||
+    text.includes("internet") ||
+    text.includes("caneta")
+  );
 }
 
-function kitchenStatus(item: KitchenItem, totals: ReturnType<typeof sumKitchenRows>, expected: number): { label: string; hint: string; tone: "pine" | "brass" | "brick" | "muted" } {
+function kitchenStatus(
+  item: KitchenItem,
+  totals: ReturnType<typeof sumKitchenRows>,
+  expected: number,
+): { label: string; hint: string; tone: "pine" | "brass" | "brick" | "muted" } {
   const stock = Number(item.estoque_atual ?? 0);
   const minimum = Number(item.estoque_minimo ?? 0);
-  if (stock <= minimum) return { label: "Repor", hint: "Estoque no mínimo ou abaixo do mínimo.", tone: "brick" };
+  if (stock <= minimum)
+    return { label: "Repor", hint: "Estoque no mínimo ou abaixo do mínimo.", tone: "brick" };
   if (totals.produzido > 0 && totals.sobra > totals.produzido * 0.25) {
-    return { label: "Sobra alta", hint: "Sobrou mais de 25% do preparado. Pode reduzir na próxima vez.", tone: "brass" };
+    return {
+      label: "Sobra alta",
+      hint: "Sobrou mais de 25% do preparado. Pode reduzir na próxima vez.",
+      tone: "brass",
+    };
   }
   if (expected > 0 && totals.servido > expected * 1.2) {
     return { label: "Consumo alto", hint: "Consumo acima do esperado por pessoa.", tone: "brass" };
@@ -2047,16 +2735,28 @@ function formatQty(value: number | string | null | undefined) {
 
 function compactBRL(value: number) {
   const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `R$ ${(value / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
-  if (abs >= 10_000) return `R$ ${(value / 1_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;
+  if (abs >= 1_000_000)
+    return `R$ ${(value / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mi`;
+  if (abs >= 10_000)
+    return `R$ ${(value / 1_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil`;
   return fmtBRL(value);
 }
 
 function normalizeText(value: string) {
-  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }
 
-const CHART_COLORS = ["var(--pine)", "var(--brass)", "var(--sage)", "var(--brick)", "oklch(0.48 0.08 190)", "oklch(0.55 0.11 300)"];
+const CHART_COLORS = [
+  "var(--pine)",
+  "var(--brass)",
+  "var(--sage)",
+  "var(--brick)",
+  "oklch(0.48 0.08 190)",
+  "oklch(0.55 0.11 300)",
+];
 
 function ChannelStrategy({ reservations, sales }: { reservations: Reservation[]; sales: Sale[] }) {
   const rows = channelMetrics(reservations, sales);
@@ -2069,7 +2769,14 @@ function ChannelStrategy({ reservations, sales }: { reservations: Reservation[];
         <div className="grid gap-2 xl:grid-cols-[160px_1fr]">
           <ResponsiveContainer width="100%" height={150}>
             <PieChart>
-              <Pie data={rows} dataKey="liquido" nameKey="canal" innerRadius={34} outerRadius={62} paddingAngle={2}>
+              <Pie
+                data={rows}
+                dataKey="liquido"
+                nameKey="canal"
+                innerRadius={34}
+                outerRadius={62}
+                paddingAngle={2}
+              >
                 {rows.map((row, index) => (
                   <Cell key={row.canal} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                 ))}
@@ -2107,14 +2814,28 @@ function ChannelStrategy({ reservations, sales }: { reservations: Reservation[];
 
 function channelMetrics(reservations: Reservation[], sales: Sale[]) {
   const byReservation = new Map<string, number>();
-  sales.forEach((sale) => sale.reserva_id && byReservation.set(sale.reserva_id, (byReservation.get(sale.reserva_id) ?? 0) + Number(sale.total)));
-  const map = new Map<string, { canal: string; bruto: number; comissao: number; liquido: number }>();
+  sales.forEach(
+    (sale) =>
+      sale.reserva_id &&
+      byReservation.set(
+        sale.reserva_id,
+        (byReservation.get(sale.reserva_id) ?? 0) + Number(sale.total),
+      ),
+  );
+  const map = new Map<
+    string,
+    { canal: string; bruto: number; comissao: number; liquido: number }
+  >();
   reservations
     .filter((r) => r.status !== "cancelado")
     .forEach((reservation) => {
       const canal = reservation.canal || "Direto";
       const bruto = Number(reservation.valor_total) + (byReservation.get(reservation.id) ?? 0);
-      const taxa = normalizeText(canal).includes("booking") ? 0.15 : normalizeText(canal).includes("airbnb") ? 0.12 : 0;
+      const taxa = normalizeText(canal).includes("booking")
+        ? 0.15
+        : normalizeText(canal).includes("airbnb")
+          ? 0.12
+          : 0;
       const comissao = bruto * taxa;
       const current = map.get(canal) ?? { canal, bruto: 0, comissao: 0, liquido: 0 };
       current.bruto += bruto;
@@ -2128,8 +2849,12 @@ function channelMetrics(reservations: Reservation[], sales: Sale[]) {
 function GuestDemographics({ clients }: { clients: Client[] }) {
   const genderRows = pieRows(clients, "sexo", "Não informado");
   const civilRows = pieRows(clients, "estado_civil", "Não informado");
-  const ages = clients.map((client) => ageFromBirthdate(client.data_nascimento)).filter((age): age is number => age != null);
-  const avgAge = ages.length ? Math.round(ages.reduce((sum, age) => sum + age, 0) / ages.length) : 0;
+  const ages = clients
+    .map((client) => ageFromBirthdate(client.data_nascimento))
+    .filter((age): age is number => age != null);
+  const avgAge = ages.length
+    ? Math.round(ages.reduce((sum, age) => sum + age, 0) / ages.length)
+    : 0;
 
   return (
     <section className="card-surface border-l-4 border-l-sage bg-[linear-gradient(90deg,rgba(88,139,105,0.12),var(--card)_28%)] p-3">
@@ -2158,7 +2883,14 @@ function MiniPie({ title, rows }: { title: string; rows: { name: string; value: 
         <div className="grid grid-cols-[100px_1fr] items-center gap-2">
           <ResponsiveContainer width="100%" height={100}>
             <PieChart>
-              <Pie data={rows} dataKey="value" nameKey="name" innerRadius={24} outerRadius={42} paddingAngle={2}>
+              <Pie
+                data={rows}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={24}
+                outerRadius={42}
+                paddingAngle={2}
+              >
                 {rows.map((row, index) => (
                   <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                 ))}
@@ -2170,7 +2902,10 @@ function MiniPie({ title, rows }: { title: string; rows: { name: string; value: 
             {rows.slice(0, 5).map((row, index) => (
               <div key={row.name} className="flex items-center justify-between gap-2">
                 <span className="flex min-w-0 items-center gap-1">
-                  <span className="h-2 w-2 rounded-full" style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ background: CHART_COLORS[index % CHART_COLORS.length] }}
+                  />
                   <span className="truncate">{row.name}</span>
                 </span>
                 <span className="font-semibold">{row.value}</span>
@@ -2242,7 +2977,9 @@ function ClientStateMap({ clients }: { clients: Client[] }) {
                   <div className="h-2 overflow-hidden rounded-full bg-sage-bg">
                     <div className="h-full rounded-full bg-brass" style={{ width: `${pct}%` }} />
                   </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{pct}% dos clientes com estado</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {pct}% dos clientes com estado
+                  </p>
                 </div>
               );
             })}
@@ -2258,7 +2995,15 @@ function ClientStateMap({ clients }: { clients: Client[] }) {
   );
 }
 
-function CustomerRetention({ clients, reservations, today }: { clients: Client[]; reservations: Reservation[]; today: string }) {
+function CustomerRetention({
+  clients,
+  reservations,
+  today,
+}: {
+  clients: Client[];
+  reservations: Reservation[];
+  today: string;
+}) {
   const rows = retentionRows(clients, reservations, today);
   const fixedClients = rows.filter((row) => normalizeText(row.tipo).includes("fixo")).slice(0, 7);
   const companies = rows.filter((row) => normalizeText(row.tipo).includes("empresa")).slice(0, 7);
@@ -2266,19 +3011,37 @@ function CustomerRetention({ clients, reservations, today }: { clients: Client[]
     <section className="card-surface p-4">
       <h3 className="section-title mb-3 text-base">Retenção e recorrência</h3>
       <div className="grid gap-4 xl:grid-cols-2">
-        <RetentionTable title="Clientes fixos" rows={fixedClients} empty="Marque clientes como fixos no cadastro." />
-        <RetentionTable title="Empresas" rows={companies} empty="Cadastre empresas/clientes empresa para acompanhar receita." />
+        <RetentionTable
+          title="Clientes fixos"
+          rows={fixedClients}
+          empty="Marque clientes como fixos no cadastro."
+        />
+        <RetentionTable
+          title="Empresas"
+          rows={companies}
+          empty="Cadastre empresas/clientes empresa para acompanhar receita."
+        />
       </div>
     </section>
   );
 }
 
-function RetentionTable({ title, rows, empty }: { title: string; rows: RetentionRow[]; empty: string }) {
+function RetentionTable({
+  title,
+  rows,
+  empty,
+}: {
+  title: string;
+  rows: RetentionRow[];
+  empty: string;
+}) {
   return (
     <div>
       <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">{title}</p>
       {rows.length === 0 ? (
-        <p className="rounded-lg border border-border/70 p-3 text-sm text-muted-foreground">{empty}</p>
+        <p className="rounded-lg border border-border/70 p-3 text-sm text-muted-foreground">
+          {empty}
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -2295,10 +3058,21 @@ function RetentionTable({ title, rows, empty }: { title: string; rows: Retention
                 <tr key={row.id} className="border-b border-border/50">
                   <td className="p-2 font-semibold">{row.nome}</td>
                   <td className="p-2">{fmtBRL(row.receita)}</td>
-                  <td className="p-2">{row.intervaloMedio ? `${row.intervaloMedio} dias` : "novo"}</td>
+                  <td className="p-2">
+                    {row.intervaloMedio ? `${row.intervaloMedio} dias` : "novo"}
+                  </td>
                   <td className="p-2">
                     {row.whatsappUrl ? (
-                      <a className={row.atrasado ? "font-semibold text-brick hover:underline" : "text-pine hover:underline"} href={row.whatsappUrl} target="_blank" rel="noopener">
+                      <a
+                        className={
+                          row.atrasado
+                            ? "font-semibold text-brick hover:underline"
+                            : "text-pine hover:underline"
+                        }
+                        href={row.whatsappUrl}
+                        target="_blank"
+                        rel="noopener"
+                      >
                         {row.atrasado ? "Chamar" : "WhatsApp"}
                       </a>
                     ) : (
@@ -2315,7 +3089,15 @@ function RetentionTable({ title, rows, empty }: { title: string; rows: Retention
   );
 }
 
-function PricingSuggestion({ reservations, rooms, today }: { reservations: Reservation[]; rooms: Room[]; today: string }) {
+function PricingSuggestion({
+  reservations,
+  rooms,
+  today,
+}: {
+  reservations: Reservation[];
+  rooms: Room[];
+  today: string;
+}) {
   const next7 = futureOccupancy(reservations, rooms.length, today, 7);
   const next14 = futureOccupancy(reservations, rooms.length, today, 14);
   const weekend = [0, 5, 6].includes(new Date(`${today}T00:00:00`).getDay());
@@ -2333,15 +3115,32 @@ function PricingSuggestion({ reservations, rooms, today }: { reservations: Reser
     <section className="card-surface border-l-4 border-l-brass bg-[linear-gradient(90deg,rgba(208,178,91,0.14),var(--card)_30%)] p-3">
       <h3 className="section-title mb-2 text-sm">Preço dinâmico simples</h3>
       <div className="grid grid-cols-2 gap-2">
-        <Stat icon={<BedDouble />} label="Ocup. 7 dias" value={`${next7}%`} hint="Reservas futuras" />
-        <Stat icon={<CalendarClock />} label="Ocup. 14 dias" value={`${next14}%`} hint="Tendência próxima" />
+        <Stat
+          icon={<BedDouble />}
+          label="Ocup. 7 dias"
+          value={`${next7}%`}
+          hint="Reservas futuras"
+        />
+        <Stat
+          icon={<CalendarClock />}
+          label="Ocup. 14 dias"
+          value={`${next14}%`}
+          hint="Tendência próxima"
+        />
       </div>
-      <p className="mt-2 rounded-md bg-sage-bg/60 px-3 py-2 text-xs font-semibold text-pine-dark">{suggestion}</p>
+      <p className="mt-2 rounded-md bg-sage-bg/60 px-3 py-2 text-xs font-semibold text-pine-dark">
+        {suggestion}
+      </p>
     </section>
   );
 }
 
-function futureOccupancy(reservations: Reservation[], roomCount: number, today: string, days: number) {
+function futureOccupancy(
+  reservations: Reservation[],
+  roomCount: number,
+  today: string,
+  days: number,
+) {
   if (!roomCount) return 0;
   const start = new Date(`${today}T00:00:00`);
   const end = new Date(start);
@@ -2369,19 +3168,29 @@ function buildForecastSeries(reservations: Reservation[], roomCount: number, tod
       key,
       label: `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`,
       ocupacao: roomCount ? Math.round((active.length / roomCount) * 100) : 0,
-      receita: active.reduce((sum, reservation) => sum + Number(reservation.valor_diaria ?? reservation.valor_total ?? 0), 0),
+      receita: active.reduce(
+        (sum, reservation) =>
+          sum + Number(reservation.valor_diaria ?? reservation.valor_total ?? 0),
+        0,
+      ),
     };
   });
 }
 
-function shouldWarnMissingExpenses(expenses: Expense[], reservations: Reservation[], today: string) {
+function shouldWarnMissingExpenses(
+  expenses: Expense[],
+  reservations: Reservation[],
+  today: string,
+) {
   const base = new Date(`${today}T00:00:00`);
   const days = Array.from({ length: 6 }, (_, index) => {
     const date = new Date(base);
     date.setDate(base.getDate() - index);
     return date.toISOString().slice(0, 10);
   });
-  const hasExpenses = days.some((day) => expenses.some((expense) => expense.data === day && Number(expense.valor ?? 0) > 0));
+  const hasExpenses = days.some((day) =>
+    expenses.some((expense) => expense.data === day && Number(expense.valor ?? 0) > 0),
+  );
   const hadOccupancy = days.some((day) =>
     reservations.some(
       (reservation) =>
@@ -2418,12 +3227,17 @@ function TodayList({
       ) : (
         <div className="space-y-2">
           {reservations.slice(0, 8).map((reservation) => (
-            <div key={reservation.id} className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2">
+            <div
+              key={reservation.id}
+              className="flex items-center justify-between rounded-md border border-border/70 px-3 py-2"
+            >
               <div>
                 <p className="font-semibold">Quarto {reservation.quarto}</p>
                 <p className="text-xs text-muted-foreground">{reservationGuestName(reservation)}</p>
               </div>
-              <Badge tone={reservation.pago ? "pine" : "brass"}>{reservation.pago ? "Pago" : "Pendente"}</Badge>
+              <Badge tone={reservation.pago ? "pine" : "brass"}>
+                {reservation.pago ? "Pago" : "Pendente"}
+              </Badge>
             </div>
           ))}
         </div>
@@ -2432,9 +3246,20 @@ function TodayList({
   );
 }
 
-function QuickLink({ to, icon, label }: { to: "/mapa" | "/reservas" | "/clientes" | "/vendas"; icon: React.ReactNode; label: string }) {
+function QuickLink({
+  to,
+  icon,
+  label,
+}: {
+  to: "/mapa" | "/reservas" | "/clientes" | "/vendas";
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
-    <Link to={to} className="card-surface flex items-center gap-3 p-4 text-sm font-semibold text-pine-dark transition hover:border-pine/40 hover:bg-sage-bg/50">
+    <Link
+      to={to}
+      className="card-surface flex items-center gap-3 p-4 text-sm font-semibold text-pine-dark transition hover:border-pine/40 hover:bg-sage-bg/50"
+    >
       <span className="rounded-md bg-sage-bg p-2 text-pine [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
       {label}
     </Link>
@@ -2443,7 +3268,8 @@ function QuickLink({ to, icon, label }: { to: "/mapa" | "/reservas" | "/clientes
 
 function reservationGuestName(reservation: Reservation) {
   return String(
-    (reservation as { hospede?: string | null; hospede_nome?: string | null; nome?: string | null }).hospede ??
+    (reservation as { hospede?: string | null; hospede_nome?: string | null; nome?: string | null })
+      .hospede ??
       (reservation as { hospede_nome?: string | null }).hospede_nome ??
       (reservation as { nome?: string | null }).nome ??
       "Hospede",
@@ -2549,7 +3375,9 @@ function normalizeState(value: string) {
   if (!text) return "";
   const raw = value.trim().toUpperCase();
   if (BRAZIL_STATE_NAMES[raw]) return raw;
-  const found = Object.entries(BRAZIL_STATE_NAMES).find(([, name]) => normalizeText(name).replace(/[^a-z]/g, "") === text);
+  const found = Object.entries(BRAZIL_STATE_NAMES).find(
+    ([, name]) => normalizeText(name).replace(/[^a-z]/g, "") === text,
+  );
   if (found) return found[0];
   if (text === "minas" || text === "minasgeraismg") return "MG";
   if (text === "saopaulo" || text === "sp") return "SP";
@@ -2557,10 +3385,16 @@ function normalizeState(value: string) {
   return "";
 }
 
-function retentionRows(clients: Client[], reservations: Reservation[], today: string): RetentionRow[] {
+function retentionRows(
+  clients: Client[],
+  reservations: Reservation[],
+  today: string,
+): RetentionRow[] {
   const reservationByClient = new Map<string, Reservation[]>();
   reservations
-    .filter((reservation) => reservation.status !== "cancelado" && reservation.status !== "manutencao")
+    .filter(
+      (reservation) => reservation.status !== "cancelado" && reservation.status !== "manutencao",
+    )
     .forEach((reservation) => {
       const clientId = (reservation as { cliente_id?: string | null }).cliente_id;
       if (!clientId) return;
@@ -2571,12 +3405,18 @@ function retentionRows(clients: Client[], reservations: Reservation[], today: st
 
   return clients
     .map((client) => {
-      const list = (reservationByClient.get(client.id) ?? []).sort((a, b) => a.checkin.localeCompare(b.checkin));
-      const receita = list.reduce((sum, reservation) => sum + Number(reservation.valor_total ?? reservation.valor_pago ?? 0), 0);
+      const list = (reservationByClient.get(client.id) ?? []).sort((a, b) =>
+        a.checkin.localeCompare(b.checkin),
+      );
+      const receita = list.reduce(
+        (sum, reservation) => sum + Number(reservation.valor_total ?? reservation.valor_pago ?? 0),
+        0,
+      );
       const intervaloMedio = averageIntervalDays(list);
       const last = list.at(-1)?.checkout || list.at(-1)?.checkin || null;
       const daysSinceLast = last ? diffDays(last, today) : 0;
-      const atrasado = !!last && daysSinceLast > Math.max(30, Math.round(intervaloMedio * 1.5 || 30));
+      const atrasado =
+        !!last && daysSinceLast > Math.max(30, Math.round(intervaloMedio * 1.5 || 30));
       return {
         id: client.id,
         nome: client.nome,
@@ -2587,7 +3427,12 @@ function retentionRows(clients: Client[], reservations: Reservation[], today: st
         whatsappUrl: whatsappRetentionUrl(client, atrasado),
       };
     })
-    .filter((row) => row.receita > 0 || normalizeText(row.tipo).includes("fixo") || normalizeText(row.tipo).includes("empresa"))
+    .filter(
+      (row) =>
+        row.receita > 0 ||
+        normalizeText(row.tipo).includes("fixo") ||
+        normalizeText(row.tipo).includes("empresa"),
+    )
     .sort((a, b) => b.receita - a.receita);
 }
 
@@ -2604,7 +3449,12 @@ function averageIntervalDays(reservations: Reservation[]) {
   if (reservations.length < 2) return 0;
   const intervals: number[] = [];
   for (let i = 1; i < reservations.length; i++) {
-    intervals.push(diffDays(reservations[i - 1].checkout || reservations[i - 1].checkin, reservations[i].checkin));
+    intervals.push(
+      diffDays(
+        reservations[i - 1].checkout || reservations[i - 1].checkin,
+        reservations[i].checkin,
+      ),
+    );
   }
   return Math.round(intervals.reduce((sum, days) => sum + days, 0) / intervals.length);
 }
@@ -2616,7 +3466,8 @@ function ageFromBirthdate(value: string | null) {
   const now = new Date();
   let age = now.getFullYear() - birth.getFullYear();
   const hadBirthday =
-    now.getMonth() > birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() >= birth.getDate());
+    now.getMonth() > birth.getMonth() ||
+    (now.getMonth() === birth.getMonth() && now.getDate() >= birth.getDate());
   if (!hadBirthday) age -= 1;
   return age >= 0 && age < 120 ? age : null;
 }
@@ -2640,7 +3491,13 @@ function labelize(value: string) {
 }
 
 function buildSeries(reservations: Reservation[], sales: Sale[], today: string) {
-  const days: { key: string; label: string; receita: number; cancelamentos: number; comparecimento: number }[] = [];
+  const days: {
+    key: string;
+    label: string;
+    receita: number;
+    cancelamentos: number;
+    comparecimento: number;
+  }[] = [];
   const base = new Date(today + "T00:00:00");
   for (let i = 29; i >= 0; i--) {
     const d = new Date(base);
@@ -2687,15 +3544,24 @@ function buildDecisionSeries(
       despesas: 0,
     }));
     reservations
-      .filter((reservation) => String(reservation.created_at ?? reservation.checkin).slice(0, 10) === today)
+      .filter(
+        (reservation) =>
+          String(reservation.created_at ?? reservation.checkin).slice(0, 10) === today,
+      )
       .forEach((reservation) => {
         const hour = new Date(String(reservation.created_at ?? `${today}T12:00:00`)).getHours();
         hours[hour].receita += Number(reservation.valor_pago ?? 0);
       });
     sales
-      .filter((sale) => String((sale as { created_at?: string | null }).created_at ?? sale.data).slice(0, 10) === today)
+      .filter(
+        (sale) =>
+          String((sale as { created_at?: string | null }).created_at ?? sale.data).slice(0, 10) ===
+          today,
+      )
       .forEach((sale) => {
-        const hour = new Date(String((sale as { created_at?: string | null }).created_at ?? `${today}T12:00:00`)).getHours();
+        const hour = new Date(
+          String((sale as { created_at?: string | null }).created_at ?? `${today}T12:00:00`),
+        ).getHours();
         hours[hour].receita += Number(sale.total ?? 0);
       });
     expenses
@@ -2728,7 +3594,12 @@ function buildDecisionSeries(
   return days;
 }
 
-function buildMonthlySeries(anchorMonth: string, reservations: Reservation[], sales: Sale[], expenses: Expense[]) {
+function buildMonthlySeries(
+  anchorMonth: string,
+  reservations: Reservation[],
+  sales: Sale[],
+  expenses: Expense[],
+) {
   const months = [];
   for (let i = 11; i >= 0; i--) {
     const key = addMonths(anchorMonth, -i);
@@ -2750,7 +3621,9 @@ function buildMonthMetrics(
   feedbacks: Feedback[],
   roomCount: number,
 ) {
-  const reviews = feedbacks.filter((f) => (f.created_at || "").slice(0, 7) === month && f.nota_geral != null);
+  const reviews = feedbacks.filter(
+    (f) => (f.created_at || "").slice(0, 7) === month && f.nota_geral != null,
+  );
   const avaliacao = reviews.length
     ? reviews.reduce((sum, f) => sum + Number(f.nota_geral), 0) / reviews.length
     : 0;
@@ -2767,12 +3640,16 @@ function revenueForMonth(month: string, reservations: Reservation[], sales: Sale
     reservations
       .filter((r) => (r.checkin || "").slice(0, 7) === month)
       .reduce((sum, r) => sum + Number(r.valor_pago), 0) +
-    sales.filter((s) => (s.data || "").slice(0, 7) === month).reduce((sum, s) => sum + Number(s.total), 0)
+    sales
+      .filter((s) => (s.data || "").slice(0, 7) === month)
+      .reduce((sum, s) => sum + Number(s.total), 0)
   );
 }
 
 function expensesForMonth(month: string, expenses: Expense[]) {
-  return expenses.filter((e) => (e.data || "").slice(0, 7) === month).reduce((sum, e) => sum + Number(e.valor), 0);
+  return expenses
+    .filter((e) => (e.data || "").slice(0, 7) === month)
+    .reduce((sum, e) => sum + Number(e.valor), 0);
 }
 
 function occupancyForMonth(month: string, reservations: Reservation[], roomCount: number) {
@@ -2811,7 +3688,9 @@ function addYears(month: string, offset: number) {
 
 function monthLabel(month: string) {
   const [year, monthNumber] = month.split("-").map(Number);
-  return new Date(year, monthNumber - 1, 1).toLocaleDateString("pt-BR", { month: "short" }).replace(".", "");
+  return new Date(year, monthNumber - 1, 1)
+    .toLocaleDateString("pt-BR", { month: "short" })
+    .replace(".", "");
 }
 
 function delta(current: number, previous: number) {
@@ -2827,15 +3706,33 @@ function performanceColor(value: number, average: number) {
   return "var(--pine)";
 }
 
-function Stat({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string; hint?: string }) {
+function Stat({
+  icon,
+  label,
+  value,
+  hint,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  hint?: string;
+}) {
   return (
     <div className="stat-card min-w-0">
       <div className="mb-1.5 flex min-w-0 items-center gap-2 text-pine">
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-        <span className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
       </div>
-      <div className="min-w-0 break-words font-serif text-[clamp(0.98rem,1.15vw,1.18rem)] font-bold leading-tight">{value}</div>
-      {hint && <div className="mt-1 line-clamp-2 text-[10px] leading-snug text-muted-foreground">{hint}</div>}
+      <div className="min-w-0 break-words font-serif text-[clamp(0.98rem,1.15vw,1.18rem)] font-bold leading-tight">
+        {value}
+      </div>
+      {hint && (
+        <div className="mt-1 line-clamp-2 text-[10px] leading-snug text-muted-foreground">
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
@@ -2859,9 +3756,13 @@ function ComparisonStat({
     <div className="relative min-w-0 overflow-hidden rounded-md border border-brass/35 bg-[linear-gradient(135deg,rgba(208,178,91,0.16),var(--card)_48%)] px-2 py-1.5 shadow-sm">
       <div className="mb-1 flex min-w-0 items-center gap-1.5 text-pine">
         <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
-        <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
       </div>
-      <div className="min-w-0 break-words font-serif text-[clamp(0.86rem,1.05vw,1.02rem)] font-bold leading-tight">{value}</div>
+      <div className="min-w-0 break-words font-serif text-[clamp(0.86rem,1.05vw,1.02rem)] font-bold leading-tight">
+        {value}
+      </div>
       <div className="mt-1 space-y-0.5 text-[9px]">
         <DeltaLine label="vs mês anterior" value={monthDelta} lowerIsBetter={lowerIsBetter} />
         <DeltaLine label="vs ano anterior" value={yearDelta} lowerIsBetter={lowerIsBetter} />
@@ -2870,7 +3771,15 @@ function ComparisonStat({
   );
 }
 
-function DeltaLine({ label, value, lowerIsBetter }: { label: string; value: number; lowerIsBetter: boolean }) {
+function DeltaLine({
+  label,
+  value,
+  lowerIsBetter,
+}: {
+  label: string;
+  value: number;
+  lowerIsBetter: boolean;
+}) {
   const positive = value >= 0;
   const good = lowerIsBetter ? !positive : positive;
   const Icon = positive ? TrendingUp : TrendingDown;
@@ -2897,12 +3806,22 @@ function WifiInsight({
   const wifiFeedbacks = feedbacks.filter((f) => f.wifi_problema);
 
   const rooms = new Map<number, number>();
-  wifiComplaints.forEach((c) => c.quarto != null && rooms.set(c.quarto, (rooms.get(c.quarto) ?? 0) + 1));
-  wifiFeedbacks.forEach((f) => f.quarto != null && rooms.set(f.quarto, (rooms.get(f.quarto) ?? 0) + 1));
+  wifiComplaints.forEach(
+    (c) => c.quarto != null && rooms.set(c.quarto, (rooms.get(c.quarto) ?? 0) + 1),
+  );
+  wifiFeedbacks.forEach(
+    (f) => f.quarto != null && rooms.set(f.quarto, (rooms.get(f.quarto) ?? 0) + 1),
+  );
 
   const devices = new Map<string, number>();
-  wifiComplaints.forEach((c) => c.dispositivo && devices.set(c.dispositivo, (devices.get(c.dispositivo) ?? 0) + 1));
-  wifiFeedbacks.forEach((f) => f.wifi_dispositivo && devices.set(f.wifi_dispositivo, (devices.get(f.wifi_dispositivo) ?? 0) + 1));
+  wifiComplaints.forEach(
+    (c) => c.dispositivo && devices.set(c.dispositivo, (devices.get(c.dispositivo) ?? 0) + 1),
+  );
+  wifiFeedbacks.forEach(
+    (f) =>
+      f.wifi_dispositivo &&
+      devices.set(f.wifi_dispositivo, (devices.get(f.wifi_dispositivo) ?? 0) + 1),
+  );
 
   const topRooms = [...rooms.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
   const topDevices = [...devices.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);

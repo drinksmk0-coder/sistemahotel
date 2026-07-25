@@ -16,7 +16,9 @@ export function DashboardHeader({
     <header className="sticky top-0 z-20 rounded-lg border border-pine/25 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine))] px-4 py-3 text-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-brass">Hotel Real Cruzília</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-brass">
+            Hotel Real Cruzília
+          </p>
           <h1 className="font-serif text-xl font-bold">{title}</h1>
           <p className="text-xs text-white/75">{subtitle}</p>
         </div>
@@ -34,7 +36,10 @@ export function PeriodSelector({
   onChange: (period: DashboardPeriod) => void;
 }) {
   return (
-    <div className="flex rounded-md border border-white/25 bg-white/10 p-1" aria-label="Período do dashboard">
+    <div
+      className="flex rounded-md border border-white/25 bg-white/10 p-1"
+      aria-label="Período do dashboard"
+    >
       {(["dia", "mes", "ano"] as const).map((period) => (
         <button
           key={period}
@@ -102,7 +107,9 @@ export function FunnelStage({
     brick: "var(--brick)",
   }[tone];
   return (
-    <article className={`relative min-w-0 rounded-md border border-border border-t-4 p-2.5 shadow-sm ${colors}`}>
+    <article
+      className={`relative min-w-0 rounded-md border border-border border-t-4 p-2.5 shadow-sm ${colors}`}
+    >
       <ChevronRight className="absolute -right-3 top-1/2 z-10 hidden h-4 w-4 -translate-y-1/2 text-brass xl:block" />
       <p className="truncate text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
       <div className="mt-1 flex items-center justify-between gap-2">
@@ -127,12 +134,14 @@ export function FunnelStage({
 export function CompactKpi({
   label,
   value,
+  hint,
   previousDelta,
   yearDelta,
   lowerIsBetter = false,
 }: {
   label: string;
   value: string;
+  hint?: string;
   previousDelta?: number | null;
   yearDelta?: number | null;
   lowerIsBetter?: boolean;
@@ -141,10 +150,16 @@ export function CompactKpi({
     <article className="min-w-0 rounded-md border border-border bg-card px-2.5 py-2 shadow-sm">
       <p className="truncate text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
       <p className="truncate font-serif text-lg font-bold text-pine-dark">{value}</p>
-      <div className="mt-1 flex flex-wrap gap-x-2 text-[9px]">
-        <Delta value={previousDelta} label="período" lowerIsBetter={lowerIsBetter} />
-        <Delta value={yearDelta} label="ano" lowerIsBetter={lowerIsBetter} />
-      </div>
+      {hint ? (
+        <p className="mt-1 truncate text-[9px] text-muted-foreground" title={hint}>
+          {hint}
+        </p>
+      ) : (
+        <div className="mt-1 flex flex-wrap gap-x-2 text-[9px]">
+          <Delta value={previousDelta} label="período" lowerIsBetter={lowerIsBetter} />
+          <Delta value={yearDelta} label="ano" lowerIsBetter={lowerIsBetter} />
+        </div>
+      )}
     </article>
   );
 }
@@ -159,14 +174,19 @@ export function DashboardTabs<T extends string>({
   tabs: { value: T; label: string }[];
 }) {
   return (
-    <nav className="flex flex-wrap gap-2 border-b border-border pb-2" aria-label="Seções do dashboard">
+    <nav
+      className="flex flex-wrap gap-2 border-b border-border pb-2"
+      aria-label="Seções do dashboard"
+    >
       {tabs.map((tab) => (
         <button
           key={tab.value}
           type="button"
           onClick={() => onChange(tab.value)}
           className={`rounded-md px-3 py-1.5 text-xs font-bold ${
-            value === tab.value ? "bg-pine text-white" : "border border-border bg-card text-pine-dark hover:bg-sage-bg"
+            value === tab.value
+              ? "bg-pine text-white"
+              : "border border-border bg-card text-pine-dark hover:bg-sage-bg"
           }`}
         >
           {tab.label}
@@ -194,7 +214,9 @@ export function ChartPanel({
     12: "lg:col-span-12",
   }[span];
   return (
-    <section className={`min-w-0 rounded-lg border border-border bg-card p-3 shadow-sm ${spanClass}`}>
+    <section
+      className={`min-w-0 rounded-lg border border-border bg-card p-3 shadow-sm ${spanClass}`}
+    >
       <h2 className="text-xs font-bold uppercase text-pine-dark">{title}</h2>
       {subtitle && <p className="mb-2 text-[10px] text-muted-foreground">{subtitle}</p>}
       {!subtitle && <div className="mb-2" />}
@@ -228,7 +250,11 @@ export function ShortList({
                 <strong className="block truncate text-pine-dark">
                   {index + 1}. {row.label}
                 </strong>
-                {row.hint && <span className="block truncate text-[10px] text-muted-foreground">{row.hint}</span>}
+                {row.hint && (
+                  <span className="block truncate text-[10px] text-muted-foreground">
+                    {row.hint}
+                  </span>
+                )}
               </div>
               <span className="shrink-0 font-bold text-pine-dark">{row.value}</span>
             </li>
@@ -248,7 +274,8 @@ function Delta({
   label: string;
   lowerIsBetter: boolean;
 }) {
-  if (value == null || !Number.isFinite(value)) return <span className="text-muted-foreground">sem base {label}</span>;
+  if (value == null || !Number.isFinite(value))
+    return <span className="text-muted-foreground">sem base {label}</span>;
   const positive = value >= 0;
   const good = lowerIsBetter ? !positive : positive;
   const Icon = positive ? ArrowUp : ArrowDown;
