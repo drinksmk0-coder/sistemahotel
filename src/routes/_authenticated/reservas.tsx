@@ -12,19 +12,18 @@ import {
   Star,
   Trash2,
   UsersRound,
-  Upload,
 } from "lucide-react";
 import {
   useRooms,
   useClients,
   useReservations,
-  useSales,
   useComplaints,
   useDelete,
   useInsert,
   useUpdate,
   useRateRules,
   useReservationGroups,
+  useSales,
   useCurrentCompany,
   statusFromPayment,
   hasActiveOverlap,
@@ -44,10 +43,6 @@ import {
 } from "@/components/GroupReservationForm";
 import { GuestPaymentModal } from "@/components/GuestPaymentModal";
 import { buildGuestAccount, type GuestAccount } from "@/lib/guest-account";
-import {
-  ReservationImportModal,
-  type ReservationImportResult,
-} from "@/components/ReservationImportModal";
 
 export const Route = createFileRoute("/_authenticated/reservas")({
   component: Reservas,
@@ -80,7 +75,6 @@ function Reservas() {
   const [open, setOpen] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
   const [groupBusy, setGroupBusy] = useState(false);
-  const [importOpen, setImportOpen] = useState(false);
   const [editing, setEditing] = useState<Reservation | null>(null);
   const [moving, setMoving] = useState<Reservation | null>(null);
   const [filter, setFilter] = useState("ativas");
@@ -91,7 +85,9 @@ function Reservas() {
     if (filter === "pendencias")
       return reservations.filter(
         (reservation) =>
-          !["cancelado", "manutencao"].includes(reservation.status) &&
+          reservation.status !== "cancelado" &&
+          reservation.status !== "manutencao" &&
+          reservation.checkout < todayISO() &&
           buildGuestAccount(reservation, sales).balance > 0,
       );
     if (filter === "todas") return reservations;
@@ -165,7 +161,7 @@ function Reservas() {
 
   const phoneDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
 
-  async function rowWithClient(row: ReservaRow, knownClients: Client[] = [...clients]) {
+  async function rowWithClient(row: ReservaRow) {
     const cleanRow = { ...row };
     delete cleanRow.cliente_telefone;
     delete cleanRow.cliente_email;
@@ -184,12 +180,9 @@ function Reservas() {
 
     if (row.cliente_id) return cleanRow;
     const telefoneDigits = phoneDigits(row.cliente_telefone);
-    const activeClients = knownClients.filter((client) => client.ativo !== false);
     const existing = telefoneDigits
-      ? activeClients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
-      : activeClients.find(
-          (c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase(),
-        );
+      ? clients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
+      : clients.find((c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase());
 
     if (existing) {
       const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();
@@ -220,34 +213,7 @@ function Reservas() {
     })) as unknown as Client[];
 
     const client = created[0];
-    if (client) knownClients.push(client);
     return client ? { ...cleanRow, cliente_id: client.id, cliente_nome: client.nome } : cleanRow;
-  }
-
-  async function importReservations(rows: ReservaRow[]): Promise<ReservationImportResult> {
-    const knownClients = [...clients];
-    const occupied = [...reservations];
-    const errors: string[] = [];
-    let imported = 0;
-    for (const [index, row] of rows.entries()) {
-      if (hasActiveOverlap(occupied, row.quarto, row.checkin, row.checkout)) {
-        errors.push(`Linha ${index + 2}: UH ${row.quarto} já possui reserva nesse período.`);
-        continue;
-      }
-      try {
-        const prepared = await rowWithClient(row, knownClients);
-        const inserted = (await insert.mutateAsync(prepared as never)) as unknown as Reservation[];
-        if (inserted[0]) occupied.push(inserted[0]);
-        imported += 1;
-      } catch (error) {
-        errors.push(
-          `Linha ${index + 2} (${row.cliente_nome}): ${error instanceof Error ? error.message : "falha ao importar"}`,
-        );
-      }
-    }
-    if (imported) toast.success(`${imported} reserva(s) importada(s).`);
-    if (errors.length) toast.warning(`${errors.length} linha(s) não foram importadas.`);
-    return { imported, errors };
   }
 
   async function createGroupReservation(payload: GroupReservationPayload) {
@@ -284,9 +250,6 @@ function Reservas() {
         subtitle="Pagou o total → quarto ocupado. Pagou o sinal → reservado. O sistema bloqueia sobreposição de datas."
         action={
           <div className="flex gap-2">
-            <button onClick={() => setImportOpen(true)} className="btn-ghost flex items-center gap-1.5">
-              <Upload className="h-4 w-4" /> Importar
-            </button>
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
               <Download className="h-4 w-4" /> Excel
             </button>
@@ -333,57 +296,75 @@ function Reservas() {
             <tbody>
               {filtered.map((r) => {
                 const account = buildGuestAccount(r, sales);
+                const daysOverdue =
+                  r.checkout < todayISO() ? calendarDayDifference(todayISO(), r.checkout) : 0;
+                const needsAttention =
+                  r.status !== "cancelado" &&
+                  r.status !== "manutencao" &&
+                  daysOverdue > 0 &&
+                  account.balance > 0;
                 return (
-                <tr key={r.id} className="border-b border-border/50">
-                  <td className="p-3 font-serif text-lg font-bold">{r.quarto}</td>
-                  <td className="p-3">{r.cliente_nome}</td>
-                  <td className="p-3 text-muted-foreground">
-                    {fmtDate(r.checkin)} {fmtTime(r.horario_checkin)} → {fmtDate(r.checkout)}{" "}
-                    {fmtTime(r.horario_checkout)}
-                    {r.motivo_estadia && (
-                      <div className="mt-1 text-xs">Motivo: {r.motivo_estadia}</div>
-                    )}
-                    {r.group_id && (
-                      <div className="mt-1 text-xs font-semibold text-pine">
-                        Grupo:{" "}
-                        {reservationGroups.find((group) => group.id === r.group_id)?.nome ??
-                          "Reserva em grupo"}
+                  <tr
+                    key={r.id}
+                    className={`border-b border-border/50 ${needsAttention ? "bg-brick-bg/35" : ""}`}
+                  >
+                    <td className="p-3 font-serif text-lg font-bold">{r.quarto}</td>
+                    <td className="p-3">{r.cliente_nome}</td>
+                    <td className="p-3 text-muted-foreground">
+                      {fmtDate(r.checkin)} {fmtTime(r.horario_checkin)} → {fmtDate(r.checkout)}{" "}
+                      {fmtTime(r.horario_checkout)}
+                      {r.motivo_estadia && (
+                        <div className="mt-1 text-xs">Motivo: {r.motivo_estadia}</div>
+                      )}
+                      {r.group_id && (
+                        <div className="mt-1 text-xs font-semibold text-pine">
+                          Grupo:{" "}
+                          {reservationGroups.find((group) => group.id === r.group_id)?.nome ??
+                            "Reserva em grupo"}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div>
+                        {fmtBRL(r.valor_pago)} / {fmtBRL(r.valor_total)}
                       </div>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <div>
-                      {fmtBRL(account.paid)} / {fmtBRL(account.total)}
-                    </div>
-                    {account.extrasTotal > 0 && (
                       <div className="text-xs text-muted-foreground">
                         Consumos: {fmtBRL(account.extrasTotal)}
                       </div>
-                    )}
-                    <Badge tone={account.balance <= 0 ? "sage" : "brass"}>
-                      {account.balance <= 0
-                        ? "conta quitada"
-                        : account.paid > 0
-                          ? `parcial · falta ${fmtBRL(account.balance)}`
-                          : `a receber ${fmtBRL(account.balance)}`}
-                    </Badge>
-                  </td>
-                  <td className="p-3">
-                    <Badge tone={statusTone[r.status]}>{r.status}</Badge>
-                  </td>
-                  <td className="p-3 text-right">
-                    <RowActions
-                      reservation={r}
-                      account={account}
-                      update={update}
-                      remove={remove}
-                      updateRoom={updateRoom}
-                      client={clients.find((c) => c.id === r.cliente_id)}
-                      onEdit={() => setEditing(r)}
-                      onMove={() => setMoving(r)}
-                    />
-                  </td>
-                </tr>
+                      <Badge tone={account.balance <= 0 ? "sage" : "brass"}>
+                        {account.balance <= 0
+                          ? "conta quitada"
+                          : account.paid > 0
+                            ? `parcial · falta ${fmtBRL(account.balance)}`
+                            : `a receber ${fmtBRL(account.balance)}`}
+                      </Badge>
+                      {needsAttention && (
+                        <div className="mt-1 text-xs font-bold text-brick">
+                          {r.status === "finalizado"
+                            ? "Checkout com saldo"
+                            : r.status === "ocupado"
+                              ? "Estadia vencida"
+                              : "Reserva vencida"}
+                          {daysOverdue > 0 ? ` · ${daysOverdue} dia(s)` : ""}
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <Badge tone={statusTone[r.status]}>{r.status}</Badge>
+                    </td>
+                    <td className="p-3 text-right">
+                      <RowActions
+                        reservation={r}
+                        account={account}
+                        update={update}
+                        remove={remove}
+                        updateRoom={updateRoom}
+                        client={clients.find((c) => c.id === r.cliente_id)}
+                        onEdit={() => setEditing(r)}
+                        onMove={() => setMoving(r)}
+                      />
+                    </td>
+                  </tr>
                 );
               })}
             </tbody>
@@ -447,14 +428,6 @@ function Reservas() {
         />
       )}
 
-      {importOpen && (
-        <ReservationImportModal
-          rooms={rooms}
-          onClose={() => setImportOpen(false)}
-          onImport={importReservations}
-        />
-      )}
-
       {moving && (
         <MoveRoomModal
           reservation={moving}
@@ -509,13 +482,41 @@ function RowActions({
   onEdit: () => void;
   onMove: () => void;
 }) {
-  const [paymentOpen, setPaymentOpen] = useState(false);
   const done = ["finalizado", "cancelado"].includes(reservation.status);
-  const receiptUrl = whatsappReceiptUrl(reservation, account, client);
+  const total = Number(reservation.valor_total);
+  const balance = account.balance;
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const receiptUrl = whatsappReceiptUrl(reservation, client);
   const reviewUrl = whatsappReviewUrl(reservation, client);
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
-      {!done && account.balance > 0 && (
+      {!done && account.lodgingPaid <= 0 && (
+        <>
+          <button
+            className="rounded-md bg-brass-bg px-2 py-1 text-xs font-semibold text-[oklch(0.4_0.06_74)]"
+            onClick={() =>
+              update.mutate(
+                {
+                  id: reservation.id,
+                  patch: {
+                    valor_pago: Math.round((total / 2) * 100) / 100,
+                    pago: false,
+                    status: "reservado",
+                    horario_reserva: reservation.horario_reserva ?? currentTime(),
+                  },
+                },
+                {
+                  onSuccess: () => toast.success("Sinal registrado"),
+                  onError: (e: Error) => toast.error(e.message),
+                },
+              )
+            }
+          >
+            Sinal
+          </button>
+        </>
+      )}
+      {balance > 0 && reservation.status !== "cancelado" && (
         <button
           className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
           onClick={() => setPaymentOpen(true)}
@@ -527,13 +528,13 @@ function RowActions({
         <button
           className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
           onClick={() => {
-            if (account.lodgingPaid < account.lodgingTotal) {
-              toast.error(
-                `Antes do check-in, receba o saldo das diárias: ${fmtBRL(account.lodgingTotal - account.lodgingPaid)}.`,
-              );
-              setPaymentOpen(true);
+            if (
+              account.lodgingPaid < account.lodgingTotal &&
+              !window.confirm(
+                `A hospedagem ainda tem ${fmtBRL(account.lodgingTotal - account.lodgingPaid)} de diárias pendentes. Deseja realizar o check-in mesmo assim?`,
+              )
+            )
               return;
-            }
             update.mutate(
               {
                 id: reservation.id,
@@ -550,20 +551,20 @@ function RowActions({
             );
           }}
         >
-          Check-in
+          {account.lodgingPaid < account.lodgingTotal ? "Check-in com saldo" : "Check-in"}
         </button>
       )}
       {reservation.status === "ocupado" && (
         <button
           className="rounded-md bg-slate-bg px-2 py-1 text-xs font-semibold text-slate"
           onClick={() => {
-            if (account.balance > 0) {
-              toast.error(
-                `Check-out bloqueado: falta receber ${fmtBRL(account.balance)} entre diárias e consumos.`,
-              );
-              setPaymentOpen(true);
+            if (
+              balance > 0 &&
+              !window.confirm(
+                `Ainda faltam ${fmtBRL(balance)}. Deseja concluir o checkout com saldo pendente? A dívida continuará no painel financeiro para cobrança.`,
+              )
+            )
               return;
-            }
             update.mutate(
               {
                 id: reservation.id,
@@ -589,7 +590,7 @@ function RowActions({
             );
           }}
         >
-          Check-out
+          {balance > 0 ? "Checkout com saldo" : "Check-out"}
         </button>
       )}
       {reservation.status === "ocupado" && (
@@ -600,9 +601,6 @@ function RowActions({
         >
           Estender
         </button>
-      )}
-      {paymentOpen && (
-        <GuestPaymentModal account={account} onClose={() => setPaymentOpen(false)} />
       )}
       {!done && (
         <button
@@ -696,8 +694,15 @@ function RowActions({
       >
         <Trash2 className="h-3.5 w-3.5" />
       </button>
+      {paymentOpen && <GuestPaymentModal account={account} onClose={() => setPaymentOpen(false)} />}
     </div>
   );
+}
+
+function calendarDayDifference(laterISO: string, earlierISO: string): number {
+  const later = new Date(`${laterISO}T12:00:00`);
+  const earlier = new Date(`${earlierISO}T12:00:00`);
+  return Math.max(0, Math.round((later.getTime() - earlier.getTime()) / 86_400_000));
 }
 
 function MoveRoomModal({
@@ -823,14 +828,15 @@ function MoveRoomModal({
   );
 }
 
-function whatsappReceiptUrl(reservation: Reservation, account: GuestAccount, client?: Client) {
+function whatsappReceiptUrl(reservation: Reservation, client?: Client) {
   const phone = whatsappPhone(client?.telefone);
   if (!phone) return "";
-  const status = account.balance <= 0
+  const status = reservation.pago
     ? "Quitado"
-    : account.paid > 0
+    : Number(reservation.valor_pago) > 0
       ? "Sinal pago / saldo pendente"
       : "Pendente";
+  const balance = Math.max(0, Number(reservation.valor_total) - Number(reservation.valor_pago));
   const line = "------------------------------";
   const message = [
     "🏨 HOTEL REAL CRUZÍLIA",
@@ -842,11 +848,9 @@ function whatsappReceiptUrl(reservation: Reservation, account: GuestAccount, cli
     `Saída: ${fmtDate(reservation.checkout)} ${fmtTime(reservation.horario_checkout)}`,
     `Diárias: ${reservation.diarias}`,
     line,
-    `Diárias: ${fmtBRL(account.lodgingTotal)}`,
-    `Produtos e serviços: ${fmtBRL(account.extrasTotal)}`,
-    `Total da conta: ${fmtBRL(account.total)}`,
-    `Pago: ${fmtBRL(account.paid)}`,
-    `Saldo: ${fmtBRL(account.balance)}`,
+    `Total: ${fmtBRL(reservation.valor_total)}`,
+    `Pago: ${fmtBRL(reservation.valor_pago)}`,
+    `Saldo: ${fmtBRL(balance)}`,
     `Status: ${status}`,
     line,
     "Para nota fiscal, envie os dados da empresa/CNPJ por aqui que a recepção dará continuidade.",

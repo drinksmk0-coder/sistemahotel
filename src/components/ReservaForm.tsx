@@ -188,9 +188,7 @@ export function ReservaForm({
     return clients
       .filter(
         (client) =>
-          client.ativo !== false &&
-          !client.tipo.startsWith("desativado:") &&
-          client.nome.toLowerCase().includes(query),
+          !client.tipo.startsWith("desativado:") && client.nome.toLowerCase().includes(query),
       )
       .slice(0, 8);
   }, [clients, clienteId, nome]);

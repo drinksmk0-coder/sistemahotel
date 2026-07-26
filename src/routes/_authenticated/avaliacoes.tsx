@@ -5,19 +5,6 @@ import { useFeedbacks, useUpdate, useDelete, type Feedback } from "@/lib/data";
 import { fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { PageHeader } from "@/components/AppLayout";
 import { Stars, Badge, EmptyState, Modal, Field } from "@/components/ui-kit";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 export const Route = createFileRoute("/_authenticated/avaliacoes")({
   component: Avaliacoes,
@@ -68,21 +55,6 @@ function Avaliacoes() {
   const positiveComments = filtrados
     .filter((feedback) => Number(feedback.nota_geral ?? 0) >= 4 && feedback.comentario)
     .slice(0, 3);
-  const trend = useMemo(() => {
-    const monthly = new Map<string, { total: number; count: number }>();
-    filtrados.forEach((feedback) => {
-      if (feedback.nota_geral == null) return;
-      const month = feedback.created_at.slice(0, 7);
-      const current = monthly.get(month) ?? { total: 0, count: 0 };
-      current.total += Number(feedback.nota_geral);
-      current.count += 1;
-      monthly.set(month, current);
-    });
-    return [...monthly.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-12).map(([month, item]) => ({
-      mes: `${month.slice(5)}/${month.slice(2, 4)}`,
-      media: Number((item.total / item.count).toFixed(2)),
-    }));
-  }, [filtrados]);
 
   function exportCSV() {
     downloadExcel(`avaliacoes-${todayISO()}.xls`, [
@@ -163,47 +135,6 @@ function Avaliacoes() {
           </div>
         ))}
       </div>
-
-      {filtrados.length > 0 && (
-        <div className="mb-6 grid gap-4 lg:grid-cols-2">
-          <section className="card-surface p-4">
-            <h3 className="font-serif text-lg font-bold">Notas por categoria</h3>
-            <p className="text-xs text-muted-foreground">Legenda e rótulos mostram onde a experiência precisa melhorar.</p>
-            <div className="mt-3 h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={averages} margin={{ top: 18, right: 10, bottom: 28 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="label" angle={-18} textAnchor="end" interval={0} height={55} />
-                  <YAxis domain={[0, 5]} />
-                  <Tooltip formatter={(value) => Number(value).toFixed(1)} />
-                  <Legend />
-                  <Bar dataKey="avg" name="Nota média (0–5)" fill="var(--pine)" radius={[5, 5, 0, 0]}>
-                    <LabelList dataKey="avg" position="top" formatter={(value: number) => value.toFixed(1)} />
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-          <section className="card-surface p-4">
-            <h3 className="font-serif text-lg font-bold">Evolução da satisfação</h3>
-            <p className="text-xs text-muted-foreground">Média geral ao longo do tempo para identificar melhora ou queda.</p>
-            <div className="mt-3 h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trend} margin={{ top: 18, right: 18 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="mes" />
-                  <YAxis domain={[0, 5]} />
-                  <Tooltip formatter={(value) => Number(value).toFixed(1)} />
-                  <Legend />
-                  <Line type="monotone" dataKey="media" name="Nota média" stroke="var(--brass)" strokeWidth={3} dot={{ r: 4 }}>
-                    <LabelList dataKey="media" position="top" formatter={(value: number) => value.toFixed(1)} />
-                  </Line>
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-        </div>
-      )}
 
       {positiveComments.length > 0 && (
         <section className="mb-6 rounded-xl border border-border bg-card p-4 shadow-sm">

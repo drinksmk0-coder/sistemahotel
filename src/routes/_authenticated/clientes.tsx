@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Pencil, Plus, Power, Printer, Search } from "lucide-react";
+import { Download, Eye, Pencil, Plus, Power, Printer, Search } from "lucide-react";
 import {
   useClients,
   useCurrentCompany,
   useInsert,
   useReservations,
+  useSales,
   useUpdate,
   type Client,
 } from "@/lib/data";
@@ -15,6 +16,8 @@ import { CLIENT_TYPES, BR_STATES, stateFromPhone } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
 import { getSystemSettings, type SystemSettings } from "@/lib/system-settings";
+import { buildClientInsights } from "@/lib/guest-account";
+import { ClientInsightModal, TierBadge } from "@/components/ClientInsightModal";
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   component: Clientes,
@@ -31,10 +34,9 @@ function normalizeText(value: string) {
 function Clientes() {
   const { data: clients = [] } = useClients();
   const { data: reservations = [] } = useReservations();
+  const { data: sales = [] } = useSales();
   const currentCompany = useCurrentCompany();
-  const requiredGuestFields = getSystemSettings(
-    currentCompany.data?.id,
-  ).requiredGuestFields;
+  const requiredGuestFields = getSystemSettings(currentCompany.data?.id).requiredGuestFields;
   const insert = useInsert("clients", ["clients"]);
   const update = useUpdate("clients", ["clients", "reservations"]);
   const [open, setOpen] = useState(false);
@@ -44,15 +46,12 @@ function Clientes() {
   const [createdTo, setCreatedTo] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<"ativos" | "desativados" | "todos">("ativos");
+  const [profileClientId, setProfileClientId] = useState<string | null>(null);
 
-  const spentByClient = useMemo(() => {
-    const m = new Map<string, number>();
-    reservations.forEach((r) => {
-      if (r.cliente_id && r.pago)
-        m.set(r.cliente_id, (m.get(r.cliente_id) ?? 0) + Number(r.valor_total));
-    });
-    return m;
-  }, [reservations]);
+  const insights = useMemo(
+    () => buildClientInsights(clients, reservations, sales),
+    [clients, reservations, sales],
+  );
 
   const filtered = clients.filter((c) => {
     const created = (c.created_at || "").slice(0, 10);
@@ -64,11 +63,13 @@ function Clientes() {
     const matchesFrom = !createdFrom || created >= createdFrom;
     const matchesTo = !createdTo || created <= createdTo;
     const disabled = isClientDisabled(c);
-    const matchesStatus = statusFilter === "todos" || (statusFilter === "desativados" ? disabled : !disabled);
+    const matchesStatus =
+      statusFilter === "todos" || (statusFilter === "desativados" ? disabled : !disabled);
     return matchesSearch && matchesFrom && matchesTo && matchesStatus;
   });
   const filteredIds = filtered.map((client) => client.id);
-  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
 
   function exportCSV() {
     downloadExcel(`clientes-${todayISO()}.xls`, [
@@ -89,6 +90,13 @@ function Clientes() {
         "País",
         "CEP",
         "Visitas",
+        "Segmento",
+        "Gasto total",
+        "Gasto médio",
+        "Pagamento preferido",
+        "Quarto preferido",
+        "Produto preferido",
+        "Dia preferido",
         "Cadastrado em",
       ],
       ...clients.map((c) => [
@@ -99,7 +107,7 @@ function Clientes() {
         c.cpf,
         c.sexo,
         c.estado_civil,
-        c.tem_filhos ? c.quantidade_filhos ?? 0 : "Não",
+        c.tem_filhos ? (c.quantidade_filhos ?? 0) : "Não",
         c.data_nascimento,
         c.profissao,
         c.bairro,
@@ -107,7 +115,14 @@ function Clientes() {
         c.estado,
         c.pais,
         (c as Client & { cep?: string | null }).cep ?? "",
-        c.visitas,
+        insights.get(c.id)?.visits ?? c.visitas,
+        insights.get(c.id)?.tier ?? "Bronze",
+        insights.get(c.id)?.totalCharged ?? 0,
+        insights.get(c.id)?.averageSpend ?? 0,
+        insights.get(c.id)?.favoritePayment ?? "",
+        insights.get(c.id)?.favoriteRoom ?? "",
+        insights.get(c.id)?.favoriteProduct ?? "",
+        insights.get(c.id)?.favoriteWeekday ?? "",
         c.created_at.slice(0, 10),
       ]),
     ]);
@@ -142,14 +157,28 @@ function Clientes() {
             />
           </div>
           <Field label="Cadastrado de">
-            <input className="field" type="date" value={createdFrom} onChange={(e) => setCreatedFrom(e.target.value)} />
+            <input
+              className="field"
+              type="date"
+              value={createdFrom}
+              onChange={(e) => setCreatedFrom(e.target.value)}
+            />
           </Field>
           <Field label="Até">
-            <input className="field" type="date" value={createdTo} onChange={(e) => setCreatedTo(e.target.value)} />
+            <input
+              className="field"
+              type="date"
+              value={createdTo}
+              onChange={(e) => setCreatedTo(e.target.value)}
+            />
           </Field>
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          <select className="field h-10 w-auto" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}>
+          <select
+            className="field h-10 w-auto"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+          >
             <option value="ativos">Ativos</option>
             <option value="desativados">Desativados</option>
             <option value="todos">Todos</option>
@@ -167,13 +196,18 @@ function Clientes() {
             className="rounded-md bg-brick-bg px-3 py-2 text-sm font-semibold text-brick"
             disabled={selectedIds.length === 0 || update.isPending}
             onClick={async () => {
-              if (!window.confirm(`Desativar ${selectedIds.length} cliente(s)? O histórico de reservas será mantido.`)) return;
+              if (
+                !window.confirm(
+                  `Desativar ${selectedIds.length} cliente(s)? O histórico de reservas será mantido.`,
+                )
+              )
+                return;
               try {
                 await Promise.all(
                   selectedIds.map((id) => {
                     const client = clients.find((item) => item.id === id);
                     return client && !isClientDisabled(client)
-                      ? update.mutateAsync({ id, patch: { ativo: false } })
+                      ? update.mutateAsync({ id, patch: { tipo: `desativado:${client.tipo}` } })
                       : Promise.resolve();
                   }),
                 );
@@ -193,101 +227,152 @@ function Clientes() {
         <EmptyState text="Nenhum cliente encontrado." />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((c) => (
-            <div key={c.id} className="card-surface p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    className="mt-1"
-                    checked={selectedIds.includes(c.id)}
-                    onChange={(e) =>
-                      setSelectedIds((ids) =>
-                        e.target.checked ? [...new Set([...ids, c.id])] : ids.filter((id) => id !== c.id),
-                      )
-                    }
-                    aria-label={`Selecionar ${c.nome}`}
-                  />
-                  <div>
-                  <p className="font-serif text-lg font-bold">{c.nome}</p>
-                {c.telefone && <p className="text-sm text-muted-foreground">{c.telefone}</p>}
-                {(c as Client & { email?: string | null }).email && (
-                  <p className="text-sm text-muted-foreground">{(c as Client & { email?: string | null }).email}</p>
-                )}
+          {filtered.map((c) => {
+            const insight = insights.get(c.id);
+            return (
+              <div key={c.id} className="card-surface p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-2">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={selectedIds.includes(c.id)}
+                      onChange={(e) =>
+                        setSelectedIds((ids) =>
+                          e.target.checked
+                            ? [...new Set([...ids, c.id])]
+                            : ids.filter((id) => id !== c.id),
+                        )
+                      }
+                      aria-label={`Selecionar ${c.nome}`}
+                    />
+                    <div>
+                      <p className="font-serif text-lg font-bold">{c.nome}</p>
+                      {c.telefone && <p className="text-sm text-muted-foreground">{c.telefone}</p>}
+                      {(c as Client & { email?: string | null }).email && (
+                        <p className="text-sm text-muted-foreground">
+                          {(c as Client & { email?: string | null }).email}
+                        </p>
+                      )}
+                    </div>
                   </div>
+                  <Badge
+                    tone={
+                      isClientDisabled(c) ? "slate" : c.tipo === "cliente fixo" ? "brass" : "sage"
+                    }
+                  >
+                    {isClientDisabled(c) ? "desativado" : c.tipo}
+                  </Badge>
                 </div>
-                <Badge tone={isClientDisabled(c) ? "slate" : c.tipo === "cliente fixo" ? "brass" : "sage"}>
-                  {isClientDisabled(c) ? "desativado" : c.tipo}
-                </Badge>
-              </div>
-              <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-                {c.cpf && <p>CPF: {c.cpf}</p>}
-                {c.sexo && <p>Sexo: {c.sexo}</p>}
-                {c.estado_civil && <p>Estado civil: {c.estado_civil}</p>}
-                {c.tem_filhos != null && (
-                  <p>Filhos: {c.tem_filhos ? c.quantidade_filhos ?? 0 : "Não"}</p>
+                <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
+                  {c.cpf && <p>CPF: {c.cpf}</p>}
+                  {c.sexo && <p>Sexo: {c.sexo}</p>}
+                  {c.estado_civil && <p>Estado civil: {c.estado_civil}</p>}
+                  {c.tem_filhos != null && (
+                    <p>Filhos: {c.tem_filhos ? (c.quantidade_filhos ?? 0) : "Não"}</p>
+                  )}
+                  {c.bairro && <p>Bairro: {c.bairro}</p>}
+                  {(c.cidade || c.estado) && (
+                    <p>{[c.cidade, c.estado].filter(Boolean).join(" / ")}</p>
+                  )}
+                  {c.pais && <p>País: {c.pais}</p>}
+                  {(c as Client & { cep?: string | null }).cep && (
+                    <p>CEP: {(c as Client & { cep?: string | null }).cep}</p>
+                  )}
+                  {c.profissao && <p>{c.profissao}</p>}
+                  {c.data_nascimento && <p>Nasc.: {fmtDate(c.data_nascimento)}</p>}
+                  <p>Cadastrado em {fmtDate(c.created_at)}</p>
+                </div>
+                <div className="mt-3 flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    {insight?.visits ?? c.visitas} visita(s)
+                  </span>
+                  <span className="font-semibold">{fmtBRL(insight?.totalCharged ?? 0)}</span>
+                </div>
+                {insight && (
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <TierBadge tier={insight.tier} />
+                    <span className="text-xs text-muted-foreground">
+                      Média {fmtBRL(insight.averageSpend)}
+                    </span>
+                  </div>
                 )}
-                {c.bairro && <p>Bairro: {c.bairro}</p>}
-                {(c.cidade || c.estado) && <p>{[c.cidade, c.estado].filter(Boolean).join(" / ")}</p>}
-                {c.pais && <p>País: {c.pais}</p>}
-                {(c as Client & { cep?: string | null }).cep && <p>CEP: {(c as Client & { cep?: string | null }).cep}</p>}
-                {c.profissao && <p>{c.profissao}</p>}
-                {c.data_nascimento && <p>Nasc.: {fmtDate(c.data_nascimento)}</p>}
-                <p>Cadastrado em {fmtDate(c.created_at)}</p>
+                <div className="mt-3 flex justify-end gap-1.5">
+                  <button
+                    type="button"
+                    className="rounded-md bg-brass-bg px-2 py-1 text-xs font-semibold text-pine-dark"
+                    onClick={() => setProfileClientId(c.id)}
+                    title="Ver consumo, preferências e segmento"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
+                    onClick={() => {
+                      const params = new URLSearchParams({
+                        tipo: "cadastro",
+                        nome: c.nome,
+                        cpf: c.cpf ?? "",
+                        telefone: c.telefone ?? "",
+                        email: (c as Client & { email?: string | null }).email ?? "",
+                        nascimento: c.data_nascimento ? fmtDate(c.data_nascimento) : "",
+                        estadoCivil: c.estado_civil ?? "",
+                        profissao: c.profissao ?? "",
+                        origem: [c.cidade, c.estado, "Brasil"].filter(Boolean).join(" / "),
+                        endereco: [(c as Client & { cep?: string | null }).cep, c.bairro]
+                          .filter(Boolean)
+                          .join(" / "),
+                      });
+                      window.open(
+                        `/imprimir?${params.toString()}`,
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }}
+                    title="Imprimir ficha do hóspede"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground"
+                    onClick={() => setEditing(c)}
+                    title="Editar cliente"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-md px-2 py-1 text-xs font-semibold ${isClientDisabled(c) ? "bg-sage-bg text-pine-dark" : "bg-brick-bg text-brick"}`}
+                    onClick={() => {
+                      const disabling = !isClientDisabled(c);
+                      if (
+                        !window.confirm(
+                          `${disabling ? "Desativar" : "Reativar"} ${c.nome}? O histórico de reservas será preservado.`,
+                        )
+                      )
+                        return;
+                      update.mutate(
+                        {
+                          id: c.id,
+                          patch: { tipo: disabling ? `desativado:${c.tipo}` : activeClientType(c) },
+                        },
+                        {
+                          onSuccess: () =>
+                            toast.success(disabling ? "Cliente desativado" : "Cliente reativado"),
+                          onError: (e) => toast.error(e.message),
+                        },
+                      );
+                    }}
+                    title={isClientDisabled(c) ? "Reativar cliente" : "Desativar cliente"}
+                  >
+                    <Power className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
-              <div className="mt-3 flex justify-between text-sm">
-                <span className="text-muted-foreground">{c.visitas} visita(s)</span>
-                <span className="font-semibold">{fmtBRL(spentByClient.get(c.id) ?? 0)}</span>
-              </div>
-              <div className="mt-3 flex justify-end gap-1.5">
-                <button
-                  type="button"
-                  className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
-                  onClick={() => {
-                    const params = new URLSearchParams({
-                      tipo: "cadastro",
-                      nome: c.nome,
-                      cpf: c.cpf ?? "",
-                      telefone: c.telefone ?? "",
-                      email: (c as Client & { email?: string | null }).email ?? "",
-                      nascimento: c.data_nascimento ? fmtDate(c.data_nascimento) : "",
-                      estadoCivil: c.estado_civil ?? "",
-                      profissao: c.profissao ?? "",
-                      origem: [c.cidade, c.estado, "Brasil"].filter(Boolean).join(" / "),
-                      endereco: [(c as Client & { cep?: string | null }).cep, c.bairro].filter(Boolean).join(" / "),
-                    });
-                    window.open(`/imprimir?${params.toString()}`, "_blank", "noopener,noreferrer");
-                  }}
-                  title="Imprimir ficha do hóspede"
-                >
-                  <Printer className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground"
-                  onClick={() => setEditing(c)}
-                  title="Editar cliente"
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className={`rounded-md px-2 py-1 text-xs font-semibold ${isClientDisabled(c) ? "bg-sage-bg text-pine-dark" : "bg-brick-bg text-brick"}`}
-                  onClick={() => {
-                    const disabling = !isClientDisabled(c);
-                    if (!window.confirm(`${disabling ? "Desativar" : "Reativar"} ${c.nome}? O histórico de reservas será preservado.`)) return;
-                    update.mutate({ id: c.id, patch: { ativo: !disabling } }, {
-                      onSuccess: () => toast.success(disabling ? "Cliente desativado" : "Cliente reativado"),
-                      onError: (e) => toast.error(e.message),
-                    });
-                  }}
-                  title={isClientDisabled(c) ? "Reativar cliente" : "Desativar cliente"}
-                >
-                  <Power className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -324,12 +409,22 @@ function Clientes() {
           }}
         />
       )}
+      {profileClientId && insights.get(profileClientId) && (
+        <ClientInsightModal
+          insight={insights.get(profileClientId)!}
+          onClose={() => setProfileClientId(null)}
+        />
+      )}
     </div>
   );
 }
 
 function isClientDisabled(client: Client) {
-  return client.ativo === false || client.tipo.startsWith("desativado:");
+  return client.tipo.startsWith("desativado:");
+}
+
+function activeClientType(client: Client) {
+  return client.tipo.replace(/^desativado:/, "") || "hóspede normal";
 }
 
 function ClientForm({
@@ -369,7 +464,9 @@ function ClientForm({
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [tipo, setTipo] = useState<string>(editing?.tipo ?? CLIENT_TYPES[0]);
   const [telefone, setTelefone] = useState(editing?.telefone ?? "");
-  const [email, setEmail] = useState((editing as (Client & { email?: string | null }) | null)?.email ?? "");
+  const [email, setEmail] = useState(
+    (editing as (Client & { email?: string | null }) | null)?.email ?? "",
+  );
   const [cpf, setCpf] = useState(editing?.cpf ?? "");
   const [nascimento, setNascimento] = useState(editing?.data_nascimento ?? "");
   const [profissao, setProfissao] = useState(editing?.profissao ?? "");
@@ -377,7 +474,9 @@ function ClientForm({
   const [bairro, setBairro] = useState(editing?.bairro ?? "");
   const [estadoCivil, setEstadoCivil] = useState(editing?.estado_civil ?? "");
   const [temFilhos, setTemFilhos] = useState(Boolean(editing?.tem_filhos));
-  const [quantidadeFilhos, setQuantidadeFilhos] = useState(editing?.quantidade_filhos != null ? String(editing.quantidade_filhos) : "");
+  const [quantidadeFilhos, setQuantidadeFilhos] = useState(
+    editing?.quantidade_filhos != null ? String(editing.quantidade_filhos) : "",
+  );
   const [cidade, setCidade] = useState(editing?.cidade ?? "");
   const [estado, setEstado] = useState(editing?.estado ?? "");
   const [pais, setPais] = useState(editing?.pais ?? "Brasil");
@@ -387,10 +486,17 @@ function ClientForm({
   const telefoneDigits = onlyDigits(telefone);
   const cpfJaCadastrado =
     cpfDigits.length > 0 &&
-    clients.some((client) => client.id !== editing?.id && client.cpf && onlyDigits(client.cpf) === cpfDigits);
+    clients.some(
+      (client) => client.id !== editing?.id && client.cpf && onlyDigits(client.cpf) === cpfDigits,
+    );
   const telefoneJaCadastrado =
     telefoneDigits.length > 0 &&
-    clients.some((client) => client.id !== editing?.id && client.telefone && onlyDigits(client.telefone) === telefoneDigits);
+    clients.some(
+      (client) =>
+        client.id !== editing?.id &&
+        client.telefone &&
+        onlyDigits(client.telefone) === telefoneDigits,
+    );
 
   return (
     <Modal open onClose={onClose} title={editing ? "Editar cliente" : "Novo cliente"}>
@@ -398,7 +504,11 @@ function ClientForm({
         onSubmit={(e) => {
           e.preventDefault();
           if (cpfJaCadastrado || telefoneJaCadastrado) {
-            toast.error(cpfJaCadastrado ? "Este CPF já está cadastrado." : "Este telefone já está cadastrado.");
+            toast.error(
+              cpfJaCadastrado
+                ? "Este CPF já está cadastrado."
+                : "Este telefone já está cadastrado.",
+            );
             return;
           }
           const nomePadrao = normalizePersonName(nome);
@@ -445,7 +555,13 @@ function ClientForm({
         className="space-y-3"
       >
         <Field label="Nome">
-          <input className="field" value={nome} onChange={(e) => setNome(e.target.value.replace(/[0-9]/g, ""))} required maxLength={80} />
+          <input
+            className="field"
+            value={nome}
+            onChange={(e) => setNome(e.target.value.replace(/[0-9]/g, ""))}
+            required
+            maxLength={80}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Tipo">
@@ -472,12 +588,20 @@ function ClientForm({
               aria-invalid={telefoneJaCadastrado}
             />
             {telefoneJaCadastrado && (
-              <p className="mt-1 text-xs font-semibold text-brick">Este telefone já está cadastrado.</p>
+              <p className="mt-1 text-xs font-semibold text-brick">
+                Este telefone já está cadastrado.
+              </p>
             )}
           </Field>
         </div>
         <Field label="E-mail">
-          <input className="field" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} />
+          <input
+            className="field"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            maxLength={120}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="CPF">
@@ -504,7 +628,12 @@ function ClientForm({
           </Field>
         </div>
         <Field label="Profissão">
-          <input className="field" value={profissao} onChange={(e) => setProfissao(e.target.value)} maxLength={60} />
+          <input
+            className="field"
+            value={profissao}
+            onChange={(e) => setProfissao(e.target.value)}
+            maxLength={60}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Sexo">
@@ -558,7 +687,12 @@ function ClientForm({
           </Field>
         </div>
         <Field label="Bairro">
-          <input className="field" value={bairro} onChange={(e) => setBairro(e.target.value)} maxLength={80} />
+          <input
+            className="field"
+            value={bairro}
+            onChange={(e) => setBairro(e.target.value)}
+            maxLength={80}
+          />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="País">
@@ -573,13 +707,35 @@ function ClientForm({
               maxLength={60}
             />
             <datalist id="country-options">
-              {["Brasil", "Argentina", "Chile", "Estados Unidos", "Portugal", "Espanha", "França", "Alemanha", "Itália", "Reino Unido", "Angola", "África do Sul", "China", "Japão", "Índia", "Austrália"].map((country) => (
+              {[
+                "Brasil",
+                "Argentina",
+                "Chile",
+                "Estados Unidos",
+                "Portugal",
+                "Espanha",
+                "França",
+                "Alemanha",
+                "Itália",
+                "Reino Unido",
+                "Angola",
+                "África do Sul",
+                "China",
+                "Japão",
+                "Índia",
+                "Austrália",
+              ].map((country) => (
                 <option key={country} value={country} />
               ))}
             </datalist>
           </Field>
           <Field label="Cidade">
-            <input className="field" value={cidade} onChange={(e) => setCidade(e.target.value)} maxLength={60} />
+            <input
+              className="field"
+              value={cidade}
+              onChange={(e) => setCidade(e.target.value)}
+              maxLength={60}
+            />
           </Field>
           <Field label="Estado">
             <select
@@ -599,7 +755,13 @@ function ClientForm({
           </Field>
         </div>
         <Field label="CEP">
-          <input className="field" value={cep} onChange={(e) => setCep(e.target.value)} maxLength={10} placeholder="Opcional" />
+          <input
+            className="field"
+            value={cep}
+            onChange={(e) => setCep(e.target.value)}
+            maxLength={10}
+            placeholder="Opcional"
+          />
         </Field>
         <p className="text-xs text-muted-foreground">
           A data e o horário do cadastro são registrados automaticamente.
@@ -608,7 +770,11 @@ function ClientForm({
           <button type="button" onClick={onClose} className="btn-ghost">
             Cancelar
           </button>
-          <button type="submit" className="btn-primary" disabled={cpfJaCadastrado || telefoneJaCadastrado}>
+          <button
+            type="submit"
+            className="btn-primary"
+            disabled={cpfJaCadastrado || telefoneJaCadastrado}
+          >
             Salvar
           </button>
         </div>
@@ -643,9 +809,12 @@ function formatCpfBR(value: string | null | undefined) {
 }
 
 function formatPhoneBR(value: string | null | undefined) {
-  const digits = onlyDigits(value).replace(/^55(?=\d{10,11}$)/, "").slice(0, 11);
+  const digits = onlyDigits(value)
+    .replace(/^55(?=\d{10,11}$)/, "")
+    .slice(0, 11);
   if (digits.length <= 2) return digits;
   if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  if (digits.length <= 10)
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }

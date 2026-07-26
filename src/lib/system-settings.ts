@@ -9,6 +9,13 @@ export type SystemSettings = {
   surfaceColor: string;
   textColor: string;
   theme: "light" | "soft" | "dark";
+  backgroundStyle: "clean" | "soft" | "gradient";
+  surfaceOpacity: number;
+  chartSurfaceOpacity: number;
+  borderRadius: number;
+  uiScale: number;
+  glassEffect: boolean;
+  shadows: "none" | "soft" | "strong";
   chartPalette: string[];
   autoPalette: boolean;
   requiredGuestFields: Record<GuestFieldKey, boolean>;
@@ -22,6 +29,13 @@ const DEFAULT_SETTINGS: SystemSettings = {
   surfaceColor: "#fffdf8",
   textColor: "#332d27",
   theme: "soft",
+  backgroundStyle: "soft",
+  surfaceOpacity: 96,
+  chartSurfaceOpacity: 100,
+  borderRadius: 12,
+  uiScale: 1,
+  glassEffect: false,
+  shadows: "soft",
   chartPalette: ["#234d38", "#588b69", "#d0b25b", "#a2462d", "#2f8a72", "#6f8f7a"],
   autoPalette: true,
   requiredGuestFields: {
@@ -144,9 +158,18 @@ export function applySystemSettings(settings: SystemSettings) {
   const background = dark ? "#171b19" : settings.backgroundColor;
   const surface = dark ? "#212723" : settings.surfaceColor;
   const text = dark ? "#f2f4f2" : settings.textColor;
+  const surfaceOpacity = clamp(settings.surfaceOpacity ?? 96, 35, 100);
+  const chartSurfaceOpacity = clamp(settings.chartSurfaceOpacity ?? 100, 35, 100);
+  const radius = clamp(settings.borderRadius ?? 12, 0, 28);
+  const scale = clamp(settings.uiScale ?? 1, 0.85, 1.15);
 
   root.dataset.systemTheme = settings.theme;
+  root.dataset.backgroundStyle = settings.backgroundStyle ?? "soft";
+  root.dataset.glassEffect = settings.glassEffect ? "on" : "off";
+  root.dataset.systemShadows = settings.shadows ?? "soft";
   root.style.colorScheme = dark ? "dark" : "light";
+  root.style.fontSize = `${scale * 100}%`;
+  root.style.setProperty("--radius", `${radius}px`);
   root.style.setProperty("--brand-primary", settings.primaryColor);
   root.style.setProperty("--brand-accent", settings.accentColor);
   root.style.setProperty("--pine", settings.primaryColor);
@@ -176,7 +199,16 @@ export function applySystemSettings(settings: SystemSettings) {
     `color-mix(in srgb, ${background} 88%, ${settings.primaryColor})`,
   );
   root.style.setProperty("--foreground", text);
-  root.style.setProperty("--card", surface);
+  root.style.setProperty("--card-solid", surface);
+  root.style.setProperty(
+    "--card",
+    `color-mix(in srgb, ${surface} ${surfaceOpacity}%, transparent)`,
+  );
+  root.style.setProperty(
+    "--chart-surface",
+    `color-mix(in srgb, ${surface} ${chartSurfaceOpacity}%, transparent)`,
+  );
+  root.style.setProperty("--surface-opacity", `${surfaceOpacity / 100}`);
   root.style.setProperty("--card-foreground", text);
   root.style.setProperty("--popover", surface);
   root.style.setProperty("--popover-foreground", text);

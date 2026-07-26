@@ -8,6 +8,7 @@ import { useCurrentCompany, useInsert, useRooms, useUpdate, type Company, type R
 import { fmtBRL } from "@/lib/format";
 import {
   GUEST_FIELD_KEYS,
+  applySystemSettings,
   buildHarmonicPalette,
   getSystemSettings,
   saveSystemSettings,
@@ -152,6 +153,10 @@ const GUEST_FIELD_LABELS: Record<GuestFieldKey, string> = {
 function SystemCustomization({ companyId }: { companyId: string }) {
   const [settings, setSettings] = useState<SystemSettings>(() => getSystemSettings(companyId));
 
+  useEffect(() => {
+    applySystemSettings(settings);
+  }, [settings]);
+
   function updateRequired(field: GuestFieldKey, value: boolean) {
     setSettings((current) => ({
       ...current,
@@ -236,6 +241,40 @@ function SystemCustomization({ companyId }: { companyId: string }) {
               <option value="dark">Escuro</option>
             </select>
           </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Estilo do fundo">
+              <select
+                className="field"
+                value={settings.backgroundStyle}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    backgroundStyle: event.target.value as SystemSettings["backgroundStyle"],
+                  }))
+                }
+              >
+                <option value="clean">Limpo</option>
+                <option value="soft">Luzes suaves</option>
+                <option value="gradient">Degradê da marca</option>
+              </select>
+            </Field>
+            <Field label="Sombras dos blocos">
+              <select
+                className="field"
+                value={settings.shadows}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    shadows: event.target.value as SystemSettings["shadows"],
+                  }))
+                }
+              >
+                <option value="none">Sem sombra</option>
+                <option value="soft">Suave</option>
+                <option value="strong">Destacada</option>
+              </select>
+            </Field>
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <Field label="Fundo">
               <input
@@ -268,6 +307,83 @@ function SystemCustomization({ companyId }: { companyId: string }) {
               />
             </Field>
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={`Transparência dos cards: ${settings.surfaceOpacity}%`}>
+              <input
+                className="w-full accent-[var(--pine)]"
+                type="range"
+                min={35}
+                max={100}
+                value={settings.surfaceOpacity}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    surfaceOpacity: Number(event.target.value),
+                  }))
+                }
+              />
+            </Field>
+            <Field label={`Fundo dos gráficos: ${settings.chartSurfaceOpacity}%`}>
+              <input
+                className="w-full accent-[var(--pine)]"
+                type="range"
+                min={35}
+                max={100}
+                value={settings.chartSurfaceOpacity}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    chartSurfaceOpacity: Number(event.target.value),
+                  }))
+                }
+              />
+            </Field>
+            <Field label={`Arredondamento: ${settings.borderRadius}px`}>
+              <input
+                className="w-full accent-[var(--pine)]"
+                type="range"
+                min={0}
+                max={28}
+                value={settings.borderRadius}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    borderRadius: Number(event.target.value),
+                  }))
+                }
+              />
+            </Field>
+            <Field label={`Tamanho geral: ${Math.round(settings.uiScale * 100)}%`}>
+              <input
+                className="w-full accent-[var(--pine)]"
+                type="range"
+                min={85}
+                max={115}
+                value={Math.round(settings.uiScale * 100)}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    uiScale: Number(event.target.value) / 100,
+                  }))
+                }
+              />
+            </Field>
+          </div>
+          <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/45 p-3">
+            <span>
+              <span className="block text-sm font-bold text-pine-dark">Efeito de vidro</span>
+              <span className="block text-[11px] text-muted-foreground">
+                Aplica desfoque atrás de cards transparentes.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.glassEffect}
+              onChange={(event) =>
+                setSettings((current) => ({ ...current, glassEffect: event.target.checked }))
+              }
+            />
+          </label>
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             A cor principal e a de destaque passam a valer em menus, botões, cabeçalhos,
             seleções, cards, tabelas e gráficos de todas as páginas.
