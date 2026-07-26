@@ -18,6 +18,7 @@ import {
   Cell,
   CartesianGrid,
   ComposedChart,
+  LabelList,
   Legend,
   Line,
   LineChart,
@@ -1084,11 +1085,13 @@ function EditableStrategicChart({
   const height = Math.max(56, settings.height - 54);
   const formatter = (value: number, name: string) =>
     series.find((item) => item.label === name)?.currency ? fmtBRL(value) : value;
+  const labelFormatter = (value: number) =>
+    Math.abs(value) >= 1000 ? `${Math.round(value / 1000)}k` : String(Math.round(value * 10) / 10);
   const common = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
       <Tooltip formatter={formatter} />
-      <Legend wrapperStyle={{ fontSize: 10 }} />
+      {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
     </>
   );
   let chart: React.ReactNode;
@@ -1104,6 +1107,9 @@ function EditableStrategicChart({
           innerRadius={settings.chartType === "doughnut" ? "48%" : 0}
           outerRadius="76%"
         >
+          {settings.showLabels && (
+            <LabelList dataKey={first.key} position="outside" formatter={labelFormatter} />
+          )}
           {rows.map((row, index) => (
             <Cell
               key={`${String(row[categoryKey])}-${index}`}
@@ -1112,7 +1118,7 @@ function EditableStrategicChart({
           ))}
         </Pie>
         <Tooltip formatter={formatter} />
-        <Legend wrapperStyle={{ fontSize: 10 }} />
+        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
       </PieChart>
     );
   } else if (settings.chartType === "radar") {
@@ -1122,6 +1128,7 @@ function EditableStrategicChart({
         <PolarAngleAxis dataKey={categoryKey} tick={{ fontSize: 10 }} />
         <PolarRadiusAxis tick={{ fontSize: 9 }} />
         <Tooltip formatter={formatter} />
+        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
         {series.map((item, index) => (
           <Radar
             key={item.key}
@@ -1149,7 +1156,11 @@ function EditableStrategicChart({
             stroke={item.color}
             strokeWidth={2.5}
             dot={false}
-          />
+          >
+            {settings.showLabels && (
+              <LabelList dataKey={item.key} position="top" formatter={labelFormatter} />
+            )}
+          </Line>
         ))}
       </LineChart>
     );
@@ -1168,7 +1179,11 @@ function EditableStrategicChart({
             stroke={item.color}
             fill={item.color}
             fillOpacity={index ? 0.12 : 0.24}
-          />
+          >
+            {settings.showLabels && (
+              <LabelList dataKey={item.key} position="top" formatter={labelFormatter} />
+            )}
+          </Area>
         ))}
       </AreaChart>
     );
@@ -1188,7 +1203,11 @@ function EditableStrategicChart({
               stroke={item.color}
               fill={item.color}
               fillOpacity={0.18}
-            />
+            >
+              {settings.showLabels && (
+                <LabelList dataKey={item.key} position="top" formatter={labelFormatter} />
+              )}
+            </Area>
           ) : (
             <Line
               key={item.key}
@@ -1198,7 +1217,11 @@ function EditableStrategicChart({
               stroke={item.color}
               strokeWidth={2.5}
               dot={false}
-            />
+            >
+              {settings.showLabels && (
+                <LabelList dataKey={item.key} position="top" formatter={labelFormatter} />
+              )}
+            </Line>
           ),
         )}
       </ComposedChart>
@@ -1230,7 +1253,15 @@ function EditableStrategicChart({
             name={item.label}
             fill={item.color}
             radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
-          />
+          >
+            {settings.showLabels && (
+              <LabelList
+                dataKey={item.key}
+                position={horizontal ? "right" : "top"}
+                formatter={labelFormatter}
+              />
+            )}
+          </Bar>
         ))}
       </BarChart>
     );

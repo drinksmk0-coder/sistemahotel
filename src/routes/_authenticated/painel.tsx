@@ -36,6 +36,7 @@ import {
   Tooltip,
   CartesianGrid,
   Legend,
+  LabelList,
   Cell,
 } from "recharts";
 import {
@@ -907,6 +908,8 @@ function EditableSingleSeriesChart({
 }) {
   const chartHeight = Math.max(56, settings.height - 55);
   const tooltipFormatter = (value: number) => (currency ? fmtBRL(value) : value);
+  const labelFormatter = (value: number) =>
+    Math.abs(value) >= 1000 ? `${Math.round(value / 1000)}k` : String(Math.round(value * 10) / 10);
   let chart: React.ReactNode;
 
   if (settings.chartType === "pie" || settings.chartType === "doughnut") {
@@ -919,6 +922,9 @@ function EditableSingleSeriesChart({
           innerRadius={settings.chartType === "doughnut" ? "48%" : 0}
           outerRadius="76%"
         >
+          {settings.showLabels && (
+            <LabelList dataKey="value" position="outside" formatter={labelFormatter} />
+          )}
           {rows.map((row, index) => (
             <Cell
               key={row.name}
@@ -927,7 +933,7 @@ function EditableSingleSeriesChart({
           ))}
         </Pie>
         <Tooltip formatter={tooltipFormatter} />
-        <Legend wrapperStyle={{ fontSize: 10 }} />
+        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
       </PieChart>
     );
   } else if (settings.chartType === "radar") {
@@ -937,6 +943,7 @@ function EditableSingleSeriesChart({
         <PolarAngleAxis dataKey="name" tick={{ fontSize: 10 }} />
         <PolarRadiusAxis tick={{ fontSize: 9 }} />
         <Tooltip formatter={tooltipFormatter} />
+        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
         <Radar
           dataKey="value"
           name="Valor"
@@ -959,7 +966,12 @@ function EditableSingleSeriesChart({
           name="Valor"
           stroke={settings.color}
           strokeWidth={3}
-        />
+        >
+          {settings.showLabels && (
+            <LabelList dataKey="value" position="top" formatter={labelFormatter} />
+          )}
+        </Line>
+        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
       </LineChart>
     );
   } else if (settings.chartType === "area") {
@@ -976,7 +988,12 @@ function EditableSingleSeriesChart({
           stroke={settings.color}
           fill={settings.color}
           fillOpacity={0.25}
-        />
+        >
+          {settings.showLabels && (
+            <LabelList dataKey="value" position="top" formatter={labelFormatter} />
+          )}
+        </Area>
+        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
       </AreaChart>
     );
   } else if (settings.chartType === "composed") {
@@ -986,8 +1003,13 @@ function EditableSingleSeriesChart({
         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
         <YAxis tick={{ fontSize: 9 }} />
         <Tooltip formatter={tooltipFormatter} />
-        <Area dataKey="value" fill={settings.color} stroke={settings.color} fillOpacity={0.15} />
+        <Area dataKey="value" fill={settings.color} stroke={settings.color} fillOpacity={0.15}>
+          {settings.showLabels && (
+            <LabelList dataKey="value" position="top" formatter={labelFormatter} />
+          )}
+        </Area>
         <Line dataKey="value" name="Valor" stroke={settings.color} strokeWidth={3} />
+        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
       </ComposedChart>
     );
   } else {
@@ -1012,7 +1034,16 @@ function EditableSingleSeriesChart({
           </>
         )}
         <Tooltip formatter={tooltipFormatter} />
-        <Bar dataKey="value" name="Valor" fill={settings.color} radius={[4, 4, 0, 0]} />
+        <Bar dataKey="value" name="Valor" fill={settings.color} radius={[4, 4, 0, 0]}>
+          {settings.showLabels && (
+            <LabelList
+              dataKey="value"
+              position={settings.chartType === "horizontalBar" ? "right" : "top"}
+              formatter={labelFormatter}
+            />
+          )}
+        </Bar>
+        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
       </BarChart>
     );
   }

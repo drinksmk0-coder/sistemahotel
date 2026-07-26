@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Star,
   Trash2,
+  Upload,
   UsersRound,
 } from "lucide-react";
 import {
@@ -43,6 +44,10 @@ import {
 } from "@/components/GroupReservationForm";
 import { GuestPaymentModal } from "@/components/GuestPaymentModal";
 import { buildGuestAccount, type GuestAccount } from "@/lib/guest-account";
+import {
+  ReservationImportModal,
+  type ReservationImportResult,
+} from "@/components/ReservationImportModal";
 
 export const Route = createFileRoute("/_authenticated/reservas")({
   component: Reservas,
@@ -74,6 +79,7 @@ function Reservas() {
   const updateRoom = useUpdate("rooms", ["rooms"]);
   const [open, setOpen] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [groupBusy, setGroupBusy] = useState(false);
   const [editing, setEditing] = useState<Reservation | null>(null);
   const [moving, setMoving] = useState<Reservation | null>(null);
@@ -161,7 +167,7 @@ function Reservas() {
 
   const phoneDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
 
-  async function rowWithClient(row: ReservaRow) {
+  async function rowWithClient(row: ReservaRow, knownClients = clients) {
     const cleanRow = { ...row };
     delete cleanRow.cliente_telefone;
     delete cleanRow.cliente_email;
@@ -180,9 +186,14 @@ function Reservas() {
 
     if (row.cliente_id) return cleanRow;
     const telefoneDigits = phoneDigits(row.cliente_telefone);
+    const activeClients = knownClients.filter(
+      (client) => client.ativo !== false && !client.tipo.startsWith("desativado:"),
+    );
     const existing = telefoneDigits
-      ? clients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
-      : clients.find((c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase());
+      ? activeClients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
+      : activeClients.find(
+          (c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase(),
+        );
 
     if (existing) {
       const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();
@@ -213,7 +224,52 @@ function Reservas() {
     })) as unknown as Client[];
 
     const client = created[0];
+    if (client) knownClients.push(client);
     return client ? { ...cleanRow, cliente_id: client.id, cliente_nome: client.nome } : cleanRow;
+  }
+
+  async function importReservations(rows: ReservaRow[]): Promise<ReservationImportResult> {
+    const errors: string[] = [];
+    const knownClients = [...clients];
+    const occupied = reservations
+      .filter((reservation) => !["cancelado", "manutencao"].includes(reservation.status))
+      .map((reservation) => ({
+        quarto: reservation.quarto,
+        checkin: reservation.checkin,
+        checkout: reservation.checkout,
+      }));
+    let imported = 0;
+
+    for (const [index, row] of rows.entries()) {
+      const overlaps = occupied.some(
+        (item) =>
+          item.quarto === row.quarto &&
+          row.checkin < item.checkout &&
+          row.checkout > item.checkin,
+      );
+      if (overlaps && row.status !== "cancelado") {
+        errors.push(
+          `Linha ${index + 2}: UH ${row.quarto} já está ocupada nesse período; não importada.`,
+        );
+        continue;
+      }
+      try {
+        const prepared = await rowWithClient(row, knownClients);
+        await insert.mutateAsync(prepared as never);
+        if (!["cancelado", "manutencao"].includes(row.status)) {
+          occupied.push({ quarto: row.quarto, checkin: row.checkin, checkout: row.checkout });
+        }
+        imported += 1;
+      } catch (error) {
+        errors.push(
+          `Linha ${index + 2}: ${
+            error instanceof Error ? error.message : "falha ao importar a reserva"
+          }`,
+        );
+      }
+    }
+    if (imported) toast.success(`${imported} reserva(s) importada(s)`);
+    return { imported, errors };
   }
 
   async function createGroupReservation(payload: GroupReservationPayload) {
@@ -252,6 +308,12 @@ function Reservas() {
           <div className="flex gap-2">
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
               <Download className="h-4 w-4" /> Excel
+            </button>
+            <button
+              onClick={() => setImportOpen(true)}
+              className="btn-ghost flex items-center gap-1.5"
+            >
+              <Upload className="h-4 w-4" /> Importar
             </button>
             <button
               onClick={() => setGroupOpen(true)}
@@ -428,6 +490,14 @@ function Reservas() {
         />
       )}
 
+      {importOpen && (
+        <ReservationImportModal
+          rooms={rooms}
+          onClose={() => setImportOpen(false)}
+          onImport={importReservations}
+        />
+      )}
+
       {moving && (
         <MoveRoomModal
           reservation={moving}
@@ -528,13 +598,13 @@ function RowActions({
         <button
           className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
           onClick={() => {
-            if (
-              account.lodgingPaid < account.lodgingTotal &&
-              !window.confirm(
-                `A hospedagem ainda tem ${fmtBRL(account.lodgingTotal - account.lodgingPaid)} de diárias pendentes. Deseja realizar o check-in mesmo assim?`,
-              )
-            )
+            if (account.lodgingPaid < account.lodgingTotal) {
+              toast.error(
+                `Check-in bloqueado: receba ${fmtBRL(account.lodgingTotal - account.lodgingPaid)} das diárias primeiro.`,
+              );
+              setPaymentOpen(true);
               return;
+            }
             update.mutate(
               {
                 id: reservation.id,
@@ -551,20 +621,18 @@ function RowActions({
             );
           }}
         >
-          {account.lodgingPaid < account.lodgingTotal ? "Check-in com saldo" : "Check-in"}
+          {account.lodgingPaid < account.lodgingTotal ? "Receber antes do check-in" : "Check-in"}
         </button>
       )}
       {reservation.status === "ocupado" && (
         <button
           className="rounded-md bg-slate-bg px-2 py-1 text-xs font-semibold text-slate"
           onClick={() => {
-            if (
-              balance > 0 &&
-              !window.confirm(
-                `Ainda faltam ${fmtBRL(balance)}. Deseja concluir o checkout com saldo pendente? A dívida continuará no painel financeiro para cobrança.`,
-              )
-            )
+            if (balance > 0) {
+              toast.error(`Check-out bloqueado: ainda faltam ${fmtBRL(balance)} na conta.`);
+              setPaymentOpen(true);
               return;
+            }
             update.mutate(
               {
                 id: reservation.id,
@@ -590,7 +658,7 @@ function RowActions({
             );
           }}
         >
-          {balance > 0 ? "Checkout com saldo" : "Check-out"}
+          {balance > 0 ? "Receber antes do check-out" : "Check-out"}
         </button>
       )}
       {reservation.status === "ocupado" && (

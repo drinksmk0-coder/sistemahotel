@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       clients: {
         Row: {
+          ativo: boolean
           bairro: string | null
           cidade: string | null
           cpf: string | null
@@ -39,6 +40,7 @@ export type Database = {
           visitas: number
         }
         Insert: {
+          ativo?: boolean
           bairro?: string | null
           cidade?: string | null
           cpf?: string | null
@@ -62,6 +64,7 @@ export type Database = {
           visitas?: number
         }
         Update: {
+          ativo?: boolean
           bairro?: string | null
           cidade?: string | null
           cpf?: string | null

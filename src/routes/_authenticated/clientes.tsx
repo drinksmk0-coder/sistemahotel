@@ -207,7 +207,7 @@ function Clientes() {
                   selectedIds.map((id) => {
                     const client = clients.find((item) => item.id === id);
                     return client && !isClientDisabled(client)
-                      ? update.mutateAsync({ id, patch: { tipo: `desativado:${client.tipo}` } })
+                      ? update.mutateAsync({ id, patch: { ativo: false } })
                       : Promise.resolve();
                   }),
                 );
@@ -356,7 +356,7 @@ function Clientes() {
                       update.mutate(
                         {
                           id: c.id,
-                          patch: { tipo: disabling ? `desativado:${c.tipo}` : activeClientType(c) },
+                          patch: { ativo: !disabling },
                         },
                         {
                           onSuccess: () =>
@@ -420,11 +420,7 @@ function Clientes() {
 }
 
 function isClientDisabled(client: Client) {
-  return client.tipo.startsWith("desativado:");
-}
-
-function activeClientType(client: Client) {
-  return client.tipo.replace(/^desativado:/, "") || "hóspede normal";
+  return client.ativo === false || client.tipo.startsWith("desativado:");
 }
 
 function ClientForm({
