@@ -7,12 +7,14 @@ import { fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { COMPLAINT_CATEGORIES, COMPLAINT_SEVERITY, COMPLAINT_STATUS, WIFI_DEVICES, complaintLabel, complaintStatusLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
+import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export const Route = createFileRoute("/_authenticated/reclamacoes")({
   component: Reclamacoes,
 });
 
 const sevTone: Record<string, string> = { baixa: "sage", media: "brass", alta: "brick" };
+const STOP_WORDS = new Set(["para", "com", "uma", "que", "não", "nao", "dos", "das", "por", "sem", "está", "esta", "muito", "mais", "foi", "tem", "de", "da", "do", "e", "o", "a", "no", "na", "em"]);
 
 function Reclamacoes() {
   const { data: rooms = [] } = useRooms();
@@ -33,6 +35,13 @@ function Reclamacoes() {
       }),
     [complaints, cat, statusFilter],
   );
+  const frequentWords = useMemo(() => {
+    const counts = new Map<string, number>();
+    complaints.forEach((complaint) => {
+      normalizeWords(complaint.descricao ?? "").forEach((word) => counts.set(word, (counts.get(word) ?? 0) + 1));
+    });
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([palavra, ocorrencias]) => ({ palavra, ocorrencias }));
+  }, [complaints]);
 
   function exportCSV() {
     downloadExcel(`reclamacoes-${todayISO()}.xls`, [
@@ -87,6 +96,28 @@ function Reclamacoes() {
           <option value="todas">Todos os status</option>
         </select>
       </div>
+
+      {frequentWords.length > 0 && (
+        <section className="card-surface mb-4 p-4">
+          <div className="mb-3">
+            <h3 className="font-serif text-lg font-bold">Assuntos mais citados</h3>
+            <p className="text-xs text-muted-foreground">Palavras recorrentes nas descrições ajudam a revelar problemas sistêmicos.</p>
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={frequentWords} layout="vertical" margin={{ left: 8, right: 38 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                <XAxis type="number" allowDecimals={false} />
+                <YAxis type="category" dataKey="palavra" width={90} />
+                <Tooltip />
+                <Bar dataKey="ocorrencias" name="Ocorrências" fill="var(--pine)" radius={[0, 5, 5, 0]}>
+                  <LabelList dataKey="ocorrencias" position="right" />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
 
       {filtered.length === 0 ? (
         <EmptyState text="Nenhuma reclamação neste filtro." />
@@ -162,6 +193,15 @@ function Reclamacoes() {
       )}
     </div>
   );
+}
+
+function normalizeWords(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .match(/[a-z]{3,}/g)
+    ?.filter((word) => !STOP_WORDS.has(word)) ?? [];
 }
 
 function ComplaintForm({

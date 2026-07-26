@@ -19,6 +19,7 @@ import {
   CartesianGrid,
   ComposedChart,
   Legend,
+  LabelList,
   Line,
   LineChart,
   Pie,
@@ -28,8 +29,6 @@ import {
   PolarRadiusAxis,
   Radar,
   RadarChart,
-  RadialBar,
-  RadialBarChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -66,7 +65,6 @@ import {
   reservationOverlapsRange,
   type DashboardPeriod,
 } from "@/lib/dashboard-utils";
-import { getSystemSettings } from "@/lib/system-settings";
 
 export const Route = createFileRoute("/_authenticated/dashboard-estrategico")({
   component: DashboardEstrategico,
@@ -101,7 +99,6 @@ function DashboardEstrategico() {
   const { data: clients = [] } = useClients();
   const { data: feedbacks = [] } = useFeedbacks();
   const currentCompany = useCurrentCompany();
-  const brandSettings = getSystemSettings(currentCompany.data?.id);
   const [section, setSection] = useState<DashboardSection>("geral");
   const [period, setPeriod] = useState<DashboardPeriod>("mes");
   const range = periodRange(period, today);
@@ -175,8 +172,8 @@ function DashboardEstrategico() {
   const mediaPorCliente = safeDivide(receita, clientesPeriodo);
   const ocupacao30 = futureOccupancy(filteredReservations, rooms.length, today, 30);
   const forecast = useMemo(
-    () => buildForecast(reservations, rooms.length, today),
-    [reservations, rooms.length, today],
+    () => buildForecast(reservations, expenses, rooms.length, today),
+    [expenses, reservations, rooms.length, today],
   );
   const recurring = useMemo(() => recurringByClient(filteredReservations), [filteredReservations]);
   const aReceber = filteredReservations.reduce(
@@ -186,7 +183,8 @@ function DashboardEstrategico() {
   );
   const previousReservations = reservations.filter(
     (reservation) =>
-      reservation.status !== "manutencao" && reservationOverlapsRange(reservation, previousRange),
+      reservation.status !== "manutencao" &&
+      reservationOverlapsRange(reservation, previousRange),
   );
   const previousYearReservations = reservations.filter(
     (reservation) =>
@@ -204,7 +202,12 @@ function DashboardEstrategico() {
     clientById,
     "estado_civil",
   );
-  const genderRows = buildProfileDistribution(filteredReservations, clients, clientById, "sexo");
+  const genderRows = buildProfileDistribution(
+    filteredReservations,
+    clients,
+    clientById,
+    "sexo",
+  );
   const professionRows = buildProfileDistribution(
     filteredReservations,
     clients,
@@ -252,13 +255,7 @@ function DashboardEstrategico() {
       kind: "kpi",
       defaultColor: "var(--brass)",
       render: (settings) => (
-        <StoryKpi
-          icon={<DollarSign />}
-          label={settings.title}
-          value={fmtBRL(aReceber)}
-          hint="saldo das reservas"
-          tone="brass"
-        />
+        <StoryKpi icon={<DollarSign />} label={settings.title} value={fmtBRL(aReceber)} hint="saldo das reservas" tone="brass" />
       ),
     },
     {
@@ -311,6 +308,21 @@ function DashboardEstrategico() {
         />
       ),
     },
+    {
+      id: "ocupacao-futura-kpi",
+      title: "Ocupação futura · 30 dias",
+      kind: "kpi",
+      defaultColor: "var(--chart-2)",
+      render: (settings) => (
+        <StoryKpi
+          icon={<TrendingUp />}
+          label={settings.title}
+          value={`${ocupacao30.toFixed(1)}%`}
+          hint="reservas futuras confirmadas"
+          tone={ocupacao30 >= 70 ? "sage" : ocupacao30 >= 40 ? "brass" : "brick"}
+        />
+      ),
+    },
     ...[
       {
         id: "to",
@@ -339,8 +351,7 @@ function DashboardEstrategico() {
         title: "RevPAR",
         value: fmtBRL(revpar),
         formula: `${fmtBRL(receitaHospedagem)} / ${uhsDisponiveis} UHs disponíveis`,
-        meaning:
-          "Mede a eficiência comercial considerando todas as UHs disponíveis, vendidas ou não.",
+        meaning: "Mede a eficiência comercial considerando todas as UHs disponíveis, vendidas ou não.",
         strategy: revparStrategy(revpar, diariaMedia, taxaOcupacao),
         tone: "brass" as const,
         previousDelta: percentChange(revpar, previousHotelKpis.revpar),
@@ -364,7 +375,7 @@ function DashboardEstrategico() {
         formula: `${fmtBRL(lucro)} / ${uhsDisponiveis} UHs disponíveis`,
         meaning: "Mostra o lucro operacional bruto por UH disponível depois das despesas.",
         strategy: gopparStrategy(goppar),
-        tone: goppar < 0 ? ("brick" as const) : ("brass" as const),
+        tone: goppar < 0 ? "brick" as const : "brass" as const,
         previousDelta: percentChange(goppar, previousHotelKpis.goppar),
         yearDelta: percentChange(goppar, previousYearHotelKpis.goppar),
       },
@@ -446,7 +457,7 @@ function DashboardEstrategico() {
     },
     {
       id: "forecast",
-      title: "Previsão 30 dias: ocupação e receita",
+      title: "Previsão 30 dias: ocupação, receita e despesas",
       kind: "chart",
       defaultColumns: 8,
       defaultHeight: 330,
@@ -459,19 +470,11 @@ function DashboardEstrategico() {
           series={[
             { key: "ocupacao", label: "Ocupação %", color: settings.color },
             { key: "receita", label: "Receita", color: "var(--chart-3)", currency: true },
+            { key: "despesa", label: "Despesa projetada", color: "var(--chart-4)", currency: true },
           ]}
           settings={settings}
         />
       ),
-    },
-    {
-      id: "ocupacao-futura",
-      title: "Ocupação futura",
-      kind: "chart",
-      defaultColumns: 4,
-      defaultHeight: 330,
-      defaultColor: "var(--chart-2)",
-      render: (settings) => <FutureOccupancyGauge settings={settings} value={ocupacao30} />,
     },
   ];
   const clientWidgets: DashboardWidget[] = [
@@ -568,7 +571,7 @@ function DashboardEstrategico() {
   const trendWidgets: DashboardWidget[] = [
     {
       id: "previsao-30-dias",
-      title: "Previsão 30 dias: ocupação e receita",
+      title: "Previsão 30 dias: ocupação, receita e despesas",
       kind: "chart",
       defaultColumns: 6,
       defaultHeight: 300,
@@ -581,6 +584,7 @@ function DashboardEstrategico() {
           series={[
             { key: "ocupacao", label: "Ocupação", color: settings.color },
             { key: "receita", label: "Receita", color: "var(--chart-3)", currency: true },
+            { key: "despesa", label: "Despesa projetada", color: "var(--chart-4)", currency: true },
           ]}
           settings={settings}
         />
@@ -621,7 +625,9 @@ function DashboardEstrategico() {
         <EditableStrategicChart
           rows={roomRows.slice(0, 8)}
           categoryKey="Quarto"
-          series={[{ key: "receitaRaw", label: "Receita", color: settings.color, currency: true }]}
+          series={[
+            { key: "receitaRaw", label: "Receita", color: settings.color, currency: true },
+          ]}
           settings={settings}
         />
       ),
@@ -649,12 +655,7 @@ function DashboardEstrategico() {
       defaultColumns: 12,
       defaultHeight: 330,
       render: () => (
-        <ReceivablesPanel
-          reservations={filteredReservations}
-          clients={clients}
-          sales={sales}
-          compact
-        />
+        <ReceivablesPanel reservations={reservations} clients={clients} sales={sales} compact />
       ),
     },
     {
@@ -711,19 +712,19 @@ function DashboardEstrategico() {
 
   return (
     <div className="space-y-3 pb-6">
-      <header className="overflow-hidden rounded-lg border border-pine/25 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine)_58%,var(--brass))] px-4 py-3 text-white shadow-sm sm:px-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
+      <header className="overflow-hidden rounded-lg border border-pine/25 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine)_58%,var(--brass))] px-3 py-2 text-white shadow-sm">
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
             <img
-              src={brandSettings.logo}
-              alt={currentCompany.data?.nome ?? "Hotel"}
-              className="h-12 w-12 rounded-md bg-white object-contain p-1"
+              src="/hotel-real-logo.png"
+              alt="Hotel Real"
+              className="h-9 w-9 rounded-md bg-white object-contain p-1"
             />
             <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-brass">
-                {currentCompany.data?.nome ?? "Gestão hoteleira"}
+                Hotel Real Cruzilia
               </p>
-              <h1 className="truncate font-serif text-xl font-bold sm:text-2xl">
+              <h1 className="truncate font-serif text-lg font-bold">
                 Dashboard Estratégico
               </h1>
               <p className="mt-0.5 text-xs text-white/80">
@@ -735,7 +736,7 @@ function DashboardEstrategico() {
             <PeriodSelector value={period} onChange={setPeriod} />
             <a
               href="/painel"
-              className="rounded-md bg-white/12 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20"
+              className="rounded-md bg-white/12 px-2 py-1.5 text-xs font-semibold text-white hover:bg-white/20"
             >
               Voltar ao painel
             </a>
@@ -743,8 +744,8 @@ function DashboardEstrategico() {
         </div>
       </header>
 
-      <div className="grid gap-3 xl:grid-cols-[11rem_1fr]">
-        <nav className="flex flex-col gap-2">
+      <div className="space-y-2">
+        <nav className="flex flex-wrap gap-1" aria-label="Visões do dashboard estratégico">
           {[
             ["geral", "Visão geral"],
             ["canais", "Canais"],
@@ -755,7 +756,7 @@ function DashboardEstrategico() {
             <button
               key={key}
               onClick={() => setSection(key as DashboardSection)}
-              className={`rounded-md border px-3 py-2 text-left text-xs font-bold transition ${
+              className={`rounded-md border px-2 py-1 text-[11px] font-bold transition ${
                 section === key
                   ? "border-brass bg-brass text-pine-dark"
                   : "border-border bg-card text-pine-dark hover:bg-sage-bg"
@@ -868,14 +869,14 @@ function StoryKpi({
   yearDelta?: number | null;
 }) {
   const toneClass = {
-    pine: "border-t-pine bg-[linear-gradient(180deg,rgba(35,77,56,.10),var(--card)_55%)]",
-    sage: "border-t-sage bg-[linear-gradient(180deg,rgba(88,139,105,.12),var(--card)_55%)]",
-    brass: "border-t-brass bg-[linear-gradient(180deg,rgba(208,178,91,.18),var(--card)_55%)]",
-    brick: "border-t-brick bg-[linear-gradient(180deg,rgba(162,70,45,.12),var(--card)_55%)]",
+    pine: "bg-[linear-gradient(180deg,rgba(35,77,56,.10),var(--card)_55%)]",
+    sage: "bg-[linear-gradient(180deg,rgba(88,139,105,.12),var(--card)_55%)]",
+    brass: "bg-[linear-gradient(180deg,rgba(208,178,91,.18),var(--card)_55%)]",
+    brick: "bg-[linear-gradient(180deg,rgba(162,70,45,.12),var(--card)_55%)]",
   }[tone];
   return (
     <div
-      className={`min-w-0 rounded-md border border-border border-t-4 p-2 shadow-sm ${toneClass}`}
+      className={`min-w-0 rounded-md border border-border p-2 shadow-sm ${toneClass}`}
     >
       <div className="mb-1 flex items-center gap-1.5 text-pine [&>svg]:h-3.5 [&>svg]:w-3.5">
         {icon}
@@ -952,11 +953,7 @@ function HotelMetricCard({
 
 function DeltaPill({ label, value }: { label: string; value?: number | null }) {
   if (value == null || !Number.isFinite(value)) {
-    return (
-      <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">
-        {label}: sem base
-      </span>
-    );
+    return <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">{label}: sem base</span>;
   }
   const improved = value >= 0;
   const Icon = improved ? ArrowUpRight : ArrowDownRight;
@@ -1088,7 +1085,7 @@ function EditableStrategicChart({
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
       <Tooltip formatter={formatter} />
-      <Legend wrapperStyle={{ fontSize: 10 }} />
+      {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
     </>
   );
   let chart: React.ReactNode;
@@ -1103,6 +1100,7 @@ function EditableStrategicChart({
           nameKey={categoryKey}
           innerRadius={settings.chartType === "doughnut" ? "48%" : 0}
           outerRadius="76%"
+          label={settings.showLabels}
         >
           {rows.map((row, index) => (
             <Cell
@@ -1112,7 +1110,7 @@ function EditableStrategicChart({
           ))}
         </Pie>
         <Tooltip formatter={formatter} />
-        <Legend wrapperStyle={{ fontSize: 10 }} />
+        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
       </PieChart>
     );
   } else if (settings.chartType === "radar") {
@@ -1122,6 +1120,7 @@ function EditableStrategicChart({
         <PolarAngleAxis dataKey={categoryKey} tick={{ fontSize: 10 }} />
         <PolarRadiusAxis tick={{ fontSize: 9 }} />
         <Tooltip formatter={formatter} />
+        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
         {series.map((item, index) => (
           <Radar
             key={item.key}
@@ -1148,8 +1147,17 @@ function EditableStrategicChart({
             name={item.label}
             stroke={item.color}
             strokeWidth={2.5}
-            dot={false}
-          />
+            dot={settings.showLabels ? { r: 3 } : false}
+          >
+            {settings.showLabels && (
+              <LabelList
+                dataKey={item.key}
+                position="top"
+                fontSize={9}
+                formatter={(value: number) => chartLabel(value, item.currency)}
+              />
+            )}
+          </Line>
         ))}
       </LineChart>
     );
@@ -1168,7 +1176,16 @@ function EditableStrategicChart({
             stroke={item.color}
             fill={item.color}
             fillOpacity={index ? 0.12 : 0.24}
-          />
+          >
+            {settings.showLabels && (
+              <LabelList
+                dataKey={item.key}
+                position="top"
+                fontSize={9}
+                formatter={(value: number) => chartLabel(value, item.currency)}
+              />
+            )}
+          </Area>
         ))}
       </AreaChart>
     );
@@ -1188,7 +1205,16 @@ function EditableStrategicChart({
               stroke={item.color}
               fill={item.color}
               fillOpacity={0.18}
-            />
+            >
+              {settings.showLabels && (
+                <LabelList
+                  dataKey={item.key}
+                  position="top"
+                  fontSize={9}
+                  formatter={(value: number) => chartLabel(value, item.currency)}
+                />
+              )}
+            </Area>
           ) : (
             <Line
               key={item.key}
@@ -1197,8 +1223,17 @@ function EditableStrategicChart({
               name={item.label}
               stroke={item.color}
               strokeWidth={2.5}
-              dot={false}
-            />
+              dot={settings.showLabels ? { r: 3 } : false}
+            >
+              {settings.showLabels && (
+                <LabelList
+                  dataKey={item.key}
+                  position="top"
+                  fontSize={9}
+                  formatter={(value: number) => chartLabel(value, item.currency)}
+                />
+              )}
+            </Line>
           ),
         )}
       </ComposedChart>
@@ -1230,7 +1265,16 @@ function EditableStrategicChart({
             name={item.label}
             fill={item.color}
             radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
-          />
+          >
+            {settings.showLabels && (
+              <LabelList
+                dataKey={item.key}
+                position={horizontal ? "right" : "top"}
+                fontSize={9}
+                formatter={(value: number) => chartLabel(value, item.currency)}
+              />
+            )}
+          </Bar>
         ))}
       </BarChart>
     );
@@ -1252,40 +1296,15 @@ function EditableStrategicChart({
   );
 }
 
-function FutureOccupancyGauge({
-  settings,
-  value,
-}: {
-  settings: DashboardWidgetSettings;
-  value: number;
-}) {
-  return (
-    <section className="h-full rounded-lg border border-border bg-card p-3 shadow-sm">
-      <h2 className="text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>
-      <ResponsiveContainer width="100%" height={Math.max(56, settings.height - 54)}>
-        <RadialBarChart
-          innerRadius="68%"
-          outerRadius="96%"
-          data={[{ name: "Ocupação", value, fill: settings.color }]}
-          startAngle={180}
-          endAngle={0}
-        >
-          <RadialBar dataKey="value" cornerRadius={10} background />
-          <text
-            x="50%"
-            y="54%"
-            textAnchor="middle"
-            className="fill-pine-dark font-serif text-3xl font-bold"
-          >
-            {value}%
-          </text>
-          <text x="50%" y="68%" textAnchor="middle" className="fill-muted-foreground text-xs">
-            próximos 30 dias
-          </text>
-        </RadialBarChart>
-      </ResponsiveContainer>
-    </section>
-  );
+function chartLabel(value: number, currency = false) {
+  const number = Number(value) || 0;
+  if (!currency) return number.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  return Intl.NumberFormat("pt-BR", {
+    notation: "compact",
+    style: "currency",
+    currency: "BRL",
+    maximumFractionDigits: 1,
+  }).format(number);
 }
 
 function WorldGuestBubbleMap({
@@ -1310,11 +1329,7 @@ function WorldGuestBubbleMap({
         role="img"
         aria-label="Mapa mundial da origem dos hóspedes"
       >
-        <g
-          fill="color-mix(in srgb, var(--pine) 18%, var(--card))"
-          stroke="var(--border)"
-          strokeWidth="2"
-        >
+        <g fill="color-mix(in srgb, var(--pine) 18%, var(--card))" stroke="var(--border)" strokeWidth="2">
           <path d="M42 94 L95 55 177 61 222 98 190 132 153 142 131 195 92 174 73 130 Z" />
           <path d="M185 196 L224 206 249 252 236 321 202 286 184 237 Z" />
           <path d="M332 78 L377 54 423 73 449 112 420 132 391 121 367 142 335 121 Z" />
@@ -1339,14 +1354,7 @@ function WorldGuestBubbleMap({
               >
                 <title>{`${row.name}: ${row.value} hóspede(s) · ${fmtBRL(row.receita)}`}</title>
               </circle>
-              <text
-                x={point.x}
-                y={point.y + 4}
-                textAnchor="middle"
-                fill="white"
-                fontSize="10"
-                fontWeight="700"
-              >
+              <text x={point.x} y={point.y + 4} textAnchor="middle" fill="white" fontSize="10" fontWeight="700">
                 {row.code}
               </text>
             </g>
@@ -1465,14 +1473,10 @@ function buildProfileDistribution(
   field: ProfileField,
 ) {
   const referenced = new Set(
-    reservations
-      .map((reservation) => readClientId(reservation))
-      .filter((id): id is string => Boolean(id)),
+    reservations.map((reservation) => readClientId(reservation)).filter((id): id is string => Boolean(id)),
   );
   const source = referenced.size
-    ? [...referenced]
-        .map((id) => clientById.get(id))
-        .filter((client): client is Client => Boolean(client))
+    ? [...referenced].map((id) => clientById.get(id)).filter((client): client is Client => Boolean(client))
     : clients;
   const counts = new Map<string, number>();
   source.forEach((client) => {
@@ -1524,14 +1528,17 @@ function countryIdentity(client?: Client) {
   return { code: "OTHER", name: "Não informado" };
 }
 
-function buildProfileRevenue(reservations: Reservation[], clientById: Map<string, Client>) {
+function buildProfileRevenue(
+  reservations: Reservation[],
+  clientById: Map<string, Client>,
+) {
   const rows = new Map<string, number>();
   reservations.forEach((reservation) => {
     const client = clientById.get(readClientId(reservation) ?? "");
     const country = countryIdentity(client);
     const label =
       country.code === "BR" && client?.estado
-        ? (BRAZIL_STATE_NAMES[normalizeState(client.estado)] ?? client.estado)
+        ? BRAZIL_STATE_NAMES[normalizeState(client.estado)] ?? client.estado
         : country.name;
     rows.set(label, (rows.get(label) ?? 0) + reservationRevenue(reservation));
   });
@@ -1623,8 +1630,22 @@ function buildMonthlyStory(
   });
 }
 
-function buildForecast(reservations: Reservation[], roomCount: number, today: string) {
+function buildForecast(
+  reservations: Reservation[],
+  expenses: Expense[],
+  roomCount: number,
+  today: string,
+) {
   const base = new Date(`${today}T00:00:00`);
+  const historyStart = new Date(base);
+  historyStart.setDate(base.getDate() - 90);
+  const dailyExpense =
+    expenses
+      .filter((expense) => {
+        const date = new Date(`${expense.data}T00:00:00`);
+        return date >= historyStart && date < base;
+      })
+      .reduce((sum, expense) => sum + Number(expense.valor ?? 0), 0) / 90;
   return Array.from({ length: 30 }, (_, index) => {
     const date = new Date(base);
     date.setDate(base.getDate() + index);
@@ -1644,6 +1665,7 @@ function buildForecast(reservations: Reservation[], roomCount: number, today: st
       label: `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`,
       ocupacao: roomCount ? Math.round((active.length / roomCount) * 100) : 0,
       receita,
+      despesa: Math.round(dailyExpense * 100) / 100,
     };
   });
 }
@@ -1976,11 +1998,7 @@ const COUNTRY_ALIASES = [
   { code: "BR", name: "Brasil", aliases: ["brasil", "brazil", "br"] },
   { code: "AR", name: "Argentina", aliases: ["argentina", "ar"] },
   { code: "CL", name: "Chile", aliases: ["chile", "cl"] },
-  {
-    code: "US",
-    name: "Estados Unidos",
-    aliases: ["estados unidos", "eua", "usa", "united states"],
-  },
+  { code: "US", name: "Estados Unidos", aliases: ["estados unidos", "eua", "usa", "united states"] },
   { code: "CA", name: "Canadá", aliases: ["canada", "ca"] },
   { code: "MX", name: "México", aliases: ["mexico", "mx"] },
   { code: "PT", name: "Portugal", aliases: ["portugal", "pt"] },
@@ -1988,11 +2006,7 @@ const COUNTRY_ALIASES = [
   { code: "FR", name: "França", aliases: ["franca", "france", "fr"] },
   { code: "DE", name: "Alemanha", aliases: ["alemanha", "germany", "de"] },
   { code: "IT", name: "Itália", aliases: ["italia", "italy", "it"] },
-  {
-    code: "GB",
-    name: "Reino Unido",
-    aliases: ["reino unido", "inglaterra", "united kingdom", "gb"],
-  },
+  { code: "GB", name: "Reino Unido", aliases: ["reino unido", "inglaterra", "united kingdom", "gb"] },
   { code: "AO", name: "Angola", aliases: ["angola", "ao"] },
   { code: "ZA", name: "África do Sul", aliases: ["africa do sul", "south africa", "za"] },
   { code: "CN", name: "China", aliases: ["china", "cn"] },

@@ -20,7 +20,14 @@ import {
 import { toast } from "sonner";
 
 export type DashboardChartType =
-  "bar" | "horizontalBar" | "line" | "area" | "pie" | "doughnut" | "radar" | "composed";
+  | "bar"
+  | "horizontalBar"
+  | "line"
+  | "area"
+  | "pie"
+  | "doughnut"
+  | "radar"
+  | "composed";
 
 export type DashboardWidgetSettings = {
   id: string;
@@ -32,6 +39,12 @@ export type DashboardWidgetSettings = {
   height: number;
   hidden: boolean;
   chartType: DashboardChartType;
+  contentScale: number;
+  fontSize: number;
+  autoFit: boolean;
+  showLegend: boolean;
+  showLabels: boolean;
+  showAccentBorder: boolean;
 };
 
 export type DashboardWidget = {
@@ -50,11 +63,17 @@ type StoredLayout = {
   widgets: Record<string, DashboardWidgetSettings>;
 };
 
-const MIN_WIDGET_HEIGHT = 36;
-const MAX_WIDGET_HEIGHT = 900;
+type DragState = {
+  id: string;
+  x: number;
+  y: number;
+};
+
+const MIN_WIDGET_HEIGHT = 2;
+const MAX_WIDGET_HEIGHT = 1200;
 
 function storageKey(companyId: string | null | undefined, dashboardId: string) {
-  return `hotelreal.dashboard.v2.${companyId ?? "default"}.${dashboardId}`;
+  return `hotelreal.dashboard.v3.${companyId ?? "default"}.${dashboardId}`;
 }
 
 function defaultSettings(widget: DashboardWidget): DashboardWidgetSettings {
@@ -65,9 +84,15 @@ function defaultSettings(widget: DashboardWidget): DashboardWidgetSettings {
     backgroundColor: "var(--card)",
     backgroundOpacity: 100,
     columns: widget.defaultColumns ?? (widget.kind === "kpi" ? 2 : 6),
-    height: widget.defaultHeight ?? (widget.kind === "kpi" ? 110 : 290),
+    height: widget.defaultHeight ?? (widget.kind === "kpi" ? 104 : 290),
     hidden: false,
     chartType: widget.chartTypes?.[0] ?? "bar",
+    contentScale: 100,
+    fontSize: 100,
+    autoFit: true,
+    showLegend: true,
+    showLabels: widget.kind === "chart",
+    showAccentBorder: false,
   };
 }
 
@@ -81,10 +106,13 @@ function loadLayout(
     widgets: Object.fromEntries(widgets.map((widget) => [widget.id, defaultSettings(widget)])),
   };
   if (typeof window === "undefined") return fallback;
+
   try {
-    const stored = JSON.parse(
-      window.localStorage.getItem(storageKey(companyId, dashboardId)) ?? "{}",
-    ) as Partial<StoredLayout>;
+    const current = window.localStorage.getItem(storageKey(companyId, dashboardId));
+    const legacy = window.localStorage.getItem(
+      `hotelreal.dashboard.${companyId ?? "default"}.${dashboardId}`,
+    );
+    const stored = JSON.parse(current ?? legacy ?? "{}") as Partial<StoredLayout>;
     const storedWidgets = stored.widgets ?? {};
     return {
       order: [
@@ -117,12 +145,9 @@ export function DashboardDesigner({
   description?: string;
 }) {
   const [editing, setEditing] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [layout, setLayout] = useState(() => loadLayout(companyId, dashboardId, widgets));
-  const [dragging, setDragging] = useState<{
-    id: string;
-    x: number;
-    y: number;
-  } | null>(null);
+  const [dragging, setDragging] = useState<DragState | null>(null);
   const [resizing, setResizing] = useState<{
     id: string;
     startX: number;
@@ -143,40 +168,36 @@ export function DashboardDesigner({
   const orderedWidgets = layout.order
     .map((id) => widgetById.get(id))
     .filter((widget): widget is DashboardWidget => Boolean(widget));
+  const selectedWidget = selectedId ? widgetById.get(selectedId) : undefined;
+  const selectedSettings = selectedId ? layout.widgets[selectedId] : undefined;
 
   useEffect(() => {
     if (!resizing) return;
+
     function onPointerMove(event: PointerEvent) {
-      const columnWidth = Math.max(56, (resizing!.gridWidth - 33) / 12);
+      const columnWidth = Math.max(40, (resizing!.gridWidth - 33) / 12);
       const columns = Math.min(
         12,
         Math.max(
           1,
-          Math.round(resizing!.startColumns + (event.clientX - resizing!.startX) / columnWidth),
+          Math.round(
+            resizing!.startColumns + (event.clientX - resizing!.startX) / columnWidth,
+          ),
         ),
       );
       const height = Math.min(
         MAX_WIDGET_HEIGHT,
-        Math.max(
-          MIN_WIDGET_HEIGHT,
-          Math.round((resizing!.startHeight + event.clientY - resizing!.startY) / 4) * 4,
-        ),
+        Math.max(MIN_WIDGET_HEIGHT, Math.round(resizing!.startHeight + event.clientY - resizing!.startY)),
       );
-      setLayout((current) => ({
-        ...current,
-        widgets: {
-          ...current.widgets,
-          [resizing!.id]: {
-            ...current.widgets[resizing!.id],
-            columns,
-            height,
-          },
-        },
-      }));
+      updateWidget(resizing!.id, { columns, height });
     }
+
     function onPointerUp() {
       setResizing(null);
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
     }
+
     window.addEventListener("pointermove", onPointerMove);
     window.addEventListener("pointerup", onPointerUp, { once: true });
     return () => {
@@ -185,11 +206,39 @@ export function DashboardDesigner({
     };
   }, [resizing]);
 
+  useEffect(() => {
+    if (!dragging) return;
+
+    function onPointerMove(event: PointerEvent) {
+      lastPointerRef.current = { x: event.clientX, y: event.clientY };
+      setDragging((current) =>
+        current ? { ...current, x: event.clientX, y: event.clientY } : current,
+      );
+      reorderAtPoint(event.clientX, event.clientY);
+      updateAutoScroll(event.clientY);
+    }
+
+    function onPointerUp() {
+      finishDragging();
+    }
+
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp, { once: true });
+    window.addEventListener("pointercancel", onPointerUp, { once: true });
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, [dragging?.id]);
+
   useEffect(
     () => () => {
       if (autoScrollFrameRef.current != null) {
         window.cancelAnimationFrame(autoScrollFrameRef.current);
       }
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
     },
     [],
   );
@@ -233,7 +282,6 @@ export function DashboardDesigner({
     const grid = gridRef.current;
     const draggedId = draggedIdRef.current;
     if (!grid || !draggedId) return;
-
     const gridRect = grid.getBoundingClientRect();
     if (
       clientX < gridRect.left ||
@@ -247,31 +295,32 @@ export function DashboardDesigner({
     const candidates = Array.from(
       grid.querySelectorAll<HTMLElement>("[data-dashboard-widget-id]"),
     ).filter((element) => element.dataset.dashboardWidgetId !== draggedId);
-
     if (!candidates.length) return;
-    if (clientY <= gridRect.top + 18) {
-      moveWidgetToEdge("start");
-      return;
-    }
-    if (clientY >= gridRect.bottom - 18) {
-      moveWidgetToEdge("end");
-      return;
-    }
+    if (clientY <= gridRect.top + 18) return moveWidgetToEdge("start");
+    if (clientY >= gridRect.bottom - 18) return moveWidgetToEdge("end");
 
     let closest = candidates[0];
     let closestDistance = Number.POSITIVE_INFINITY;
-    for (const candidate of candidates) {
+    candidates.forEach((candidate) => {
       const rect = candidate.getBoundingClientRect();
       const dx =
-        clientX < rect.left ? rect.left - clientX : clientX > rect.right ? clientX - rect.right : 0;
+        clientX < rect.left
+          ? rect.left - clientX
+          : clientX > rect.right
+            ? clientX - rect.right
+            : 0;
       const dy =
-        clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
+        clientY < rect.top
+          ? rect.top - clientY
+          : clientY > rect.bottom
+            ? clientY - rect.bottom
+            : 0;
       const distance = Math.hypot(dx, dy);
       if (distance < closestDistance) {
         closest = candidate;
         closestDistance = distance;
       }
-    }
+    });
 
     const rect = closest.getBoundingClientRect();
     const sameRow =
@@ -315,6 +364,7 @@ export function DashboardDesigner({
     if (event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
+    setSelectedId(id);
     draggedIdRef.current = id;
     lastPointerRef.current = { x: event.clientX, y: event.clientY };
     setDragging({ id, x: event.clientX, y: event.clientY });
@@ -330,38 +380,15 @@ export function DashboardDesigner({
     stopAutoScroll();
   }
 
-  useEffect(() => {
-    if (!dragging) return;
-
-    function onPointerMove(event: PointerEvent) {
-      lastPointerRef.current = { x: event.clientX, y: event.clientY };
-      setDragging((current) =>
-        current ? { ...current, x: event.clientX, y: event.clientY } : current,
-      );
-      reorderAtPoint(event.clientX, event.clientY);
-      updateAutoScroll(event.clientY);
-    }
-
-    function onPointerUp() {
-      finishDragging();
-    }
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp, { once: true });
-    window.addEventListener("pointercancel", onPointerUp, { once: true });
-    return () => {
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", onPointerUp);
-      window.removeEventListener("pointercancel", onPointerUp);
-    };
-  }, [dragging?.id]);
-
   function startResize(
     event: ReactPointerEvent<HTMLButtonElement>,
     settings: DashboardWidgetSettings,
   ) {
     event.preventDefault();
     event.stopPropagation();
+    setSelectedId(settings.id);
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "se-resize";
     setResizing({
       id: settings.id,
       startX: event.clientX,
@@ -375,250 +402,151 @@ export function DashboardDesigner({
   function save() {
     window.localStorage.setItem(storageKey(companyId, dashboardId), JSON.stringify(layout));
     setEditing(false);
+    setSelectedId(null);
     toast.success("Layout do dashboard salvo");
   }
 
   function reset() {
-    const next = loadLayout(null, `__reset_${dashboardId}`, widgets);
+    const next: StoredLayout = {
+      order: widgets.map((widget) => widget.id),
+      widgets: Object.fromEntries(
+        widgets.map((widget) => [widget.id, defaultSettings(widget)]),
+      ),
+    };
     window.localStorage.removeItem(storageKey(companyId, dashboardId));
     setLayout(next);
+    setSelectedId(null);
     toast.success("Layout padrão restaurado");
   }
 
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
-        <div className="flex items-center gap-2">
-          <LayoutDashboard className="h-4 w-4 text-brass" />
-          <div>
-            <p className="text-xs font-bold text-pine-dark">{title}</p>
-            <p className="text-[10px] text-muted-foreground">{description}</p>
+        <div className="flex min-w-0 items-center gap-2">
+          <LayoutDashboard className="h-4 w-4 shrink-0 text-brass" />
+          <div className="min-w-0">
+            <p className="truncate text-xs font-bold text-pine-dark">{title}</p>
+            <p className="truncate text-[10px] text-muted-foreground">{description}</p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {editing && (
             <>
               <button
                 type="button"
-                className="btn-ghost flex items-center gap-1 text-xs"
+                className="btn-ghost flex items-center gap-1 px-2 py-1 text-xs"
                 onClick={reset}
               >
                 <RotateCcw className="h-3.5 w-3.5" /> Restaurar
               </button>
               <button
                 type="button"
-                className="btn-primary flex items-center gap-1 text-xs"
+                className="btn-primary flex items-center gap-1 px-2 py-1 text-xs"
                 onClick={save}
               >
-                <Save className="h-3.5 w-3.5" /> Salvar layout
+                <Save className="h-3.5 w-3.5" /> Salvar
               </button>
             </>
           )}
           <button
             type="button"
-            className="btn-ghost flex items-center gap-1 text-xs"
-            onClick={() => setEditing((value) => !value)}
+            className="btn-ghost flex items-center gap-1 px-2 py-1 text-xs"
+            onClick={() => {
+              setEditing((value) => !value);
+              setSelectedId(null);
+            }}
           >
             <Settings2 className="h-3.5 w-3.5" />
-            {editing ? "Fechar edição" : "Personalizar"}
+            {editing ? "Fechar" : "Personalizar"}
           </button>
         </div>
       </div>
 
       {editing && (
-        <div className="rounded-lg border border-brass/40 bg-brass/10 px-3 py-2 text-xs text-pine-dark">
-          Arraste pelo ícone e defina título, cor, largura, altura ou tipo. A altura aceita desde 36
-          px; cards muito pequenos podem ocultar parte do conteúdo. Itens ocultos continuam
-          disponíveis neste modo.
-        </div>
+        <EditorPanel
+          widget={selectedWidget}
+          settings={selectedSettings}
+          onSelect={(id) => setSelectedId(id)}
+          widgets={orderedWidgets}
+          onChange={(patch) => selectedId && updateWidget(selectedId, patch)}
+        />
       )}
 
-      <div ref={gridRef} className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+      <div ref={gridRef} className="dashboard-designer-grid grid grid-cols-1 gap-3 lg:grid-cols-12">
         {orderedWidgets.map((widget) => {
           const settings = layout.widgets[widget.id] ?? defaultSettings(widget);
           if (settings.hidden && !editing) return null;
+          const defaultHeight = widget.defaultHeight ?? (widget.kind === "kpi" ? 104 : 290);
+          const widthRatio = settings.columns / (widget.defaultColumns ?? (widget.kind === "kpi" ? 2 : 6));
+          const heightRatio = settings.height / defaultHeight;
+          const autoScale = Math.min(1, Math.max(0.08, Math.min(widthRatio, heightRatio)));
+          const scale = (settings.contentScale / 100) * (settings.autoFit ? autoScale : 1);
           const wrapperStyle = {
             "--widget-color": settings.color,
-            "--widget-background": settings.backgroundColor,
-            borderTopColor: settings.color,
+            "--widget-columns": Math.min(12, Math.max(1, settings.columns)),
+            "--widget-font-size": `${settings.fontSize}%`,
             background: `color-mix(in srgb, ${settings.backgroundColor} ${settings.backgroundOpacity}%, transparent)`,
-            gridColumn: `span ${Math.min(12, Math.max(1, settings.columns))} / span ${Math.min(12, Math.max(1, settings.columns))}`,
             height: settings.height,
-            opacity: settings.hidden ? 0.5 : dragging?.id === widget.id ? 0.35 : 1,
+            opacity: settings.hidden ? 0.45 : dragging?.id === widget.id ? 0.3 : 1,
+            borderTopColor: settings.showAccentBorder ? settings.color : "transparent",
+            borderTopWidth: settings.showAccentBorder ? 4 : 0,
+            borderTopStyle: "solid",
+          } as CSSProperties;
+          const contentStyle = {
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+            width: `${100 / scale}%`,
+            height: `${100 / scale}%`,
+            fontSize: `${settings.fontSize}%`,
           } as CSSProperties;
 
           return (
-            <div
+            <article
               key={widget.id}
               data-dashboard-widget-id={widget.id}
-              className={`dashboard-widget relative min-w-0 rounded-lg border-t-4 ${
+              className={`dashboard-designer-widget relative min-w-0 overflow-visible rounded-lg ${
                 editing
-                  ? "overflow-visible border border-dashed border-brass bg-card p-2 shadow-md"
-                  : "overflow-hidden"
+                  ? selectedId === widget.id
+                    ? "z-10 border-2 border-brass shadow-md"
+                    : "border border-dashed border-muted-foreground/45"
+                  : ""
               }`}
               style={wrapperStyle}
             >
               {editing && (
-                <div className="mb-2 grid gap-2 rounded-md bg-muted p-2 sm:grid-cols-[auto_1fr_repeat(4,auto)]">
-                  <button
-                    type="button"
-                    onPointerDown={(event) => startDragging(event, widget.id)}
-                    className="mt-1 cursor-grab touch-none rounded p-1 text-muted-foreground hover:bg-card active:cursor-grabbing"
-                    aria-label={`Mover ${settings.title}`}
-                    title="Segure e arraste com o mouse para qualquer posição"
-                  >
-                    <GripVertical className="h-4 w-4" />
-                  </button>
-                  <input
-                    className="field min-w-0 py-1 text-xs"
-                    aria-label={`Título de ${widget.title}`}
-                    value={settings.title}
-                    onChange={(event) => updateWidget(widget.id, { title: event.target.value })}
-                  />
-                  <span className="self-end whitespace-nowrap pb-1 text-[9px] font-semibold text-muted-foreground">
-                    {settings.columns}/12 · {settings.height}px
-                  </span>
-                  <label className="text-[10px] font-semibold text-muted-foreground">
-                    Cor
-                    <input
-                      type="color"
-                      className="block h-7 w-10 cursor-pointer"
-                      value={settings.color.startsWith("#") ? settings.color : "#234d38"}
-                      onChange={(event) => updateWidget(widget.id, { color: event.target.value })}
-                    />
-                  </label>
-                  <label className="text-[10px] font-semibold text-muted-foreground">
-                    Fundo
-                    <input
-                      type="color"
-                      className="block h-7 w-10 cursor-pointer"
-                      value={
-                        settings.backgroundColor.startsWith("#")
-                          ? settings.backgroundColor
-                          : "#fffdf8"
-                      }
-                      onChange={(event) =>
-                        updateWidget(widget.id, { backgroundColor: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label className="text-[10px] font-semibold text-muted-foreground">
-                    Opacidade
-                    <input
-                      className="field block w-20 py-1 text-xs"
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={settings.backgroundOpacity}
-                      onChange={(event) =>
-                        updateWidget(widget.id, {
-                          backgroundOpacity: Math.min(
-                            100,
-                            Math.max(0, Number(event.target.value) || 0),
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="self-end rounded border border-border bg-card px-2 py-1.5 text-[9px] font-bold text-muted-foreground"
-                    onClick={() =>
-                      updateWidget(widget.id, {
-                        backgroundColor: "var(--card)",
-                        backgroundOpacity: 100,
-                      })
-                    }
-                    title="Usar o fundo definido no tema do sistema"
-                  >
-                    Fundo do tema
-                  </button>
-                  <label className="text-[10px] font-semibold text-muted-foreground">
-                    Largura
-                    <input
-                      className="field block w-20 py-1 text-xs"
-                      type="number"
-                      min={1}
-                      max={12}
-                      step={1}
-                      value={settings.columns}
-                      onChange={(event) =>
-                        updateWidget(widget.id, {
-                          columns: Math.min(12, Math.max(1, Number(event.target.value) || 1)),
-                        })
-                      }
-                    />
-                  </label>
-                  <label className="text-[10px] font-semibold text-muted-foreground">
-                    Altura
-                    <input
-                      className="field block w-24 py-1 text-xs"
-                      type="number"
-                      min={MIN_WIDGET_HEIGHT}
-                      max={MAX_WIDGET_HEIGHT}
-                      step={1}
-                      value={settings.height}
-                      onChange={(event) =>
-                        updateWidget(widget.id, {
-                          height: Math.min(
-                            MAX_WIDGET_HEIGHT,
-                            Math.max(
-                              MIN_WIDGET_HEIGHT,
-                              Number(event.target.value) || MIN_WIDGET_HEIGHT,
-                            ),
-                          ),
-                        })
-                      }
-                    />
-                  </label>
-                  {widget.chartTypes?.length ? (
-                    <label className="text-[10px] font-semibold text-muted-foreground">
-                      Tipo
-                      <select
-                        className="field block py-1 text-xs"
-                        value={settings.chartType}
-                        onChange={(event) =>
-                          updateWidget(widget.id, {
-                            chartType: event.target.value as DashboardChartType,
-                          })
-                        }
-                      >
-                        {widget.chartTypes.map((type) => (
-                          <option key={type} value={type}>
-                            {type}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : (
-                    <span />
-                  )}
-                  <button
-                    type="button"
-                    className="self-end rounded-md border border-border bg-card p-2"
-                    aria-label={settings.hidden ? "Exibir item" : "Ocultar item"}
-                    onClick={() => updateWidget(widget.id, { hidden: !settings.hidden })}
-                  >
-                    {settings.hidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onPointerDown={(event) => startDragging(event, widget.id)}
+                  onClick={() => setSelectedId(widget.id)}
+                  className="absolute left-1 top-1 z-30 flex touch-none cursor-grab items-center gap-1 rounded-md border border-border bg-card/95 px-1.5 py-1 text-[9px] font-bold text-pine-dark shadow active:cursor-grabbing"
+                  aria-label={`Selecionar e mover ${settings.title}`}
+                  title="Segure e arraste com o mouse"
+                >
+                  <GripVertical className="h-3.5 w-3.5" />
+                  <span className="max-w-24 truncate">{settings.title}</span>
+                </button>
               )}
-              {widget.render(settings)}
+              <div className="h-full overflow-hidden rounded-[inherit]">
+                <div className="dashboard-designer-content h-full min-w-0" style={contentStyle}>
+                  {widget.render(settings)}
+                </div>
+              </div>
               {editing && (
                 <button
                   type="button"
                   onPointerDown={(event) => startResize(event, settings)}
-                  className="absolute bottom-1 right-1 z-20 cursor-se-resize rounded-tl-lg border border-brass/45 bg-brass p-2 text-pine-dark shadow"
+                  className="absolute bottom-0 right-0 z-30 touch-none cursor-se-resize rounded-tl-lg bg-brass p-1.5 text-pine-dark shadow"
                   aria-label={`Redimensionar ${settings.title}`}
-                  title="Arraste para redimensionar largura e altura"
+                  title="Arraste para alterar largura e altura"
                 >
-                  <Maximize2 className="h-4 w-4" />
+                  <Maximize2 className="h-3.5 w-3.5" />
                 </button>
               )}
-            </div>
+            </article>
           );
         })}
       </div>
+
       {dragging && (
         <div
           className="pointer-events-none fixed z-[100] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-brass bg-card/95 px-3 py-2 text-xs font-bold text-pine-dark shadow-xl"
@@ -630,4 +558,225 @@ export function DashboardDesigner({
       )}
     </section>
   );
+}
+
+function EditorPanel({
+  widget,
+  settings,
+  widgets,
+  onSelect,
+  onChange,
+}: {
+  widget?: DashboardWidget;
+  settings?: DashboardWidgetSettings;
+  widgets: DashboardWidget[];
+  onSelect: (id: string) => void;
+  onChange: (patch: Partial<DashboardWidgetSettings>) => void;
+}) {
+  return (
+    <aside className="rounded-lg border border-brass/40 bg-brass/5 p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <strong className="text-xs text-pine-dark">Editar item:</strong>
+        <select
+          className="field h-8 min-w-52 py-1 text-xs"
+          value={settings?.id ?? ""}
+          onChange={(event) => onSelect(event.target.value)}
+        >
+          <option value="" disabled>
+            Selecione um card ou gráfico
+          </option>
+          {widgets.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.title}
+            </option>
+          ))}
+        </select>
+        <span className="text-[10px] text-muted-foreground">
+          Arraste pelo ícone do card. Os controles ficam somente aqui para não cobrir os dados.
+        </span>
+      </div>
+
+      {widget && settings ? (
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+          <EditorField label="Título" wide>
+            <input
+              className="field h-8 py-1 text-xs"
+              value={settings.title}
+              onChange={(event) => onChange({ title: event.target.value })}
+            />
+          </EditorField>
+          <EditorField label="Largura (1–12)">
+            <input
+              className="field h-8 py-1 text-xs"
+              type="number"
+              min={1}
+              max={12}
+              value={settings.columns}
+              onChange={(event) =>
+                onChange({ columns: Math.min(12, Math.max(1, Number(event.target.value) || 1)) })
+              }
+            />
+          </EditorField>
+          <EditorField label="Altura (2–1200 px)">
+            <input
+              className="field h-8 py-1 text-xs"
+              type="number"
+              min={MIN_WIDGET_HEIGHT}
+              max={MAX_WIDGET_HEIGHT}
+              value={settings.height}
+              onChange={(event) =>
+                onChange({
+                  height: Math.min(
+                    MAX_WIDGET_HEIGHT,
+                    Math.max(MIN_WIDGET_HEIGHT, Number(event.target.value) || MIN_WIDGET_HEIGHT),
+                  ),
+                })
+              }
+            />
+          </EditorField>
+          <EditorField label="Conteúdo (%)">
+            <input
+              className="field h-8 py-1 text-xs"
+              type="number"
+              min={5}
+              max={200}
+              value={settings.contentScale}
+              onChange={(event) =>
+                onChange({
+                  contentScale: Math.min(200, Math.max(5, Number(event.target.value) || 5)),
+                })
+              }
+            />
+          </EditorField>
+          <EditorField label="Letras/números (%)">
+            <input
+              className="field h-8 py-1 text-xs"
+              type="number"
+              min={25}
+              max={200}
+              value={settings.fontSize}
+              onChange={(event) =>
+                onChange({ fontSize: Math.min(200, Math.max(25, Number(event.target.value) || 25)) })
+              }
+            />
+          </EditorField>
+          {widget.chartTypes?.length ? (
+            <EditorField label="Tipo de gráfico">
+              <select
+                className="field h-8 py-1 text-xs"
+                value={settings.chartType}
+                onChange={(event) =>
+                  onChange({ chartType: event.target.value as DashboardChartType })
+                }
+              >
+                {widget.chartTypes.map((type) => (
+                  <option key={type} value={type}>
+                    {chartTypeLabel(type)}
+                  </option>
+                ))}
+              </select>
+            </EditorField>
+          ) : (
+            <span />
+          )}
+          <EditorField label="Cor principal">
+            <input
+              type="color"
+              className="h-8 w-full cursor-pointer rounded border border-border bg-card"
+              value={settings.color.startsWith("#") ? settings.color : "#234d38"}
+              onChange={(event) => onChange({ color: event.target.value })}
+            />
+          </EditorField>
+          <EditorField label="Cor do fundo">
+            <input
+              type="color"
+              className="h-8 w-full cursor-pointer rounded border border-border bg-card"
+              value={settings.backgroundColor.startsWith("#") ? settings.backgroundColor : "#fffdf8"}
+              onChange={(event) => onChange({ backgroundColor: event.target.value })}
+            />
+          </EditorField>
+          <EditorField label="Opacidade (%)">
+            <input
+              className="field h-8 py-1 text-xs"
+              type="number"
+              min={0}
+              max={100}
+              value={settings.backgroundOpacity}
+              onChange={(event) =>
+                onChange({
+                  backgroundOpacity: Math.min(
+                    100,
+                    Math.max(0, Number(event.target.value) || 0),
+                  ),
+                })
+              }
+            />
+          </EditorField>
+          <Toggle label="Autoajustar conteúdo" value={settings.autoFit} onChange={(autoFit) => onChange({ autoFit })} />
+          <Toggle label="Mostrar legenda" value={settings.showLegend} onChange={(showLegend) => onChange({ showLegend })} />
+          <Toggle label="Mostrar rótulos" value={settings.showLabels} onChange={(showLabels) => onChange({ showLabels })} />
+          <Toggle label="Borda superior" value={settings.showAccentBorder} onChange={(showAccentBorder) => onChange({ showAccentBorder })} />
+          <button
+            type="button"
+            className="flex h-8 items-center justify-center gap-1 self-end rounded-md border border-border bg-card px-2 text-xs font-semibold text-muted-foreground"
+            onClick={() => onChange({ hidden: !settings.hidden })}
+          >
+            {settings.hidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+            {settings.hidden ? "Exibir" : "Ocultar"}
+          </button>
+        </div>
+      ) : (
+        <p className="rounded-md bg-card px-3 py-2 text-xs text-muted-foreground">
+          Clique na alça de um item para editar tamanho, conteúdo, letras, cores, legenda e rótulos.
+        </p>
+      )}
+    </aside>
+  );
+}
+
+function EditorField({
+  label,
+  children,
+  wide = false,
+}: {
+  label: string;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <label className={`text-[10px] font-semibold text-muted-foreground ${wide ? "sm:col-span-2" : ""}`}>
+      {label}
+      {children}
+    </label>
+  );
+}
+
+function Toggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex h-8 items-center gap-2 self-end rounded-md border border-border bg-card px-2 text-[10px] font-semibold text-muted-foreground">
+      <input type="checkbox" checked={value} onChange={(event) => onChange(event.target.checked)} />
+      {label}
+    </label>
+  );
+}
+
+function chartTypeLabel(type: DashboardChartType) {
+  return {
+    bar: "Colunas",
+    horizontalBar: "Barras horizontais",
+    line: "Linhas",
+    area: "Área",
+    pie: "Pizza",
+    doughnut: "Rosca",
+    radar: "Radar",
+    composed: "Composto",
+  }[type];
 }

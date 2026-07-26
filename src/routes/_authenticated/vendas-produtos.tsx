@@ -1,9 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useProducts, useSales } from "@/lib/data";
 import { fmtBRL, todayISO } from "@/lib/format";
 import {
   inRange,
+  lastMonths,
   normalizeLabel,
   percent,
   periodRange,
@@ -13,6 +27,7 @@ import {
 } from "@/lib/dashboard-utils";
 import {
   AlertBanner,
+  ChartPanel,
   DashboardHeader,
   DashboardTabs,
   FunnelRow,
@@ -25,6 +40,8 @@ export const Route = createFileRoute("/_authenticated/vendas-produtos")({
 });
 
 type SalesTab = "produto" | "funcionario" | "pagamento";
+const COLORS = ["var(--pine)", "var(--sage)", "var(--brass)", "var(--brick)", "#6f8f7a"];
+
 function VendasProdutos() {
   const today = todayISO();
   const [period, setPeriod] = useState<DashboardPeriod>("mes");
@@ -50,24 +67,38 @@ function VendasProdutos() {
   }, [periodSales, tab]);
 
   const productComparison = useMemo(() => {
-    const map = new Map<string, { name: string; quarto: number; avulsa: number }>();
+    const map = new Map<string, { name: string; receita: number; quantidade: number }>();
     periodSales.forEach((sale) => {
       const key = normalizeLabel(sale.item);
-      const row = map.get(key) ?? { name: key, quarto: 0, avulsa: 0 };
-      if (sale.reserva_id || sale.quarto > 0) row.quarto += saleRevenue(sale);
-      else row.avulsa += saleRevenue(sale);
+      const row = map.get(key) ?? { name: key, receita: 0, quantidade: 0 };
+      row.receita += saleRevenue(sale);
+      row.quantidade += Number(sale.qtd ?? 0);
       map.set(key, row);
     });
-    return [...map.values()].sort((a, b) => b.quarto + b.avulsa - (a.quarto + a.avulsa)).slice(0, 8);
+    return [...map.values()].sort((a, b) => b.receita - a.receita).slice(0, 8);
   }, [periodSales]);
 
-  const rooms = useMemo(() => {
-    const map = new Map<number, number>();
-    periodSales.forEach((sale) => {
-      if (sale.quarto > 0) map.set(sale.quarto, (map.get(sale.quarto) ?? 0) + saleRevenue(sale));
-    });
-    return [...map].map(([room, value]) => ({ room, value })).sort((a, b) => b.value - a.value);
-  }, [periodSales]);
+  const monthly = useMemo(
+    () =>
+      lastMonths(today).map((month) => {
+        const rows = sales.filter((sale) => sale.data.startsWith(month.key));
+        return {
+          ...month,
+          receita: rows.reduce((sum, sale) => sum + saleRevenue(sale), 0),
+          quantidade: rows.reduce((sum, sale) => sum + Number(sale.qtd ?? 0), 0),
+        };
+      }),
+    [sales, today],
+  );
+
+  const paymentRows = useMemo(
+    () => groupSales(periodSales, (sale) => normalizeLabel(sale.pagamento)),
+    [periodSales],
+  );
+  const employeeRows = useMemo(
+    () => groupSales(periodSales, (sale) => shortEmployee(sale.created_by)),
+    [periodSales],
+  );
 
   return (
     <div className="space-y-3 pb-6">
@@ -103,55 +134,62 @@ function VendasProdutos() {
         ]}
       />
 
-      <section className="card-surface overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-          <div>
-            <h2 className="text-sm font-bold text-pine-dark">Resumo operacional por produto</h2>
-            <p className="text-xs text-muted-foreground">
-              Lista objetiva para conferência; análises gráficas ficam no Financeiro e Estratégico.
-            </p>
-          </div>
-          <span className="rounded-full bg-sage-bg px-2.5 py-1 text-[10px] font-bold text-pine">
-            {productComparison.length} item(ns)
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[680px] text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/35 text-left text-[10px] uppercase text-muted-foreground">
-                <th className="px-4 py-3">Produto</th>
-                <th className="px-4 py-3 text-right">Vinculado a quarto</th>
-                <th className="px-4 py-3 text-right">Venda avulsa</th>
-                <th className="px-4 py-3 text-right">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {productComparison.length ? (
-                productComparison.map((row) => (
-                  <tr key={row.name} className="border-b border-border/60 hover:bg-sage-bg/35">
-                    <td className="px-4 py-3 font-semibold text-pine-dark">{row.name}</td>
-                    <td className="px-4 py-3 text-right">{fmtBRL(row.quarto)}</td>
-                    <td className="px-4 py-3 text-right">{fmtBRL(row.avulsa)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-pine-dark">
-                      {fmtBRL(row.quarto + row.avulsa)}
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
-                    Nenhuma venda encontrada no período.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
+        <ChartPanel title={`Composição por ${tabLabel(tab)}`} span={6}>
+          <ResponsiveContainer width="100%" height={210}>
+            <PieChart>
+              <Pie data={composition} dataKey="value" nameKey="name" innerRadius={52} outerRadius={82} paddingAngle={2}>
+                {composition.map((row, index) => <Cell key={row.name} fill={COLORS[index % COLORS.length]} />)}
+              </Pie>
+              <Tooltip formatter={(value: number) => fmtBRL(value)} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartPanel>
 
-      <div className="grid gap-3 xl:grid-cols-3">
+        <ChartPanel title="Receita e quantidade por produto" span={6}>
+          <ResponsiveContainer width="100%" height={210}>
+            <BarChart data={productComparison} layout="vertical" margin={{ left: 28, right: 10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis type="number" tick={{ fontSize: 9 }} />
+              <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 9 }} />
+              <Tooltip
+                formatter={(value: number, name: string) =>
+                  name === "Receita" ? fmtBRL(value) : value
+                }
+              />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Bar dataKey="receita" name="Receita" fill="var(--pine)" radius={[0, 3, 3, 0]} />
+              <Bar dataKey="quantidade" name="Quantidade" fill="var(--sage)" radius={[0, 3, 3, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartPanel>
+
+        <ChartPanel title="Receita de produtos — 12 meses" span={6}>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={monthly}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="label" tick={{ fontSize: 9 }} />
+              <YAxis tick={{ fontSize: 9 }} />
+              <Tooltip formatter={(value: number) => fmtBRL(value)} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Bar dataKey="receita" name="Receita de produtos" fill="var(--pine)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartPanel>
+
+        <ChartPanel title="Vendas por forma de pagamento" span={6}>
+          <DistributionChart rows={paymentRows} />
+        </ChartPanel>
+
+        <ChartPanel title="Vendas lançadas por funcionário" span={6}>
+          <DistributionChart rows={employeeRows} />
+        </ChartPanel>
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
         <ShortList
-          title={`Destaques por ${tabLabel(tab)}`}
+          title="Produtos com maior receita"
           rows={composition
             .slice()
             .sort((a, b) => b.value - a.value)
@@ -166,15 +204,24 @@ function VendasProdutos() {
             highlight: true,
           }))}
         />
-        <ShortList
-          title="Quartos com maior consumo"
-          rows={rooms.map((row) => ({
-            label: `Quarto ${row.room}`,
-            value: fmtBRL(row.value),
-          }))}
-        />
       </div>
     </div>
+  );
+}
+
+function DistributionChart({ rows }: { rows: { name: string; value: number }[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <PieChart>
+        <Pie data={rows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={82} label>
+          {rows.map((row, index) => (
+            <Cell key={row.name} fill={COLORS[index % COLORS.length]} />
+          ))}
+        </Pie>
+        <Tooltip formatter={(value: number) => fmtBRL(value)} />
+        <Legend wrapperStyle={{ fontSize: 10 }} />
+      </PieChart>
+    </ResponsiveContainer>
   );
 }
 

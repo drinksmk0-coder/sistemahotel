@@ -10,10 +10,7 @@ export type Reservation = Tables<"reservations"> &
   TenantRow & {
     group_id?: string | null;
   };
-export type Sale = Tables<"sales"> &
-  TenantRow & {
-    cliente_id?: string | null;
-  };
+export type Sale = Tables<"sales"> & TenantRow;
 export type Product = Tables<"products"> & TenantRow;
 export type KitchenItem = Tables<"kitchen_items"> & TenantRow;
 export type KitchenProduction = Tables<"kitchen_productions"> & TenantRow;
@@ -123,37 +120,6 @@ export type Expense = {
   created_at: string;
 };
 
-export type GuestPayment = {
-  id: string;
-  company_id: string;
-  reservation_id: string;
-  cliente_id: string | null;
-  amount: number;
-  method: string;
-  source: "hospedagem" | "consumo" | "conta";
-  notes: string | null;
-  created_by: string | null;
-  created_at: string;
-};
-
-export type SystemIssue = {
-  id: string;
-  company_id: string;
-  title: string;
-  description: string | null;
-  severity: "baixa" | "media" | "alta" | "critica";
-  status: "aberto" | "investigando" | "resolvido";
-  source: "manual" | "frontend" | "integracao" | "chatbot";
-  page_url: string | null;
-  error_code: string | null;
-  context: Record<string, unknown>;
-  occurrences: number;
-  first_seen_at: string;
-  last_seen_at: string;
-  resolved_at: string | null;
-  created_by: string | null;
-};
-
 const TENANT_TABLES = new Set([
   "rooms",
   "clients",
@@ -172,8 +138,6 @@ const TENANT_TABLES = new Set([
   "expenses",
   "rate_rules",
   "reservation_groups",
-  "guest_payments",
-  "system_issues",
 ]);
 
 function selectedCompanyStorageKey(userId?: string) {
@@ -340,43 +304,8 @@ export function useReservationGroups() {
   return useTenantQuery<ReservationGroup>("reservation_groups", "created_at", { ascending: false });
 }
 
-export function useGuestPayments() {
-  return useTenantQuery<GuestPayment>("guest_payments", "created_at", { ascending: false });
-}
-
-export function useSystemIssues() {
-  return useTenantQuery<SystemIssue>("system_issues", "last_seen_at", {
-    ascending: false,
-    limit: 200,
-  });
-}
-
-// Generic table mutations
-type TableName =
-  | "companies"
-  | "company_members"
-  | "company_invites"
-  | "company_integrations"
-  | "expenses"
-  | "rate_rules"
-  | "reservation_groups"
-  | "guest_payments"
-  | "system_issues"
-  | "clients"
-  | "reservations"
-  | "sales"
-  | "complaints"
-  | "rooms"
-  | "feedbacks"
-  | "products"
-  | "kitchen_items"
-  | "kitchen_productions"
-  | "integration_events"
-  | "whatsapp_reservation_sessions";
-
 export function useRegisterGuestPayment() {
   const qc = useQueryClient();
-  const company = useCurrentCompany();
   return useMutation({
     mutationFn: async ({
       reservationId,
@@ -389,28 +318,43 @@ export function useRegisterGuestPayment() {
       method: string;
       notes?: string;
     }) => {
-      if (!company.data?.id) throw new Error("Empresa não encontrada.");
       const { data, error } = await (supabase as any).rpc("register_guest_payment", {
         p_reservation_id: reservationId,
         p_amount: amount,
         p_method: method,
-        p_notes: notes?.trim() || null,
+        p_notes: notes || null,
       });
       if (error) throw error;
-      return data as {
-        reservation_id: string;
-        amount_received: number;
-        previous_balance: number;
-        remaining_balance: number;
-      };
+      return data;
     },
     onSuccess: () => {
-      ["reservations", "sales", "guest_payments"].forEach((key) =>
-        qc.invalidateQueries({ queryKey: [key] }),
-      );
+      qc.invalidateQueries({ queryKey: ["reservations"] });
+      qc.invalidateQueries({ queryKey: ["sales"] });
+      qc.invalidateQueries({ queryKey: ["guest_payments"] });
     },
   });
 }
+
+// Generic table mutations
+type TableName =
+  | "companies"
+  | "company_members"
+  | "company_invites"
+  | "company_integrations"
+  | "expenses"
+  | "rate_rules"
+  | "reservation_groups"
+  | "clients"
+  | "reservations"
+  | "sales"
+  | "complaints"
+  | "rooms"
+  | "feedbacks"
+  | "products"
+  | "kitchen_items"
+  | "kitchen_productions"
+  | "integration_events"
+  | "whatsapp_reservation_sessions";
 
 export function useInsert<T extends TableName>(table: T, invalidate: string[]) {
   const qc = useQueryClient();
@@ -517,64 +461,10 @@ export function activeReservationForRoom(
         r.status !== "finalizado" &&
         r.status !== "manutencao" &&
         r.checkin <= today &&
-        (r.checkout >= today || r.status === "ocupado"),
+        r.checkout >= today,
     )
     .sort((a, b) => b.checkin.localeCompare(a.checkin));
   return active[0] ?? null;
-}
-
-export type ReservationFinancialState =
-  | "quitada"
-  | "reserva_futura"
-  | "pagamento_parcial"
-  | "reserva_vencida"
-  | "estadia_vencida"
-  | "checkout_com_saldo";
-
-export type ReservationFinancialSummary = {
-  total: number;
-  paid: number;
-  balance: number;
-  daysOverdue: number;
-  state: ReservationFinancialState;
-};
-
-export function reservationFinancialSummary(
-  reservation: Reservation,
-  today = todayISO(),
-): ReservationFinancialSummary {
-  const total = Math.max(0, Number(reservation.valor_total) || 0);
-  const paid = Math.max(0, Number(reservation.valor_pago) || 0);
-  const balance = Math.max(0, total - paid);
-  const daysOverdue =
-    reservation.checkout < today ? differenceInCalendarDays(today, reservation.checkout) : 0;
-
-  let state: ReservationFinancialState;
-  if (balance <= 0) state = "quitada";
-  else if (reservation.status === "finalizado") state = "checkout_com_saldo";
-  else if (reservation.status === "ocupado" && reservation.checkout < today)
-    state = "estadia_vencida";
-  else if (reservation.status === "reservado" && reservation.checkout < today)
-    state = "reserva_vencida";
-  else if (paid > 0) state = "pagamento_parcial";
-  else state = "reserva_futura";
-
-  return { total, paid, balance, daysOverdue, state };
-}
-
-export function reservationNeedsFinancialAttention(
-  reservation: Reservation,
-  today = todayISO(),
-): boolean {
-  if (reservation.status === "cancelado" || reservation.status === "manutencao") return false;
-  const summary = reservationFinancialSummary(reservation, today);
-  return summary.balance > 0 && reservation.checkout < today;
-}
-
-function differenceInCalendarDays(laterISO: string, earlierISO: string): number {
-  const later = new Date(`${laterISO}T12:00:00`);
-  const earlier = new Date(`${earlierISO}T12:00:00`);
-  return Math.max(0, Math.round((later.getTime() - earlier.getTime()) / 86_400_000));
 }
 
 // Future / upcoming reservations for a room (checkout still ahead), so the desk

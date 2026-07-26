@@ -6,6 +6,19 @@ import { PageHeader } from "@/components/AppLayout";
 import { EmptyState, Field, Modal } from "@/components/ui-kit";
 import { useDelete, useExpenses, useInsert, useUpdate, type Expense } from "@/lib/data";
 import { downloadExcel, fmtBRL, fmtDate, todayISO } from "@/lib/format";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 export const Route = createFileRoute("/_authenticated/despesas")({
   component: Despesas,
@@ -25,6 +38,18 @@ function Despesas() {
     const map = new Map<string, number>();
     expenses.forEach((expense) => map.set(expense.categoria, (map.get(expense.categoria) ?? 0) + Number(expense.valor)));
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  }, [expenses]);
+  const categoryChart = useMemo(
+    () => byCategory.slice(0, 10).map(([categoria, valor]) => ({ categoria, valor })),
+    [byCategory],
+  );
+  const monthlyChart = useMemo(() => {
+    const totals = new Map<string, number>();
+    expenses.forEach((expense) => {
+      const month = (expense.data || "").slice(0, 7);
+      if (month) totals.set(month, (totals.get(month) ?? 0) + Number(expense.valor));
+    });
+    return [...totals.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-12).map(([mes, valor]) => ({ mes: mes.slice(5) + "/" + mes.slice(2, 4), valor }));
   }, [expenses]);
 
   function exportCSV() {
@@ -65,6 +90,47 @@ function Despesas() {
           <p className="font-serif text-2xl font-bold">{byCategory.length}</p>
         </div>
       </div>
+
+      {(categoryChart.length > 0 || monthlyChart.length > 0) && (
+        <div className="mb-4 grid gap-4 lg:grid-cols-2">
+          <section className="card-surface p-4">
+            <h3 className="font-serif text-lg font-bold">Despesas por categoria</h3>
+            <p className="text-xs text-muted-foreground">Principais centros de custo no histórico.</p>
+            <div className="mt-3 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={categoryChart} margin={{ top: 18, right: 14, left: 0, bottom: 24 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="categoria" angle={-20} textAnchor="end" interval={0} height={55} />
+                  <YAxis tickFormatter={(value) => `R$${Math.round(value / 1000)}k`} />
+                  <Tooltip formatter={(value) => fmtBRL(Number(value))} />
+                  <Legend />
+                  <Bar dataKey="valor" name="Despesa" fill="var(--brick)" radius={[5, 5, 0, 0]}>
+                    <LabelList dataKey="valor" position="top" formatter={(value: number) => fmtBRL(value)} />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+          <section className="card-surface p-4">
+            <h3 className="font-serif text-lg font-bold">Evolução das despesas</h3>
+            <p className="text-xs text-muted-foreground">Comparação mensal dos últimos 12 meses com dados.</p>
+            <div className="mt-3 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyChart} margin={{ top: 18, right: 18, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="mes" />
+                  <YAxis tickFormatter={(value) => `R$${Math.round(value / 1000)}k`} />
+                  <Tooltip formatter={(value) => fmtBRL(Number(value))} />
+                  <Legend />
+                  <Line type="monotone" dataKey="valor" name="Despesa mensal" stroke="var(--brick)" strokeWidth={3} dot={{ r: 4 }}>
+                    <LabelList dataKey="valor" position="top" formatter={(value: number) => fmtBRL(value)} />
+                  </Line>
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        </div>
+      )}
 
       <div className="mb-4 card-surface p-4">
         <h3 className="mb-2 font-serif text-lg font-bold">Por categoria</h3>

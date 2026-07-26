@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       clients: {
         Row: {
+          ativo: boolean
           bairro: string | null
           cidade: string | null
           cpf: string | null
@@ -39,6 +40,7 @@ export type Database = {
           visitas: number
         }
         Insert: {
+          ativo?: boolean
           bairro?: string | null
           cidade?: string | null
           cpf?: string | null
@@ -62,6 +64,7 @@ export type Database = {
           visitas?: number
         }
         Update: {
+          ativo?: boolean
           bairro?: string | null
           cidade?: string | null
           cpf?: string | null
@@ -534,6 +537,7 @@ export type Database = {
           created_by: string | null
           data: string
           id: string
+          cliente_id: string | null
           item: string
           pagamento: string
           observacoes: string | null
@@ -552,6 +556,7 @@ export type Database = {
           created_by?: string | null
           data?: string
           id?: string
+          cliente_id?: string | null
           item: string
           pagamento?: string
           observacoes?: string | null
@@ -570,6 +575,7 @@ export type Database = {
           created_by?: string | null
           data?: string
           id?: string
+          cliente_id?: string | null
           item?: string
           pagamento?: string
           observacoes?: string | null

@@ -18,7 +18,7 @@ export function RoomTimeline({
   onRoomClick: (room: Room) => void;
   onCreateReservation: (room: Room, date: string) => void;
 }) {
-  const [daysVisible, setDaysVisible] = useState<7 | 14 | 21>(14);
+  const [daysVisible, setDaysVisible] = useState<14 | 21>(14);
   const today = todayISO();
   const dates = useMemo(
     () => Array.from({ length: daysVisible }, (_, index) => addDaysISO(startDate, index)),
@@ -44,26 +44,9 @@ export function RoomTimeline({
     });
     return grouped;
   }, [reservations]);
-  const availabilityByDate = useMemo(
-    () =>
-      new Map(
-        dates.map((date) => {
-          const occupied = rooms.filter((room) =>
-            (reservationsByRoom.get(room.numero) ?? []).some(
-              (reservation) =>
-                !["cancelado", "finalizado", "manutencao"].includes(reservation.status) &&
-                reservation.checkin <= date &&
-                reservation.checkout > date,
-            ),
-          ).length;
-          return [date, Math.max(0, rooms.length - occupied)] as const;
-        }),
-      ),
-    [dates, reservationsByRoom, rooms],
-  );
 
-  const gridTemplateColumns = `184px repeat(${daysVisible}, minmax(76px, 1fr))`;
-  const minimumWidth = 184 + daysVisible * 76;
+  const gridTemplateColumns = `220px repeat(${daysVisible}, minmax(82px, 1fr))`;
+  const minimumWidth = 220 + daysVisible * 82;
   const endDate = dates[dates.length - 1] ?? startDate;
 
   return (
@@ -111,7 +94,7 @@ export function RoomTimeline({
             </div>
 
             <div className="flex rounded-xl border border-white/15 bg-white/10 p-1 text-xs font-bold">
-              {[7, 14, 21].map((days) => (
+              {[14, 21].map((days) => (
                 <button
                   key={days}
                   type="button"
@@ -120,7 +103,7 @@ export function RoomTimeline({
                       ? "bg-brass text-pine-dark shadow"
                       : "text-white hover:bg-white/15"
                   }`}
-                  onClick={() => setDaysVisible(days as 7 | 14 | 21)}
+                  onClick={() => setDaysVisible(days as 14 | 21)}
                 >
                   {days} dias
                 </button>
@@ -175,13 +158,6 @@ export function RoomTimeline({
                   </span>
                   <span className="text-[9px] text-muted-foreground">
                     {current.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
-                  </span>
-                  <span
-                    className={`mt-1 block text-[8px] font-bold ${
-                      (availabilityByDate.get(date) ?? 0) === 0 ? "text-brick" : "text-sage"
-                    }`}
-                  >
-                    {availabilityByDate.get(date) ?? 0} livre(s)
                   </span>
                 </div>
               );
@@ -267,14 +243,10 @@ export function RoomTimeline({
                           key={reservation.id}
                           type="button"
                           onClick={() => onRoomClick(room)}
-                          className={`relative z-10 mx-0.5 my-2 flex min-w-0 items-center overflow-hidden border px-3 text-left shadow-sm transition hover:z-20 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-lg ${visual.className}`}
+                          className={`relative z-10 mx-1 my-2 flex min-w-0 items-center overflow-hidden rounded-lg border px-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${visual.className}`}
                           style={{
                             gridColumn: `${startIndex + 2} / span ${span}`,
                             gridRow: 1,
-                            clipPath:
-                              span > 1
-                                ? "polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 8px 50%)"
-                                : "polygon(0 0, 100% 0, 100% 100%, 0 100%)",
                           }}
                           title={`${reservation.cliente_nome} · ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`}
                         >
@@ -326,30 +298,30 @@ function reservationVisual(reservation: Reservation, today: string) {
 
   if (overdue) {
     return {
-      className: "border-brick bg-brick text-white",
+      className: "border-rose-600 bg-rose-500 text-white",
       label: "Saldo vencido",
     };
   }
   if (reservation.status === "finalizado") {
     return {
-      className: "border-border bg-muted text-muted-foreground",
+      className: "border-slate-400 bg-slate-300 text-slate-800",
       label: "Finalizada",
     };
   }
   if (reservation.pago || (total > 0 && paid >= total) || reservation.status === "ocupado") {
     return {
-      className: "border-pine-dark bg-pine text-white",
+      className: "border-emerald-700 bg-emerald-600 text-white",
       label: "Quitado",
     };
   }
   if (paid > 0) {
     return {
-      className: "border-brass bg-brass text-pine-dark",
+      className: "border-amber-500 bg-amber-300 text-amber-950",
       label: "Sinal pago",
     };
   }
   return {
-    className: "border-[var(--chart-5)] bg-[var(--chart-5)] text-white",
+    className: "border-sky-500 bg-sky-400 text-sky-950",
     label: "A receber",
   };
 }

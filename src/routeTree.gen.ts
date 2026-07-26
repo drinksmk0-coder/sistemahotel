@@ -16,7 +16,6 @@ import { Route as AvaliarRouteImport } from './routes/avaliar'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as AuthenticatedVendasProdutosRouteImport } from './routes/_authenticated/vendas-produtos'
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
 import { Route as AuthenticatedTarifarioRouteImport } from './routes/_authenticated/tarifario'
@@ -34,7 +33,6 @@ import { Route as AuthenticatedDashboardQuartosRouteImport } from './routes/_aut
 import { Route as AuthenticatedDashboardEstrategicoRouteImport } from './routes/_authenticated/dashboard-estrategico'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedAvaliacoesRouteImport } from './routes/_authenticated/avaliacoes'
-import { Route as AuthenticatedAssistenteRouteImport } from './routes/_authenticated/assistente'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -68,11 +66,6 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiChatRoute = ApiChatRouteImport.update({
-  id: '/api/chat',
-  path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedVendasProdutosRoute =
@@ -165,11 +158,6 @@ const AuthenticatedAvaliacoesRoute = AuthenticatedAvaliacoesRouteImport.update({
   path: '/avaliacoes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedAssistenteRoute = AuthenticatedAssistenteRouteImport.update({
-  id: '/assistente',
-  path: '/assistente',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -178,7 +166,6 @@ export interface FileRoutesByFullPath {
   '/cadastro-empresa': typeof CadastroEmpresaRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/assistente': typeof AuthenticatedAssistenteRoute
   '/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
@@ -196,7 +183,6 @@ export interface FileRoutesByFullPath {
   '/tarifario': typeof AuthenticatedTarifarioRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
-  '/api/chat': typeof ApiChatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -205,7 +191,6 @@ export interface FileRoutesByTo {
   '/cadastro-empresa': typeof CadastroEmpresaRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/assistente': typeof AuthenticatedAssistenteRoute
   '/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
@@ -223,7 +208,6 @@ export interface FileRoutesByTo {
   '/tarifario': typeof AuthenticatedTarifarioRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
-  '/api/chat': typeof ApiChatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -234,7 +218,6 @@ export interface FileRoutesById {
   '/cadastro-empresa': typeof CadastroEmpresaRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/_authenticated/assistente': typeof AuthenticatedAssistenteRoute
   '/_authenticated/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
@@ -252,7 +235,6 @@ export interface FileRoutesById {
   '/_authenticated/tarifario': typeof AuthenticatedTarifarioRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
   '/_authenticated/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
-  '/api/chat': typeof ApiChatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -263,7 +245,6 @@ export interface FileRouteTypes {
     | '/cadastro-empresa'
     | '/imprimir'
     | '/sitemap.xml'
-    | '/assistente'
     | '/avaliacoes'
     | '/clientes'
     | '/dashboard-estrategico'
@@ -281,7 +262,6 @@ export interface FileRouteTypes {
     | '/tarifario'
     | '/vendas'
     | '/vendas-produtos'
-    | '/api/chat'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -290,7 +270,6 @@ export interface FileRouteTypes {
     | '/cadastro-empresa'
     | '/imprimir'
     | '/sitemap.xml'
-    | '/assistente'
     | '/avaliacoes'
     | '/clientes'
     | '/dashboard-estrategico'
@@ -308,7 +287,6 @@ export interface FileRouteTypes {
     | '/tarifario'
     | '/vendas'
     | '/vendas-produtos'
-    | '/api/chat'
   id:
     | '__root__'
     | '/'
@@ -318,7 +296,6 @@ export interface FileRouteTypes {
     | '/cadastro-empresa'
     | '/imprimir'
     | '/sitemap.xml'
-    | '/_authenticated/assistente'
     | '/_authenticated/avaliacoes'
     | '/_authenticated/clientes'
     | '/_authenticated/dashboard-estrategico'
@@ -336,7 +313,6 @@ export interface FileRouteTypes {
     | '/_authenticated/tarifario'
     | '/_authenticated/vendas'
     | '/_authenticated/vendas-produtos'
-    | '/api/chat'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -347,7 +323,6 @@ export interface RootRouteChildren {
   CadastroEmpresaRoute: typeof CadastroEmpresaRoute
   ImprimirRoute: typeof ImprimirRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
-  ApiChatRoute: typeof ApiChatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -399,13 +374,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/chat': {
-      id: '/api/chat'
-      path: '/api/chat'
-      fullPath: '/api/chat'
-      preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/vendas-produtos': {
@@ -527,18 +495,10 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAvaliacoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/assistente': {
-      id: '/_authenticated/assistente'
-      path: '/assistente'
-      fullPath: '/assistente'
-      preLoaderRoute: typeof AuthenticatedAssistenteRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
-  AuthenticatedAssistenteRoute: typeof AuthenticatedAssistenteRoute
   AuthenticatedAvaliacoesRoute: typeof AuthenticatedAvaliacoesRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedDashboardEstrategicoRoute: typeof AuthenticatedDashboardEstrategicoRoute
@@ -559,7 +519,6 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedAssistenteRoute: AuthenticatedAssistenteRoute,
   AuthenticatedAvaliacoesRoute: AuthenticatedAvaliacoesRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedDashboardEstrategicoRoute:
@@ -591,7 +550,6 @@ const rootRouteChildren: RootRouteChildren = {
   CadastroEmpresaRoute: CadastroEmpresaRoute,
   ImprimirRoute: ImprimirRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-  ApiChatRoute: ApiChatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
