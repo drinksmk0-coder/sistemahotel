@@ -1,5 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { NaturalEarth } from "@visx/geo";
+import { feature } from "topojson-client";
+import worldAtlas from "world-atlas/countries-110m.json";
+import type { Feature, FeatureCollection, Geometry } from "geojson";
+import type {
+  GeometryCollection as TopologyGeometryCollection,
+  Topology,
+} from "topojson-specification";
 import {
   Activity,
   ArrowDownRight,
@@ -53,7 +61,7 @@ import {
 } from "@/lib/data";
 import { fmtBRL, todayISO } from "@/lib/format";
 import { ReceivablesPanel } from "@/components/ReceivablesPanel";
-import { PeriodSelector } from "@/components/DashboardKit";
+import { DashboardHeader } from "@/components/DashboardKit";
 import {
   DashboardDesigner,
   type DashboardWidget,
@@ -67,7 +75,6 @@ import {
   reservationOverlapsRange,
   type DashboardPeriod,
 } from "@/lib/dashboard-utils";
-import { getSystemSettings } from "@/lib/system-settings";
 
 export const Route = createFileRoute("/_authenticated/dashboard-estrategico")({
   component: DashboardEstrategico,
@@ -102,7 +109,6 @@ function DashboardEstrategico() {
   const { data: clients = [] } = useClients();
   const { data: feedbacks = [] } = useFeedbacks();
   const currentCompany = useCurrentCompany();
-  const brandSettings = getSystemSettings(currentCompany.data?.id);
   const [section, setSection] = useState<DashboardSection>("geral");
   const [period, setPeriod] = useState<DashboardPeriod>("mes");
   const range = periodRange(period, today);
@@ -712,40 +718,15 @@ function DashboardEstrategico() {
 
   return (
     <div className="space-y-3 pb-6">
-      <header className="overflow-hidden rounded-lg border border-pine/25 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine)_58%,var(--brass))] px-4 py-3 text-white shadow-sm sm:px-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <img
-              src={brandSettings.logo}
-              alt={currentCompany.data?.nome ?? "Hotel"}
-              className="h-12 w-12 rounded-md bg-white object-contain p-1"
-            />
-            <div className="min-w-0">
-              <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-brass">
-                {currentCompany.data?.nome ?? "Gestão hoteleira"}
-              </p>
-              <h1 className="truncate font-serif text-xl font-bold sm:text-2xl">
-                Dashboard Estratégico
-              </h1>
-              <p className="mt-0.5 text-xs text-white/80">
-                Receita, canais, clientes e operação em uma narrativa de decisão.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <PeriodSelector value={period} onChange={setPeriod} />
-            <a
-              href="/painel"
-              className="rounded-md bg-white/12 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20"
-            >
-              Voltar ao painel
-            </a>
-          </div>
-        </div>
-      </header>
+      <DashboardHeader
+        title="Dashboard Estratégico"
+        subtitle="Comparações financeiras, KPIs hoteleiros, metas e tendências."
+        period={period}
+        onPeriodChange={setPeriod}
+      />
 
-      <div className="grid gap-3 xl:grid-cols-[11rem_1fr]">
-        <nav className="flex flex-col gap-2">
+      <div className="grid gap-3 xl:grid-cols-[9rem_1fr]">
+        <nav className="flex flex-row flex-wrap gap-2 xl:flex-col">
           {[
             ["geral", "Visão geral"],
             ["canais", "Canais"],
@@ -756,10 +737,10 @@ function DashboardEstrategico() {
             <button
               key={key}
               onClick={() => setSection(key as DashboardSection)}
-              className={`rounded-md border px-3 py-2 text-left text-xs font-bold transition ${
+              className={`rounded-lg border px-3 py-2 text-left text-xs font-bold transition ${
                 section === key
-                  ? "border-brass bg-brass text-pine-dark"
-                  : "border-border bg-card text-pine-dark hover:bg-sage-bg"
+                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                  : "border-border bg-card text-pine-dark hover:bg-muted"
               }`}
             >
               {label}
@@ -1328,62 +1309,130 @@ function WorldGuestBubbleMap({
 }) {
   const max = Math.max(1, ...rows.map((row) => row.value));
   const height = Math.max(70, settings.height - 66);
+  const rowByNumericId = new Map(
+    rows.flatMap((row) => {
+      const id = WORLD_COUNTRY_NUMERIC_ID[row.code];
+      return id ? [[id, row] as const] : [];
+    }),
+  );
+  const topOrigins = rows.slice(0, 4);
   return (
-    <section className="h-full rounded-lg border border-border bg-card p-3 shadow-sm">
+    <section className="h-full overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>
-        <span className="text-[10px] text-muted-foreground">Bolha maior = mais hóspedes</span>
+        <div className="px-3 pt-3">
+          <h2 className="text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>
+          <p className="text-[10px] text-muted-foreground">
+            Cor = presença · bolha = frequência · passe o mouse para ver a receita
+          </p>
+        </div>
+        <div className="mr-3 mt-3 rounded-full bg-primary/10 px-2.5 py-1 text-[9px] font-bold text-primary">
+          {rows.reduce((sum, row) => sum + row.value, 0)} hóspedes
+        </div>
       </div>
       <svg
         viewBox="0 0 800 360"
-        className="w-full rounded-lg border border-border bg-[linear-gradient(180deg,color-mix(in_srgb,var(--chart-2)_10%,var(--card)),var(--card))]"
+        className="w-full bg-[radial-gradient(circle_at_48%_46%,color-mix(in_srgb,var(--chart-2)_13%,var(--card)),var(--card)_66%)]"
         style={{ height }}
         role="img"
         aria-label="Mapa mundial da origem dos hóspedes"
       >
-        <g
-          fill="color-mix(in srgb, var(--pine) 18%, var(--card))"
-          stroke="var(--border)"
-          strokeWidth="2"
+        <defs>
+          <filter id="guest-bubble-shadow" x="-60%" y="-60%" width="220%" height="220%">
+            <feDropShadow dx="0" dy="3" stdDeviation="4" floodOpacity="0.25" />
+          </filter>
+        </defs>
+        <NaturalEarth
+          data={WORLD_FEATURES}
+          scale={128}
+          translate={[400, 184]}
         >
-          <path d="M42 94 L95 55 177 61 222 98 190 132 153 142 131 195 92 174 73 130 Z" />
-          <path d="M185 196 L224 206 249 252 236 321 202 286 184 237 Z" />
-          <path d="M332 78 L377 54 423 73 449 112 420 132 391 121 367 142 335 121 Z" />
-          <path d="M377 143 L430 143 465 185 446 264 408 310 370 246 350 181 Z" />
-          <path d="M446 76 L541 49 650 67 724 111 693 149 618 142 581 177 526 153 482 133 Z" />
-          <path d="M645 242 L699 225 746 252 724 298 664 303 635 270 Z" />
-          <path d="M748 300 L770 307 760 326 741 321 Z" />
-        </g>
-        {rows.map((row) => {
-          const point = WORLD_COUNTRY_POINTS[row.code] ?? WORLD_COUNTRY_POINTS.OTHER;
-          const radius = 9 + Math.sqrt(row.value / max) * 23;
-          return (
-            <g key={row.code}>
-              <circle
-                cx={point.x}
-                cy={point.y}
-                r={radius}
-                fill={settings.color}
-                fillOpacity="0.76"
-                stroke="var(--card)"
-                strokeWidth="4"
-              >
-                <title>{`${row.name}: ${row.value} hóspede(s) · ${fmtBRL(row.receita)}`}</title>
-              </circle>
-              <text
-                x={point.x}
-                y={point.y + 4}
-                textAnchor="middle"
-                fill="white"
-                fontSize="10"
-                fontWeight="700"
-              >
-                {row.code}
-              </text>
-            </g>
-          );
-        })}
+          {({ features, projection }) => (
+            <>
+              {features.map(({ feature: country, path }) => {
+                const row = rowByNumericId.get(String(country.id ?? "").padStart(3, "0"));
+                const intensity = row ? 0.28 + (row.value / max) * 0.56 : 0.08;
+                return (
+                  <path
+                    key={String(country.id ?? path)}
+                    d={path ?? ""}
+                    fill={row ? settings.color : "var(--pine-dark)"}
+                    fillOpacity={intensity}
+                    stroke="var(--card)"
+                    strokeWidth="0.8"
+                  >
+                    <title>
+                      {row
+                        ? `${row.name}: ${row.value} hóspede(s) · ${fmtBRL(row.receita)}`
+                        : country.properties?.name ?? "Sem hóspedes registrados"}
+                    </title>
+                  </path>
+                );
+              })}
+              {rows.map((row) => {
+                const coordinates =
+                  WORLD_COUNTRY_COORDINATES[row.code] ?? WORLD_COUNTRY_COORDINATES.OTHER;
+                const point = projection(coordinates);
+                if (!point) return null;
+                const radius = 5 + Math.sqrt(row.value / max) * 15;
+                return (
+                  <g key={row.code} filter="url(#guest-bubble-shadow)">
+                    <circle
+                      cx={point[0]}
+                      cy={point[1]}
+                      r={radius + 4}
+                      fill={settings.color}
+                      fillOpacity="0.16"
+                    />
+                    <circle
+                      cx={point[0]}
+                      cy={point[1]}
+                      r={radius}
+                      fill={settings.color}
+                      fillOpacity="0.88"
+                      stroke="var(--card)"
+                      strokeWidth="2.5"
+                    >
+                      <title>{`${row.name}: ${row.value} hóspede(s) · ${fmtBRL(row.receita)}`}</title>
+                    </circle>
+                    <text
+                      x={point[0]}
+                      y={point[1] + 3}
+                      textAnchor="middle"
+                      fill="white"
+                      fontSize="8"
+                      fontWeight="800"
+                    >
+                      {row.code}
+                    </text>
+                  </g>
+                );
+              })}
+            </>
+          )}
+        </NaturalEarth>
       </svg>
+      <div className="grid grid-cols-2 gap-px border-t border-border bg-border sm:grid-cols-4">
+        {topOrigins.length ? (
+          topOrigins.map((row) => (
+            <div key={row.code} className="min-w-0 bg-card px-3 py-2">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="h-2 w-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: settings.color }}
+                />
+                <strong className="truncate text-[10px] text-pine-dark">{row.name}</strong>
+              </div>
+              <p className="truncate text-[9px] text-muted-foreground">
+                {row.value} hóspede(s) · {fmtBRL(row.receita)}
+              </p>
+            </div>
+          ))
+        ) : (
+          <p className="col-span-full bg-card px-3 py-3 text-xs text-muted-foreground">
+            Cadastre cidade, estado ou país do hóspede para preencher o mapa.
+          </p>
+        )}
+      </div>
     </section>
   );
 }
@@ -1981,26 +2030,60 @@ const BRAZIL_STATE_NAMES: Record<string, string> = {
   TO: "Tocantins",
 };
 
-const WORLD_COUNTRY_POINTS: Record<string, { x: number; y: number }> = {
-  BR: { x: 218, y: 258 },
-  AR: { x: 213, y: 300 },
-  CL: { x: 192, y: 286 },
-  US: { x: 142, y: 120 },
-  CA: { x: 142, y: 78 },
-  MX: { x: 151, y: 162 },
-  PT: { x: 360, y: 118 },
-  ES: { x: 375, y: 121 },
-  FR: { x: 390, y: 105 },
-  DE: { x: 409, y: 96 },
-  IT: { x: 410, y: 123 },
-  GB: { x: 381, y: 87 },
-  AO: { x: 418, y: 224 },
-  ZA: { x: 425, y: 286 },
-  CN: { x: 612, y: 131 },
-  JP: { x: 699, y: 129 },
-  IN: { x: 568, y: 173 },
-  AU: { x: 691, y: 271 },
-  OTHER: { x: 510, y: 190 },
+type WorldCountryProperties = { name?: string };
+type WorldTopology = Topology<{
+  countries: TopologyGeometryCollection<WorldCountryProperties>;
+}>;
+
+const typedWorldAtlas = worldAtlas as unknown as WorldTopology;
+const WORLD_FEATURES = (
+  feature(typedWorldAtlas, typedWorldAtlas.objects.countries) as FeatureCollection<
+    Geometry,
+    WorldCountryProperties
+  >
+).features as Feature<Geometry, WorldCountryProperties>[];
+
+const WORLD_COUNTRY_COORDINATES: Record<string, [number, number]> = {
+  BR: [-51.9, -14.2],
+  AR: [-63.6, -38.4],
+  CL: [-71.5, -35.7],
+  US: [-100.4, 39.8],
+  CA: [-106.3, 56.1],
+  MX: [-102.5, 23.6],
+  PT: [-8.2, 39.4],
+  ES: [-3.7, 40.4],
+  FR: [2.2, 46.2],
+  DE: [10.5, 51.2],
+  IT: [12.6, 41.9],
+  GB: [-3.4, 55.4],
+  AO: [17.9, -11.2],
+  ZA: [22.9, -30.6],
+  CN: [104.2, 35.9],
+  JP: [138.3, 36.2],
+  IN: [78.9, 20.6],
+  AU: [133.8, -25.3],
+  OTHER: [0, 0],
+};
+
+const WORLD_COUNTRY_NUMERIC_ID: Record<string, string> = {
+  BR: "076",
+  AR: "032",
+  CL: "152",
+  US: "840",
+  CA: "124",
+  MX: "484",
+  PT: "620",
+  ES: "724",
+  FR: "250",
+  DE: "276",
+  IT: "380",
+  GB: "826",
+  AO: "024",
+  ZA: "710",
+  CN: "156",
+  JP: "392",
+  IN: "356",
+  AU: "036",
 };
 
 const COUNTRY_ALIASES = [

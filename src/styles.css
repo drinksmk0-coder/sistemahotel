@@ -5,8 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Pousada Real Cruzília — design system.
- * Warm "paper + pine + brass" hotel-ledger aesthetic. All colors are oklch.
+ * HotelAI Command V6 — compact SaaS design system.
  */
 
 @theme inline {
@@ -59,41 +58,41 @@
 :root {
   --radius: 0.6rem;
 
-  --paper: oklch(0.945 0.014 85);
-  --paper-2: oklch(0.905 0.02 85);
+  --paper: #f4f7fa;
+  --paper-2: #eaf0f6;
   --background: var(--paper);
-  --foreground: oklch(0.26 0.02 70);
+  --foreground: #071a38;
 
-  --card: oklch(0.985 0.006 85);
-  --card-foreground: oklch(0.26 0.02 70);
-  --popover: oklch(0.985 0.006 85);
-  --popover-foreground: oklch(0.26 0.02 70);
+  --card: #ffffff;
+  --card-foreground: #071a38;
+  --popover: #ffffff;
+  --popover-foreground: #071a38;
 
-  --pine: oklch(0.42 0.045 162);
-  --pine-dark: oklch(0.33 0.038 162);
-  --brass: oklch(0.68 0.11 74);
-  --brass-bg: oklch(0.93 0.045 82);
-  --brick: oklch(0.56 0.14 28);
-  --brick-bg: oklch(0.9 0.05 30);
-  --sage: oklch(0.56 0.08 155);
-  --sage-bg: oklch(0.91 0.03 150);
-  --slate: oklch(0.5 0.014 70);
-  --slate-bg: oklch(0.9 0.01 80);
+  --pine: #2878e8;
+  --pine-dark: #071a38;
+  --brass: #10b981;
+  --brass-bg: #e7f8f2;
+  --brick: #f43f5e;
+  --brick-bg: #fff0f3;
+  --sage: #10b981;
+  --sage-bg: #e7f8f2;
+  --slate: #64748b;
+  --slate-bg: #eef2f6;
 
   --primary: var(--pine);
   --primary-foreground: oklch(0.97 0.01 85);
   --secondary: var(--paper-2);
   --secondary-foreground: oklch(0.3 0.03 162);
-  --muted: oklch(0.92 0.012 85);
-  --muted-foreground: oklch(0.44 0.02 70);
+  --muted: #eef3f8;
+  --muted-foreground: #5f718a;
   --accent: var(--brass);
   --accent-foreground: oklch(0.28 0.03 74);
   --destructive: var(--brick);
   --destructive-foreground: oklch(0.97 0.01 85);
 
-  --border: oklch(0.84 0.025 85);
-  --input: oklch(0.84 0.025 85);
-  --ring: oklch(0.68 0.11 74);
+  --border: #d8e1eb;
+  --input: #d8e1eb;
+  --ring: #2878e8;
   --chart-1: var(--pine);
   --chart-2: var(--sage);
   --chart-3: var(--brass);
@@ -113,6 +112,17 @@
     -webkit-font-smoothing: antialiased;
     min-width: 320px;
     overflow-x: hidden;
+  }
+  .app-main {
+    min-height: 100vh;
+  }
+  .app-sidebar {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--sidebar-primary) 18%, #0b172b),
+        #0b172b 72%
+      );
   }
   html[data-background-style="soft"] body {
     background-image:
@@ -143,7 +153,7 @@
     background-color: var(--color-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    box-shadow: 0 1px 2px rgba(42, 33, 24, 0.05), 0 4px 14px rgba(42, 33, 24, 0.045);
+    box-shadow: 0 1px 2px rgba(15, 35, 60, 0.035), 0 5px 18px rgba(15, 35, 60, 0.045);
     min-width: 0;
   }
   .chart-surface {
@@ -167,6 +177,10 @@
   .dashboard-designer-content > .chart-surface,
   .dashboard-designer-content > .stat-card {
     background-color: transparent !important;
+    border: 0 !important;
+    border-radius: inherit;
+    box-shadow: none !important;
+    height: 100%;
   }
   html[data-glass-effect="on"] .card-surface,
   html[data-glass-effect="on"] .chart-surface,
@@ -207,8 +221,9 @@
     border-radius: var(--radius-md);
     background-color: var(--color-pine);
     color: var(--color-primary-foreground);
-    font-weight: 600;
-    padding: 0.5rem 0.9rem;
+    font-weight: 700;
+    padding: 0.58rem 1rem;
+    box-shadow: 0 5px 12px color-mix(in srgb, var(--pine) 22%, transparent);
     transition: background-color 0.15s;
   }
   .btn-primary:hover {
@@ -218,8 +233,8 @@
     border-radius: var(--radius-md);
     border: 1px solid var(--color-border);
     background-color: var(--color-card);
-    font-weight: 600;
-    padding: 0.5rem 0.9rem;
+    font-weight: 700;
+    padding: 0.58rem 1rem;
     transition: background-color 0.15s;
   }
   .btn-ghost:hover {
@@ -229,8 +244,8 @@
     background-color: var(--color-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    padding: 0.45rem 0.55rem;
-    box-shadow: 0 1px 2px rgba(42, 33, 24, 0.05);
+    padding: 0.75rem;
+    box-shadow: 0 1px 2px rgba(15, 35, 60, 0.04);
     min-width: 0;
     overflow: hidden;
   }
@@ -240,6 +255,19 @@
   .dashboard-designer-widget {
     grid-column: span var(--widget-columns) / span var(--widget-columns);
   }
+}
+
+html[data-dashboard-mode="tv"] .app-sidebar {
+  display: none !important;
+}
+
+html[data-dashboard-mode="tv"] .app-main {
+  margin-left: 0 !important;
+  padding: 0.75rem !important;
+}
+
+html[data-dashboard-mode="tv"] .dashboard-designer-widget {
+  box-shadow: none;
 }
 
 @media (max-width: 640px) {

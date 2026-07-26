@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useEffectEvent,
   useMemo,
   useRef,
   useState,
@@ -60,7 +61,7 @@ const MIN_WIDGET_HEIGHT = 2;
 const MAX_WIDGET_HEIGHT = 1200;
 
 function storageKey(companyId: string | null | undefined, dashboardId: string) {
-  return `hotelreal.dashboard.v3.${companyId ?? "default"}.${dashboardId}`;
+  return `hotelreal.dashboard.v6.${companyId ?? "default"}.${dashboardId}`;
 }
 
 function defaultSettings(widget: DashboardWidget): DashboardWidgetSettings {
@@ -95,10 +96,7 @@ function loadLayout(
   if (typeof window === "undefined") return fallback;
   try {
     const current = window.localStorage.getItem(storageKey(companyId, dashboardId));
-    const legacy = window.localStorage.getItem(
-      `hotelreal.dashboard.v2.${companyId ?? "default"}.${dashboardId}`,
-    );
-    const stored = JSON.parse(current ?? legacy ?? "{}") as Partial<StoredLayout>;
+    const stored = JSON.parse(current ?? "{}") as Partial<StoredLayout>;
     const storedWidgets = stored.widgets ?? {};
     return {
       order: [
@@ -348,20 +346,29 @@ export function DashboardDesigner({
     stopAutoScroll();
   }
 
+  const handleDraggingPointerMove = useEffectEvent((event: PointerEvent) => {
+    lastPointerRef.current = { x: event.clientX, y: event.clientY };
+    setDragging((current) =>
+      current ? { ...current, x: event.clientX, y: event.clientY } : current,
+    );
+    reorderAtPoint(event.clientX, event.clientY);
+    updateAutoScroll(event.clientY);
+  });
+
+  const handleDraggingEnd = useEffectEvent(() => {
+    finishDragging();
+  });
+
+  const draggingId = dragging?.id;
   useEffect(() => {
-    if (!dragging) return;
+    if (!draggingId) return;
 
     function onPointerMove(event: PointerEvent) {
-      lastPointerRef.current = { x: event.clientX, y: event.clientY };
-      setDragging((current) =>
-        current ? { ...current, x: event.clientX, y: event.clientY } : current,
-      );
-      reorderAtPoint(event.clientX, event.clientY);
-      updateAutoScroll(event.clientY);
+      handleDraggingPointerMove(event);
     }
 
     function onPointerUp() {
-      finishDragging();
+      handleDraggingEnd();
     }
 
     window.addEventListener("pointermove", onPointerMove);
@@ -372,7 +379,7 @@ export function DashboardDesigner({
       window.removeEventListener("pointerup", onPointerUp);
       window.removeEventListener("pointercancel", onPointerUp);
     };
-  }, [dragging?.id]);
+  }, [draggingId]);
 
   function startResize(
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -484,7 +491,7 @@ export function DashboardDesigner({
             borderTopColor: settings.showAccentBorder ? settings.color : "transparent",
             borderTopWidth: settings.showAccentBorder ? 4 : 0,
             borderTopStyle: "solid",
-            background: `color-mix(in srgb, ${settings.backgroundColor} ${settings.backgroundOpacity}%, transparent)`,
+            background: `radial-gradient(circle at 92% 0%, color-mix(in srgb, ${settings.color} ${Math.round(settings.backgroundOpacity * 0.09)}%, transparent), transparent 44%), color-mix(in srgb, ${settings.backgroundColor} ${settings.backgroundOpacity}%, transparent)`,
             height: settings.height,
             opacity: settings.hidden ? 0.5 : dragging?.id === widget.id ? 0.35 : 1,
           } as CSSProperties;
@@ -500,7 +507,7 @@ export function DashboardDesigner({
             <div
               key={widget.id}
               data-dashboard-widget-id={widget.id}
-              className={`dashboard-widget dashboard-designer-widget relative min-w-0 rounded-lg ${
+              className={`dashboard-widget dashboard-designer-widget relative min-w-0 overflow-hidden rounded-xl border border-border/80 shadow-[0_4px_18px_rgba(15,35,60,0.045)] transition-shadow hover:shadow-[0_8px_24px_rgba(15,35,60,0.075)] ${
                 editing
                   ? selectedId === widget.id
                     ? "z-10 border-2 border-brass shadow-md"

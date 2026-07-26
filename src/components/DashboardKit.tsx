@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, ChevronRight } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import { type DashboardPeriod } from "@/lib/dashboard-utils";
 
 export function DashboardHeader({
@@ -13,15 +13,19 @@ export function DashboardHeader({
   onPeriodChange: (period: DashboardPeriod) => void;
 }) {
   return (
-    <header className="sticky top-0 z-20 rounded-lg border border-pine/25 bg-[linear-gradient(120deg,var(--pine-dark),var(--pine))] px-4 py-3 text-white shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-brass">
-            Gestão hoteleira inteligente
+    <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-2">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <h1 className="text-lg font-extrabold tracking-tight text-pine-dark">{title}</h1>
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-primary">
+            HotelAI Command · V6
           </p>
-          <h1 className="font-serif text-xl font-bold">{title}</h1>
-          <p className="text-xs text-white/75">{subtitle}</p>
         </div>
+        <p className="truncate text-[11px] text-muted-foreground" title={subtitle}>
+          {subtitle}
+        </p>
+      </div>
+      <div className="shrink-0">
         <PeriodSelector value={period} onChange={onPeriodChange} />
       </div>
     </header>
@@ -37,7 +41,7 @@ export function PeriodSelector({
 }) {
   return (
     <div
-      className="flex rounded-md border border-white/25 bg-white/10 p-1"
+      className="flex rounded-lg border border-border bg-muted p-1"
       aria-label="Período do dashboard"
     >
       {(["dia", "mes", "ano"] as const).map((period) => (
@@ -46,7 +50,9 @@ export function PeriodSelector({
           type="button"
           onClick={() => onChange(period)}
           className={`rounded px-3 py-1.5 text-xs font-bold capitalize transition ${
-            value === period ? "bg-brass text-pine-dark" : "text-white hover:bg-white/10"
+            value === period
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-card"
           }`}
         >
           {period === "mes" ? "Mês" : period}
@@ -108,9 +114,8 @@ export function FunnelStage({
   }[tone];
   return (
     <article
-      className={`relative min-w-0 rounded-md border border-border border-t-4 p-2.5 shadow-sm ${colors}`}
+      className={`relative min-w-0 rounded-xl border border-border p-3 shadow-sm ${colors}`}
     >
-      <ChevronRight className="absolute -right-3 top-1/2 z-10 hidden h-4 w-4 -translate-y-1/2 text-brass xl:block" />
       <p className="truncate text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
       <div className="mt-1 flex items-center justify-between gap-2">
         <strong className="truncate font-serif text-lg text-pine-dark">{value}</strong>
@@ -147,7 +152,7 @@ export function CompactKpi({
   lowerIsBetter?: boolean;
 }) {
   return (
-    <article className="min-w-0 rounded-md border border-border bg-card px-2.5 py-2 shadow-sm">
+    <article className="min-w-0 rounded-xl border border-border bg-card px-3 py-2.5 shadow-sm">
       <p className="truncate text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
       <p className="truncate font-serif text-lg font-bold text-pine-dark">{value}</p>
       {hint ? (
@@ -185,8 +190,8 @@ export function DashboardTabs<T extends string>({
           onClick={() => onChange(tab.value)}
           className={`rounded-md px-3 py-1.5 text-xs font-bold ${
             value === tab.value
-              ? "bg-pine text-white"
-              : "border border-border bg-card text-pine-dark hover:bg-sage-bg"
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "border border-border bg-card text-pine-dark hover:bg-muted"
           }`}
         >
           {tab.label}

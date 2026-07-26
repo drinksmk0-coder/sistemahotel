@@ -67,27 +67,26 @@ export function RoomTimeline({
   const endDate = dates[dates.length - 1] ?? startDate;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-pine/15 bg-card shadow-[0_18px_60px_rgba(27,71,55,0.10)]">
-      <div className="border-b border-white/10 bg-[linear-gradient(135deg,var(--pine-dark),var(--pine))] px-4 py-4 text-white">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-brass">
-              <CalendarDays className="h-4 w-4" />
-              Agenda de ocupação
-            </p>
-            <h3 className="mt-1 font-serif text-xl font-bold">
-              {fmtDate(startDate)} a {fmtDate(endDate)}
-            </h3>
-            <p className="mt-1 text-xs text-white/70">
-              Clique em uma área vazia para reservar ou em uma hospedagem para abrir o quarto.
-            </p>
+    <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border bg-card px-3 py-2">
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-center gap-2">
+            <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
+            <div className="min-w-0">
+              <strong className="block truncate text-xs text-pine-dark">
+                {fmtDate(startDate)} a {fmtDate(endDate)}
+              </strong>
+              <span className="block truncate text-[9px] text-muted-foreground">
+                Clique no espaço livre para reservar; clique na faixa para abrir a hospedagem.
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-xl border border-white/15 bg-white/10 p-1">
+            <div className="flex rounded-lg border border-border bg-muted p-0.5">
               <button
                 type="button"
-                className="rounded-lg p-2 text-white transition hover:bg-white/15"
+                className="rounded-md p-1.5 text-pine-dark transition hover:bg-card"
                 onClick={() => onStartDateChange(addDaysISO(startDate, -daysVisible))}
                 aria-label="Período anterior"
               >
@@ -95,14 +94,14 @@ export function RoomTimeline({
               </button>
               <button
                 type="button"
-                className="rounded-lg px-3 py-2 text-xs font-bold text-white transition hover:bg-white/15"
+                className="rounded-md px-2.5 py-1.5 text-[10px] font-bold text-pine-dark transition hover:bg-card"
                 onClick={() => onStartDateChange(todayISO())}
               >
                 Hoje
               </button>
               <button
                 type="button"
-                className="rounded-lg p-2 text-white transition hover:bg-white/15"
+                className="rounded-md p-1.5 text-pine-dark transition hover:bg-card"
                 onClick={() => onStartDateChange(addDaysISO(startDate, daysVisible))}
                 aria-label="Próximo período"
               >
@@ -110,15 +109,15 @@ export function RoomTimeline({
               </button>
             </div>
 
-            <div className="flex rounded-xl border border-white/15 bg-white/10 p-1 text-xs font-bold">
+            <div className="flex rounded-lg border border-border bg-muted p-0.5 text-[10px] font-bold">
               {[7, 14, 21].map((days) => (
                 <button
                   key={days}
                   type="button"
-                  className={`rounded-lg px-3 py-2 transition ${
+                  className={`rounded-md px-2.5 py-1.5 transition ${
                     daysVisible === days
-                      ? "bg-brass text-pine-dark shadow"
-                      : "text-white hover:bg-white/15"
+                      ? "bg-primary text-primary-foreground shadow"
+                      : "text-muted-foreground hover:bg-card"
                   }`}
                   onClick={() => setDaysVisible(days as 7 | 14 | 21)}
                 >
@@ -129,7 +128,7 @@ export function RoomTimeline({
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] font-semibold text-white/85">
+        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-semibold text-muted-foreground">
           <Legend color="bg-pine-300" label="Hospedado / quitado" />
           <Legend color="bg-sky-400" label="Reserva sem pagamento" />
           <Legend color="bg-amber-400" label="Sinal pago" />

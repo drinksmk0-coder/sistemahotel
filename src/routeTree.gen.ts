@@ -30,6 +30,7 @@ import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authentic
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticated/empresa'
 import { Route as AuthenticatedDespesasRouteImport } from './routes/_authenticated/despesas'
+import { Route as AuthenticatedDecisoesRouteImport } from './routes/_authenticated/decisoes'
 import { Route as AuthenticatedDashboardQuartosRouteImport } from './routes/_authenticated/dashboard-quartos'
 import { Route as AuthenticatedDashboardEstrategicoRouteImport } from './routes/_authenticated/dashboard-estrategico'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
@@ -143,6 +144,11 @@ const AuthenticatedDespesasRoute = AuthenticatedDespesasRouteImport.update({
   path: '/despesas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDecisoesRoute = AuthenticatedDecisoesRouteImport.update({
+  id: '/decisoes',
+  path: '/decisoes',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedDashboardQuartosRoute =
   AuthenticatedDashboardQuartosRouteImport.update({
     id: '/dashboard-quartos',
@@ -183,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
   '/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
+  '/decisoes': typeof AuthenticatedDecisoesRoute
   '/despesas': typeof AuthenticatedDespesasRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/equipe': typeof AuthenticatedEquipeRoute
@@ -210,6 +217,7 @@ export interface FileRoutesByTo {
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
   '/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
+  '/decisoes': typeof AuthenticatedDecisoesRoute
   '/despesas': typeof AuthenticatedDespesasRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/equipe': typeof AuthenticatedEquipeRoute
@@ -239,6 +247,7 @@ export interface FileRoutesById {
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
   '/_authenticated/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
+  '/_authenticated/decisoes': typeof AuthenticatedDecisoesRoute
   '/_authenticated/despesas': typeof AuthenticatedDespesasRoute
   '/_authenticated/empresa': typeof AuthenticatedEmpresaRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
@@ -268,6 +277,7 @@ export interface FileRouteTypes {
     | '/clientes'
     | '/dashboard-estrategico'
     | '/dashboard-quartos'
+    | '/decisoes'
     | '/despesas'
     | '/empresa'
     | '/equipe'
@@ -295,6 +305,7 @@ export interface FileRouteTypes {
     | '/clientes'
     | '/dashboard-estrategico'
     | '/dashboard-quartos'
+    | '/decisoes'
     | '/despesas'
     | '/empresa'
     | '/equipe'
@@ -323,6 +334,7 @@ export interface FileRouteTypes {
     | '/_authenticated/clientes'
     | '/_authenticated/dashboard-estrategico'
     | '/_authenticated/dashboard-quartos'
+    | '/_authenticated/decisoes'
     | '/_authenticated/despesas'
     | '/_authenticated/empresa'
     | '/_authenticated/equipe'
@@ -499,6 +511,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDespesasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/decisoes': {
+      id: '/_authenticated/decisoes'
+      path: '/decisoes'
+      fullPath: '/decisoes'
+      preLoaderRoute: typeof AuthenticatedDecisoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard-quartos': {
       id: '/_authenticated/dashboard-quartos'
       path: '/dashboard-quartos'
@@ -543,6 +562,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedDashboardEstrategicoRoute: typeof AuthenticatedDashboardEstrategicoRoute
   AuthenticatedDashboardQuartosRoute: typeof AuthenticatedDashboardQuartosRoute
+  AuthenticatedDecisoesRoute: typeof AuthenticatedDecisoesRoute
   AuthenticatedDespesasRoute: typeof AuthenticatedDespesasRoute
   AuthenticatedEmpresaRoute: typeof AuthenticatedEmpresaRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
@@ -565,6 +585,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardEstrategicoRoute:
     AuthenticatedDashboardEstrategicoRoute,
   AuthenticatedDashboardQuartosRoute: AuthenticatedDashboardQuartosRoute,
+  AuthenticatedDecisoesRoute: AuthenticatedDecisoesRoute,
   AuthenticatedDespesasRoute: AuthenticatedDespesasRoute,
   AuthenticatedEmpresaRoute: AuthenticatedEmpresaRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,

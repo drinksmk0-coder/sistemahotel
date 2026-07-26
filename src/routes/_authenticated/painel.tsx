@@ -91,6 +91,7 @@ import {
   saleReceived,
   type DashboardPeriod,
 } from "@/lib/dashboard-utils";
+import { buildGuestAccount } from "@/lib/guest-account";
 
 export const Route = createFileRoute("/_authenticated/painel")({
   component: Painel,
@@ -733,17 +734,34 @@ function OwnerCompactDashboard({
   );
   const cost = expensesTotal(periodExpenses);
   const profit = revenue - cost;
-  const pending = reservations
-    .filter((reservation) => reservation.status !== "cancelado")
-    .reduce(
-      (sum, reservation) =>
-        sum + Math.max(0, reservationRevenue(reservation) - reservationReceived(reservation)),
-      0,
-    );
+  const activeReservations = reservations.filter(
+    (reservation) =>
+      reservation.status !== "cancelado" && reservation.status !== "manutencao",
+  );
+  const pending = activeReservations.reduce(
+    (sum, reservation) => sum + buildGuestAccount(reservation, sales).balance,
+    0,
+  );
   const occupied = rooms.filter(
     (room) => roomStatusToday(reservations, room.numero, today, room.situacao) === "ocupado",
   ).length;
   const occupancy = rooms.length ? (occupied / rooms.length) * 100 : 0;
+  const arrivalsToday = activeReservations.filter(
+    (reservation) => reservation.checkin === today && reservation.status !== "finalizado",
+  ).length;
+  const departuresToday = activeReservations.filter(
+    (reservation) => reservation.checkout === today,
+  ).length;
+  const checkoutDebtAccounts = activeReservations
+    .filter((reservation) => reservation.checkout <= today)
+    .map((reservation) => buildGuestAccount(reservation, sales))
+    .filter((account) => account.balance > 0);
+  const checkoutDebt = checkoutDebtAccounts.reduce(
+    (sum, account) => sum + account.balance,
+    0,
+  );
+  const cleaningRooms = rooms.filter((room) => room.situacao === "limpeza").length;
+  const maintenanceRooms = rooms.filter((room) => room.situacao === "manutencao").length;
 
   const paymentMap = new Map<string, number>();
   periodReservations.forEach((reservation) => {
@@ -777,6 +795,68 @@ function OwnerCompactDashboard({
 
   const dashboardWidgets: DashboardWidget[] = [
     {
+      id: "occupancy-now",
+      title: "Ocupação agora",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={`${occupancy.toFixed(1)}%`}
+        />
+      ),
+    },
+    {
+      id: "arrivals-today",
+      title: "Entradas hoje",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi label={settings.title} value={String(arrivalsToday)} />
+      ),
+    },
+    {
+      id: "departures-today",
+      title: "Saídas hoje",
+      kind: "kpi",
+      defaultColor: "var(--chart-3)",
+      render: (settings) => (
+        <CompactKpi label={settings.title} value={String(departuresToday)} />
+      ),
+    },
+    {
+      id: "free-rooms",
+      title: "Quartos livres",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi label={settings.title} value={String(rooms.length - occupied)} />
+      ),
+    },
+    {
+      id: "room-attention",
+      title: "Limpeza / manutenção",
+      kind: "kpi",
+      defaultColor: "var(--brass)",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={`${cleaningRooms} / ${maintenanceRooms}`}
+          hint="quartos que exigem atenção"
+        />
+      ),
+    },
+    {
+      id: "checkout-debt",
+      title: "Check-outs com dívida",
+      kind: "kpi",
+      defaultColor: "var(--brick)",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={fmtBRL(checkoutDebt)}
+          hint={`${checkoutDebtAccounts.length} hospedagem(ns) bloqueada(s)`}
+        />
+      ),
+    },
+    {
       id: "revenue",
       title: "Receita recebida",
       kind: "kpi",
@@ -791,7 +871,7 @@ function OwnerCompactDashboard({
     },
     {
       id: "pending",
-      title: "A receber",
+      title: "Conta total a receber",
       kind: "kpi",
       defaultColor: "var(--brass)",
       render: (settings) => <CompactKpi label={settings.title} value={fmtBRL(pending)} />,
@@ -811,22 +891,6 @@ function OwnerCompactDashboard({
       kind: "kpi",
       defaultColor: "var(--chart-2)",
       render: (settings) => <CompactKpi label={settings.title} value={fmtBRL(profit)} />,
-    },
-    {
-      id: "occupancy-now",
-      title: "Ocupação agora",
-      kind: "kpi",
-      render: (settings) => (
-        <CompactKpi label={settings.title} value={`${occupancy.toFixed(1)}%`} />
-      ),
-    },
-    {
-      id: "free-rooms",
-      title: "Quartos livres",
-      kind: "kpi",
-      render: (settings) => (
-        <CompactKpi label={settings.title} value={String(rooms.length - occupied)} />
-      ),
     },
     {
       id: "receivables",
@@ -871,8 +935,8 @@ function OwnerCompactDashboard({
   return (
     <div className="space-y-3 pb-6">
       <DashboardHeader
-        title="Painel Administrativo e Financeiro"
-        subtitle="Caixa, cobranças, reservas, quartos e pendências que exigem ação hoje."
+        title="Painel Operacional"
+        subtitle="Ações, movimentações e pendências que a equipe precisa resolver hoje."
         period={period}
         onPeriodChange={setPeriod}
       />
@@ -890,8 +954,8 @@ function OwnerCompactDashboard({
         companyId={companyId}
         dashboardId="painel-dono"
         widgets={dashboardWidgets}
-        title="Personalizar Painel administrativo"
-        description="Edite os KPIs, gráficos e blocos do Painel; largura e altura são livres"
+        title="Personalizar Painel Operacional"
+        description="Arraste com o mouse, redimensione livremente e salve a visão de trabalho da equipe."
       />
     </div>
   );

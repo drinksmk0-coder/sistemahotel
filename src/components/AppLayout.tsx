@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   BarChart3,
@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Lightbulb,
   PackageSearch,
   QrCode,
   Settings,
@@ -35,6 +36,7 @@ const TABS = [
     roles: ["dono", "recepcao", "limpeza", "cafe"],
   },
   { to: "/dashboard-estrategico", label: "Estratégico", icon: LayoutDashboard, roles: ["dono"] },
+  { to: "/decisoes", label: "Decisões", icon: Lightbulb, roles: ["dono"] },
   { to: "/financeiro", label: "Financeiro", icon: WalletCards, roles: ["dono"] },
   { to: "/vendas-produtos", label: "Produtos", icon: PackageSearch, roles: ["dono", "recepcao"] },
   { to: "/dashboard-quartos", label: "Quartos", icon: BedDouble, roles: ["dono", "recepcao"] },
@@ -131,19 +133,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   const sidebar = (
     <aside
-      className="flex h-full w-[min(15rem,84vw)] flex-col border-r border-black/20 text-primary-foreground shadow-2xl xl:w-60"
-      style={{ backgroundColor: systemSettings.primaryColor }}
+      className="app-sidebar flex h-full w-[min(16rem,86vw)] flex-col border-r border-white/8 text-primary-foreground shadow-2xl xl:w-64"
+      style={
+        {
+          "--sidebar-primary": systemSettings.primaryColor,
+        } as CSSProperties
+      }
     >
-      <div className="border-b border-white/15 p-4">
+      <div className="border-b border-white/10 px-5 py-5">
         <div className="flex items-center gap-3">
           <img
             src={systemSettings.logo}
             alt={companyName}
-            className="h-12 w-12 rounded-md bg-white object-contain p-1 shadow"
+            className="h-10 w-10 rounded-xl bg-primary object-contain p-1.5 shadow-lg"
           />
           <div className="min-w-0">
-            <h1 className="truncate font-serif text-lg font-bold text-white">{companyName}</h1>
-            <p className="text-[11px] uppercase tracking-wider text-brass">
+            <h1 className="truncate text-lg font-extrabold text-white">{companyName}</h1>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-white/50">
               {role ? ROLE_SUBTITLES[role] : "Aguardando acesso"}
             </p>
           </div>
@@ -167,14 +173,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </select>
           </label>
         ) : (
-          <div className="mt-4 rounded-md border border-white/15 bg-white/10 px-3 py-2">
+          <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2">
             <span className="block text-[11px] font-semibold uppercase text-white/65">Empresa</span>
             <span className="block truncate text-sm font-semibold text-white">{companyName}</span>
           </div>
         )}
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav className="app-sidebar-nav flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {visibleTabs.map((t) => {
           const active = path.startsWith(t.to);
           const Icon = t.icon;
@@ -183,21 +189,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
               key={t.to}
               to={t.to}
               onClick={() => setMenuOpen(false)}
-              className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition ${
+              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
                 active
-                  ? "text-pine-dark shadow"
-                  : "text-white/82 hover:bg-white/10 hover:text-white"
+                  ? "bg-white/12 text-white shadow-sm"
+                  : "text-white/65 hover:bg-white/[0.07] hover:text-white"
               }`}
-              style={active ? { backgroundColor: systemSettings.accentColor } : undefined}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className={`h-4 w-4 ${active ? "text-white" : "text-white/55"}`} />
               {t.label}
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t border-white/15 p-4">
+      <div className="border-t border-white/10 p-4">
         <Clock />
         <div className="mt-3">
           <div className="truncate text-xs font-semibold text-white">
@@ -249,8 +254,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <main className="min-w-0 px-3 pb-24 pt-16 sm:px-4 md:px-5 xl:ml-60 xl:px-5 xl:pb-6 xl:pt-5">
-        <div className="mx-auto w-full max-w-[1800px]">{children}</div>
+      <main className="app-main min-w-0 px-3 pb-24 pt-16 sm:px-5 md:px-7 xl:ml-64 xl:px-8 xl:pb-8 xl:pt-7">
+        <div className="mx-auto w-full max-w-[1880px]">{children}</div>
       </main>
 
       {mobileTabs.length > 0 && (
@@ -289,10 +294,16 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h2 className="section-title text-xl sm:text-2xl">{title}</h2>
-        {subtitle && <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{subtitle}</p>}
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="min-w-0">
+        <h2 className="section-title text-lg font-extrabold tracking-tight text-pine-dark sm:text-xl">
+          {title}
+        </h2>
+        {subtitle && (
+          <p className="mt-0.5 max-w-3xl truncate text-[11px] text-muted-foreground" title={subtitle}>
+            {subtitle}
+          </p>
+        )}
       </div>
       {action}
     </div>

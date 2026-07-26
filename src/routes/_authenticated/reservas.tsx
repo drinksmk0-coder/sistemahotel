@@ -13,6 +13,7 @@ import {
   Trash2,
   Upload,
   UsersRound,
+  Search,
 } from "lucide-react";
 import {
   useRooms,
@@ -84,21 +85,35 @@ function Reservas() {
   const [editing, setEditing] = useState<Reservation | null>(null);
   const [moving, setMoving] = useState<Reservation | null>(null);
   const [filter, setFilter] = useState("ativas");
+  const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
+    let filteredRows: Reservation[];
     if (filter === "ativas")
-      return reservations.filter((r) => !["finalizado", "cancelado"].includes(r.status));
-    if (filter === "pendencias")
-      return reservations.filter(
+      filteredRows = reservations.filter((r) => !["finalizado", "cancelado"].includes(r.status));
+    else if (filter === "pendencias")
+      filteredRows = reservations.filter(
         (reservation) =>
           reservation.status !== "cancelado" &&
           reservation.status !== "manutencao" &&
           reservation.checkout < todayISO() &&
           buildGuestAccount(reservation, sales).balance > 0,
       );
-    if (filter === "todas") return reservations;
-    return reservations.filter((r) => r.status === filter);
-  }, [reservations, sales, filter]);
+    else if (filter === "todas") filteredRows = reservations;
+    else filteredRows = reservations.filter((r) => r.status === filter);
+
+    const term = search.trim().toLocaleLowerCase("pt-BR");
+    if (!term) return filteredRows;
+    return filteredRows.filter((reservation) =>
+      [
+        reservation.id,
+        reservation.cliente_nome,
+        reservation.quarto,
+        reservation.canal,
+        reservation.status,
+      ].some((value) => String(value ?? "").toLocaleLowerCase("pt-BR").includes(term)),
+    );
+  }, [reservations, sales, filter, search]);
 
   function exportCSV() {
     const rows: (string | number | null)[][] = [
@@ -303,7 +318,7 @@ function Reservas() {
     <div>
       <PageHeader
         title="Reservas"
-        subtitle="Pagou o total → quarto ocupado. Pagou o sinal → reservado. O sistema bloqueia sobreposição de datas."
+        subtitle={`${reservations.length} reserva(s) · hospedagem, consumo e pagamentos consolidados`}
         action={
           <div className="flex gap-2">
             <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
@@ -328,16 +343,28 @@ function Reservas() {
         }
       />
 
-      <div className="mb-4 flex flex-wrap gap-1.5 text-sm">
-        {["ativas", "pendencias", "reservado", "ocupado", "finalizado", "todas"].map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`rounded-full px-3 py-1 font-semibold capitalize ${filter === f ? "bg-pine text-primary-foreground" : "bg-muted text-muted-foreground"}`}
-          >
-            {f}
-          </button>
-        ))}
+      <div className="mb-3 flex flex-col gap-2 rounded-xl border border-border bg-card p-2.5 shadow-sm lg:flex-row lg:items-center">
+        <label className="relative min-w-0 flex-1">
+          <span className="sr-only">Buscar reserva</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="field h-9 bg-muted/45 pl-9"
+            placeholder="Buscar por hóspede, código, quarto ou canal..."
+          />
+        </label>
+        <div className="flex flex-wrap gap-1 text-xs">
+          {["ativas", "pendencias", "reservado", "ocupado", "finalizado", "todas"].map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-full px-2.5 py-1.5 font-semibold capitalize transition ${filter === f ? "bg-pine text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
       </div>
 
       {filtered.length === 0 ? (
@@ -347,12 +374,12 @@ function Reservas() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                <th className="p-3">Quarto</th>
-                <th className="p-3">Cliente</th>
-                <th className="p-3">Período</th>
-                <th className="p-3">Pago / Total</th>
-                <th className="p-3">Status</th>
-                <th className="p-3"></th>
+                <th className="p-2.5">Quarto</th>
+                <th className="p-2.5">Cliente</th>
+                <th className="p-2.5">Período</th>
+                <th className="p-2.5">Pago / Total</th>
+                <th className="p-2.5">Status</th>
+                <th className="p-2.5"></th>
               </tr>
             </thead>
             <tbody>
@@ -370,9 +397,9 @@ function Reservas() {
                     key={r.id}
                     className={`border-b border-border/50 ${needsAttention ? "bg-brick-bg/35" : ""}`}
                   >
-                    <td className="p-3 font-serif text-lg font-bold">{r.quarto}</td>
-                    <td className="p-3">{r.cliente_nome}</td>
-                    <td className="p-3 text-muted-foreground">
+                    <td className="p-2.5 font-serif text-base font-bold">{r.quarto}</td>
+                    <td className="p-2.5">{r.cliente_nome}</td>
+                    <td className="p-2.5 text-muted-foreground">
                       {fmtDate(r.checkin)} {fmtTime(r.horario_checkin)} → {fmtDate(r.checkout)}{" "}
                       {fmtTime(r.horario_checkout)}
                       {r.motivo_estadia && (
@@ -386,7 +413,7 @@ function Reservas() {
                         </div>
                       )}
                     </td>
-                    <td className="p-3">
+                    <td className="p-2.5">
                       <div>
                         {fmtBRL(r.valor_pago)} / {fmtBRL(r.valor_total)}
                       </div>
@@ -411,10 +438,10 @@ function Reservas() {
                         </div>
                       )}
                     </td>
-                    <td className="p-3">
+                    <td className="p-2.5">
                       <Badge tone={statusTone[r.status]}>{r.status}</Badge>
                     </td>
-                    <td className="p-3 text-right">
+                    <td className="p-2.5 text-right">
                       <RowActions
                         reservation={r}
                         account={account}

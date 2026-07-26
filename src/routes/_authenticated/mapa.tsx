@@ -187,9 +187,14 @@ function Mapa() {
 
     if (row.cliente_id) return cleanRow;
     const telefoneDigits = phoneDigits(row.cliente_telefone);
+    const activeClients = clients.filter(
+      (client) => client.ativo !== false && !client.tipo.startsWith("desativado:"),
+    );
     const existing = telefoneDigits
-      ? clients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
-      : clients.find((c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase());
+      ? activeClients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
+      : activeClients.find(
+          (c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase(),
+        );
 
     if (existing) {
       const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();
@@ -258,21 +263,21 @@ function Mapa() {
         }
       />
 
-      <section className="mb-4 overflow-hidden rounded-xl border border-pine/20 bg-[linear-gradient(135deg,var(--pine-dark),var(--pine))] p-4 text-white shadow-md">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <label className="text-sm">
-            <span className="mb-1.5 flex items-center gap-2 font-semibold text-white">
-              <CalendarDays className="h-4 w-4 text-brass" />
-              Consultar disponibilidade
-            </span>
-            <input
-              type="date"
-              value={viewDate}
-              onChange={(event) => setViewDate(event.target.value || today)}
-              className="field min-w-[220px] border-white/30 bg-white text-pine-dark"
-            />
+      <section className="mb-3 rounded-xl border border-border bg-card p-2.5 shadow-sm">
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-end">
+          <label className="text-[10px] font-semibold text-muted-foreground">
+            Data consultada
+            <div className="relative mt-1">
+              <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-primary" />
+              <input
+                type="date"
+                value={viewDate}
+                onChange={(event) => setViewDate(event.target.value || today)}
+                className="field h-9 min-w-[180px] bg-white py-1 pl-8 text-xs text-pine-dark"
+              />
+            </div>
           </label>
-          <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
+          <div className="grid flex-1 grid-cols-3 gap-1 text-[10px] sm:grid-cols-6">
             <AvailabilityCount
               icon={<CheckCircle2 />}
               label="Disponíveis"
@@ -297,62 +302,55 @@ function Mapa() {
             />
             <AvailabilityCount icon={<BedDouble />} label="Limpeza" value={dateSummary.cleaning} />
           </div>
-        </div>
-        {dateSummary.available === 0 ? (
-          <div className="mt-4 rounded-lg border border-brick/50 bg-brick/90 px-4 py-3 font-semibold text-white">
-            Lotação completa em {fmtDate(viewDate)} — não há quartos disponíveis para uma nova
-            reserva.
-          </div>
-        ) : (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/10 px-4 py-3">
-            <p className="text-sm">
-              <strong>{dateSummary.available}</strong> de <strong>{rooms.length}</strong> quartos
-              disponíveis em {fmtDate(viewDate)}.
-            </p>
-            <button
-              type="button"
-              className="rounded-md bg-brass px-3 py-2 text-xs font-bold text-pine-dark hover:brightness-105"
-              onClick={() => setStatusFilter("livre")}
-            >
-              Mostrar somente disponíveis
-            </button>
-          </div>
-        )}
-        {viewDate !== today && (
-          <p className="mt-2 text-xs text-white/75">
-            Em {fmtDate(viewDate)}, quartos com saída aparecem como limpeza prevista para evitar
-            vender antes da arrumação.
-          </p>
-        )}
-      </section>
-
-      <section className="mb-4 rounded-lg border border-border bg-card p-3 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <label className="text-sm">
-            <span className="mb-1 block font-semibold text-muted-foreground">Buscar quarto</span>
+          <label className="text-[10px] font-semibold text-muted-foreground">
+            Buscar UH
             <input
-              className="field max-w-[220px]"
+              className="field mt-1 h-9 w-28 py-1 text-xs"
               inputMode="numeric"
               placeholder="Ex.: 102"
               value={roomSearch}
               onChange={(event) => setRoomSearch(event.target.value.replace(/\D/g, ""))}
             />
           </label>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex gap-1">
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary h-9 px-2.5 text-[10px]"
               disabled={!searchedRoom}
               onClick={() => searchedRoom && setSelected(searchedRoom)}
             >
-              Abrir quarto
+              Abrir
             </button>
             {roomSearch && (
-              <button type="button" className="btn-ghost" onClick={() => setRoomSearch("")}>
+              <button
+                type="button"
+                className="btn-ghost h-9 px-2 text-[10px]"
+                onClick={() => setRoomSearch("")}
+              >
                 Limpar busca
               </button>
             )}
           </div>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border/70 pt-2 text-[10px]">
+          {dateSummary.available === 0 ? (
+            <strong className="rounded-md bg-brick-bg px-2 py-1 text-brick">
+              Lotação completa em {fmtDate(viewDate)}
+            </strong>
+          ) : (
+            <button
+              type="button"
+              className="rounded-md bg-sage-bg px-2 py-1 font-bold text-pine-dark"
+              onClick={() => setStatusFilter("livre")}
+            >
+              {dateSummary.available}/{rooms.length} disponíveis · mostrar livres
+            </button>
+          )}
+          {viewDate !== today && (
+            <span className="text-muted-foreground">
+              Saídas aparecem como limpeza prevista antes de nova venda.
+            </span>
+          )}
         </div>
         {roomSearch && searchedRoom && (
           <RoomSearchSummary
@@ -368,7 +366,7 @@ function Mapa() {
           />
         )}
         {roomSearch && !searchedRoom && (
-          <p className="mt-3 rounded-md bg-brick-bg px-3 py-2 text-sm text-brick">
+          <p className="mt-2 rounded-md bg-brick-bg px-2 py-1 text-xs text-brick">
             Nenhum quarto encontrado com esse número.
           </p>
         )}
@@ -832,7 +830,11 @@ function AvailabilityCount({
 }) {
   return (
     <div
-      className={`min-w-[92px] rounded-lg border px-3 py-2 ${emphasis ? "border-brass bg-brass text-pine-dark" : "border-white/15 bg-white/10"}`}
+      className={`min-w-[92px] rounded-lg border px-3 py-2 ${
+        emphasis
+          ? "border-primary/25 bg-primary/10 text-pine-dark"
+          : "border-border bg-muted text-pine-dark"
+      }`}
     >
       <div className="flex items-center gap-1.5 opacity-80">
         <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
