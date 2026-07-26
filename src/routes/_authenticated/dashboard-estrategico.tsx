@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { NaturalEarth } from "@visx/geo";
+import Brazil from "@svg-maps/brazil";
 import { feature } from "topojson-client";
 import worldAtlas from "world-atlas/countries-110m.json";
 import type { Feature, FeatureCollection, Geometry } from "geojson";
@@ -15,6 +16,7 @@ import {
   BarChart3,
   BedDouble,
   DollarSign,
+  Info,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -205,6 +207,7 @@ function DashboardEstrategico() {
   const previousTicket = safeDivide(previousHotelKpis.totalRevenue, previousClients);
   const previousYearTicket = safeDivide(previousYearHotelKpis.totalRevenue, previousYearClients);
   const countryRows = buildCountryRows(filteredReservations, clients, clientById);
+  const stateRows = buildStateRows(filteredReservations, clients, clientById);
   const civilRows = buildProfileDistribution(
     filteredReservations,
     clients,
@@ -483,52 +486,24 @@ function DashboardEstrategico() {
   ];
   const clientWidgets: DashboardWidget[] = [
     {
-      id: "mapa-hospedes",
-      title: "Origem mundial dos hóspedes",
-      kind: "chart",
-      defaultColumns: 7,
-      defaultHeight: 380,
+      id: "mapa-perfil-hospedes",
+      title: "Origem e perfil dos hóspedes",
+      kind: "content",
+      defaultColumns: 12,
+      defaultHeight: 505,
       defaultColor: "var(--chart-1)",
-      render: (settings) => <WorldGuestBubbleMap rows={countryRows} settings={settings} />,
-    },
-    {
-      id: "receita-perfil",
-      title: "Receita por origem do cliente",
-      kind: "chart",
-      defaultColumns: 5,
-      defaultHeight: 380,
-      defaultColor: "var(--chart-3)",
-      chartTypes: ["horizontalBar", "bar", "line", "area", "doughnut"],
       render: (settings) => (
-        <EditableStrategicChart
-          rows={profileRevenueRows}
-          categoryKey="name"
-          series={[{ key: "value", label: "Receita", color: settings.color, currency: true }]}
+        <GuestProfileOverview
           settings={settings}
+          states={stateRows}
+          countries={countryRows}
+          revenue={profileRevenueRows}
+          civil={civilRows}
+          gender={genderRows}
+          profession={professionRows}
         />
       ),
     },
-    ...[
-      { id: "estado-civil", title: "Estado civil", rows: civilRows, color: "var(--chart-2)" },
-      { id: "sexo", title: "Sexo", rows: genderRows, color: "var(--chart-3)" },
-      { id: "profissao", title: "Profissão", rows: professionRows, color: "var(--chart-5)" },
-    ].map((profile): DashboardWidget => ({
-      id: profile.id,
-      title: profile.title,
-      kind: "chart",
-      defaultColumns: 4,
-      defaultHeight: 300,
-      defaultColor: profile.color,
-      chartTypes: ["doughnut", "pie", "horizontalBar", "bar", "radar"],
-      render: (settings) => (
-        <EditableStrategicChart
-          rows={profile.rows}
-          categoryKey="name"
-          series={[{ key: "value", label: "Hóspedes", color: settings.color }]}
-          settings={settings}
-        />
-      ),
-    })),
   ];
   const channelWidgets: DashboardWidget[] = [
     {
@@ -898,6 +873,7 @@ function HotelMetricCard({
   previousDelta?: number | null;
   yearDelta?: number | null;
 }) {
+  const [showHelp, setShowHelp] = useState(false);
   const toneClass = {
     pine: "border-pine/35 bg-pine/5",
     sage: "border-sage/45 bg-sage-bg/55",
@@ -906,13 +882,25 @@ function HotelMetricCard({
   }[tone];
 
   return (
-    <article className={`min-w-0 rounded-lg border px-3 py-2 shadow-sm ${toneClass}`}>
+    <article
+      className={`group relative min-w-0 rounded-lg border px-3 py-2 shadow-sm ${toneClass}`}
+      onMouseLeave={() => setShowHelp(false)}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h2 className="truncate text-[10px] font-bold uppercase text-pine-dark">{label}</h2>
           <p className="font-serif text-lg font-bold leading-tight text-pine-dark">{value}</p>
         </div>
-        <Activity className="h-4 w-4 shrink-0 text-brass" aria-hidden="true" />
+        <button
+          type="button"
+          className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border bg-card/90 text-primary shadow-sm"
+          onClick={() => setShowHelp((value) => !value)}
+          onMouseEnter={() => setShowHelp(true)}
+          aria-label={`Como interpretar ${label}`}
+          aria-expanded={showHelp}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
       </div>
       <p className="mt-0.5 truncate text-[10px] text-muted-foreground" title={formula}>
         {formula}
@@ -921,13 +909,18 @@ function HotelMetricCard({
         <DeltaPill label="mês ant." value={previousDelta} />
         <DeltaPill label="ano ant." value={yearDelta} />
       </div>
-      <details className="mt-1 text-[10px]">
-        <summary className="cursor-pointer font-semibold text-pine">Como interpretar</summary>
-        <p className="mt-1 leading-relaxed text-muted-foreground">{meaning}</p>
-        <p className="mt-1 rounded-md bg-white/65 px-2 py-1.5 leading-relaxed text-pine-dark">
-          {strategy}
-        </p>
-      </details>
+      {showHelp && (
+        <div
+          role="tooltip"
+          className="absolute inset-x-2 top-8 z-30 rounded-lg border border-primary/25 bg-card/95 p-2.5 text-[10px] shadow-xl backdrop-blur"
+        >
+          <strong className="text-pine-dark">Como interpretar</strong>
+          <p className="mt-1 leading-relaxed text-muted-foreground">{meaning}</p>
+          <p className="mt-1.5 rounded-md bg-primary/8 px-2 py-1.5 leading-relaxed text-pine-dark">
+            {strategy}
+          </p>
+        </div>
+      )}
     </article>
   );
 }
@@ -1066,13 +1059,19 @@ function EditableStrategicChart({
   const height = Math.max(56, settings.height - 54);
   const formatter = (value: number, name: string) =>
     series.find((item) => item.label === name)?.currency ? fmtBRL(value) : value;
-  const labelFormatter = (value: number) =>
-    Math.abs(value) >= 1000 ? `${Math.round(value / 1000)}k` : String(Math.round(value * 10) / 10);
+  const labelFormatter = (value: number, currency = false) =>
+    formatStrategicValue(value, currency);
   const common = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
       <Tooltip formatter={formatter} />
-      {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+      {settings.showLegend && (
+        <Legend
+          verticalAlign="top"
+          align="right"
+          wrapperStyle={{ fontSize: 10, paddingBottom: 8 }}
+        />
+      )}
     </>
   );
   let chart: React.ReactNode;
@@ -1089,7 +1088,11 @@ function EditableStrategicChart({
           outerRadius="76%"
         >
           {settings.showLabels && (
-            <LabelList dataKey={first.key} position="outside" formatter={labelFormatter} />
+            <LabelList
+              dataKey={first.key}
+              position="outside"
+              formatter={(value: number) => labelFormatter(value, first.currency)}
+            />
           )}
           {rows.map((row, index) => (
             <Cell
@@ -1099,7 +1102,9 @@ function EditableStrategicChart({
           ))}
         </Pie>
         <Tooltip formatter={formatter} />
-        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+        {settings.showLegend && (
+          <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 10 }} />
+        )}
       </PieChart>
     );
   } else if (settings.chartType === "radar") {
@@ -1139,7 +1144,11 @@ function EditableStrategicChart({
             dot={false}
           >
             {settings.showLabels && (
-              <LabelList dataKey={item.key} position="top" formatter={labelFormatter} />
+              <LabelList
+                dataKey={item.key}
+                position="top"
+                formatter={(value: number) => labelFormatter(value, item.currency)}
+              />
             )}
           </Line>
         ))}
@@ -1162,7 +1171,11 @@ function EditableStrategicChart({
             fillOpacity={index ? 0.12 : 0.24}
           >
             {settings.showLabels && (
-              <LabelList dataKey={item.key} position="top" formatter={labelFormatter} />
+              <LabelList
+                dataKey={item.key}
+                position="top"
+                formatter={(value: number) => labelFormatter(value, item.currency)}
+              />
             )}
           </Area>
         ))}
@@ -1186,7 +1199,11 @@ function EditableStrategicChart({
               fillOpacity={0.18}
             >
               {settings.showLabels && (
-                <LabelList dataKey={item.key} position="top" formatter={labelFormatter} />
+                <LabelList
+                  dataKey={item.key}
+                  position="top"
+                  formatter={(value: number) => labelFormatter(value, item.currency)}
+                />
               )}
             </Area>
           ) : (
@@ -1200,7 +1217,11 @@ function EditableStrategicChart({
               dot={false}
             >
               {settings.showLabels && (
-                <LabelList dataKey={item.key} position="top" formatter={labelFormatter} />
+                <LabelList
+                  dataKey={item.key}
+                  position="top"
+                  formatter={(value: number) => labelFormatter(value, item.currency)}
+                />
               )}
             </Line>
           ),
@@ -1213,13 +1234,28 @@ function EditableStrategicChart({
       <BarChart
         data={rows}
         layout={horizontal ? "vertical" : "horizontal"}
-        margin={horizontal ? { left: 86, right: 14 } : { left: -4, right: 14 }}
+        margin={
+          horizontal
+            ? { left: 4, right: 72, top: 10, bottom: 10 }
+            : { left: -4, right: 20, top: 24, bottom: 18 }
+        }
       >
         {common}
         {horizontal ? (
           <>
-            <XAxis type="number" tick={{ fontSize: 9 }} />
-            <YAxis type="category" dataKey={categoryKey} width={84} tick={{ fontSize: 9 }} />
+            <XAxis
+              type="number"
+              tick={{ fontSize: 9 }}
+              tickFormatter={(value) => formatStrategicValue(Number(value))}
+            />
+            <YAxis
+              type="category"
+              dataKey={categoryKey}
+              width={122}
+              interval={0}
+              tick={{ fontSize: 9, fill: "var(--pine-dark)" }}
+              tickFormatter={(value) => truncateChartLabel(String(value))}
+            />
           </>
         ) : (
           <>
@@ -1239,7 +1275,7 @@ function EditableStrategicChart({
               <LabelList
                 dataKey={item.key}
                 position={horizontal ? "right" : "top"}
-                formatter={labelFormatter}
+                formatter={(value: number) => labelFormatter(value, item.currency)}
               />
             )}
           </Bar>
@@ -1262,6 +1298,21 @@ function EditableStrategicChart({
       )}
     </section>
   );
+}
+
+function formatStrategicValue(value: number, currency = false) {
+  const absolute = Math.abs(value);
+  const divisor = absolute >= 1_000_000 ? 1_000_000 : absolute >= 1_000 ? 1_000 : 1;
+  const suffix = divisor === 1_000_000 ? " mi" : divisor === 1_000 ? " mil" : "";
+  const number = (value / divisor).toLocaleString("pt-BR", {
+    minimumFractionDigits: divisor === 1 ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+  return `${currency ? "R$ " : ""}${number}${suffix}`;
+}
+
+function truncateChartLabel(value: string, limit = 19) {
+  return value.length > limit ? `${value.slice(0, limit - 1)}…` : value;
 }
 
 function FutureOccupancyGauge({
@@ -1300,12 +1351,210 @@ function FutureOccupancyGauge({
   );
 }
 
+function GuestProfileOverview({
+  settings,
+  states,
+  countries,
+  revenue,
+  civil,
+  gender,
+  profession,
+}: {
+  settings: DashboardWidgetSettings;
+  states: { uf: string; label: string; value: number; receita: number }[];
+  countries: { code: string; name: string; value: number; receita: number }[];
+  revenue: { name: string; value: number }[];
+  civil: { name: string; value: number }[];
+  gender: { name: string; value: number }[];
+  profession: { name: string; value: number }[];
+}) {
+  const [mapMode, setMapMode] = useState<"brasil" | "mundo">("brasil");
+  return (
+    <section className="h-full min-w-0 overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>
+          <p className="text-[10px] text-muted-foreground">
+            Cor = receita · intensidade/tamanho = frequência · detalhes ao passar o mouse
+          </p>
+        </div>
+        <div className="flex rounded-lg border border-border bg-muted p-1">
+          {(["brasil", "mundo"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setMapMode(mode)}
+              className={`rounded px-3 py-1 text-[10px] font-bold capitalize ${
+                mapMode === mode ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid h-[calc(100%-44px)] min-h-0 gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.9fr)]">
+        <div className="min-h-0 overflow-hidden rounded-lg border border-border/70 bg-muted/30">
+          {mapMode === "brasil" ? (
+            <BrazilGuestMap rows={states} color={settings.color} />
+          ) : (
+            <WorldGuestBubbleMap
+              rows={countries}
+              settings={{ ...settings, title: "Origem mundial", height: 405 }}
+              embedded
+            />
+          )}
+        </div>
+        <div className="grid min-h-0 grid-cols-2 gap-2">
+          <ProfileDonut title="Receita" rows={revenue} currency />
+          <ProfileDonut title="Sexo" rows={gender} />
+          <ProfileDonut title="Estado civil" rows={civil} />
+          <ProfileDonut title="Profissão" rows={profession} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function BrazilGuestMap({
+  rows,
+  color,
+}: {
+  rows: { uf: string; label: string; value: number; receita: number }[];
+  color: string;
+}) {
+  const map = Brazil as {
+    viewBox: string;
+    locations: { id: string; name: string; path: string }[];
+  };
+  const rowByUf = new Map(rows.map((row) => [row.uf.toLowerCase(), row]));
+  const maxRevenue = Math.max(1, ...rows.map((row) => row.receita));
+  return (
+    <div className="grid h-full min-h-[380px] grid-cols-[minmax(0,1fr)_160px]">
+      <svg
+        viewBox={map.viewBox}
+        className="h-full max-h-[410px] w-full p-3"
+        role="img"
+        aria-label="Mapa coroplético do Brasil por origem e receita dos hóspedes"
+      >
+        {map.locations.map((location) => {
+          const row = rowByUf.get(location.id);
+          const intensity = row ? 0.22 + (row.receita / maxRevenue) * 0.78 : 0.06;
+          return (
+            <path
+              key={location.id}
+              d={location.path}
+              fill={row ? color : "var(--pine-dark)"}
+              fillOpacity={intensity}
+              stroke="var(--card-solid)"
+              strokeWidth="1.8"
+              className="transition hover:fill-opacity-100"
+            >
+              <title>
+                {row
+                  ? `${row.label}: ${row.value} hóspede(s) · ${fmtBRL(row.receita)}`
+                  : `${location.name}: sem dados`}
+              </title>
+            </path>
+          );
+        })}
+      </svg>
+      <div className="border-l border-border/70 p-3">
+        <strong className="text-[10px] uppercase text-pine-dark">Estados líderes</strong>
+        <div className="mt-2 space-y-2">
+          {rows.slice(0, 7).map((row, index) => (
+            <div key={row.uf} className="min-w-0">
+              <div className="flex items-center justify-between gap-1 text-[9px]">
+                <span className="truncate font-bold text-pine-dark">
+                  {index + 1}. {row.uf}
+                </span>
+                <span className="whitespace-nowrap text-muted-foreground">{row.value} hóspedes</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.max(4, (row.receita / maxRevenue) * 100)}%`,
+                    backgroundColor: color,
+                  }}
+                />
+              </div>
+              <p className="mt-0.5 text-right text-[9px] font-semibold text-primary">
+                {fmtBRL(row.receita)}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileDonut({
+  title,
+  rows,
+  currency = false,
+}: {
+  title: string;
+  rows: { name: string; value: number }[];
+  currency?: boolean;
+}) {
+  const visible = rows.slice(0, 5);
+  const total = visible.reduce((sum, row) => sum + row.value, 0);
+  return (
+    <article className="min-h-0 overflow-hidden rounded-lg border border-border/70 bg-muted/20 p-2">
+      <h3 className="text-[10px] font-bold uppercase text-pine-dark">{title}</h3>
+      <div className="grid h-[calc(100%-18px)] min-h-[150px] grid-cols-[46%_54%] items-center">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={visible}
+              dataKey="value"
+              nameKey="name"
+              innerRadius="50%"
+              outerRadius="78%"
+              paddingAngle={2}
+            >
+              {visible.map((row, index) => (
+                <Cell key={row.name} fill={`var(--chart-${(index % 6) + 1})`} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value) => (currency ? fmtBRL(Number(value)) : Number(value))}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="min-w-0 space-y-1.5">
+          {visible.map((row, index) => (
+            <div key={row.name} className="grid min-w-0 grid-cols-[8px_1fr_auto] items-center gap-1">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: `var(--chart-${(index % 6) + 1})` }}
+              />
+              <span className="truncate text-[9px] text-pine-dark" title={row.name}>
+                {row.name}
+              </span>
+              <strong className="whitespace-nowrap text-[8px] text-muted-foreground">
+                {currency
+                  ? fmtBRL(row.value)
+                  : `${row.value} · ${total ? ((row.value / total) * 100).toFixed(0) : 0}%`}
+              </strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function WorldGuestBubbleMap({
   rows,
   settings,
+  embedded = false,
 }: {
   rows: { code: string; name: string; value: number; receita: number }[];
   settings: DashboardWidgetSettings;
+  embedded?: boolean;
 }) {
   const max = Math.max(1, ...rows.map((row) => row.value));
   const height = Math.max(70, settings.height - 66);
@@ -1317,7 +1566,11 @@ function WorldGuestBubbleMap({
   );
   const topOrigins = rows.slice(0, 4);
   return (
-    <section className="h-full overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+    <section
+      className={`h-full overflow-hidden ${
+        embedded ? "bg-transparent" : "rounded-xl border border-border bg-card shadow-sm"
+      }`}
+    >
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="px-3 pt-3">
           <h2 className="text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>

@@ -1,4 +1,5 @@
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowDown, ArrowUp, Expand, Minimize2 } from "lucide-react";
 import { type DashboardPeriod } from "@/lib/dashboard-utils";
 
 export function DashboardHeader({
@@ -25,10 +26,51 @@ export function DashboardHeader({
           {subtitle}
         </p>
       </div>
-      <div className="shrink-0">
+      <div className="flex shrink-0 items-center gap-2">
         <PeriodSelector value={period} onChange={onPeriodChange} />
+        <DashboardTvButton />
       </div>
     </header>
+  );
+}
+
+export function DashboardTvButton() {
+  const [active, setActive] = useState(false);
+
+  useEffect(() => {
+    const sync = () => {
+      const enabled =
+        Boolean(document.fullscreenElement) ||
+        document.documentElement.dataset.dashboardMode === "tv";
+      setActive(enabled);
+      document.documentElement.dataset.dashboardMode = enabled ? "tv" : "normal";
+    };
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+
+  async function toggle() {
+    if (!active) {
+      document.documentElement.dataset.dashboardMode = "tv";
+      setActive(true);
+      await document.documentElement.requestFullscreen?.().catch(() => undefined);
+      return;
+    }
+    document.documentElement.dataset.dashboardMode = "normal";
+    setActive(false);
+    await document.exitFullscreen?.().catch(() => undefined);
+  }
+
+  return (
+    <button
+      type="button"
+      className="btn-ghost flex h-9 items-center gap-1.5 whitespace-nowrap px-2.5 text-[10px] font-bold"
+      onClick={toggle}
+      title={active ? "Sair do modo TV" : "Exibir este painel em modo TV"}
+    >
+      {active ? <Minimize2 className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
+      <span className="hidden sm:inline">{active ? "Sair da TV" : "Modo TV"}</span>
+    </button>
   );
 }
 

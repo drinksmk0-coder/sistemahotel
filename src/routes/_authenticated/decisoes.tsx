@@ -1,11 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
   BedDouble,
   DollarSign,
-  Expand,
   Goal,
   Lightbulb,
   Settings2,
@@ -87,7 +86,6 @@ function Decisoes() {
   const today = todayISO();
   const [period, setPeriod] = useState<DashboardPeriod>("mes");
   const [showGoals, setShowGoals] = useState(false);
-  const [tvMode, setTvMode] = useState(false);
   const { data: rooms = [] } = useRooms();
   const { data: reservations = [] } = useReservations();
   const { data: sales = [] } = useSales();
@@ -206,26 +204,9 @@ function Decisoes() {
     expenseRows,
   });
 
-  useEffect(() => {
-    document.documentElement.dataset.dashboardMode = tvMode ? "tv" : "normal";
-    return () => {
-      document.documentElement.dataset.dashboardMode = "normal";
-    };
-  }, [tvMode]);
-
   function saveGoals(next: ExecutiveGoals) {
     setGoals(next);
     window.localStorage.setItem(goalsKey(currentCompany.data?.id), JSON.stringify(next));
-  }
-
-  async function toggleTv() {
-    if (!tvMode) {
-      await document.documentElement.requestFullscreen?.().catch(() => undefined);
-      setTvMode(true);
-      return;
-    }
-    await document.exitFullscreen?.().catch(() => undefined);
-    setTvMode(false);
   }
 
   const widgets: DashboardWidget[] = [
@@ -330,7 +311,7 @@ function Decisoes() {
       title: "Receita, despesas, lucro e meta",
       kind: "chart",
       defaultColumns: 8,
-      defaultHeight: 330,
+      defaultHeight: 295,
       chartTypes: ["composed", "line", "bar"],
       render: (settings) => <FinancialStoryChart rows={monthly} settings={settings} />,
     },
@@ -339,7 +320,7 @@ function Decisoes() {
       title: "Calendário de calor da ocupação",
       kind: "content",
       defaultColumns: 4,
-      defaultHeight: 330,
+      defaultHeight: 295,
       render: (settings) => (
         <OccupancyHeatmap title={settings.title} rows={heatmap} target={goals.occupancy} />
       ),
@@ -349,7 +330,7 @@ function Decisoes() {
       title: "Receita líquida por canal",
       kind: "chart",
       defaultColumns: 6,
-      defaultHeight: 310,
+      defaultHeight: 245,
       chartTypes: ["horizontalBar", "bar"],
       render: (settings) => (
         <RankingChart
@@ -365,7 +346,7 @@ function Decisoes() {
       title: "Rentabilidade por quarto",
       kind: "chart",
       defaultColumns: 6,
-      defaultHeight: 310,
+      defaultHeight: 245,
       chartTypes: ["horizontalBar", "bar"],
       render: (settings) => (
         <RankingChart rows={roomRows} settings={settings} valueLabel="Margem" currency />
@@ -376,7 +357,7 @@ function Decisoes() {
       title: "Cidades mais rentáveis",
       kind: "chart",
       defaultColumns: 6,
-      defaultHeight: 300,
+      defaultHeight: 245,
       chartTypes: ["horizontalBar", "bar"],
       render: (settings) => (
         <RankingChart rows={cityRows} settings={settings} valueLabel="Receita" currency />
@@ -387,7 +368,7 @@ function Decisoes() {
       title: "Despesas que concentram 80% dos custos",
       kind: "chart",
       defaultColumns: 6,
-      defaultHeight: 300,
+      defaultHeight: 245,
       chartTypes: ["horizontalBar", "bar"],
       render: (settings) => (
         <RankingChart rows={expenseRows} settings={settings} valueLabel="Despesa" currency />
@@ -438,13 +419,6 @@ function Decisoes() {
           onClick={() => setShowGoals((value) => !value)}
         >
           <Settings2 className="h-4 w-4" /> Metas
-        </button>
-        <button
-          type="button"
-          className="btn-primary flex items-center gap-2 text-xs"
-          onClick={toggleTv}
-        >
-          <Expand className="h-4 w-4" /> {tvMode ? "Sair do modo TV" : "Modo gestor/TV"}
         </button>
       </div>
 
@@ -530,11 +504,20 @@ function FinancialStoryChart({
 }) {
   const common = (
     <>
-      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-      <YAxis tick={{ fontSize: 9 }} tickFormatter={(value) => fmtCompact(Number(value))} />
+      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+      <XAxis dataKey="name" tick={{ fontSize: 10, fill: "var(--pine-dark)" }} />
+      <YAxis
+        tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+        tickFormatter={(value) => fmtCompact(Number(value))}
+      />
       <Tooltip formatter={(value) => fmtBRL(Number(value))} />
-      {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+      {settings.showLegend && (
+        <Legend
+          verticalAlign="top"
+          align="right"
+          wrapperStyle={{ fontSize: 10, paddingBottom: 8 }}
+        />
+      )}
     </>
   );
   const labels = (key: string) =>
@@ -599,28 +582,58 @@ function RankingChart({
         <BarChart
           data={rows.slice(0, 8)}
           layout={horizontal ? "vertical" : "horizontal"}
-          margin={horizontal ? { left: 88, right: 40, top: 8 } : { left: 0, right: 8, top: 18 }}
+          margin={
+            horizontal
+              ? { left: 4, right: 72, top: 12, bottom: 8 }
+              : { left: 0, right: 18, top: 28, bottom: 18 }
+          }
         >
           <CartesianGrid strokeDasharray="3 3" horizontal={!horizontal} vertical={horizontal} />
           {horizontal ? (
             <>
-              <XAxis type="number" tick={{ fontSize: 9 }} />
-              <YAxis type="category" dataKey="name" width={84} tick={{ fontSize: 9 }} />
+              <XAxis
+                type="number"
+                tick={{ fontSize: 9, fill: "var(--muted-foreground)" }}
+                tickFormatter={(value) => fmtCompact(Number(value))}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                width={126}
+                interval={0}
+                tick={{ fontSize: 10, fill: "var(--pine-dark)" }}
+                tickFormatter={(value) => shortenLabel(String(value), 20)}
+              />
             </>
           ) : (
             <>
-              <XAxis dataKey="name" tick={{ fontSize: 9 }} />
-              <YAxis tick={{ fontSize: 9 }} />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 9, fill: "var(--pine-dark)" }}
+                tickFormatter={(value) => shortenLabel(String(value), 14)}
+              />
+              <YAxis
+                tick={{ fontSize: 9 }}
+                tickFormatter={(value) => fmtCompact(Number(value))}
+              />
             </>
           )}
           <Tooltip formatter={(value) => (currency ? fmtBRL(Number(value)) : value)} />
-          {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+          {settings.showLegend && (
+            <Legend
+              verticalAlign="top"
+              align="right"
+              wrapperStyle={{ fontSize: 10, paddingBottom: 8 }}
+            />
+          )}
           <Bar dataKey="value" name={valueLabel} fill={settings.color} radius={[4, 4, 4, 4]}>
             {settings.showLabels && (
               <LabelList
                 dataKey="value"
                 position={horizontal ? "right" : "top"}
-                formatter={(value: number) => (currency ? fmtCompact(value) : value)}
+                formatter={(value: number) =>
+                  currency ? `R$ ${fmtCompact(value)}` : fmtCompact(value)
+                }
               />
             )}
           </Bar>
@@ -650,7 +663,7 @@ function OccupancyHeatmap({
             className="group relative grid aspect-square place-items-center rounded-md border text-[9px] font-bold"
             style={{
               background: heatColor(row.occupancy),
-              color: row.occupancy >= 65 ? "white" : "var(--pine-dark)",
+              color: row.occupancy > 0 ? "white" : "var(--pine-dark)",
             }}
             title={`${row.date}: ${row.occupancy.toFixed(0)}% ocupado`}
           >
@@ -994,15 +1007,24 @@ function addDays(value: string, amount: number) {
 }
 
 function fmtCompact(value: number) {
-  if (Math.abs(value) >= 1_000_000) return `${(value / 1_000_000).toFixed(1)} mi`;
-  if (Math.abs(value) >= 1_000) return `${(value / 1_000).toFixed(1)} mil`;
-  return value.toFixed(0);
+  const absolute = Math.abs(value);
+  const divisor = absolute >= 1_000_000 ? 1_000_000 : absolute >= 1_000 ? 1_000 : 1;
+  const suffix = divisor === 1_000_000 ? " mi" : divisor === 1_000 ? " mil" : "";
+  return `${(value / divisor).toLocaleString("pt-BR", {
+    minimumFractionDigits: divisor === 1 ? 0 : 1,
+    maximumFractionDigits: divisor === 1 ? 1 : 1,
+  })}${suffix}`;
 }
 
 function heatColor(value: number) {
-  if (value >= 85) return "var(--brick)";
-  if (value >= 65) return "var(--chart-3)";
-  if (value >= 40) return "var(--primary)";
-  if (value > 0) return "var(--sage-bg)";
+  if (value >= 85) return "#7f1d1d";
+  if (value >= 65) return "#b45309";
+  if (value >= 40) return "#1d4ed8";
+  if (value >= 15) return "#0f766e";
+  if (value > 0) return "#047857";
   return "var(--muted)";
+}
+
+function shortenLabel(value: string, limit: number) {
+  return value.length > limit ? `${value.slice(0, limit - 1)}…` : value;
 }

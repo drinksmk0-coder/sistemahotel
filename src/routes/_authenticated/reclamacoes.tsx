@@ -7,16 +7,6 @@ import { fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { COMPLAINT_CATEGORIES, COMPLAINT_SEVERITY, COMPLAINT_STATUS, WIFI_DEVICES, complaintLabel, complaintStatusLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  LabelList,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 export const Route = createFileRoute("/_authenticated/reclamacoes")({
   component: Reclamacoes,
@@ -59,6 +49,20 @@ function Reclamacoes() {
       .slice(0, 12)
       .map(([palavra, ocorrencias]) => ({ palavra, ocorrencias }));
   }, [complaints]);
+  const categoryHeat = useMemo(
+    () =>
+      COMPLAINT_CATEGORIES.map((category) => ({
+        label: category.label,
+        values: ["baixa", "media", "alta"].map(
+          (severity) =>
+            complaints.filter(
+              (complaint) =>
+                complaint.categoria === category.value && complaint.gravidade === severity,
+            ).length,
+        ),
+      })).filter((row) => row.values.some(Boolean)),
+    [complaints],
+  );
 
   function exportCSV() {
     downloadExcel(`reclamacoes-${todayISO()}.xls`, [
@@ -116,27 +120,21 @@ function Reclamacoes() {
 
       {frequentWords.length > 0 && (
         <section className="card-surface mb-4 p-4">
-          <h3 className="font-serif text-lg font-bold">Assuntos mais citados</h3>
-          <p className="text-xs text-muted-foreground">
-            Palavras recorrentes nas descrições ajudam a revelar problemas sistêmicos.
-          </p>
-          <div className="mt-3 h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={frequentWords} layout="vertical" margin={{ left: 8, right: 38 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                <XAxis type="number" allowDecimals={false} />
-                <YAxis type="category" dataKey="palavra" width={90} />
-                <Tooltip />
-                <Bar
-                  dataKey="ocorrencias"
-                  name="Ocorrências"
-                  fill="var(--pine)"
-                  radius={[0, 5, 5, 0]}
-                >
-                  <LabelList dataKey="ocorrencias" position="right" />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+            <div>
+              <h3 className="font-serif text-lg font-bold">Mapa de calor dos assuntos</h3>
+              <p className="text-xs text-muted-foreground">
+                Quanto mais escura e maior a célula, mais vezes o assunto apareceu.
+              </p>
+              <ComplaintWordHeatmap rows={frequentWords} />
+            </div>
+            <div>
+              <h3 className="font-serif text-lg font-bold">Categoria × gravidade</h3>
+              <p className="text-xs text-muted-foreground">
+                Concentração das reclamações por assunto e nível de urgência.
+              </p>
+              <ComplaintSeverityHeatmap rows={categoryHeat} />
+            </div>
           </div>
         </section>
       )}
@@ -213,6 +211,87 @@ function Reclamacoes() {
           }
         />
       )}
+    </div>
+  );
+}
+
+function ComplaintWordHeatmap({
+  rows,
+}: {
+  rows: { palavra: string; ocorrencias: number }[];
+}) {
+  const max = Math.max(1, ...rows.map((row) => row.ocorrencias));
+  return (
+    <div className="mt-3 grid auto-rows-[64px] grid-cols-2 gap-2 sm:grid-cols-4">
+      {rows.map((row) => {
+        const intensity = row.ocorrencias / max;
+        return (
+          <div
+            key={row.palavra}
+            className={`flex min-w-0 flex-col justify-between rounded-lg border p-2.5 ${
+              intensity >= 0.7 ? "sm:col-span-2" : ""
+            }`}
+            style={{
+              background: `color-mix(in srgb, var(--primary) ${30 + intensity * 70}%, var(--card))`,
+              borderColor: `color-mix(in srgb, var(--primary) ${50 + intensity * 45}%, var(--border))`,
+              color: intensity >= 0.42 ? "white" : "var(--pine-dark)",
+            }}
+            title={`${row.palavra}: ${row.ocorrencias} ocorrência(s)`}
+          >
+            <strong className="truncate text-sm capitalize">{row.palavra}</strong>
+            <span className="text-[10px] font-bold opacity-85">
+              {row.ocorrencias} ocorrência(s)
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ComplaintSeverityHeatmap({
+  rows,
+}: {
+  rows: { label: string; values: number[] }[];
+}) {
+  const max = Math.max(1, ...rows.flatMap((row) => row.values));
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <div className="grid min-w-[390px] grid-cols-[minmax(130px,1fr)_repeat(3,72px)] gap-1.5 text-[10px]">
+        <span />
+        {["Baixa", "Média", "Alta"].map((label) => (
+          <strong key={label} className="py-1 text-center text-muted-foreground">
+            {label}
+          </strong>
+        ))}
+        {rows.map((row) => (
+          <div key={row.label} className="contents">
+            <strong className="truncate py-3 text-pine-dark" title={row.label}>
+              {row.label}
+            </strong>
+            {row.values.map((value, index) => {
+              const intensity = value / max;
+              const color =
+                index === 2 ? "var(--brick)" : index === 1 ? "var(--brass)" : "var(--sage)";
+              return (
+                <div
+                  key={`${row.label}-${index}`}
+                  className="grid min-h-10 place-items-center rounded-md border font-extrabold"
+                  style={{
+                    background: value
+                      ? `color-mix(in srgb, ${color} ${35 + intensity * 65}%, var(--card))`
+                      : "var(--muted)",
+                    color: value && intensity >= 0.45 ? "white" : "var(--pine-dark)",
+                  }}
+                  title={`${row.label} · ${["baixa", "média", "alta"][index]}: ${value}`}
+                >
+                  {value}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

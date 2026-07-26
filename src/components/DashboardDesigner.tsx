@@ -61,7 +61,7 @@ const MIN_WIDGET_HEIGHT = 2;
 const MAX_WIDGET_HEIGHT = 1200;
 
 function storageKey(companyId: string | null | undefined, dashboardId: string) {
-  return `hotelreal.dashboard.v6.${companyId ?? "default"}.${dashboardId}`;
+  return `hotelreal.dashboard.v6r2.${companyId ?? "default"}.${dashboardId}`;
 }
 
 function defaultSettings(widget: DashboardWidget): DashboardWidgetSettings {
@@ -491,7 +491,7 @@ export function DashboardDesigner({
             borderTopColor: settings.showAccentBorder ? settings.color : "transparent",
             borderTopWidth: settings.showAccentBorder ? 4 : 0,
             borderTopStyle: "solid",
-            background: `radial-gradient(circle at 92% 0%, color-mix(in srgb, ${settings.color} ${Math.round(settings.backgroundOpacity * 0.09)}%, transparent), transparent 44%), color-mix(in srgb, ${settings.backgroundColor} ${settings.backgroundOpacity}%, transparent)`,
+            background: `color-mix(in srgb, ${settings.backgroundColor} ${settings.backgroundOpacity}%, transparent)`,
             height: settings.height,
             opacity: settings.hidden ? 0.5 : dragging?.id === widget.id ? 0.35 : 1,
           } as CSSProperties;

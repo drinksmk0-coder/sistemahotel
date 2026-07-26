@@ -771,14 +771,14 @@ function OwnerCompactDashboard({
   const paymentRows = [...paymentMap]
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
-  const expenseRows = periodExpenses
-    .slice()
-    .sort((a, b) => Number(b.valor) - Number(a.valor))
-    .map((expense) => ({
-      label: expense.descricao,
-      value: fmtBRL(expense.valor),
-      hint: expense.categoria,
-    }));
+  const expenseMap = new Map<string, number>();
+  periodExpenses.forEach((expense) => {
+    const category = expense.categoria || "Sem categoria";
+    expenseMap.set(category, (expenseMap.get(category) ?? 0) + Number(expense.valor));
+  });
+  const expenseRows = [...expenseMap]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
   const complaintMap = new Map<number, number>();
   complaints
     .filter((complaint) => complaint.status !== "resolvido" && complaint.quarto != null)
@@ -905,22 +905,26 @@ function OwnerCompactDashboard({
     {
       id: "payments",
       title: "Formas de pagamento",
-      kind: "content",
+      kind: "chart",
+      defaultColumns: 6,
+      defaultHeight: 250,
       defaultColor: "var(--chart-3)",
+      chartTypes: ["doughnut", "pie", "horizontalBar", "bar"],
       render: (settings) => (
-        <ShortList
-          title={settings.title}
-          rows={paymentRows.map((row) => ({ label: row.name, value: fmtBRL(row.value) }))}
-        />
+        <EditableSingleSeriesChart rows={paymentRows} settings={settings} currency />
       ),
     },
     {
       id: "largest-expenses",
       title: "Maiores despesas",
-      kind: "content",
+      kind: "chart",
       defaultColumns: 6,
-      defaultHeight: 260,
-      render: (settings) => <ShortList title={settings.title} rows={expenseRows} />,
+      defaultHeight: 250,
+      defaultColor: "var(--brick)",
+      chartTypes: ["horizontalBar", "bar", "doughnut", "pie"],
+      render: (settings) => (
+        <EditableSingleSeriesChart rows={expenseRows.slice(0, 7)} settings={settings} currency />
+      ),
     },
     {
       id: "problem-rooms",
@@ -972,8 +976,14 @@ function EditableSingleSeriesChart({
 }) {
   const chartHeight = Math.max(56, settings.height - 55);
   const tooltipFormatter = (value: number) => (currency ? fmtBRL(value) : value);
-  const labelFormatter = (value: number) =>
-    Math.abs(value) >= 1000 ? `${Math.round(value / 1000)}k` : String(Math.round(value * 10) / 10);
+  const labelFormatter = (value: number) => formatChartValue(value, currency);
+  const legend = settings.showLegend ? (
+    <Legend
+      verticalAlign="top"
+      align="right"
+      wrapperStyle={{ fontSize: 10, paddingBottom: 8 }}
+    />
+  ) : null;
   let chart: React.ReactNode;
 
   if (settings.chartType === "pie" || settings.chartType === "doughnut") {
@@ -997,7 +1007,7 @@ function EditableSingleSeriesChart({
           ))}
         </Pie>
         <Tooltip formatter={tooltipFormatter} />
-        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+        {legend}
       </PieChart>
     );
   } else if (settings.chartType === "radar") {
@@ -1007,7 +1017,7 @@ function EditableSingleSeriesChart({
         <PolarAngleAxis dataKey="name" tick={{ fontSize: 10 }} />
         <PolarRadiusAxis tick={{ fontSize: 9 }} />
         <Tooltip formatter={tooltipFormatter} />
-        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+        {legend}
         <Radar
           dataKey="value"
           name="Valor"
@@ -1022,7 +1032,7 @@ function EditableSingleSeriesChart({
       <LineChart data={rows} margin={{ left: 0, right: 14 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-        <YAxis tick={{ fontSize: 9 }} />
+        <YAxis tick={{ fontSize: 9 }} tickFormatter={(value) => formatChartValue(Number(value))} />
         <Tooltip formatter={tooltipFormatter} />
         <Line
           type="monotone"
@@ -1035,7 +1045,7 @@ function EditableSingleSeriesChart({
             <LabelList dataKey="value" position="top" formatter={labelFormatter} />
           )}
         </Line>
-        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+        {legend}
       </LineChart>
     );
   } else if (settings.chartType === "area") {
@@ -1043,7 +1053,7 @@ function EditableSingleSeriesChart({
       <AreaChart data={rows} margin={{ left: 0, right: 14 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-        <YAxis tick={{ fontSize: 9 }} />
+        <YAxis tick={{ fontSize: 9 }} tickFormatter={(value) => formatChartValue(Number(value))} />
         <Tooltip formatter={tooltipFormatter} />
         <Area
           type="monotone"
@@ -1057,7 +1067,7 @@ function EditableSingleSeriesChart({
             <LabelList dataKey="value" position="top" formatter={labelFormatter} />
           )}
         </Area>
-        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+        {legend}
       </AreaChart>
     );
   } else if (settings.chartType === "composed") {
@@ -1065,7 +1075,7 @@ function EditableSingleSeriesChart({
       <ComposedChart data={rows} margin={{ left: 0, right: 14 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-        <YAxis tick={{ fontSize: 9 }} />
+        <YAxis tick={{ fontSize: 9 }} tickFormatter={(value) => formatChartValue(Number(value))} />
         <Tooltip formatter={tooltipFormatter} />
         <Area dataKey="value" fill={settings.color} stroke={settings.color} fillOpacity={0.15}>
           {settings.showLabels && (
@@ -1073,7 +1083,7 @@ function EditableSingleSeriesChart({
           )}
         </Area>
         <Line dataKey="value" name="Valor" stroke={settings.color} strokeWidth={3} />
-        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+        {legend}
       </ComposedChart>
     );
   } else {
@@ -1082,19 +1092,34 @@ function EditableSingleSeriesChart({
         data={rows}
         layout={settings.chartType === "horizontalBar" ? "vertical" : "horizontal"}
         margin={
-          settings.chartType === "horizontalBar" ? { left: 70, right: 14 } : { left: 0, right: 14 }
+          settings.chartType === "horizontalBar"
+            ? { left: 4, right: 60, top: 8, bottom: 8 }
+            : { left: 0, right: 14, top: 16, bottom: 8 }
         }
       >
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         {settings.chartType === "horizontalBar" ? (
           <>
-            <XAxis type="number" tick={{ fontSize: 9 }} />
-            <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={72} />
+            <XAxis
+              type="number"
+              tick={{ fontSize: 9 }}
+              tickFormatter={(value) => formatChartValue(Number(value))}
+            />
+            <YAxis
+              type="category"
+              dataKey="name"
+              tick={{ fontSize: 10, fill: "var(--pine-dark)" }}
+              width={112}
+              interval={0}
+            />
           </>
         ) : (
           <>
             <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 9 }} />
+            <YAxis
+              tick={{ fontSize: 9 }}
+              tickFormatter={(value) => formatChartValue(Number(value))}
+            />
           </>
         )}
         <Tooltip formatter={tooltipFormatter} />
@@ -1107,7 +1132,7 @@ function EditableSingleSeriesChart({
             />
           )}
         </Bar>
-        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+        {legend}
       </BarChart>
     );
   }
@@ -1119,6 +1144,18 @@ function EditableSingleSeriesChart({
       </ResponsiveContainer>
     </ChartPanel>
   );
+}
+
+function formatChartValue(value: number, currency = false) {
+  const absolute = Math.abs(value);
+  const divisor = absolute >= 1_000_000 ? 1_000_000 : absolute >= 1_000 ? 1_000 : 1;
+  const suffix = divisor === 1_000_000 ? " mi" : divisor === 1_000 ? " mil" : "";
+  const scaled = value / divisor;
+  const number = scaled.toLocaleString("pt-BR", {
+    minimumFractionDigits: divisor === 1 ? 0 : 1,
+    maximumFractionDigits: divisor === 1 ? 1 : 1,
+  });
+  return `${currency ? "R$ " : ""}${number}${suffix}`;
 }
 
 function RecepcaoPainel({

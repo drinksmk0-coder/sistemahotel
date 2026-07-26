@@ -119,9 +119,10 @@
   .app-sidebar {
     background:
       linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--sidebar-primary) 18%, #0b172b),
-        #0b172b 72%
+        155deg,
+        color-mix(in srgb, var(--sidebar-primary) 82%, #071426),
+        color-mix(in srgb, var(--sidebar-primary) 48%, #071426) 52%,
+        color-mix(in srgb, var(--sidebar-primary) 24%, #071426)
       );
   }
   html[data-background-style="soft"] body {
