@@ -183,14 +183,20 @@ function Mapa() {
 
     if (row.cliente_id) return cleanRow;
     const telefoneDigits = phoneDigits(row.cliente_telefone);
-    const activeClients = clients.filter(
-      (client) => client.ativo !== false && !client.tipo.startsWith("desativado:"),
-    );
-    const existing = telefoneDigits
-      ? activeClients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
-      : activeClients.find(
+    const existingAnyStatus = telefoneDigits
+      ? clients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
+      : clients.find(
           (c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase(),
         );
+    if (
+      existingAnyStatus &&
+      (existingAnyStatus.ativo === false || existingAnyStatus.tipo.startsWith("desativado:"))
+    ) {
+      throw new Error(
+        `O telefone pertence ao cliente desativado ${existingAnyStatus.nome}. Reative esse cadastro antes de criar a reserva.`,
+      );
+    }
+    const existing = existingAnyStatus;
 
     if (existing) {
       const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();

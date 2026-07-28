@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -211,14 +211,20 @@ function Reservas() {
 
     if (row.cliente_id) return cleanRow;
     const telefoneDigits = phoneDigits(row.cliente_telefone);
-    const activeClients = knownClients.filter(
-      (client) => client.ativo !== false && !client.tipo.startsWith("desativado:"),
-    );
-    const existing = telefoneDigits
-      ? activeClients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
-      : activeClients.find(
+    const existingAnyStatus = telefoneDigits
+      ? knownClients.find((c) => phoneDigits(c.telefone) === telefoneDigits)
+      : knownClients.find(
           (c) => c.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase(),
         );
+    if (
+      existingAnyStatus &&
+      (existingAnyStatus.ativo === false || existingAnyStatus.tipo.startsWith("desativado:"))
+    ) {
+      throw new Error(
+        `O telefone pertence ao cliente desativado ${existingAnyStatus.nome}. Reative esse cadastro antes de criar a reserva.`,
+      );
+    }
+    const existing = existingAnyStatus;
 
     if (existing) {
       const sameName = existing.nome.trim().toLowerCase() === row.cliente_nome.trim().toLowerCase();
@@ -611,7 +617,6 @@ function RowActions({
   const [paymentOpen, setPaymentOpen] = useState(false);
   const receiptUrl = whatsappReceiptUrl(reservation, client);
   const reviewUrl = whatsappReviewUrl(reservation, client);
-  const nfseUrl = whatsappNfseUrl(reservation, client);
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
       {!done && account.lodgingPaid <= 0 && (
@@ -768,25 +773,7 @@ function RowActions({
           <MessageCircle className="h-3.5 w-3.5" />
         </button>
       )}
-      {nfseUrl ? (
-        <a
-          className="rounded-md bg-slate-bg px-2 py-1 text-xs font-semibold text-slate"
-          href={nfseUrl}
-          target="_blank"
-          rel="noopener"
-          title="Solicitar ou enviar NFS-e pelo WhatsApp"
-        >
-          <FileText className="h-3.5 w-3.5" />
-        </a>
-      ) : (
-        <button
-          className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
-          onClick={() => toast.error("Cadastre o telefone do cliente para tratar a NFS-e.")}
-          title="Cliente sem telefone"
-        >
-          <FileText className="h-3.5 w-3.5" />
-        </button>
-      )}
+      <NfseDocumentAction reservation={reservation} client={client} />
       {reviewUrl ? (
         <a
           className="rounded-md bg-brass-bg px-2 py-1 text-xs font-semibold text-pine-dark"
@@ -1056,17 +1043,78 @@ async function sendOnlineCheckin(reservation: Reservation, client?: Client) {
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener");
 }
 
-function whatsappNfseUrl(reservation: Reservation, client?: Client) {
-  const phone = whatsappPhone(client?.telefone);
-  if (!phone) return "";
-  const message = [
-    `Olá, ${reservation.cliente_nome}!`,
-    `Sobre a NFS-e da hospedagem da reserva ${reservation.codigo_externo ?? reservation.id.slice(0, 8)}, quarto ${reservation.quarto}:`,
-    `Período: ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`,
-    `Valor da hospedagem: ${fmtBRL(reservation.valor_total)}`,
-    "Responda com o CPF/CNPJ e os dados que devem constar na nota. Após a emissão oficial, enviaremos o documento por esta conversa.",
-  ].join("\n\n");
-  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+function NfseDocumentAction({
+  reservation,
+  client,
+}: {
+  reservation: Reservation;
+  client?: Client;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function shareOfficialNfse(file?: File) {
+    if (!file) return;
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      toast.error("Selecione o PDF oficial da NFS-e emitida pela Prefeitura.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("O PDF da NFS-e deve ter no máximo 10 MB.");
+      return;
+    }
+    const phone = whatsappPhone(client?.telefone);
+    if (!phone) {
+      toast.error("Cadastre o telefone do cliente para enviar a NFS-e.");
+      return;
+    }
+
+    const text = [
+      `Olá, ${reservation.cliente_nome}!`,
+      "Segue a NFS-e oficial da sua hospedagem, emitida pela Prefeitura de Cruzília.",
+      `Reserva: ${reservation.codigo_externo ?? reservation.id.slice(0, 8)} · Quarto ${reservation.quarto}`,
+    ].join("\n\n");
+    const shareData: ShareData = {
+      files: [file],
+      title: "NFS-e oficial",
+      text,
+    };
+
+    if (navigator.canShare?.(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        toast.error("Não foi possível compartilhar o PDF neste dispositivo.");
+      }
+      return;
+    }
+
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    toast.info("Conversa aberta. Clique no clipe do WhatsApp e anexe o PDF oficial selecionado.");
+  }
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        onChange={(event) => {
+          void shareOfficialNfse(event.target.files?.[0]);
+          event.currentTarget.value = "";
+        }}
+      />
+      <button
+        type="button"
+        className="rounded-md bg-slate-bg px-2 py-1 text-xs font-semibold text-slate"
+        onClick={() => inputRef.current?.click()}
+        title="Selecionar e compartilhar o PDF oficial da NFS-e"
+      >
+        <FileText className="h-3.5 w-3.5" />
+      </button>
+    </>
+  );
 }
 
 function whatsappReviewUrl(reservation: Reservation, client?: Client) {

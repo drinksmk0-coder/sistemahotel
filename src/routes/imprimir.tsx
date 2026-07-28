@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { MessageCircle, Printer } from "lucide-react";
+import type { ReactNode } from "react";
 
 export const Route = createFileRoute("/imprimir")({
   ssr: false,
@@ -28,6 +29,7 @@ function Line({ label }: { label: string }) {
 function Imprimir() {
   const params = new URLSearchParams(typeof window !== "undefined" ? window.location.search : "");
   if (params.get("tipo") === "recibo") return <Recibo params={params} />;
+  if (params.get("tipo") === "fnrh") return <FnrhDocument params={params} />;
   if (params.get("tipo") === "cadastro") return <GuestRegistration params={params} />;
 
   return (
@@ -95,6 +97,140 @@ function Imprimir() {
         <p className="mt-6 text-center text-xs text-neutral-500">
           Obrigado por ajudar a Pousada Real Cruzília a melhorar! Entregue este formulário na recepção.
         </p>
+      </div>
+    </div>
+  );
+}
+
+function FnrhDocument({ params }: { params: URLSearchParams }) {
+  const value = (name: string) => params.get(name) ?? "";
+  return (
+    <div className="min-h-screen bg-neutral-100 py-6 print:bg-white print:py-0">
+      <div className="mx-auto mb-3 flex max-w-[210mm] justify-end px-4 no-print">
+        <button onClick={() => window.print()} className="btn-primary flex items-center gap-1.5">
+          <Printer className="h-4 w-4" /> Imprimir FNRH
+        </button>
+      </div>
+      <article className="mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white px-[10mm] py-[8mm] text-[#243b5a] shadow print:min-h-0 print:max-w-none print:shadow-none">
+        <h1 className="text-center text-[21px] font-black tracking-tight">
+          FICHA NACIONAL DE REGISTRO DE HÓSPEDES
+        </h1>
+
+        <div className="mt-4 grid grid-cols-[92px_1fr_1.25fr] items-start gap-3 rounded-xl bg-[#e9eff7] p-3">
+          <img
+            src="/hotel-real-logo.png"
+            alt="Hotel Real"
+            className="h-[72px] w-[88px] rounded-md bg-white object-contain p-1"
+          />
+          <div className="text-[11px] leading-5">
+            <p>
+              <strong className="text-base">Hotel Real</strong> · CNPJ: 54.744.901/0001-17
+            </p>
+            <p>hotelreal@gmail.com</p>
+            <p>+55 (35) 98800-1372</p>
+          </div>
+          <p className="pt-6 text-[11px]">Rua Capitão Pinto, 70, Centro, Cruzília, MG</p>
+        </div>
+
+        <FnrhTitle>Informações da hospedagem</FnrhTitle>
+        <div className="grid grid-cols-[1.55fr_.75fr_.78fr_.38fr_.78fr_.38fr] gap-1.5">
+          <FnrhValue label="UH Nº (Local)" value={value("quarto")} />
+          <FnrhValue label="Nº Acompanhantes" value={value("acompanhantes")} />
+          <FnrhValue label="Data de entrada" value={value("checkin")} />
+          <FnrhValue label="Hora" value="" />
+          <FnrhValue label="Data de saída" value={value("checkout")} />
+          <FnrhValue label="Hora" value="" />
+        </div>
+
+        <FnrhTitle>Informações do hóspede</FnrhTitle>
+        <div className="grid grid-cols-6 gap-1.5">
+          <FnrhValue className="col-span-6" label="Nome completo" value={value("nome")} />
+          <FnrhValue className="col-span-4" label="E-mail" value={value("email")} />
+          <FnrhValue className="col-span-2" label="Telefone" value={value("telefone")} />
+          <FnrhValue className="col-span-2" label="Profissão" value={value("profissao")} />
+          <FnrhValue className="col-span-2" label="Nacionalidade" value="Brasileira" />
+          <FnrhValue label="Gênero" value="" />
+          <FnrhValue label="Nascimento" value={value("nascimento")} />
+          <FnrhValue className="col-span-2" label="Raça/Cor" value="" />
+          <FnrhValue className="col-span-2" label="Deficiência" value="☐ Sim   ☐ Não   ☐ Não informar" />
+          <FnrhValue className="col-span-2" label="Tipo de deficiência" value="" />
+        </div>
+
+        <h3 className="mt-2 text-[12px] font-extrabold">Documento de Identidade</h3>
+        <div className="grid grid-cols-3 gap-1.5">
+          <FnrhValue label="Tipo de documento" value="☐ CPF    ☐ Passaporte" />
+          <FnrhValue
+            className="col-span-2"
+            label="Número do documento"
+            value={value("cpf")}
+          />
+        </div>
+
+        <div className="mt-2 grid grid-cols-6 gap-1.5">
+          <FnrhValue className="col-span-4" label="Endereço" value="" />
+          <FnrhValue className="col-span-2" label="Número" value="" />
+          <FnrhValue className="col-span-4" label="Complemento" value={value("bairro")} />
+          <FnrhValue className="col-span-2" label="CEP" value={value("cep")} />
+          <FnrhValue className="col-span-2" label="Cidade" value={value("cidade")} />
+          <FnrhValue className="col-span-2" label="Estado" value={value("estado")} />
+          <FnrhValue className="col-span-2" label="País" value={value("pais")} />
+          <FnrhValue className="col-span-3" label="Último destino (Cidade, País)" value="" />
+          <FnrhValue className="col-span-3" label="Próximo destino (Cidade, País)" value="" />
+        </div>
+
+        <FnrhChoice
+          label="Motivo da Viagem"
+          options={["Compras", "Evento", "Estudo", "Lazer", "Negócios", "Religião", "Saúde", "Parentes/Amigos"]}
+        />
+        <FnrhChoice
+          label="Meio de Transporte"
+          options={["Ônibus", "Automóvel", "Avião", "Moto", "A pé", "Trem", "Bicicleta", "Navio/Barco"]}
+        />
+
+        <div className="ml-auto mt-14 w-1/2 border-t border-[#627998] pt-2 text-center text-sm">
+          Assinatura do hóspede
+        </div>
+      </article>
+    </div>
+  );
+}
+
+function FnrhTitle({ children }: { children: ReactNode }) {
+  return (
+    <div className="mb-2 mt-3 flex items-center gap-2">
+      <h2 className="whitespace-nowrap text-[15px] font-black">{children}</h2>
+      <span className="h-px flex-1 bg-[#d7e0ec]" />
+    </div>
+  );
+}
+
+function FnrhValue({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <p className="mb-1 text-[8px] font-extrabold">{label}</p>
+      <div className="min-h-8 rounded border border-[#627998] px-2 py-1.5 text-[10px]">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function FnrhChoice({ label, options }: { label: string; options: string[] }) {
+  return (
+    <div className="mt-3">
+      <p className="mb-1.5 text-[9px] font-extrabold">{label}</p>
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-[9px]">
+        {options.map((option) => (
+          <span key={option}>☐ {option}</span>
+        ))}
       </div>
     </div>
   );

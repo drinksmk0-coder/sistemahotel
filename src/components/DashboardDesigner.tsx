@@ -554,7 +554,13 @@ export function DashboardDesigner({
 
       <div ref={gridRef} className="grid grid-cols-1 gap-3 lg:grid-cols-12">
         {orderedWidgets.map((widget) => {
-          const settings = layout.widgets[widget.id] ?? defaultSettings(widget);
+          const settings = fixed
+            ? {
+                ...defaultSettings(widget),
+                showLegend: widget.kind === "chart",
+                showLabels: false,
+              }
+            : layout.widgets[widget.id] ?? defaultSettings(widget);
           if (settings.hidden && !editing) return null;
           const defaultHeight = widget.defaultHeight ?? (widget.kind === "kpi" ? 110 : 290);
           const defaultColumns = widget.defaultColumns ?? (widget.kind === "kpi" ? 2 : 6);

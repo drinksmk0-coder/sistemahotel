@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Expand, Minimize2 } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { ArrowDown, ArrowUp, CalendarDays, ChevronDown, Expand, Minimize2 } from "lucide-react";
 import { type DashboardPeriod } from "@/lib/dashboard-utils";
 
 export function DashboardHeader({
@@ -7,26 +7,29 @@ export function DashboardHeader({
   subtitle,
   period,
   onPeriodChange,
+  children,
 }: {
   title: string;
   subtitle: string;
   period: DashboardPeriod;
   onPeriodChange: (period: DashboardPeriod) => void;
+  children?: ReactNode;
 }) {
   return (
-    <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-2">
+    <header className="flex min-h-9 flex-wrap items-center justify-between gap-2 border-b border-border/70 pb-1.5">
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <h1 className="text-lg font-extrabold tracking-tight text-pine-dark">{title}</h1>
-          <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-primary">
+          <h1 className="text-base font-extrabold tracking-tight text-pine-dark">{title}</h1>
+          <p className="hidden text-[8px] font-bold uppercase tracking-[0.14em] text-primary sm:block">
             HotelAI Command · V6
           </p>
         </div>
-        <p className="truncate text-[11px] text-muted-foreground" title={subtitle}>
+        <p className="sr-only" title={subtitle}>
           {subtitle}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        {children}
         <PeriodSelector value={period} onChange={onPeriodChange} />
         <DashboardTvButton />
       </div>
@@ -104,26 +107,38 @@ export function PeriodSelector({
   value: DashboardPeriod;
   onChange: (period: DashboardPeriod) => void;
 }) {
+  const labels: Record<DashboardPeriod, string> = {
+    dia: "Dia",
+    mes: "Mês",
+    ano: "Ano",
+  };
   return (
-    <div
-      className="flex rounded-lg border border-border bg-muted p-1"
-      aria-label="Período do dashboard"
-    >
-      {(["dia", "mes", "ano"] as const).map((period) => (
-        <button
-          key={period}
-          type="button"
-          onClick={() => onChange(period)}
-          className={`rounded px-3 py-1.5 text-xs font-bold capitalize transition ${
-            value === period
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-card"
-          }`}
-        >
-          {period === "mes" ? "Mês" : period}
-        </button>
-      ))}
-    </div>
+    <details className="group relative" aria-label="Período do dashboard">
+      <summary className="flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[10px] font-bold text-pine-dark shadow-sm">
+        <CalendarDays className="h-3.5 w-3.5 text-primary" />
+        {labels[value]}
+        <ChevronDown className="h-3 w-3 transition group-open:rotate-180" />
+      </summary>
+      <div className="absolute right-0 z-50 mt-1 min-w-32 rounded-lg border border-border bg-card p-1.5 shadow-xl">
+        {(["dia", "mes", "ano"] as const).map((period) => (
+          <button
+            key={period}
+            type="button"
+            onClick={(event) => {
+              onChange(period);
+              event.currentTarget.closest("details")?.removeAttribute("open");
+            }}
+            className={`block w-full rounded-md px-3 py-2 text-left text-[11px] font-bold transition ${
+              value === period
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-pine-dark"
+            }`}
+          >
+            {labels[period]}
+          </button>
+        ))}
+      </div>
+    </details>
   );
 }
 

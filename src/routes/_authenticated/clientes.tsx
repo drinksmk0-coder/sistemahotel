@@ -383,7 +383,7 @@ function Clientes() {
                   <button
                     type="button"
                     className="btn-ghost flex h-8 items-center justify-center gap-1 px-2 text-[9px]"
-                    onClick={() => printGuestForm(c)}
+                    onClick={() => printGuestForm(c, stay)}
                   >
                     <FileText className="h-3 w-3" /> FNRH
                   </button>
@@ -460,9 +460,9 @@ function clientInitials(name: string) {
     .join("");
 }
 
-function printGuestForm(client: Client) {
+function printGuestForm(client: Client, reservation?: Reservation) {
   const params = new URLSearchParams({
-    tipo: "cadastro",
+    tipo: "fnrh",
     nome: client.nome,
     cpf: client.cpf ?? "",
     telefone: client.telefone ?? "",
@@ -470,8 +470,15 @@ function printGuestForm(client: Client) {
     nascimento: client.data_nascimento ? fmtDate(client.data_nascimento) : "",
     estadoCivil: client.estado_civil ?? "",
     profissao: client.profissao ?? "",
-    origem: [client.cidade, client.estado, client.pais].filter(Boolean).join(" / "),
-    endereco: [client.cep, client.bairro].filter(Boolean).join(" / "),
+    cidade: client.cidade ?? "",
+    estado: client.estado ?? "",
+    pais: client.pais ?? "Brasil",
+    cep: client.cep ?? "",
+    bairro: client.bairro ?? "",
+    quarto: reservation ? String(reservation.quarto) : "",
+    checkin: reservation ? fmtDate(reservation.checkin) : "",
+    checkout: reservation ? fmtDate(reservation.checkout) : "",
+    acompanhantes: reservation ? String(Math.max(0, reservation.pessoas - 1)) : "",
   });
   window.open(`/imprimir?${params.toString()}`, "_blank", "noopener,noreferrer");
 }

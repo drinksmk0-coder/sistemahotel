@@ -14,6 +14,12 @@ type InviteData = {
   form_data: Record<string, string>;
   signature_data_url: string | null;
   company_name: string;
+  company_document?: string | null;
+  company_email?: string | null;
+  company_phone?: string | null;
+  company_address?: string | null;
+  company_city?: string | null;
+  company_state?: string | null;
   reservation_code: string;
   room: number;
   checkin: string;
@@ -180,29 +186,35 @@ function CheckinOnline() {
     <main className="min-h-screen bg-muted px-3 py-5 print:bg-white print:p-0">
       <form
         onSubmit={submit}
-        className="mx-auto max-w-4xl rounded-2xl border bg-card p-4 shadow-xl sm:p-7 print:max-w-none print:border-0 print:p-0 print:shadow-none"
+        className="mx-auto max-w-[210mm] rounded-2xl border bg-white p-4 shadow-xl sm:p-7 print:max-w-none print:border-0 print:p-0 print:shadow-none"
       >
-        <header className="mb-5 border-b pb-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
-                FNRH Digital · Pré-check-in
+        <header className="mb-5">
+          <h1 className="text-center text-xl font-black uppercase tracking-tight text-[#243b5a] sm:text-2xl">
+            Ficha Nacional de Registro de Hóspedes
+          </h1>
+          <div className="mt-4 grid gap-3 rounded-xl bg-[#e9eff7] p-3 text-[#243b5a] sm:grid-cols-[92px_1fr_1.15fr]">
+            <img
+              src="/hotel-real-logo.png"
+              alt={invite.company_name}
+              className="h-[78px] w-[92px] rounded-md bg-white object-contain p-1"
+            />
+            <div className="text-xs leading-5">
+              <p>
+                <strong className="text-base">{invite.company_name}</strong>
+                {invite.company_document ? ` · CNPJ: ${invite.company_document}` : ""}
               </p>
-              <h1 className="mt-1 text-xl font-extrabold text-pine-dark sm:text-2xl">
-                Ficha Nacional de Registro de Hóspedes
-              </h1>
-              <p className="text-sm text-muted-foreground">{invite.company_name}</p>
+              <p>{invite.company_email || "hotelreal@gmail.com"}</p>
+              <p>{invite.company_phone || "+55 (35) 98800-1372"}</p>
             </div>
-            <div className="rounded-lg bg-primary/10 px-3 py-2 text-xs">
-              <strong>Reserva {invite.reservation_code}</strong>
-              <p>UH {invite.room}</p>
-            </div>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-            <Info label="Entrada" value={formatDate(invite.checkin)} />
-            <Info label="Saída" value={formatDate(invite.checkout)} />
-            <Info label="Acompanhantes" value={form.acompanhantes || "0"} />
-            <Info label="Situação" value={sent ? "Preenchida" : "Aguardando"} />
+            <p className="text-xs sm:pt-6">
+              {[
+                invite.company_address || "Rua Capitão Pinto, 70, Centro",
+                invite.company_city || "Cruzília",
+                invite.company_state || "MG",
+              ]
+                .filter(Boolean)
+                .join(", ")}
+            </p>
           </div>
         </header>
 
@@ -217,6 +229,26 @@ function CheckinOnline() {
         )}
 
         <fieldset disabled={sent} className="space-y-5 disabled:opacity-90">
+          <FormSection title="Informações da hospedagem">
+            <FormField label="UH Nº (Local)">
+              <input className="field" value={String(invite.room)} readOnly />
+            </FormField>
+            <FormField label="Nº acompanhantes">
+              <input
+                className="field"
+                inputMode="numeric"
+                value={form.acompanhantes}
+                onChange={(event) => set("acompanhantes", event.target.value)}
+              />
+            </FormField>
+            <FormField label="Data de entrada">
+              <input className="field" value={formatDate(invite.checkin)} readOnly />
+            </FormField>
+            <FormField label="Data de saída">
+              <input className="field" value={formatDate(invite.checkout)} readOnly />
+            </FormField>
+          </FormSection>
+
           <FormSection title="Informações do hóspede">
             <FormField className="sm:col-span-2" label="Nome completo">
               <input
@@ -569,15 +601,6 @@ function FormField({
       <span className="mb-1 block text-[10px] font-bold uppercase text-muted-foreground">{label}</span>
       {children}
     </label>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-muted px-2 py-1.5">
-      <span className="block text-[9px] uppercase text-muted-foreground">{label}</span>
-      <strong className="text-xs text-pine-dark">{value}</strong>
-    </div>
   );
 }
 

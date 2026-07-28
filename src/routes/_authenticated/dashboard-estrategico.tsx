@@ -15,7 +15,9 @@ import {
   ArrowUpRight,
   BarChart3,
   BedDouble,
+  ChevronDown,
   DollarSign,
+  Filter,
   Info,
   TrendingUp,
   Users,
@@ -913,32 +915,18 @@ function DashboardEstrategico() {
     defaultHeight: height,
   });
   const overviewWidgets: DashboardWidget[] = [
-    compactWidget(occupancyWidgets[0], "geral-ocupacao-semana"),
-    compactWidget(generalWidgets[0], "geral-evolucao-financeira"),
-    compactWidget(financialWidgets[0], "geral-formas-pagamento"),
-    compactWidget(generalWidgets[1], "geral-origem-receita"),
-    compactWidget(generalWidgets[2], "geral-despesas-categoria"),
-    compactWidget(pricingWidgets[1], "geral-receita-tipo-quarto"),
-    {
-      id: "geral-idade-hospedes",
-      title: "Idade dos hóspedes",
-      kind: "chart",
-      defaultColumns: 4,
-      defaultHeight: 195,
-      defaultColor: "var(--chart-2)",
-      chartTypes: ["doughnut", "horizontalBar", "bar", "pie"],
-      render: (settings) => (
-        <EditableStrategicChart
-          rows={ageRows}
-          categoryKey="name"
-          series={[{ key: "value", label: "Hóspedes", color: settings.color }]}
-          settings={settings}
-        />
-      ),
-    },
-    compactWidget(evaluationWidgets[0], "geral-avaliacoes"),
-    compactWidget(evaluationWidgets[1], "geral-reclamacoes"),
+    compactWidget(occupancyWidgets[0], "geral-ocupacao-semana", 6, 260),
+    compactWidget(generalWidgets[0], "geral-evolucao-financeira", 6, 260),
+    compactWidget(financialWidgets[0], "geral-formas-pagamento", 6, 260),
+    compactWidget(generalWidgets[1], "geral-origem-receita", 6, 260),
   ];
+  const overviewKpis = dashboardWidgets
+    .filter((widget) =>
+      ["receita", "a-receber", "ocupacao", "lucro", "adr", "revpar", "trevpar", "goppar"].includes(
+        widget.id,
+      ),
+    )
+    .map((widget) => compactWidget(widget, `geral-${widget.id}`, 3, 92));
   const companyId = currentCompany.data?.id;
 
   return (
@@ -948,9 +936,9 @@ function DashboardEstrategico() {
         subtitle="Uma visão clara do desempenho, perfil dos hóspedes, canais e tendências."
         period={period}
         onPeriodChange={setPeriod}
-      />
-
-      <IndicatorViewTabs active={activeView} onChange={setActiveView} />
+      >
+        <IndicatorViewFilter active={activeView} onChange={setActiveView} />
+      </DashboardHeader>
 
       <main className="min-w-0 space-y-3">
         {activeView === "geral" && (
@@ -965,7 +953,7 @@ function DashboardEstrategico() {
               key="indicadores-geral-kpis"
               companyId={companyId}
               dashboardId="indicadores-geral-kpis"
-              widgets={dashboardWidgets}
+              widgets={overviewKpis}
               fixed
             />
             <DashboardDesigner
@@ -1069,7 +1057,7 @@ function DashboardEstrategico() {
   );
 }
 
-function IndicatorViewTabs({
+function IndicatorViewFilter({
   active,
   onChange,
 }: {
@@ -1077,25 +1065,37 @@ function IndicatorViewTabs({
   onChange: (view: IndicatorView) => void;
 }) {
   return (
-    <nav
-      className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1 shadow-sm"
-      aria-label="Temas dos indicadores"
-    >
-      {INDICATOR_VIEWS.map((view) => (
-        <button
-          key={view.id}
-          type="button"
-          onClick={() => onChange(view.id)}
-          className={`shrink-0 rounded-md px-3 py-1.5 text-[11px] font-bold transition ${
-            active === view.id
-              ? "bg-primary text-primary-foreground shadow-sm"
-              : "text-muted-foreground hover:bg-muted hover:text-pine-dark"
-          }`}
-        >
-          {view.label}
-        </button>
-      ))}
-    </nav>
+    <details className="group relative">
+      <summary className="flex h-8 max-w-40 cursor-pointer list-none items-center gap-1.5 rounded-md border border-border bg-card px-2.5 text-[10px] font-bold text-pine-dark shadow-sm">
+        <Filter className="h-3.5 w-3.5 text-primary" />
+        <span className="truncate">
+          {INDICATOR_VIEWS.find((view) => view.id === active)?.label}
+        </span>
+        <ChevronDown className="h-3 w-3 shrink-0 transition group-open:rotate-180" />
+      </summary>
+      <nav
+        className="absolute right-0 z-50 mt-1 min-w-48 rounded-lg border border-border bg-card p-1.5 shadow-xl"
+        aria-label="Tema dos indicadores"
+      >
+        {INDICATOR_VIEWS.map((view) => (
+          <button
+            key={view.id}
+            type="button"
+            onClick={(event) => {
+              onChange(view.id);
+              event.currentTarget.closest("details")?.removeAttribute("open");
+            }}
+            className={`block w-full rounded-md px-3 py-2 text-left text-[11px] font-bold transition ${
+              active === view.id
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted hover:text-pine-dark"
+            }`}
+          >
+            {view.label}
+          </button>
+        ))}
+      </nav>
+    </details>
   );
 }
 
@@ -1406,7 +1406,9 @@ function EditableStrategicChart({
   settings: DashboardWidgetSettings;
 }) {
   const height = Math.max(56, settings.height - 78);
-  const canShowLabels = settings.showLabels && rows.length <= 12;
+  const isCircular = settings.chartType === "pie" || settings.chartType === "doughnut";
+  const canShowLabels =
+    settings.showLabels && !isCircular && rows.length * Math.max(1, series.length) <= 12;
   const formatter = (value: number, name: string) =>
     series.find((item) => item.label === name)?.currency ? fmtBRL(value) : value;
   const labelFormatter = (value: number, currency = false) =>
@@ -1420,7 +1422,7 @@ function EditableStrategicChart({
   );
   let chart: React.ReactNode;
 
-  if (settings.chartType === "pie" || settings.chartType === "doughnut") {
+  if (isCircular) {
     const first = series[0];
     chart = (
       <PieChart>
@@ -1431,17 +1433,10 @@ function EditableStrategicChart({
           innerRadius={settings.chartType === "doughnut" ? "48%" : 0}
           outerRadius="76%"
         >
-          {canShowLabels && (
-            <LabelList
-              dataKey={first.key}
-              position="outside"
-              formatter={(value: number) => labelFormatter(value, first.currency)}
-            />
-          )}
           {rows.map((row, index) => (
             <Cell
               key={`${String(row[categoryKey])}-${index}`}
-              fill={index === 0 ? first.color : `var(--chart-${(index % 6) + 1})`}
+              fill={strategicSliceColor(index, first.color)}
             />
           ))}
         </Pie>
@@ -1648,7 +1643,7 @@ function EditableStrategicChart({
         <h2 className="min-w-0 truncate text-xs font-bold uppercase text-pine-dark">
           {settings.title}
         </h2>
-        {settings.showLegend && (
+        {settings.showLegend && !isCircular && (
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[9px] font-semibold text-muted-foreground">
             {series.map((item) => (
               <span key={item.key} className="inline-flex items-center gap-1 whitespace-nowrap">
@@ -1663,9 +1658,41 @@ function EditableStrategicChart({
         )}
       </div>
       {rows.length ? (
-        <ResponsiveContainer width="100%" height={height}>
-          {chart}
-        </ResponsiveContainer>
+        isCircular ? (
+          <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_minmax(150px,0.72fr)] items-center gap-2">
+            <ResponsiveContainer width="100%" height={height}>
+              {chart}
+            </ResponsiveContainer>
+            <div className="max-h-[190px] space-y-1.5 overflow-auto pr-1 text-[9px]">
+              {rows.map((row, index) => {
+                const rawValue = Number(row[series[0].key] ?? 0);
+                return (
+                  <div
+                    key={`${String(row[categoryKey])}-${index}`}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                        style={{ backgroundColor: strategicSliceColor(index, series[0].color) }}
+                      />
+                      <span className="truncate font-semibold text-pine-dark">
+                        {String(row[categoryKey])}
+                      </span>
+                    </span>
+                    <strong className="whitespace-nowrap text-muted-foreground">
+                      {formatStrategicValue(rawValue, Boolean(series[0].currency))}
+                    </strong>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={height}>
+            {chart}
+          </ResponsiveContainer>
+        )
       ) : (
         <div className="flex h-[150px] items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">
           Os dados aparecerão após a importação.
@@ -1673,6 +1700,10 @@ function EditableStrategicChart({
       )}
     </section>
   );
+}
+
+function strategicSliceColor(index: number, primary: string) {
+  return index === 0 ? primary : `var(--chart-${(index % 6) + 1})`;
 }
 
 function formatStrategicValue(value: number, currency = false) {

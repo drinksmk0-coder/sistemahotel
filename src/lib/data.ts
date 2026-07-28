@@ -425,7 +425,23 @@ export function useInsert<T extends TableName>(table: T, invalidate: string[]) {
         .from(table as never)
         .insert(withCompany as never)
         .select();
-      if (error) throw error;
+      if (error) {
+        if (table === "clients" && error.code === "23505") {
+          const detail = `${error.message} ${error.details ?? ""}`.toLowerCase();
+          if (detail.includes("telefone")) {
+            throw new Error(
+              "Este telefone já pertence a outro cliente. Pesquise o telefone e selecione ou reative o cadastro existente.",
+            );
+          }
+          if (detail.includes("cpf")) {
+            throw new Error(
+              "Este CPF já pertence a outro cliente. Pesquise o CPF e selecione ou reative o cadastro existente.",
+            );
+          }
+          throw new Error("Já existe um cliente com estes dados.");
+        }
+        throw error;
+      }
       return data;
     },
     onSuccess: () => {
