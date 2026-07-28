@@ -31,6 +31,9 @@ const wahaSession = Deno.env.get("WAHA_SESSION") ?? "default";
 const whatsappBusinessToken = Deno.env.get("WHATSAPP_BUSINESS_TOKEN") ?? "";
 const whatsappPhoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
 const whatsappVerifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? webhookToken;
+const geminiApiKey =
+  Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("GOOGLE_GENERATIVE_AI_API_KEY") ?? "";
+const geminiModel = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.5-flash";
 
 const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -107,14 +110,16 @@ async function handleWhatsAppBusiness(body: Record<string, unknown>, companyId: 
 
   const missing = firstMissingField(draft, { requireCpf: false, requireDailyConfirmation: true });
   if (missing) {
-    const reply = questionFor(missing);
+    const operationalReply = await questionForReservation(missing, draft, companyId);
+    const reply = await receptionReply(companyId, operationalReply, draft);
     await upsertSession(inbound.phone, inbound.phone, companyId, missing, draft, inbound.text, reply);
     await sendWhatsAppBusinessText(inbound.phone, reply, companyId);
     return { created: false, reply };
   }
 
   const created = await createReservation(draft);
-  const reply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}. Nome: ${created.nome}.`;
+  const operationalReply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}.`;
+  const reply = await receptionReply(companyId, operationalReply, draft);
   await upsertSession(inbound.phone, inbound.phone, companyId, "done", {}, inbound.text, reply);
   await sendWhatsAppBusinessText(inbound.phone, reply, companyId);
   return { created: true, reservationId: created.reservationId, reply };
@@ -136,14 +141,16 @@ async function handleWaha(body: Record<string, unknown>, companyId: string) {
 
   const missing = firstMissingField(draft, { requireCpf: false, requireDailyConfirmation: true });
   if (missing) {
-    const reply = questionFor(missing);
+    const operationalReply = await questionForReservation(missing, draft, companyId);
+    const reply = await receptionReply(companyId, operationalReply, draft);
     await upsertSession(phone, chatId, companyId, missing, draft, text, reply);
     await sendWahaText(chatId, reply);
     return { created: false, reply };
   }
 
   const created = await createReservation(draft);
-  const reply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}. Nome: ${created.nome}.`;
+  const operationalReply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}.`;
+  const reply = await receptionReply(companyId, operationalReply, draft);
   await upsertSession(phone, chatId, companyId, "done", {}, text, reply);
   await sendWahaText(chatId, reply);
   return { created: true, reservationId: created.reservationId, reply };
@@ -309,6 +316,81 @@ async function upsertSession(phone: string, chatId: string, companyId: string, s
   if (error) throw error;
 }
 
+async function receptionReply(companyId: string, operationalReply: string, draft: Draft) {
+  if (!geminiApiKey) return operationalReply;
+  const { data } = await supabase
+    .from("company_integrations")
+    .select("configuracao")
+    .eq("company_id", companyId)
+    .eq("tipo", "recepcao_virtual_ia")
+    .eq("ativo", true)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const configuration = objectValue(data?.configuracao);
+  const instructions = String(configuration?.instructions ?? "").trim().slice(0, 12_000);
+  if (!instructions) return operationalReply;
+
+  const safeContext = {
+    quarto: draft.quarto,
+    checkin: draft.checkin,
+    checkout: draft.checkout,
+    pessoas: draft.pessoas,
+    valor_diaria: draft.valorDiaria,
+    valor_total: draft.valorTotal,
+    diaria_confirmada: draft.diariaConfirmada,
+  };
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiApiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text: `${instructions}
+
+REGRAS FIXAS:
+- Preserve datas, preços, quarto e disponibilidade da resposta operacional.
+- Não invente Pix, pagamento, link, nota fiscal ou confirmação.
+- Não inclua nome, CPF, telefone ou qualquer dado pessoal.
+- Responda somente com a mensagem final para o hóspede, em português do Brasil.`,
+            },
+          ],
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `RESPOSTA OPERACIONAL OBRIGATÓRIA:\n${operationalReply}\n\nCONTEXTO SEM DADOS PESSOAIS:\n${JSON.stringify(safeContext)}`,
+              },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0.15, maxOutputTokens: 500 },
+      }),
+    },
+  ).catch(() => null);
+  if (!response?.ok) return operationalReply;
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+  const text = candidates
+    .flatMap((candidate) => {
+      const content = objectValue((candidate as Record<string, unknown>).content);
+      return Array.isArray(content?.parts) ? content.parts : [];
+    })
+    .map((part) => String(objectValue(part)?.text ?? ""))
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  return text || operationalReply;
+}
+
 async function sendWhatsAppBusinessText(to: string, text: string, companyId: string) {
   if (!whatsappBusinessToken) return;
   const { data: integration } = await supabase
@@ -430,15 +512,46 @@ function mergeDraft(previous: Draft | null | undefined, next: Draft) {
 }
 
 function firstMissingField(draft: Draft, options: { requireCpf?: boolean; requireDailyConfirmation?: boolean } = {}) {
-  if (!draft.nome) return "nome";
-  if (options.requireCpf && !draft.cpf) return "cpf";
-  if (!draft.quarto) return "quarto";
   if (!draft.checkin) return "checkin";
   if (!draft.checkout) return "checkout";
   if (!draft.pessoas) return "pessoas";
+  if (!draft.nome) return "nome";
+  if (options.requireCpf && !draft.cpf) return "cpf";
+  if (!draft.quarto) return "quarto";
   if (options.requireDailyConfirmation && !draft.valorDiaria && !draft.valorTotal) return "valorDiaria";
   if (options.requireDailyConfirmation && !draft.diariaConfirmada) return "diariaConfirmada";
   return null;
+}
+
+async function questionForReservation(field: string, draft: Draft, companyId: string) {
+  if (field !== "quarto" || !draft.checkin || !draft.checkout) return questionFor(field);
+  const [{ data: rooms }, { data: reservations }] = await Promise.all([
+    supabase
+      .from("rooms")
+      .select("numero, configuracao, preco")
+      .eq("company_id", companyId)
+      .order("numero"),
+    supabase
+      .from("reservations")
+      .select("quarto")
+      .eq("company_id", companyId)
+      .lt("checkin", draft.checkout)
+      .gt("checkout", draft.checkin)
+      .not("status", "in", "(cancelado,finalizado)"),
+  ]);
+  const occupied = new Set((reservations ?? []).map((row) => Number(row.quarto)));
+  const available = (rooms ?? []).filter((room) => !occupied.has(Number(room.numero)));
+  if (!available.length) {
+    return `Não encontrei quarto disponível de ${formatDateBR(draft.checkin)} a ${formatDateBR(draft.checkout)}. Deseja tentar outras datas?`;
+  }
+  const options = available
+    .slice(0, 8)
+    .map(
+      (room) =>
+        `${room.numero} — ${room.configuracao || "Quarto"} — ${formatMoney(Number(room.preco ?? 0))}`,
+    )
+    .join("\n");
+  return `Encontrei estas opções disponíveis:\n${options}\nQual quarto deseja reservar?`;
 }
 
 function questionFor(field: string) {
@@ -453,6 +566,10 @@ function questionFor(field: string) {
     diariaConfirmada: "O cliente confirmou a diaria? Responda com confirmado, fechado ou ok para eu reservar.",
   };
   return questions[field] ?? "Pode me enviar os dados da reserva?";
+}
+
+function formatMoney(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function normalizeDate(value?: string | null) {

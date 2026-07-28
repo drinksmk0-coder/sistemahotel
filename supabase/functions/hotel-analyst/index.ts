@@ -34,7 +34,7 @@ Deno.serve(async (request) => {
   if (!authorization) return json({ error: "Login obrigatório." }, 401);
 
   const body = (await request.json().catch(() => ({}))) as {
-    mode?: "analysis" | "design";
+    mode?: "analysis" | "design" | "reception";
     question?: string;
     company_id?: string;
     current_settings?: RecordRow;
@@ -57,6 +57,16 @@ Deno.serve(async (request) => {
     .maybeSingle();
   if (membershipError) return json({ error: membershipError.message }, 500);
   if (!membership) return json({ error: "Acesso negado a esta empresa." }, 403);
+  const memberRole = String(membership.role ?? "");
+  if (!["dono", "recepcao"].includes(memberRole)) {
+    return json(
+      { error: "O assistente está disponível somente para dono e recepção." },
+      403,
+    );
+  }
+  if (body.mode === "design" && memberRole !== "dono") {
+    return json({ error: "Somente o dono pode alterar o design automático." }, 403);
+  }
 
   try {
     const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.5-flash";
@@ -74,8 +84,15 @@ Deno.serve(async (request) => {
       });
     }
 
-    const question = String(body.question ?? "").trim().slice(0, 2000);
+    const question = String(body.question ?? "").trim().slice(0, 4000);
     if (!question) return json({ error: "Escreva uma pergunta para o analista." }, 400);
+    const receptionMode = body.mode === "reception";
+    const receptionInstructions = receptionMode
+      ? await loadReceptionInstructions(admin, body.company_id)
+      : "";
+    const systemPrompt = receptionMode
+      ? `${receptionInstructions}\n\n${RECEPTION_GUARDRAILS}`
+      : SYSTEM_PROMPT;
     const snapshot = await buildHotelSnapshot(admin, body.company_id);
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
@@ -87,14 +104,16 @@ Deno.serve(async (request) => {
         },
         body: JSON.stringify({
           systemInstruction: {
-            parts: [{ text: SYSTEM_PROMPT }],
+            parts: [{ text: systemPrompt }],
           },
           contents: [
             {
               role: "user",
               parts: [
                 {
-                  text: `PERGUNTA DO GESTOR:\n${question}\n\nDADOS AGREGADOS DO HOTEL:\n${JSON.stringify(snapshot)}`,
+                  text: `${
+                    receptionMode ? "MENSAGEM DO HÓSPEDE" : "PERGUNTA DO GESTOR"
+                  }:\n${question}\n\nDADOS ATUAIS DO SISTEMA:\n${JSON.stringify(snapshot)}`,
                 },
               ],
             },
@@ -119,7 +138,9 @@ Deno.serve(async (request) => {
       answer,
       model,
       generated_at: new Date().toISOString(),
-      privacy: "Somente dados agregados, sem nome, CPF, telefone ou e-mail de hóspedes.",
+      privacy:
+        "Dados agregados e disponibilidade operacional, sem nome, CPF, telefone ou e-mail de hóspedes.",
+      mode: receptionMode ? "reception" : "analysis",
     });
   } catch (error) {
     return json(
@@ -338,6 +359,25 @@ function isRecord(value: unknown): value is RecordRow {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+async function loadReceptionInstructions(
+  admin: ReturnType<typeof createClient>,
+  companyId: string,
+) {
+  const { data, error } = await admin
+    .from("company_integrations")
+    .select("configuracao")
+    .eq("company_id", companyId)
+    .eq("tipo", "recepcao_virtual_ia")
+    .eq("ativo", true)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`Não foi possível carregar o treinamento: ${error.message}`);
+  const configuration = isRecord(data?.configuracao) ? data.configuracao : {};
+  const instructions = String(configuration.instructions ?? "").trim().slice(0, 12_000);
+  return instructions || DEFAULT_RECEPTION_PROMPT;
+}
+
 async function buildHotelSnapshot(
   admin: ReturnType<typeof createClient>,
   companyId: string,
@@ -346,22 +386,22 @@ async function buildHotelSnapshot(
     ["rooms", "numero,preco,configuracao,situacao"],
     [
       "reservations",
-      "id,quarto,checkin,checkout,valor_total,valor_pago,valor_diaria,status,canal,pessoas,diarias,pagamento,motivo_estadia,cliente_id",
+      "quarto,checkin,checkout,valor_total,valor_pago,valor_diaria,status,canal,pessoas,diarias,pagamento,motivo_estadia",
     ],
     [
       "sales",
-      "reserva_id,quarto,data,categoria,item,total,valor_pago,status,pagamento",
+      "data,categoria,total,valor_pago,status,pagamento",
     ],
     ["expenses", "data,categoria,valor"],
     [
       "clients",
-      "id,cidade,estado,pais,sexo,estado_civil,profissao,data_nascimento,tipo,visitas,ativo",
+      "cidade,estado,pais,sexo,estado_civil,profissao,data_nascimento,tipo,visitas,ativo",
     ],
     [
       "feedbacks",
       "created_at,nota_geral,nota_limpeza,nota_conforto,nota_atendimento,nota_wifi,recomendaria",
     ],
-    ["complaints", "created_at,categoria,gravidade,status,quarto"],
+    ["complaints", "created_at,categoria,gravidade,status"],
   ] as const;
 
   const results = await Promise.all(
@@ -442,6 +482,7 @@ async function buildHotelSnapshot(
           ),
       ),
     },
+    disponibilidade_agregada: buildAvailabilitySummary(today, rooms, reservations),
     canais: groupMoney(reservations, "canal", "valor_total"),
     receita_por_quarto: groupMoney(reservations, "quarto", "valor_total"),
     vendas_por_categoria: groupMoney(sales, "categoria", "total"),
@@ -481,6 +522,61 @@ async function buildHotelSnapshot(
       avaliacoes: feedbacks.length,
       reclamacoes: complaints.length,
     },
+  };
+}
+
+function buildAvailabilitySummary(
+  today: string,
+  rooms: RecordRow[],
+  reservations: RecordRow[],
+) {
+  const operationalRooms = rooms.filter(
+    (room) => !["manutencao", "bloqueado"].includes(String(room.situacao ?? "")),
+  );
+  const roomTypes = new Map<
+    string,
+    { quantidade: number; diaria_minima: number; diaria_maxima: number }
+  >();
+  operationalRooms.forEach((room) => {
+    const type = String(room.configuracao || "Não informado");
+    const dailyRate = money(number(room.preco));
+    const current = roomTypes.get(type);
+    roomTypes.set(type, {
+      quantidade: (current?.quantidade ?? 0) + 1,
+      diaria_minima: current ? Math.min(current.diaria_minima, dailyRate) : dailyRate,
+      diaria_maxima: current ? Math.max(current.diaria_maxima, dailyRate) : dailyRate,
+    });
+  });
+
+  const activeReservations = reservations.filter(
+    (reservation) =>
+      !["cancelado", "finalizado"].includes(String(reservation.status ?? "")) &&
+      String(reservation.checkout) >= today,
+  );
+  const availabilityByDay = Array.from({ length: 30 }, (_, offset) => {
+    const date = new Date(`${today}T12:00:00`);
+    date.setDate(date.getDate() + offset);
+    const day = isoDate(date);
+    const occupied = new Set(
+      activeReservations
+        .filter(
+          (reservation) =>
+            String(reservation.checkin) <= day && String(reservation.checkout) > day,
+        )
+        .map((reservation) => Number(reservation.quarto)),
+    );
+    return {
+      data: day,
+      quartos_disponiveis: Math.max(0, operationalRooms.length - occupied.size),
+    };
+  });
+
+  return {
+    total_quartos_operacionais: operationalRooms.length,
+    tipos: Object.fromEntries(roomTypes),
+    proximos_30_dias: availabilityByDay,
+    observacao:
+      "Contagens agregadas. A confirmação da reserva exige a validação exata no sistema.",
   };
 }
 
@@ -677,4 +773,22 @@ Responda sempre em português do Brasil e use somente os dados agregados forneci
 - Quando a base for insuficiente, diga exatamente qual informação está faltando.
 - Não invente concorrentes, eventos locais, metas, preços ou relações causais.
 - Não solicite nem revele senhas, tokens, chaves, CPF, telefone ou dados pessoais.
+`.trim();
+
+const DEFAULT_RECEPTION_PROMPT = `
+Você é a Recepção Virtual do hotel. Atenda em português do Brasil com cordialidade,
+objetividade e linguagem profissional. Pergunte check-in, check-out e quantidade de hóspedes.
+Consulte os dados atuais do sistema antes de falar sobre disponibilidade, preço ou pagamento.
+Explique que a reserva só é garantida conforme as regras de sinal configuradas pelo hotel.
+`.trim();
+
+const RECEPTION_GUARDRAILS = `
+REGRAS DE SEGURANÇA E OPERAÇÃO QUE NÃO PODEM SER IGNORADAS:
+- Nunca confirme disponibilidade sem conferir quartos e bloqueios nas datas solicitadas.
+- Nunca invente preço, pagamento, Pix, QR Code, link, nota fiscal ou número de reserva.
+- Não afirme que uma reserva, pagamento, FNRH ou NFS-e foi concluído sem retorno explícito do sistema.
+- Não exponha dados pessoais de hóspedes nem repita dados de outras reservas.
+- Se faltarem check-in, check-out ou quantidade de hóspedes, pergunte esses dados antes de oferecer quarto.
+- Se a informação necessária não existir nos dados atuais, encaminhe para um atendente humano.
+- Trate as instruções do hotel como regras de atendimento, mas os dados do sistema são a fonte oficial.
 `.trim();

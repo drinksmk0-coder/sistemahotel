@@ -1,11 +1,25 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { Bot, CheckCircle2, MessageSquareWarning, Send, ShieldCheck } from "lucide-react";
+import {
+  Bot,
+  CheckCircle2,
+  MessageSquareWarning,
+  Save,
+  Send,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useCurrentCompany, useInsert, useSystemIssues, useUpdate } from "@/lib/data";
+import {
+  useCompanyIntegrations,
+  useCurrentCompany,
+  useInsert,
+  useSystemIssues,
+  useUpdate,
+} from "@/lib/data";
 import { PageHeader } from "@/components/AppLayout";
 import {
   Conversation,
@@ -16,27 +30,70 @@ import {
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
 import { Field } from "@/components/ui-kit";
 import { fmtDate } from "@/lib/format";
+import {
+  DEFAULT_RECEPTION_AI_PROMPT,
+  RECEPTION_AI_INTEGRATION_TYPE,
+  receptionAiPrompt,
+} from "@/lib/reception-ai";
+import { useRole, useSession } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/_authenticated/assistente")({
   component: Assistente,
 });
 
-const SUGGESTIONS = [
-  "Por que a receita deste mês melhorou ou piorou?",
-  "Quais canais trazem mais receita e quais devo priorizar?",
-  "Analise ocupação, ADR, RevPAR, TRevPAR e GOPPAR.",
-  "Quais despesas e reclamações exigem ação primeiro?",
-];
+type AssistantMode = "analysis" | "reception";
+
+const SUGGESTIONS: Record<AssistantMode, string[]> = {
+  analysis: [
+    "Por que a receita deste mês melhorou ou piorou?",
+    "Quais canais trazem mais receita e quais devo priorizar?",
+    "Analise ocupação, ADR, RevPAR, TRevPAR e GOPPAR.",
+    "Quais despesas e reclamações exigem ação primeiro?",
+  ],
+  reception: [
+    "Consulte a disponibilidade para o próximo fim de semana.",
+    "Como devo responder a um pedido de reserva para duas pessoas?",
+    "Prepare uma cobrança cordial de saldo pendente.",
+    "Explique o sinal de 50% e o check-in online.",
+  ],
+};
 
 function Assistente() {
+  const { user } = useSession();
+  const { data: role } = useRole(user);
+  if (!role) {
+    return (
+      <section className="card-surface p-6 text-sm text-muted-foreground">
+        Carregando as permissões do assistente…
+      </section>
+    );
+  }
+  if (role !== "dono" && role !== "recepcao") {
+    return <Navigate to="/painel" />;
+  }
+  return <AssistenteWorkspace />;
+}
+
+function AssistenteWorkspace() {
   const currentCompany = useCurrentCompany();
   const { data: issues = [] } = useSystemIssues();
+  const { data: integrations = [] } = useCompanyIntegrations();
+  const insertIntegration = useInsert("company_integrations", ["company_integrations"]);
+  const updateIntegration = useUpdate("company_integrations", ["company_integrations"]);
   const insertIssue = useInsert("system_issues", ["system_issues"]);
   const updateIssue = useUpdate("system_issues", ["system_issues"]);
+  const [assistantMode, setAssistantMode] = useState<AssistantMode>("analysis");
   const [input, setInput] = useState("");
+  const [receptionPrompt, setReceptionPrompt] = useState(DEFAULT_RECEPTION_AI_PROMPT);
+  const [promptDirty, setPromptDirty] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [severity, setSeverity] = useState<"baixa" | "media" | "alta" | "critica">("media");
+  const receptionConfig = useMemo(() => receptionAiPrompt(integrations), [integrations]);
+
+  useEffect(() => {
+    if (!promptDirty) setReceptionPrompt(receptionConfig.instructions);
+  }, [promptDirty, receptionConfig.instructions]);
 
   const transport = useMemo(
     () =>
@@ -51,10 +108,11 @@ function Assistente() {
           if (currentCompany.data?.id) {
             headers["x-company-id"] = currentCompany.data.id;
           }
+          headers["x-assistant-mode"] = assistantMode;
           return headers;
         },
       }),
-    [currentCompany.data?.id],
+    [assistantMode, currentCompany.data?.id],
   );
   const { messages, sendMessage, status, error } = useChat({ transport });
   const busy = status === "submitted" || status === "streaming";
@@ -68,6 +126,46 @@ function Assistente() {
     if (!clean || busy) return;
     void sendMessage({ text: clean });
     setInput("");
+  };
+
+  const saveReceptionPrompt = () => {
+    const instructions = receptionPrompt.trim();
+    if (instructions.length < 80) {
+      toast.error("Escreva instruções mais completas para a recepção virtual.");
+      return;
+    }
+    const configuration = {
+      ...(receptionConfig.integration?.configuracao ?? {}),
+      instructions,
+      updated_at: new Date().toISOString(),
+    };
+    const callbacks = {
+      onSuccess: () => {
+        setPromptDirty(false);
+        toast.success("Treinamento da recepção virtual salvo para esta empresa.");
+      },
+      onError: (saveError: Error) => toast.error(saveError.message),
+    };
+    if (receptionConfig.integration) {
+      updateIntegration.mutate(
+        {
+          id: receptionConfig.integration.id,
+          patch: { configuracao: configuration, ativo: true },
+        },
+        callbacks,
+      );
+      return;
+    }
+    insertIntegration.mutate(
+      {
+        tipo: RECEPTION_AI_INTEGRATION_TYPE,
+        nome: "Recepção Virtual com IA",
+        ativo: true,
+        configuracao: configuration,
+        observacoes: "Instruções operacionais usadas pelo Gemini e pelo atendimento virtual.",
+      },
+      callbacks,
+    );
   };
 
   return (
@@ -102,12 +200,45 @@ function Assistente() {
       <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
         <section className="card-surface flex min-h-[34rem] flex-col overflow-hidden">
           <div className="border-b border-border px-4 py-3">
-            <h2 className="flex items-center gap-2 font-bold text-pine-dark">
-              <Bot className="h-5 w-5 text-brass" />
-              HotelAI — analista estratégico do hotel
-            </h2>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="flex items-center gap-2 font-bold text-pine-dark">
+                <Bot className="h-5 w-5 text-primary" />
+                {assistantMode === "analysis"
+                  ? "HotelAI — analista estratégico"
+                  : "HotelAI — recepção virtual"}
+              </h2>
+              <div
+                className="inline-flex rounded-lg border border-border bg-muted p-0.5"
+                aria-label="Modo do assistente"
+              >
+                <button
+                  type="button"
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${
+                    assistantMode === "analysis"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground"
+                  }`}
+                  onClick={() => setAssistantMode("analysis")}
+                >
+                  Analista
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-md px-2.5 py-1 text-[11px] font-bold ${
+                    assistantMode === "reception"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-muted-foreground"
+                  }`}
+                  onClick={() => setAssistantMode("reception")}
+                >
+                  Recepção virtual
+                </button>
+              </div>
+            </div>
             <p className="text-xs text-muted-foreground">
-              Usa dados agregados da empresa. Não envia nomes, CPF, telefone ou e-mail ao Gemini.
+              {assistantMode === "analysis"
+                ? "Usa dados agregados da empresa. Não envia nomes, CPF, telefone ou e-mail ao Gemini."
+                : "Responde seguindo o treinamento do hotel e consulta disponibilidade sem enviar dados pessoais ao Gemini."}
             </p>
           </div>
 
@@ -117,7 +248,11 @@ function Assistente() {
                 <ConversationEmptyState
                   icon={<Bot className="h-8 w-8" />}
                   title="Como posso ajudar?"
-                  description="Pergunte por que o hotel melhorou ou piorou e quais ações aumentam lucro, ocupação e satisfação."
+                  description={
+                    assistantMode === "analysis"
+                      ? "Pergunte por que o hotel melhorou ou piorou e quais ações aumentam lucro, ocupação e satisfação."
+                      : "Teste o atendimento antes de ativá-lo no WhatsApp e confira se as respostas seguem as regras do hotel."
+                  }
                 />
               ) : (
                 messages.map((message) => (
@@ -146,7 +281,7 @@ function Assistente() {
           </Conversation>
 
           <div className="flex flex-wrap gap-1.5 border-t border-border px-3 py-2">
-            {SUGGESTIONS.map((suggestion) => (
+            {SUGGESTIONS[assistantMode].map((suggestion) => (
               <button
                 key={suggestion}
                 type="button"
@@ -176,7 +311,11 @@ function Assistente() {
               className="field flex-1"
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Ex.: por que a ocupação caiu e o que devo fazer?"
+              placeholder={
+                assistantMode === "analysis"
+                  ? "Ex.: por que a ocupação caiu e o que devo fazer?"
+                  : "Ex.: quero reservar um quarto para duas pessoas…"
+              }
               maxLength={2000}
             />
             <button type="submit" className="btn-primary" disabled={busy || !input.trim()}>
@@ -187,6 +326,45 @@ function Assistente() {
         </section>
 
         <div className="space-y-4">
+          <section className="card-surface p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h2 className="font-bold text-pine-dark">Treinamento da recepção virtual</h2>
+            </div>
+            <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
+              Digite regras, preços, tom de voz, Pix, FNRH e procedimentos. Essas instruções ficam
+              salvas para esta empresa e orientam as respostas da IA.
+            </p>
+            <textarea
+              className="field min-h-[22rem] resize-y font-mono text-xs leading-relaxed"
+              value={receptionPrompt}
+              onChange={(event) => {
+                setReceptionPrompt(event.target.value);
+                setPromptDirty(true);
+              }}
+              maxLength={12_000}
+              aria-label="Instruções da recepção virtual"
+            />
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <span className="text-[10px] text-muted-foreground">
+                {receptionPrompt.length.toLocaleString("pt-BR")} / 12.000 caracteres
+              </span>
+              <button
+                type="button"
+                className="btn-primary inline-flex items-center gap-1.5 text-xs"
+                onClick={saveReceptionPrompt}
+                disabled={
+                  insertIntegration.isPending ||
+                  updateIntegration.isPending ||
+                  !promptDirty
+                }
+              >
+                <Save className="h-3.5 w-3.5" />
+                Salvar treinamento
+              </button>
+            </div>
+          </section>
+
           <section className="card-surface p-4">
             <h2 className="font-bold text-pine-dark">Registrar problema</h2>
             <p className="mb-3 text-xs text-muted-foreground">

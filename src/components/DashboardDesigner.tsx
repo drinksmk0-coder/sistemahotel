@@ -115,7 +115,9 @@ function allowedChartTypes(widget: DashboardWidget): DashboardChartType[] {
   const available = widget.chartTypes ?? [];
   if (!available.length) return [];
   const preferred: Record<DashboardDataRole, DashboardChartType[]> = {
-    temporal: ["line", "area"],
+    temporal: normalizeTitle(widget.title).includes("receita, despesas e lucro")
+      ? ["area"]
+      : ["line", "area"],
     ranking: ["horizontalBar"],
     weekday: ["bar"],
     distribution: ["doughnut"],
@@ -128,6 +130,9 @@ function allowedChartTypes(widget: DashboardWidget): DashboardChartType[] {
 function minimumWidgetHeight(widget: DashboardWidget) {
   if (widget.kind !== "chart") return widget.kind === "kpi" ? 72 : 120;
   const role = dashboardDataRole(widget);
+  const title = normalizeTitle(widget.title);
+  if (title.includes("receita, despesas e lucro")) return 400;
+  if (role === "weekday" || title.includes("despesas por categoria")) return 250;
   if (role === "temporal") return 300;
   if (role === "ranking") return 260;
   if (role === "distribution") return 240;
@@ -142,11 +147,19 @@ function constrainWidgetSettings(
     return { ...settings, height: Math.max(minimumWidgetHeight(widget), settings.height) };
   }
   const role = dashboardDataRole(widget);
+  const title = normalizeTitle(widget.title);
   const allowed = allowedChartTypes(widget);
+  const isFinancialHero = title.includes("receita, despesas e lucro");
+  const isWeeklyOccupancy = title.includes("ocupacao por dia da semana");
+  const isExpenseRanking = title.includes("despesas por categoria");
   return {
     ...settings,
     columns:
-      role === "temporal"
+      isFinancialHero
+        ? 12
+        : isWeeklyOccupancy || isExpenseRanking
+          ? 6
+          : role === "temporal"
         ? Math.max(8, settings.columns)
         : role === "distribution"
           ? Math.min(4, settings.columns)
@@ -155,7 +168,12 @@ function constrainWidgetSettings(
     chartType:
       allowed.length && !allowed.includes(settings.chartType) ? allowed[0] : settings.chartType,
     showLegend: true,
-    showLabels: role === "temporal" ? false : settings.showLabels,
+    showLabels:
+      isWeeklyOccupancy || isExpenseRanking
+        ? true
+        : role === "temporal"
+          ? false
+          : settings.showLabels,
     autoFit: true,
   };
 }

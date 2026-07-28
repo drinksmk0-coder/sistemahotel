@@ -137,6 +137,9 @@ function DashboardEstrategico() {
   const currentCompany = useCurrentCompany();
   const [period, setPeriod] = useState<DashboardPeriod>("mes");
   const [activeView, setActiveView] = useState<IndicatorView>("geral");
+  const [accommodationFilter, setAccommodationFilter] = useState("todos");
+  const [reservationStatusFilter, setReservationStatusFilter] = useState("todos");
+  const [channelFilter, setChannelFilter] = useState("todos");
   const range = periodRange(period, today);
   const previousRange = periodRange(period, today, -1);
   const previousYearToday = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`;
@@ -145,14 +148,33 @@ function DashboardEstrategico() {
     () => new Map(clients.map((client) => [client.id, client])),
     [clients],
   );
+  const roomByNumber = useMemo(
+    () => new Map(rooms.map((room) => [room.numero, room])),
+    [rooms],
+  );
 
   const filteredReservations = useMemo(
     () =>
       reservations.filter(
         (reservation) =>
-          reservation.status !== "manutencao" && reservationOverlapsRange(reservation, range),
+          reservation.status !== "manutencao" &&
+          reservationOverlapsRange(reservation, range) &&
+          matchesAccommodationFilter(
+            reservation,
+            roomByNumber.get(reservation.quarto),
+            accommodationFilter,
+          ) &&
+          matchesReservationStatus(reservation, reservationStatusFilter) &&
+          matchesChannelFilter(reservation, channelFilter),
       ),
-    [range, reservations],
+    [
+      accommodationFilter,
+      channelFilter,
+      range,
+      reservationStatusFilter,
+      reservations,
+      roomByNumber,
+    ],
   );
 
   const filteredExpenses = useMemo(
@@ -217,6 +239,9 @@ function DashboardEstrategico() {
       sum + Math.max(0, Number(reservation.valor_total) - Number(reservation.valor_pago)),
     0,
   );
+  const pendingReservations = filteredReservations.filter(
+    (reservation) => Number(reservation.valor_pago) < Number(reservation.valor_total),
+  ).length;
   const previousReservations = reservations.filter(
     (reservation) =>
       reservation.status !== "manutencao" && reservationOverlapsRange(reservation, previousRange),
@@ -482,9 +507,10 @@ function DashboardEstrategico() {
       title: "Evolução: receita, despesas e lucro",
       kind: "chart",
       defaultColumns: 12,
-      defaultHeight: 360,
+      defaultHeight: 400,
       defaultColor: "var(--chart-1)",
-      chartTypes: ["composed", "line", "area", "bar"],
+      chartTypes: ["area", "line"],
+      dataRole: "temporal",
       render: (settings) => (
         <EditableStrategicChart
           rows={trends}
@@ -524,6 +550,7 @@ function DashboardEstrategico() {
       defaultHeight: 320,
       defaultColor: "var(--chart-4)",
       chartTypes: ["horizontalBar", "bar", "doughnut", "pie", "radar"],
+      dataRole: "ranking",
       render: (settings) => (
         <EditableStrategicChart
           rows={buildExpenseCategoryRows(filteredExpenses)}
@@ -568,10 +595,11 @@ function DashboardEstrategico() {
       id: "ocupacao-semana",
       title: "Ocupação por dia da semana",
       kind: "chart",
-      defaultColumns: 7,
-      defaultHeight: 270,
+      defaultColumns: 6,
+      defaultHeight: 250,
       defaultColor: "var(--chart-1)",
       chartTypes: ["bar", "line", "area", "radar"],
+      dataRole: "weekday",
       render: (settings) => (
         <EditableStrategicChart
           rows={occupancyWeekdayRows}
@@ -717,6 +745,44 @@ function DashboardEstrategico() {
           gender={genderRows}
           profession={professionRows}
           age={ageRows}
+        />
+      ),
+    },
+  ];
+  const profileDistributionWidgets: DashboardWidget[] = [
+    {
+      id: "origem-hospedes",
+      title: "Origem dos hóspedes",
+      kind: "chart",
+      defaultColumns: 4,
+      defaultHeight: 250,
+      defaultColor: "var(--chart-1)",
+      chartTypes: ["doughnut", "pie"],
+      dataRole: "distribution",
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={stateRows.slice(0, 6).map((row) => ({ name: row.label, value: row.value }))}
+          categoryKey="name"
+          series={[{ key: "value", label: "Hóspedes", color: settings.color }]}
+          settings={settings}
+        />
+      ),
+    },
+    {
+      id: "sexo-hospedes",
+      title: "Sexo dos hóspedes",
+      kind: "chart",
+      defaultColumns: 4,
+      defaultHeight: 250,
+      defaultColor: "var(--chart-2)",
+      chartTypes: ["doughnut", "pie"],
+      dataRole: "distribution",
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={genderRows}
+          categoryKey="name"
+          series={[{ key: "value", label: "Hóspedes", color: settings.color }]}
+          settings={settings}
         />
       ),
     },
@@ -920,26 +986,128 @@ function DashboardEstrategico() {
     defaultColumns: columns,
     defaultHeight: height,
   });
+  const executiveRoomTypeRows = buildRoomTypeDistribution(filteredReservations, rooms);
   const overviewWidgets: DashboardWidget[] = [
-    compactWidget(occupancyWidgets[0], "geral-ocupacao-semana", 6, 260),
-    compactWidget(generalWidgets[0], "geral-evolucao-financeira", 6, 260),
-    compactWidget(financialWidgets[0], "geral-formas-pagamento", 6, 260),
-    compactWidget(generalWidgets[1], "geral-origem-receita", 6, 260),
+    {
+      id: "geral-tipos-quarto",
+      title: "Distribuição por tipo de quarto",
+      kind: "chart",
+      defaultColumns: 3,
+      defaultHeight: 260,
+      defaultColor: "#00D2FF",
+      chartTypes: ["doughnut"],
+      dataRole: "distribution",
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={executiveRoomTypeRows}
+          categoryKey="name"
+          series={[{ key: "value", label: "Reservas", color: settings.color }]}
+          settings={settings}
+        />
+      ),
+    },
+    {
+      id: "geral-receita-canal",
+      title: "Receita por canal de venda",
+      kind: "chart",
+      defaultColumns: 3,
+      defaultHeight: 260,
+      defaultColor: "#00D2FF",
+      chartTypes: ["horizontalBar"],
+      dataRole: "ranking",
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={channelRows.slice(0, 6)}
+          categoryKey="name"
+          series={[{ key: "receita", label: "Receita", color: settings.color, currency: true }]}
+          settings={settings}
+        />
+      ),
+    },
+    {
+      id: "geral-origem-estado",
+      title: "Origem dos hóspedes por estado",
+      kind: "chart",
+      defaultColumns: 3,
+      defaultHeight: 260,
+      defaultColor: "#38BDF8",
+      chartTypes: ["horizontalBar"],
+      dataRole: "ranking",
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={stateRows.slice(0, 6)}
+          categoryKey="label"
+          series={[{ key: "value", label: "Hóspedes", color: settings.color }]}
+          settings={settings}
+        />
+      ),
+    },
+    {
+      id: "geral-hospedes-frequentes",
+      title: "Hóspedes frequentes",
+      kind: "content",
+      defaultColumns: 3,
+      defaultHeight: 260,
+      render: (settings) => (
+        <ExecutiveRanking title={settings.title} rows={recurring.slice(0, 5)} />
+      ),
+    },
+    {
+      id: "geral-receita-despesa-anual",
+      title: "Evolução de receita vs despesas ao longo do ano",
+      kind: "chart",
+      defaultColumns: 8,
+      defaultHeight: 400,
+      defaultColor: "#00D2FF",
+      chartTypes: ["area"],
+      dataRole: "temporal",
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={trends}
+          categoryKey="mes"
+          series={[
+            { key: "receita", label: "Receita", color: settings.color, currency: true },
+            { key: "despesa", label: "Despesas", color: "#8B5CF6", currency: true },
+          ]}
+          settings={settings}
+        />
+      ),
+    },
+    {
+      id: "geral-satisfacao",
+      title: "Nota média das experiências",
+      kind: "content",
+      defaultColumns: 4,
+      defaultHeight: 400,
+      render: () => <SatisfactionCard feedbacks={feedbacks} />,
+    },
   ];
   const overviewKpis = dashboardWidgets
-    .filter((widget) =>
-      ["receita", "a-receber", "ocupacao", "lucro", "adr", "revpar", "trevpar", "goppar"].includes(
-        widget.id,
-      ),
-    )
+    .filter((widget) => ["reservas", "receita", "ocupacao"].includes(widget.id))
     .map((widget) => compactWidget(widget, `geral-${widget.id}`, 3, 92));
+  overviewKpis.push({
+    id: "geral-pendencias",
+    title: "Pendências / cobrança Pix",
+    kind: "kpi",
+    defaultColumns: 3,
+    defaultHeight: 92,
+    render: (settings) => (
+      <StoryKpi
+        icon={<DollarSign />}
+        label={settings.title}
+        value={fmtBRL(aReceber)}
+        hint={`${pendingReservations} reserva(s) aguardando quitação`}
+        tone="brass"
+      />
+    ),
+  });
   const companyId = currentCompany.data?.id;
 
   return (
-    <div className="space-y-3 pb-6">
+    <div className="hotel-command-dark space-y-3 rounded-xl p-3 pb-6">
       <DashboardHeader
-        title="Indicadores"
-        subtitle="Uma visão clara do desempenho, perfil dos hóspedes, canais e tendências."
+        title="HOTEL REAL COMMAND"
+        subtitle="Inteligência executiva do Hotel Real Cruzília."
         period={period}
         onPeriodChange={setPeriod}
       >
@@ -948,28 +1116,40 @@ function DashboardEstrategico() {
 
       <main className="min-w-0 space-y-3">
         {activeView === "geral" && (
-          <>
-            <IndicatorSectionTitle
-              number={1}
-              title="Visão executiva"
-              description="Os principais indicadores e comparações em uma única tela."
-              compact
+          <section className="grid min-w-0 gap-3 xl:grid-cols-[13.5rem_minmax(0,1fr)]">
+            <ExecutiveFilterPanel
+              period={period}
+              accommodation={accommodationFilter}
+              status={reservationStatusFilter}
+              channel={channelFilter}
+              onPeriodChange={setPeriod}
+              onAccommodationChange={setAccommodationFilter}
+              onStatusChange={setReservationStatusFilter}
+              onChannelChange={setChannelFilter}
+              onReset={() => {
+                setPeriod("mes");
+                setAccommodationFilter("todos");
+                setReservationStatusFilter("todos");
+                setChannelFilter("todos");
+              }}
             />
-            <DashboardDesigner
-              key="indicadores-geral-kpis"
-              companyId={companyId}
-              dashboardId="indicadores-geral-kpis"
-              widgets={overviewKpis}
-              fixed
-            />
-            <DashboardDesigner
-              key="indicadores-geral-graficos"
-              companyId={companyId}
-              dashboardId="indicadores-geral-graficos"
-              widgets={overviewWidgets}
-              fixed
-            />
-          </>
+            <div className="min-w-0 space-y-3">
+              <DashboardDesigner
+                key="indicadores-geral-kpis-v13"
+                companyId={companyId}
+                dashboardId="indicadores-geral-kpis-v13"
+                widgets={overviewKpis}
+                fixed
+              />
+              <DashboardDesigner
+                key="indicadores-geral-graficos-v13"
+                companyId={companyId}
+                dashboardId="indicadores-geral-graficos-v13"
+                widgets={overviewWidgets}
+                fixed
+              />
+            </div>
+          </section>
         )}
 
         {activeView === "ocupacao" && (
@@ -1022,7 +1202,7 @@ function DashboardEstrategico() {
             description="Mapa, receita, idade, sexo, estado civil e profissão lado a lado."
             companyId={companyId}
             dashboardId="indicadores-hospedes-v2"
-            widgets={clientWidgets}
+            widgets={[...clientWidgets, ...profileDistributionWidgets]}
           />
         )}
 
@@ -1060,6 +1240,210 @@ function DashboardEstrategico() {
         )}
       </main>
     </div>
+  );
+}
+
+function ExecutiveFilterPanel({
+  period,
+  accommodation,
+  status,
+  channel,
+  onPeriodChange,
+  onAccommodationChange,
+  onStatusChange,
+  onChannelChange,
+  onReset,
+}: {
+  period: DashboardPeriod;
+  accommodation: string;
+  status: string;
+  channel: string;
+  onPeriodChange: (value: DashboardPeriod) => void;
+  onAccommodationChange: (value: string) => void;
+  onStatusChange: (value: string) => void;
+  onChannelChange: (value: string) => void;
+  onReset: () => void;
+}) {
+  return (
+    <aside className="executive-filter-panel h-fit rounded-lg border p-3 xl:sticky xl:top-3">
+      <div className="mb-4 flex items-center gap-2">
+        <Filter className="h-4 w-4 text-primary" />
+        <div>
+          <h2 className="text-xs font-extrabold text-pine-dark">Filtros do painel</h2>
+          <p className="text-[10px] text-muted-foreground">Refine toda a visão executiva.</p>
+        </div>
+      </div>
+      <div className="space-y-3">
+        <ExecutiveSelect
+          label="Período"
+          value={period}
+          onChange={(value) => onPeriodChange(value as DashboardPeriod)}
+          options={[
+            ["dia", "Hoje"],
+            ["mes", "Mês atual"],
+            ["ano", "Ano atual"],
+          ]}
+        />
+        <ExecutiveSelect
+          label="Tipo de acomodação"
+          value={accommodation}
+          onChange={onAccommodationChange}
+          options={[
+            ["todos", "Todos os quartos"],
+            ["padrao", "Padrão — R$ 90"],
+            ["superior", "Superior — R$ 110"],
+          ]}
+        />
+        <ExecutiveSelect
+          label="Status da reserva"
+          value={status}
+          onChange={onStatusChange}
+          options={[
+            ["todos", "Todos os status"],
+            ["confirmada", "Confirmada"],
+            ["sinal", "Pendente sinal 50%"],
+            ["checkin", "Check-in feito"],
+            ["cancelada", "Cancelada"],
+          ]}
+        />
+        <ExecutiveSelect
+          label="Canal de origem"
+          value={channel}
+          onChange={onChannelChange}
+          options={[
+            ["todos", "Todos os canais"],
+            ["whatsapp", "WhatsApp AI"],
+            ["balcao", "Balcão / direto"],
+            ["ota", "OTA"],
+          ]}
+        />
+      </div>
+      <button
+        type="button"
+        className="mt-4 w-full rounded-md bg-primary px-3 py-2 text-[11px] font-extrabold text-primary-foreground shadow-lg shadow-primary/20"
+        onClick={onReset}
+      >
+        Resetar filtros
+      </button>
+    </aside>
+  );
+}
+
+function ExecutiveSelect({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: Array<[string, string]>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10px] font-bold text-muted-foreground">{label}</span>
+      <select
+        className="field h-9 text-[11px]"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {options.map(([optionValue, optionLabel]) => (
+          <option key={optionValue} value={optionValue}>
+            {optionLabel}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ExecutiveRanking({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{
+    Cliente: string;
+    Reservas: number;
+    Receita: string;
+    Última: string;
+    Status: string;
+  }>;
+}) {
+  return (
+    <section className="h-full min-w-0 p-1">
+      <h3 className="mb-3 truncate text-xs font-extrabold text-pine-dark">{title}</h3>
+      <ol className="space-y-2">
+        {rows.length ? (
+          rows.map((row, index) => (
+            <li
+              key={`${row.Cliente}-${index}`}
+              className="flex min-w-0 items-center gap-2 rounded-md bg-muted/70 px-2 py-1.5"
+            >
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary/15 text-[9px] font-black text-primary">
+                {index + 1}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[10px] font-bold" title={row.Cliente}>
+                {row.Cliente}
+              </span>
+              <span className="shrink-0 text-[9px] text-muted-foreground">
+                {row.Reservas} estadias
+              </span>
+            </li>
+          ))
+        ) : (
+          <li className="rounded-md bg-muted/70 p-3 text-[10px] text-muted-foreground">
+            Ainda não há hóspedes recorrentes no período.
+          </li>
+        )}
+      </ol>
+    </section>
+  );
+}
+
+function SatisfactionCard({ feedbacks }: { feedbacks: Feedback[] }) {
+  const ratings = feedbacks
+    .map((feedback) => Number(feedback.nota_geral ?? 0))
+    .filter((rating) => rating > 0);
+  const averageRating = ratings.length ? average(ratings) : 0;
+  const rows = [5, 4, 3, 2, 1].map((stars) => {
+    const count = ratings.filter((rating) => Math.round(rating) === stars).length;
+    return {
+      stars,
+      percentage: ratings.length ? Math.round((count / ratings.length) * 100) : 0,
+    };
+  });
+  return (
+    <section className="flex h-full min-w-0 flex-col p-1">
+      <div className="mb-4">
+        <span className="text-[10px] font-bold uppercase text-muted-foreground">
+          Média geral
+        </span>
+        <div className="mt-1 text-3xl font-black text-pine-dark">
+          {averageRating.toLocaleString("pt-BR", {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+          })}{" "}
+          <span className="text-xl text-[#22C55E]">★</span>
+        </div>
+        <p className="text-[10px] text-muted-foreground">{ratings.length} avaliações</p>
+      </div>
+      <div className="space-y-3">
+        {rows.map((row) => (
+          <div key={row.stars} className="grid grid-cols-[2.5rem_1fr_2.5rem] items-center gap-2">
+            <span className="text-[10px] text-muted-foreground">{row.stars} ★</span>
+            <span className="h-2 overflow-hidden rounded-full bg-muted">
+              <span
+                className="block h-full rounded-full bg-primary"
+                style={{ width: `${row.percentage}%` }}
+              />
+            </span>
+            <strong className="text-right text-[10px] text-pine-dark">{row.percentage}%</strong>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1185,10 +1569,27 @@ function StoryKpi({
     brass: "border-t-brass bg-[linear-gradient(180deg,rgba(208,178,91,.18),var(--card)_55%)]",
     brick: "border-t-brick bg-[linear-gradient(180deg,rgba(162,70,45,.12),var(--card)_55%)]",
   }[tone];
+  const sparklineEnd =
+    previousDelta == null ? 12 : Math.max(3, Math.min(21, 12 - previousDelta / 4));
   return (
     <div
-      className={`min-w-0 rounded-md border border-border border-t-4 p-2 shadow-sm ${toneClass}`}
+      className={`relative min-w-0 overflow-hidden rounded-md border border-border border-t-4 p-2 shadow-sm ${toneClass}`}
     >
+      {previousDelta != null && (
+        <svg
+          viewBox="0 0 72 24"
+          className="pointer-events-none absolute bottom-2 right-2 h-7 w-20 opacity-70"
+          aria-hidden="true"
+        >
+          <path
+            d={`M2 18 C18 16, 24 10, 38 13 S56 12, 70 ${sparklineEnd}`}
+            fill="none"
+            stroke="var(--primary)"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
       <div className="mb-1 flex items-center gap-1.5 text-pine [&>svg]:h-3.5 [&>svg]:w-3.5">
         {icon}
         <span className="truncate text-[10px] font-bold uppercase text-muted-foreground">
@@ -1412,16 +1813,28 @@ function EditableStrategicChart({
   settings: DashboardWidgetSettings;
 }) {
   const height = Math.max(56, settings.height - 78);
+  const normalizedTitle = normalizeText(settings.title);
+  const isMonthlyHero =
+    normalizedTitle.includes("receita, despesas e lucro") ||
+    normalizedTitle.includes("receita vs despesas ao longo do ano");
+  const isWeekdayOccupancy = normalizedTitle.includes("ocupacao por dia da semana");
+  const isExpenseRanking = normalizedTitle.includes("despesas por categoria");
   const isCircular = settings.chartType === "pie" || settings.chartType === "doughnut";
   const canShowLabels =
-    settings.showLabels && !isCircular && rows.length * Math.max(1, series.length) <= 12;
+    !isCircular &&
+    (isWeekdayOccupancy ||
+      isExpenseRanking ||
+      (settings.showLabels && rows.length * Math.max(1, series.length) <= 12));
   const formatter = (value: number, name: string) =>
     series.find((item) => item.label === name)?.currency ? fmtBRL(value) : value;
   const labelFormatter = (value: number, currency = false) =>
-    formatStrategicValue(value, currency);
+    isExpenseRanking && currency ? fmtBRL(value) : formatStrategicValue(value, currency);
   const primaryCurrency = Boolean(series[0]?.currency);
+  const circularTotal = isCircular
+    ? rows.reduce((sum, item) => sum + Number(item[series[0].key] ?? 0), 0)
+    : 0;
   const categoryAxisWidth = Math.min(
-    180,
+    isExpenseRanking ? 240 : 180,
     Math.max(
       88,
       rows.reduce(
@@ -1485,11 +1898,16 @@ function EditableStrategicChart({
         <XAxis
           dataKey={categoryKey}
           tick={{ fontSize: 10, fill: "var(--foreground)" }}
-          interval="preserveStartEnd"
+          interval={isMonthlyHero ? 0 : "preserveStartEnd"}
         />
         <YAxis
           tick={{ fontSize: 9 }}
-          tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
+          tickFormatter={(value) =>
+            isMonthlyHero && primaryCurrency
+              ? formatCurrencyAxis(Number(value))
+              : formatStrategicValue(Number(value), primaryCurrency)
+          }
+          tickCount={isMonthlyHero ? 4 : undefined}
           width={primaryCurrency ? 68 : 42}
         />
         {series.map((item) => (
@@ -1520,11 +1938,16 @@ function EditableStrategicChart({
         <XAxis
           dataKey={categoryKey}
           tick={{ fontSize: 10, fill: "var(--foreground)" }}
-          interval="preserveStartEnd"
+          interval={isMonthlyHero ? 0 : "preserveStartEnd"}
         />
         <YAxis
           tick={{ fontSize: 9 }}
-          tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
+          tickFormatter={(value) =>
+            isMonthlyHero && primaryCurrency
+              ? formatCurrencyAxis(Number(value))
+              : formatStrategicValue(Number(value), primaryCurrency)
+          }
+          tickCount={isMonthlyHero ? 4 : undefined}
           width={primaryCurrency ? 68 : 42}
         />
         {series.map((item, index) => (
@@ -1555,11 +1978,16 @@ function EditableStrategicChart({
         <XAxis
           dataKey={categoryKey}
           tick={{ fontSize: 10, fill: "var(--foreground)" }}
-          interval="preserveStartEnd"
+          interval={isMonthlyHero ? 0 : "preserveStartEnd"}
         />
         <YAxis
           tick={{ fontSize: 9 }}
-          tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
+          tickFormatter={(value) =>
+            isMonthlyHero && primaryCurrency
+              ? formatCurrencyAxis(Number(value))
+              : formatStrategicValue(Number(value), primaryCurrency)
+          }
+          tickCount={isMonthlyHero ? 4 : undefined}
           width={primaryCurrency ? 68 : 42}
         />
         {series.map((item, index) =>
@@ -1631,7 +2059,9 @@ function EditableStrategicChart({
               width={categoryAxisWidth}
               interval={0}
               tick={{ fontSize: 9, fill: "var(--foreground)" }}
-              tickFormatter={(value) => truncateChartLabel(String(value))}
+              tickFormatter={(value) =>
+                isExpenseRanking ? String(value) : truncateChartLabel(String(value))
+              }
             />
           </>
         ) : (
@@ -1644,7 +2074,12 @@ function EditableStrategicChart({
             />
             <YAxis
               tick={{ fontSize: 9 }}
-              tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
+              domain={isWeekdayOccupancy ? [0, 100] : undefined}
+              tickFormatter={(value) =>
+                isWeekdayOccupancy
+                  ? `${Number(value)}%`
+                  : formatStrategicValue(Number(value), primaryCurrency)
+              }
               width={primaryCurrency ? 68 : 42}
             />
           </>
@@ -1699,6 +2134,7 @@ function EditableStrategicChart({
             <div className="max-h-[190px] space-y-1.5 overflow-auto pr-1 text-[9px]">
               {rows.map((row, index) => {
                 const rawValue = Number(row[series[0].key] ?? 0);
+                const percentage = circularTotal > 0 ? (rawValue / circularTotal) * 100 : 0;
                 return (
                   <div
                     key={`${String(row[categoryKey])}-${index}`}
@@ -1720,7 +2156,14 @@ function EditableStrategicChart({
                       </span>
                     </span>
                     <strong className="whitespace-nowrap text-muted-foreground">
-                      {formatStrategicValue(rawValue, Boolean(series[0].currency))}
+                      {percentage.toLocaleString("pt-BR", {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      })}
+                      %
+                      {series[0].currency
+                        ? ` · ${formatStrategicValue(rawValue, true)}`
+                        : ""}
                     </strong>
                   </div>
                 );
@@ -1754,6 +2197,22 @@ function formatStrategicValue(value: number, currency = false) {
     maximumFractionDigits: 2,
   });
   return `${currency ? "R$ " : ""}${number}${suffix}`;
+}
+
+function formatCurrencyAxis(value: number) {
+  if (value === 0) return "R$ 0";
+  const absolute = Math.abs(value);
+  if (absolute >= 1_000_000) {
+    return `R$ ${(value / 1_000_000).toLocaleString("pt-BR", {
+      maximumFractionDigits: 1,
+    })} mi`;
+  }
+  if (absolute >= 1_000) {
+    return `R$ ${(value / 1_000).toLocaleString("pt-BR", {
+      maximumFractionDigits: 0,
+    })} mil`;
+  }
+  return `R$ ${value.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 }
 
 function truncateChartLabel(value: string, limit = 19) {
@@ -2461,6 +2920,64 @@ function buildPaymentRows(reservations: Reservation[], sales: Sale[]) {
   return [...rows]
     .map(([name, value]) => ({ name: labelize(name), value }))
     .filter((row) => row.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+function matchesAccommodationFilter(
+  reservation: Reservation,
+  room: Room | undefined,
+  filter: string,
+) {
+  if (filter === "todos") return true;
+  const label = normalizeText(room ? roomLabel(room) : "");
+  const price = Number(room?.preco ?? reservation.valor_diaria ?? 0);
+  if (filter === "padrao") return label.includes("padrao") || price === 90;
+  if (filter === "superior") return label.includes("superior") || price === 110;
+  return true;
+}
+
+function matchesReservationStatus(reservation: Reservation, filter: string) {
+  if (filter === "todos") return true;
+  const status = normalizeText(String(reservation.status ?? ""));
+  if (filter === "confirmada") return status.includes("confirm");
+  if (filter === "checkin") return status.includes("checkin") || status.includes("hosped");
+  if (filter === "cancelada") return status.includes("cancel");
+  if (filter === "sinal") {
+    const total = Number(reservation.valor_total ?? 0);
+    const paid = Number(reservation.valor_pago ?? 0);
+    return total > 0 && paid < total * 0.5;
+  }
+  return true;
+}
+
+function matchesChannelFilter(reservation: Reservation, filter: string) {
+  if (filter === "todos") return true;
+  const channel = normalizeText(readChannel(reservation));
+  if (filter === "whatsapp") return channel.includes("whatsapp") || channel === "wh";
+  if (filter === "balcao") {
+    return ["balcao", "direto", "telefone", "hospedin", "fo"].some((value) =>
+      channel.includes(value),
+    );
+  }
+  if (filter === "ota") {
+    return ["booking", "expedia", "airbnb", "decolar", "ota", "bo"].some((value) =>
+      channel.includes(value),
+    );
+  }
+  return true;
+}
+
+function buildRoomTypeDistribution(reservations: Reservation[], rooms: Room[]) {
+  const roomByNumber = new Map(rooms.map((room) => [room.numero, room]));
+  const counts = new Map<string, number>();
+  reservations.forEach((reservation) => {
+    if (reservation.status === "cancelado" || reservation.status === "manutencao") return;
+    const room = roomByNumber.get(reservation.quarto);
+    const label = room ? roomLabel(room) : "Não informado";
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  });
+  return [...counts]
+    .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value);
 }
 

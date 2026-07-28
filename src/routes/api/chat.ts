@@ -11,6 +11,8 @@ export const Route = createFileRoute("/api/chat")({
       POST: async ({ request }) => {
         const authorization = request.headers.get("authorization");
         const companyId = request.headers.get("x-company-id");
+        const assistantMode =
+          request.headers.get("x-assistant-mode") === "reception" ? "reception" : "analysis";
         const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
         const publishableKey =
           process.env.SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -34,7 +36,7 @@ export const Route = createFileRoute("/api/chat")({
             authorization,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ question, company_id: companyId }),
+          body: JSON.stringify({ question, company_id: companyId, mode: assistantMode }),
         });
         const payload = (await response.json().catch(() => ({}))) as {
           answer?: string;

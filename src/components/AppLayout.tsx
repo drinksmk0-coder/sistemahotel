@@ -10,6 +10,7 @@ import {
   CreditCard,
   DollarSign,
   FileWarning,
+  LayoutDashboard,
   LogOut,
   Menu,
   MessageSquare,
@@ -26,6 +27,12 @@ import { applySystemSettings, getSystemSettings } from "@/lib/system-settings";
 import { SystemMonitor } from "@/components/SystemMonitor";
 
 const TABS = [
+  {
+    to: "/painel",
+    label: "Painel",
+    icon: LayoutDashboard,
+    roles: ["dono", "recepcao", "limpeza", "cafe"],
+  },
   { to: "/mapa", label: "Mapa", icon: BedDouble, roles: ["dono", "recepcao"] },
   { to: "/reservas", label: "Reservas", icon: CreditCard, roles: ["dono", "recepcao"] },
   { to: "/tarifario", label: "Tarifário", icon: CalendarRange, roles: ["dono"] },
@@ -46,7 +53,7 @@ const SECONDARY_TABS = [
     to: "/assistente",
     label: "Assistente 24h",
     icon: Bot,
-    roles: ["dono", "recepcao", "limpeza", "cafe"],
+    roles: ["dono", "recepcao"],
   },
   { to: "/avaliacoes", label: "Avaliacoes", icon: Star, roles: ["dono", "recepcao"] },
   { to: "/integracoes", label: "Integracoes", icon: Settings, roles: ["dono"] },
@@ -54,7 +61,7 @@ const SECONDARY_TABS = [
   { to: "/equipe", label: "Equipe", icon: Users, roles: ["dono"] },
 ];
 
-const MOBILE_PRIMARY_TABS = ["/mapa", "/reservas", "/clientes", "/vendas"] as const;
+const MOBILE_PRIMARY_TABS = ["/painel", "/mapa", "/reservas", "/clientes", "/vendas"] as const;
 
 const ROLE_LABELS: Record<string, string> = {
   dono: "Dono - acesso total",
