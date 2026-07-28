@@ -121,12 +121,14 @@ export function DashboardDesigner({
   widgets,
   title = "Dashboard personalizável",
   description = "Arraste, redimensione e monte sua própria visão",
+  fixed = false,
 }: {
   companyId?: string | null;
   dashboardId: string;
   widgets: DashboardWidget[];
   title?: string;
   description?: string;
+  fixed?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -153,7 +155,7 @@ export function DashboardDesigner({
     () => new Map(widgets.map((widget) => [widget.id, widget])),
     [widgets],
   );
-  const orderedWidgets = layout.order
+  const orderedWidgets = (fixed ? widgets.map((widget) => widget.id) : layout.order)
     .map((id) => widgetById.get(id))
     .filter((widget): widget is DashboardWidget => Boolean(widget));
   const selectedWidget = selectedId ? widgetById.get(selectedId) : undefined;
@@ -415,7 +417,7 @@ export function DashboardDesigner({
 
   return (
     <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
+      {!fixed && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
         <div className="flex items-center gap-2">
           <LayoutDashboard className="h-4 w-4 text-brass" />
           <div>
@@ -454,9 +456,9 @@ export function DashboardDesigner({
             {editing ? "Fechar edição" : "Personalizar"}
           </button>
         </div>
-      </div>
+      </div>}
 
-      {editing && (
+      {!fixed && editing && (
         <EditorPanel
           widget={selectedWidget}
           settings={selectedSettings}
@@ -468,7 +470,9 @@ export function DashboardDesigner({
 
       <div ref={gridRef} className="grid grid-cols-1 gap-3 lg:grid-cols-12">
         {orderedWidgets.map((widget) => {
-          const settings = layout.widgets[widget.id] ?? defaultSettings(widget);
+          const settings = fixed
+            ? defaultSettings(widget)
+            : layout.widgets[widget.id] ?? defaultSettings(widget);
           if (settings.hidden && !editing) return null;
           const defaultHeight = widget.defaultHeight ?? (widget.kind === "kpi" ? 110 : 290);
           const defaultColumns = widget.defaultColumns ?? (widget.kind === "kpi" ? 2 : 6);

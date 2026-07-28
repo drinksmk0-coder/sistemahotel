@@ -694,8 +694,8 @@ function DashboardEstrategico() {
   return (
     <div className="space-y-3 pb-6">
       <DashboardHeader
-        title="Dashboard Estratégico"
-        subtitle="Comparações financeiras, KPIs hoteleiros, metas e tendências."
+        title="Indicadores"
+        subtitle="Uma visão clara do desempenho, perfil dos hóspedes, canais e tendências."
         period={period}
         onPeriodChange={setPeriod}
       />
@@ -730,6 +730,7 @@ function DashboardEstrategico() {
             widgets={dashboardWidgets}
             title="Personalizar KPIs estratégicos"
             description="Mova, oculte e escolha o tamanho exato de cada indicador"
+            fixed
           />
 
           {section === "geral" && (
@@ -738,6 +739,7 @@ function DashboardEstrategico() {
               dashboardId="estrategico-geral"
               widgets={generalWidgets}
               title="Personalizar gráficos gerais"
+              fixed
             />
           )}
 
@@ -747,6 +749,7 @@ function DashboardEstrategico() {
               dashboardId="estrategico-canais"
               widgets={channelWidgets}
               title="Personalizar análise de canais"
+              fixed
             />
           )}
 
@@ -756,6 +759,7 @@ function DashboardEstrategico() {
               dashboardId="estrategico-clientes"
               widgets={clientWidgets}
               title="Personalizar perfil dos hóspedes"
+              fixed
             />
           )}
 
@@ -765,6 +769,7 @@ function DashboardEstrategico() {
               dashboardId="estrategico-tendencias"
               widgets={trendWidgets}
               title="Personalizar tendências e previsões"
+              fixed
             />
           )}
 
@@ -774,6 +779,7 @@ function DashboardEstrategico() {
               dashboardId="estrategico-quartos"
               widgets={roomWidgets}
               title="Personalizar desempenho dos quartos"
+              fixed
             />
           )}
 
@@ -783,6 +789,7 @@ function DashboardEstrategico() {
               dashboardId="estrategico-clientes-detalhes"
               widgets={clientDetailWidgets}
               title="Personalizar relacionamento e cobranças"
+              fixed
             />
           )}
 
@@ -792,6 +799,7 @@ function DashboardEstrategico() {
               dashboardId="estrategico-insights"
               widgets={insightWidgets}
               title="Personalizar recomendações estratégicas"
+              fixed
             />
           )}
 

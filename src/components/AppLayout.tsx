@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
   BedDouble,
+  ChartNoAxesCombined,
   Bot,
   CalendarRange,
   ChevronDown,
@@ -12,7 +13,6 @@ import {
   LogOut,
   Menu,
   MessageSquare,
-  QrCode,
   Settings,
   Star,
   Users,
@@ -33,6 +33,12 @@ const TABS = [
   { to: "/vendas", label: "Vendas", icon: DollarSign, roles: ["dono", "recepcao"] },
   { to: "/despesas", label: "Despesas", icon: FileWarning, roles: ["dono"] },
   { to: "/reclamacoes", label: "Reclamacoes", icon: MessageSquare, roles: ["dono", "recepcao"] },
+  {
+    to: "/dashboard-estrategico",
+    label: "Indicadores",
+    icon: ChartNoAxesCombined,
+    roles: ["dono"],
+  },
 ];
 
 const SECONDARY_TABS = [
@@ -43,9 +49,8 @@ const SECONDARY_TABS = [
     roles: ["dono", "recepcao", "limpeza", "cafe"],
   },
   { to: "/avaliacoes", label: "Avaliacoes", icon: Star, roles: ["dono", "recepcao"] },
-  { to: "/qrcodes", label: "QR Codes", icon: QrCode, roles: ["dono", "recepcao"] },
   { to: "/integracoes", label: "Integracoes", icon: Settings, roles: ["dono"] },
-  { to: "/empresa", label: "Configurações", icon: Settings, roles: ["dono"] },
+  { to: "/empresa", label: "Aparência do sistema", icon: Settings, roles: ["dono"] },
   { to: "/equipe", label: "Equipe", icon: Users, roles: ["dono"] },
 ];
 
@@ -171,7 +176,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         )}
       </div>
 
-      <nav className="app-sidebar-nav flex-1 space-y-1 overflow-y-auto px-2.5 py-3">
+      <nav className="app-sidebar-nav flex-1 space-y-1 overflow-hidden px-2.5 py-3">
         {visibleTabs.map((t) => {
           const active = path.startsWith(t.to);
           const Icon = t.icon;

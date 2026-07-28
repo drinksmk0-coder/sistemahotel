@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CalendarClock, FileText, Instagram, MapPinned, Megaphone, MessageCircle, Plus, ShieldCheck, Webhook } from "lucide-react";
+import { Building2, CalendarClock, FileText, Instagram, MapPinned, Megaphone, MessageCircle, Plus, ShieldCheck, Webhook } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge, EmptyState, Field, Modal } from "@/components/ui-kit";
 import {
@@ -30,6 +30,7 @@ const TYPES = [
   { value: "instagram", label: "Instagram Business" },
   { value: "channel_manager", label: "Channel Manager" },
   { value: "nota_fiscal", label: "Nota fiscal / NFS-e" },
+  { value: "fnrh_mtur", label: "FNRH Digital / MTur" },
 ];
 
 function Integracoes() {
@@ -60,7 +61,7 @@ function Integracoes() {
         }
       />
 
-      <section className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <section className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <IntegrationQuickStart
           icon={<MessageCircle />}
           title="WhatsApp Business"
@@ -95,6 +96,13 @@ function Integracoes() {
           description="Preparado para conta profissional e mensagens."
           status={integrationStatus(integrations, "instagram", true)}
           onClick={() => openProvider("instagram", integrations, setEditing, setInitialType, setOpen)}
+        />
+        <IntegrationQuickStart
+          icon={<Building2 />}
+          title="FNRH Digital / MTur"
+          description="Pré-check-in, conferência e envio pela API oficial 2.4."
+          status={integrationStatus(integrations, "fnrh_mtur")}
+          onClick={() => openProvider("fnrh_mtur", integrations, setEditing, setInitialType, setOpen)}
         />
       </section>
 
@@ -141,6 +149,28 @@ function Integracoes() {
               Cadastre um provedor de NFS-e em “Canal” usando a URL de webhook/API fornecida por ele. A emissão automática exige
               credenciais fiscais da empresa e não deve ser ativada sem certificado ou token do provedor.
             </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4">
+        <div className="flex items-start gap-3">
+          <Building2 className="mt-0.5 h-5 w-5 text-primary" />
+          <div>
+            <h3 className="font-serif text-lg font-bold text-pine-dark">FNRH Digital e check-in online</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A reserva gera um link individual para o hóspede preencher e assinar pelo celular.
+              Depois da conferência, a integração usa a chave própria do hotel para transmitir à
+              plataforma oficial.
+            </p>
+            <a
+              href="https://fnrh.turismo.serpro.gov.br/FNRH_SRH/Login"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex text-xs font-bold text-primary underline"
+            >
+              Gerar a chave no módulo oficial do MTur
+            </a>
           </div>
         </div>
       </section>
@@ -389,6 +419,8 @@ function IntegrationForm({
   const [pixelId, setPixelId] = useState(String(storedConfig.pixel_id ?? ""));
   const [instagramAccountId, setInstagramAccountId] = useState(String(storedConfig.instagram_account_id ?? ""));
   const [pageId, setPageId] = useState(String(storedConfig.page_id ?? ""));
+  const [fnrhApiVersion, setFnrhApiVersion] = useState(String(storedConfig.api_version ?? "2.4"));
+  const [fnrhUserId, setFnrhUserId] = useState(String(storedConfig.fnrh_user_id ?? ""));
 
   return (
     <Modal open onClose={onClose} title={editing ? "Editar canal" : "Novo canal"}>
@@ -414,6 +446,8 @@ function IntegrationForm({
               pixel_id: pixelId || null,
               instagram_account_id: instagramAccountId || null,
               page_id: pageId || null,
+              api_version: fnrhApiVersion || "2.4",
+              fnrh_user_id: fnrhUserId || null,
             },
           });
         }}
@@ -480,6 +514,22 @@ function IntegrationForm({
             <Field label="Página do Facebook vinculada">
               <input className="field" value={pageId} onChange={(e) => setPageId(e.target.value)} />
             </Field>
+          </div>
+        )}
+        {tipo === "fnrh_mtur" && (
+          <div className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+            <Field label="Versão da API">
+              <select className="field" value={fnrhApiVersion} onChange={(e) => setFnrhApiVersion(e.target.value)}>
+                <option value="2.4">2.4 (atual)</option>
+                <option value="2.3">2.3</option>
+              </select>
+            </Field>
+            <Field label="Identificador do usuário FNRH">
+              <input className="field" value={fnrhUserId} onChange={(e) => setFnrhUserId(e.target.value)} required />
+            </Field>
+            <p className="col-span-2 text-xs text-muted-foreground">
+              A chave secreta da API deve ser configurada como secret no servidor e nunca salva no navegador.
+            </p>
           </div>
         )}
         <Field label="Webhook / URL do provedor">

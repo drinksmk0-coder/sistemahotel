@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ImprimirRouteImport } from './routes/imprimir'
+import { Route as CheckinOnlineRouteImport } from './routes/checkin-online'
 import { Route as CadastroEmpresaRouteImport } from './routes/cadastro-empresa'
 import { Route as AvaliarRouteImport } from './routes/avaliar'
 import { Route as AuthRouteImport } from './routes/auth'
@@ -45,6 +46,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const ImprimirRoute = ImprimirRouteImport.update({
   id: '/imprimir',
   path: '/imprimir',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckinOnlineRoute = CheckinOnlineRouteImport.update({
+  id: '/checkin-online',
+  path: '/checkin-online',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CadastroEmpresaRoute = CadastroEmpresaRouteImport.update({
@@ -182,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/avaliar': typeof AvaliarRoute
   '/cadastro-empresa': typeof CadastroEmpresaRoute
+  '/checkin-online': typeof CheckinOnlineRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/assistente': typeof AuthenticatedAssistenteRoute
@@ -210,6 +217,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/avaliar': typeof AvaliarRoute
   '/cadastro-empresa': typeof CadastroEmpresaRoute
+  '/checkin-online': typeof CheckinOnlineRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/assistente': typeof AuthenticatedAssistenteRoute
@@ -240,6 +248,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/avaliar': typeof AvaliarRoute
   '/cadastro-empresa': typeof CadastroEmpresaRoute
+  '/checkin-online': typeof CheckinOnlineRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/assistente': typeof AuthenticatedAssistenteRoute
@@ -270,6 +279,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/avaliar'
     | '/cadastro-empresa'
+    | '/checkin-online'
     | '/imprimir'
     | '/sitemap.xml'
     | '/assistente'
@@ -298,6 +308,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/avaliar'
     | '/cadastro-empresa'
+    | '/checkin-online'
     | '/imprimir'
     | '/sitemap.xml'
     | '/assistente'
@@ -327,6 +338,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/avaliar'
     | '/cadastro-empresa'
+    | '/checkin-online'
     | '/imprimir'
     | '/sitemap.xml'
     | '/_authenticated/assistente'
@@ -357,6 +369,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   AvaliarRoute: typeof AvaliarRoute
   CadastroEmpresaRoute: typeof CadastroEmpresaRoute
+  CheckinOnlineRoute: typeof CheckinOnlineRoute
   ImprimirRoute: typeof ImprimirRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -376,6 +389,13 @@ declare module '@tanstack/react-router' {
       path: '/imprimir'
       fullPath: '/imprimir'
       preLoaderRoute: typeof ImprimirRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkin-online': {
+      id: '/checkin-online'
+      path: '/checkin-online'
+      fullPath: '/checkin-online'
+      preLoaderRoute: typeof CheckinOnlineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cadastro-empresa': {
@@ -610,6 +630,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   AvaliarRoute: AvaliarRoute,
   CadastroEmpresaRoute: CadastroEmpresaRoute,
+  CheckinOnlineRoute: CheckinOnlineRoute,
   ImprimirRoute: ImprimirRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiChatRoute: ApiChatRoute,

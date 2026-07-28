@@ -14,6 +14,8 @@ import {
   Upload,
   UsersRound,
   Search,
+  Send,
+  FileText,
 } from "lucide-react";
 import {
   useRooms,
@@ -603,6 +605,7 @@ function RowActions({
   const [paymentOpen, setPaymentOpen] = useState(false);
   const receiptUrl = whatsappReceiptUrl(reservation, client);
   const reviewUrl = whatsappReviewUrl(reservation, client);
+  const nfseUrl = whatsappNfseUrl(reservation, client);
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
       {!done && account.lodgingPaid <= 0 && (
@@ -731,6 +734,15 @@ function RowActions({
       >
         <Pencil className="h-3.5 w-3.5" />
       </button>
+      {!done && (
+        <button
+          className="rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold text-primary"
+          onClick={() => sendOnlineCheckin(reservation, client)}
+          title="Enviar FNRH e check-in online pelo WhatsApp"
+        >
+          <Send className="h-3.5 w-3.5" />
+        </button>
+      )}
       {receiptUrl ? (
         <a
           className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
@@ -748,6 +760,25 @@ function RowActions({
           title="Cliente sem telefone"
         >
           <MessageCircle className="h-3.5 w-3.5" />
+        </button>
+      )}
+      {nfseUrl ? (
+        <a
+          className="rounded-md bg-slate-bg px-2 py-1 text-xs font-semibold text-slate"
+          href={nfseUrl}
+          target="_blank"
+          rel="noopener"
+          title="Solicitar ou enviar NFS-e pelo WhatsApp"
+        >
+          <FileText className="h-3.5 w-3.5" />
+        </a>
+      ) : (
+        <button
+          className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground"
+          onClick={() => toast.error("Cadastre o telefone do cliente para tratar a NFS-e.")}
+          title="Cliente sem telefone"
+        >
+          <FileText className="h-3.5 w-3.5" />
         </button>
       )}
       {reviewUrl ? (
@@ -969,6 +1000,66 @@ function whatsappReceiptUrl(reservation: Reservation, client?: Client) {
     "Para nota fiscal, envie os dados da empresa/CNPJ por aqui que a recepção dará continuidade.",
     "Obrigado pela preferência!",
   ].join("\n");
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
+async function sendOnlineCheckin(reservation: Reservation, client?: Client) {
+  const phone = whatsappPhone(client?.telefone);
+  if (!phone) {
+    toast.error("Cadastre o telefone do cliente para enviar o check-in online.");
+    return;
+  }
+  const existing = await (supabase as any)
+    .from("guest_checkins")
+    .select("public_token,status")
+    .eq("reservation_id", reservation.id)
+    .maybeSingle();
+  if (existing.error) {
+    toast.error(existing.error.message);
+    return;
+  }
+  let token = existing.data?.public_token as string | undefined;
+  if (!token) {
+    const created = await (supabase as any)
+      .from("guest_checkins")
+      .insert({
+        company_id: reservation.company_id,
+        reservation_id: reservation.id,
+        client_id: reservation.cliente_id ?? null,
+      })
+      .select("public_token")
+      .single();
+    if (created.error) {
+      toast.error(created.error.message);
+      return;
+    }
+    token = created.data.public_token;
+  }
+  const formUrl = `${window.location.origin}/checkin-online?token=${token}`;
+  if (existing.data?.status && existing.data.status !== "enviado") {
+    window.open(formUrl, "_blank", "noopener");
+    toast.success("Ficha preenchida aberta para conferência ou impressão.");
+    return;
+  }
+  const message = [
+    `Olá, ${reservation.cliente_nome}!`,
+    `Para agilizar seu check-in no quarto ${reservation.quarto}, preencha e assine a Ficha Nacional de Registro de Hóspedes pelo celular:`,
+    formUrl,
+    "Ao finalizar, a recepção receberá os dados para conferência.",
+  ].join("\n\n");
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener");
+}
+
+function whatsappNfseUrl(reservation: Reservation, client?: Client) {
+  const phone = whatsappPhone(client?.telefone);
+  if (!phone) return "";
+  const message = [
+    `Olá, ${reservation.cliente_nome}!`,
+    `Sobre a NFS-e da hospedagem da reserva ${reservation.codigo_externo ?? reservation.id.slice(0, 8)}, quarto ${reservation.quarto}:`,
+    `Período: ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`,
+    `Valor da hospedagem: ${fmtBRL(reservation.valor_total)}`,
+    "Responda com o CPF/CNPJ e os dados que devem constar na nota. Após a emissão oficial, enviaremos o documento por esta conversa.",
+  ].join("\n\n");
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
