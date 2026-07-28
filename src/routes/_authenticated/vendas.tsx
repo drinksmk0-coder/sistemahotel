@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Download, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import {
   useRooms,
   useReservations,
@@ -19,6 +19,7 @@ import { fmtBRL, fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { PAYMENT_METHODS } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, EmptyState } from "@/components/ui-kit";
+import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
 
 export const Route = createFileRoute("/_authenticated/vendas")({
   component: Vendas,
@@ -53,8 +54,11 @@ function Vendas() {
   );
   const clientsById = new Map(clients.map((client) => [client.id, client]));
 
-  function exportCSV() {
-    downloadExcel(`vendas-${today}.xls`, [
+  function exportCSV(scope: ExportScope) {
+    const exportedSales =
+      scope.mode === "date" ? sales.filter((sale) => sale.data === scope.date) : sales;
+    const suffix = scope.mode === "date" ? scope.date : "historico-completo";
+    downloadExcel(`vendas-${suffix}.xls`, [
       [
         "Data",
         "Quarto",
@@ -69,7 +73,7 @@ function Vendas() {
         "Status",
         "Pagamento",
       ],
-      ...sales.map((s) => [
+      ...exportedSales.map((s) => [
         s.data,
         s.quarto,
         s.cliente_id ? (clientsById.get(s.cliente_id)?.nome ?? "") : "",
@@ -99,9 +103,7 @@ function Vendas() {
         subtitle="Bebidas, lavanderia e outros consumos. Cada venda é vinculada à hospedagem ativa do quarto."
         action={
           <div className="flex gap-2">
-            <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Excel
-            </button>
+            <ExportPeriodButton onExport={exportCSV} />
             <button
               onClick={() => setProductOpen(true)}
               className="btn-ghost flex items-center gap-1.5"

@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   CalendarDays,
-  Download,
   FileText,
   History,
   Mail,
@@ -30,6 +29,7 @@ import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
 import { getSystemSettings, type SystemSettings } from "@/lib/system-settings";
 import { buildClientInsights } from "@/lib/guest-account";
 import { ClientInsightModal, TierBadge } from "@/components/ClientInsightModal";
+import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   component: Clientes,
@@ -99,8 +99,26 @@ function Clientes() {
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
 
-  function exportCSV() {
-    downloadExcel(`clientes-${todayISO()}.xls`, [
+  function exportCSV(scope: ExportScope) {
+    const clientIdsOnDate =
+      scope.mode === "date"
+        ? new Set(
+            reservations
+              .filter(
+                (reservation) =>
+                  reservation.status !== "cancelado" &&
+                  reservation.checkin <= scope.date &&
+                  reservation.checkout >= scope.date,
+              )
+              .map((reservation) => reservation.cliente_id)
+              .filter((id): id is string => Boolean(id)),
+          )
+        : null;
+    const exportedClients = clientIdsOnDate
+      ? clients.filter((client) => clientIdsOnDate.has(client.id))
+      : clients;
+    const suffix = scope.mode === "date" ? scope.date : "historico-completo";
+    downloadExcel(`clientes-${suffix}.xls`, [
       [
         "Nome",
         "Tipo",
@@ -127,7 +145,7 @@ function Clientes() {
         "Dia preferido",
         "Cadastrado em",
       ],
-      ...clients.map((c) => [
+      ...exportedClients.map((c) => [
         c.nome,
         c.tipo,
         c.telefone,
@@ -163,9 +181,7 @@ function Clientes() {
         subtitle="Hóspedes e clientes fixos da pousada."
         action={
           <div className="flex gap-2">
-            <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Excel
-            </button>
+            <ExportPeriodButton onExport={exportCSV} />
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Novo cliente
             </button>

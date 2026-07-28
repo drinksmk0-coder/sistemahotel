@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Plus,
-  Download,
   Pencil,
   ArrowLeftRight,
   Ban,
@@ -51,6 +50,7 @@ import {
   ReservationImportModal,
   type ReservationImportResult,
 } from "@/components/ReservationImportModal";
+import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
 
 export const Route = createFileRoute("/_authenticated/reservas")({
   component: Reservas,
@@ -117,7 +117,15 @@ function Reservas() {
     );
   }, [reservations, sales, filter, search]);
 
-  function exportCSV() {
+  function exportCSV(scope: ExportScope) {
+    const exportedReservations =
+      scope.mode === "date"
+        ? reservations.filter(
+            (reservation) =>
+              reservation.checkin <= scope.date && reservation.checkout >= scope.date,
+          )
+        : reservations;
+    const suffix = scope.mode === "date" ? scope.date : "historico-completo";
     const rows: (string | number | null)[][] = [
       [
         "Quarto",
@@ -147,7 +155,7 @@ function Reservas() {
         "Motivo da estadia",
         "Status",
       ],
-      ...reservations.map((r) => {
+      ...exportedReservations.map((r) => {
         const client = clients.find((c) => c.id === r.cliente_id);
         return [
           r.quarto,
@@ -179,7 +187,7 @@ function Reservas() {
         ];
       }),
     ];
-    downloadExcel(`reservas-${todayISO()}.xls`, rows);
+    downloadExcel(`reservas-${suffix}.xls`, rows);
   }
 
   const phoneDigits = (value?: string | null) => (value ?? "").replace(/\D/g, "");
@@ -323,9 +331,7 @@ function Reservas() {
         subtitle={`${reservations.length} reserva(s) · hospedagem, consumo e pagamentos consolidados`}
         action={
           <div className="flex gap-2">
-            <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Excel
-            </button>
+            <ExportPeriodButton onExport={exportCSV} />
             <button
               onClick={() => setImportOpen(true)}
               className="btn-ghost flex items-center gap-1.5"

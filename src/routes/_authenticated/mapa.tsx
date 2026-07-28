@@ -96,23 +96,18 @@ function Mapa() {
   const maxComplaints = Math.max(1, ...complaintsByRoom.values());
   const revenueByRoom = useMemo(() => {
     const m = new Map<number, number>();
-    reservations.forEach((r) => {
-      if (!["cancelado", "finalizado"].includes(r.status) && r.checkout >= today) {
-        m.set(r.quarto, (m.get(r.quarto) ?? 0) + Number(r.valor_total));
-      }
+    rooms.forEach((room) => {
+      const stay = activeReservationForRoom(reservations, room.numero);
+      if (!stay) return;
+      const staySales = salesForStay(sales, stay);
+      m.set(
+        room.numero,
+        Number(stay.valor_total) +
+          staySales.reduce((sum, sale) => sum + Number(sale.total ?? 0), 0),
+      );
     });
-    sales
-      .filter((s) => {
-        const reservation = s.reserva_id ? reservations.find((r) => r.id === s.reserva_id) : null;
-        return (
-          !reservation ||
-          (!["cancelado", "finalizado"].includes(reservation.status) &&
-            reservation.checkout >= today)
-        );
-      })
-      .forEach((s) => m.set(s.quarto, (m.get(s.quarto) ?? 0) + Number(s.total)));
     return m;
-  }, [reservations, sales, today]);
+  }, [reservations, rooms, sales]);
 
   const dateSummary = useMemo(() => {
     const arrivals = reservations.filter((r) => r.status !== "cancelado" && r.checkin === viewDate);
@@ -355,11 +350,11 @@ function Mapa() {
         {roomSearch && searchedRoom && (
           <RoomSearchSummary
             room={searchedRoom}
-            reservation={
-              reservationForDate(reservations, searchedRoom.numero, viewDate) ??
-              activeReservationForRoom(reservations, searchedRoom.numero)
-            }
-            sales={sales.filter((sale) => sale.quarto === searchedRoom.numero)}
+            reservation={activeReservationForRoom(reservations, searchedRoom.numero)}
+            sales={salesForStay(
+              sales,
+              activeReservationForRoom(reservations, searchedRoom.numero),
+            )}
             revenue={revenueByRoom.get(searchedRoom.numero) ?? 0}
             status={roomVisualStatus(reservations, searchedRoom, viewDate)}
             onOpen={() => setSelected(searchedRoom)}
@@ -499,7 +494,9 @@ function Mapa() {
                         </div>
                       )}
                       {revenue > 0 && (
-                        <div className="mt-1 text-[9px] font-semibold">{fmtBRL(revenue)}</div>
+                        <div className="mt-1 text-[9px] font-semibold">
+                          Conta atual: {fmtBRL(revenue)}
+                        </div>
                       )}
                       {n > 0 && (
                         <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brick px-1 text-[9px] font-bold text-white">
@@ -608,14 +605,7 @@ function RoomModal({
   clients: Client[];
   viewDate: string;
   futureReservations: ReturnType<typeof futureReservationsForRoom>;
-  sales: {
-    id: string;
-    item: string;
-    qtd: number;
-    total: number;
-    reserva_id: string | null;
-    categoria: string | null;
-  }[];
+  sales: Sale[];
   complaints: {
     id: string;
     categoria: string;
@@ -626,10 +616,7 @@ function RoomModal({
   onNew: () => void;
   onSituacao: (situacao: string | null) => void;
 }) {
-  const stayId = reservation?.id;
-  const staySales = stayId
-    ? sales.filter((s) => s.reserva_id === stayId || s.reserva_id == null)
-    : sales;
+  const staySales = salesForStay(sales, reservation);
   const salesTotal = staySales.reduce((s, v) => s + Number(v.total), 0);
   const diaria = reservation ? Number(reservation.valor_total) : 0;
   const totalHospedagem = diaria + salesTotal;
@@ -909,13 +896,27 @@ function RoomSearchSummary({
         <p className="text-xs text-muted-foreground">{sales.length} lançamento(s)</p>
       </div>
       <div>
-        <p className="text-[11px] font-semibold uppercase text-muted-foreground">Receita total</p>
+        <p className="text-[11px] font-semibold uppercase text-muted-foreground">
+          Conta da hospedagem atual
+        </p>
         <p className="font-serif text-xl font-bold text-pine-dark">
           {fmtBRL(revenue || total + salesTotal)}
         </p>
         <p className="text-xs text-muted-foreground">Clique para ver detalhes</p>
       </div>
     </button>
+  );
+}
+
+function salesForStay(sales: Sale[], reservation: Reservation | null): Sale[] {
+  if (!reservation) return [];
+  return sales.filter(
+    (sale) =>
+      sale.quarto === reservation.quarto &&
+      (sale.reserva_id === reservation.id ||
+        (sale.reserva_id == null &&
+          sale.data >= reservation.checkin &&
+          sale.data <= reservation.checkout)),
   );
 }
 

@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Download, Pencil, Trash2, Save } from "lucide-react";
+import { Pencil, Trash2, Save } from "lucide-react";
 import { useFeedbacks, useUpdate, useDelete, type Feedback } from "@/lib/data";
 import { fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { PageHeader } from "@/components/AppLayout";
 import { Stars, Badge, EmptyState, Modal, Field } from "@/components/ui-kit";
+import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
 import {
   Bar,
   BarChart,
@@ -87,10 +88,15 @@ function Avaliacoes() {
       }));
   }, [filtrados]);
 
-  function exportCSV() {
-    downloadExcel(`avaliacoes-${todayISO()}.xls`, [
+  function exportCSV(scope: ExportScope) {
+    const exportedFeedbacks =
+      scope.mode === "date"
+        ? filtrados.filter((feedback) => feedback.created_at.slice(0, 10) === scope.date)
+        : filtrados;
+    const suffix = scope.mode === "date" ? scope.date : "historico-completo";
+    downloadExcel(`avaliacoes-${suffix}.xls`, [
       ["Data", "Hóspede", "Quarto", "Geral", "Limpeza", "Conforto", "Atendimento", "WiFi", "Chuveiro", "Recomenda", "Comentário", "Sugestão"],
-      ...filtrados.map((f) => [
+      ...exportedFeedbacks.map((f) => [
         f.created_at.slice(0, 10),
         f.hospede_nome,
         f.quarto,
@@ -132,9 +138,7 @@ function Avaliacoes() {
                 </option>
               ))}
             </select>
-            <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Excel
-            </button>
+            <ExportPeriodButton onExport={exportCSV} />
           </div>
         }
       />

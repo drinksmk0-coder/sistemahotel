@@ -5,7 +5,7 @@ import { DefaultChatTransport } from "ai";
 import { Bot, CheckCircle2, MessageSquareWarning, Send, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useInsert, useSystemIssues, useUpdate } from "@/lib/data";
+import { useCurrentCompany, useInsert, useSystemIssues, useUpdate } from "@/lib/data";
 import { PageHeader } from "@/components/AppLayout";
 import {
   Conversation,
@@ -22,13 +22,14 @@ export const Route = createFileRoute("/_authenticated/assistente")({
 });
 
 const SUGGESTIONS = [
-  "Como lançar um produto no quarto do hóspede?",
-  "Como receber uma conta paga parcialmente?",
-  "Onde vejo clientes Ouro, Prata e Bronze?",
-  "Como registrar um problema do sistema?",
+  "Por que a receita deste mês melhorou ou piorou?",
+  "Quais canais trazem mais receita e quais devo priorizar?",
+  "Analise ocupação, ADR, RevPAR, TRevPAR e GOPPAR.",
+  "Quais despesas e reclamações exigem ação primeiro?",
 ];
 
 function Assistente() {
+  const currentCompany = useCurrentCompany();
   const { data: issues = [] } = useSystemIssues();
   const insertIssue = useInsert("system_issues", ["system_issues"]);
   const updateIssue = useUpdate("system_issues", ["system_issues"]);
@@ -47,10 +48,13 @@ function Assistente() {
           if (data.session) {
             headers.Authorization = `Bearer ${data.session.access_token}`;
           }
+          if (currentCompany.data?.id) {
+            headers["x-company-id"] = currentCompany.data.id;
+          }
           return headers;
         },
       }),
-    [],
+    [currentCompany.data?.id],
   );
   const { messages, sendMessage, status, error } = useChat({ transport });
   const busy = status === "submitted" || status === "streaming";
@@ -100,10 +104,10 @@ function Assistente() {
           <div className="border-b border-border px-4 py-3">
             <h2 className="flex items-center gap-2 font-bold text-pine-dark">
               <Bot className="h-5 w-5 text-brass" />
-              HotelAI — ajuda sobre o sistema
+              HotelAI — analista estratégico do hotel
             </h2>
             <p className="text-xs text-muted-foreground">
-              O assistente não solicita senhas, tokens nem códigos de autenticação.
+              Usa dados agregados da empresa. Não envia nomes, CPF, telefone ou e-mail ao Gemini.
             </p>
           </div>
 
@@ -113,7 +117,7 @@ function Assistente() {
                 <ConversationEmptyState
                   icon={<Bot className="h-8 w-8" />}
                   title="Como posso ajudar?"
-                  description="Pergunte sobre reservas, contas, clientes, vendas, mapas ou relatórios."
+                  description="Pergunte por que o hotel melhorou ou piorou e quais ações aumentam lucro, ocupação e satisfação."
                 />
               ) : (
                 messages.map((message) => (
@@ -157,7 +161,7 @@ function Assistente() {
 
           {error && (
             <p className="mx-3 mt-2 rounded-md bg-brick-bg px-3 py-2 text-xs text-brick">
-              Não foi possível consultar a IA. Confirme se o AI Gateway está habilitado na Vercel.
+              Não foi possível consultar o Gemini. Confirme o segredo GEMINI_API_KEY no Supabase.
             </p>
           )}
 
@@ -172,8 +176,8 @@ function Assistente() {
               className="field flex-1"
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Pergunte como usar o sistema…"
-              maxLength={1000}
+              placeholder="Ex.: por que a ocupação caiu e o que devo fazer?"
+              maxLength={2000}
             />
             <button type="submit" className="btn-primary" disabled={busy || !input.trim()}>
               <Send className="h-4 w-4" />

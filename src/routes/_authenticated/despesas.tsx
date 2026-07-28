@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { ChartHtmlLegend } from "@/components/DashboardKit";
 import { EmptyState, Field, Modal } from "@/components/ui-kit";
 import { useDelete, useExpenses, useInsert, useUpdate, type Expense } from "@/lib/data";
 import { downloadExcel, fmtBRL, fmtDate, todayISO } from "@/lib/format";
+import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
 import {
   Bar,
   BarChart,
@@ -55,10 +56,13 @@ function Despesas() {
       .map(([mes, valor]) => ({ mes: `${mes.slice(5)}/${mes.slice(2, 4)}`, valor }));
   }, [expenses]);
 
-  function exportCSV() {
-    downloadExcel(`despesas-${todayISO()}.xls`, [
+  function exportCSV(scope: ExportScope) {
+    const exportedExpenses =
+      scope.mode === "date" ? expenses.filter((expense) => expense.data === scope.date) : expenses;
+    const suffix = scope.mode === "date" ? scope.date : "historico-completo";
+    downloadExcel(`despesas-${suffix}.xls`, [
       ["Data", "Categoria", "Descricao", "Fornecedor", "Pagamento", "Valor", "Observacoes"],
-      ...expenses.map((e) => [e.data, e.categoria, e.descricao, e.fornecedor ?? "", e.pagamento ?? "", e.valor, e.observacoes ?? ""]),
+      ...exportedExpenses.map((e) => [e.data, e.categoria, e.descricao, e.fornecedor ?? "", e.pagamento ?? "", e.valor, e.observacoes ?? ""]),
     ]);
   }
 
@@ -69,9 +73,7 @@ function Despesas() {
         subtitle="Controle de gastos por categoria para comparar receita, custos e margem."
         action={
           <div className="flex gap-2">
-            <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Excel
-            </button>
+            <ExportPeriodButton onExport={exportCSV} />
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Nova despesa
             </button>

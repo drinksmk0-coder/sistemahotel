@@ -1,12 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Download } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useRooms, useComplaints, useInsert, useUpdate } from "@/lib/data";
 import { fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { COMPLAINT_CATEGORIES, COMPLAINT_SEVERITY, COMPLAINT_STATUS, WIFI_DEVICES, complaintLabel, complaintStatusLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
+import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
 
 export const Route = createFileRoute("/_authenticated/reclamacoes")({
   component: Reclamacoes,
@@ -64,10 +65,15 @@ function Reclamacoes() {
     [complaints],
   );
 
-  function exportCSV() {
-    downloadExcel(`reclamacoes-${todayISO()}.xls`, [
+  function exportCSV(scope: ExportScope) {
+    const exportedComplaints =
+      scope.mode === "date"
+        ? complaints.filter((complaint) => complaint.created_at.slice(0, 10) === scope.date)
+        : complaints;
+    const suffix = scope.mode === "date" ? scope.date : "historico-completo";
+    downloadExcel(`reclamacoes-${suffix}.xls`, [
       ["Data", "Quarto", "Categoria", "Gravidade", "Origem", "Aparelho", "Hóspede", "Status", "Descrição"],
-      ...complaints.map((c) => [
+      ...exportedComplaints.map((c) => [
         c.created_at.slice(0, 10),
         c.quarto,
         complaintLabel(c.categoria),
@@ -88,9 +94,7 @@ function Reclamacoes() {
         subtitle="Registre e acompanhe problemas por quarto. Para Wi-Fi, guarde o aparelho para saber se é do quarto ou do hóspede."
         action={
           <div className="flex gap-2">
-            <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Excel
-            </button>
+            <ExportPeriodButton onExport={exportCSV} />
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Nova reclamação
             </button>
