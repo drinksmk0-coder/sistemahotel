@@ -19,6 +19,12 @@ import {
   Settings2,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  getAiDesignProfile,
+  normalizeAiDesignProfile,
+  recommendedChartType,
+  type AiDesignProfile,
+} from "@/lib/ai-designer";
 
 export type DashboardChartType =
   "bar" | "horizontalBar" | "line" | "area" | "pie" | "doughnut" | "radar" | "composed";
@@ -55,6 +61,7 @@ export type DashboardWidget = {
 type StoredLayout = {
   order: string[];
   widgets: Record<string, DashboardWidgetSettings>;
+  aiDesignVersion?: string;
 };
 
 const MIN_WIDGET_HEIGHT = 2;
@@ -98,7 +105,7 @@ function loadLayout(
     const current = window.localStorage.getItem(storageKey(companyId, dashboardId));
     const stored = JSON.parse(current ?? "{}") as Partial<StoredLayout>;
     const storedWidgets = stored.widgets ?? {};
-    return {
+    const result: StoredLayout = {
       order: [
         ...(stored.order ?? []).filter((id) => widgets.some((widget) => widget.id === id)),
         ...widgets.map((widget) => widget.id).filter((id) => !(stored.order ?? []).includes(id)),
@@ -109,10 +116,81 @@ function loadLayout(
           { ...defaultSettings(widget), ...storedWidgets[widget.id], id: widget.id },
         ]),
       ),
+      aiDesignVersion: stored.aiDesignVersion,
     };
+    const profile = getAiDesignProfile(companyId);
+    return profile && result.aiDesignVersion !== profile.version
+      ? applyAiDesignProfile(result, widgets, profile)
+      : result;
   } catch {
     return fallback;
   }
+}
+
+function applyAiDesignProfile(
+  current: StoredLayout,
+  widgets: DashboardWidget[],
+  profile: AiDesignProfile,
+): StoredLayout {
+  return {
+    ...current,
+    aiDesignVersion: profile.version,
+    widgets: Object.fromEntries(
+      widgets.map((widget) => {
+        const settings = current.widgets[widget.id] ?? defaultSettings(widget);
+        const preset =
+          widget.kind === "kpi"
+            ? profile.kpi
+            : widget.kind === "chart"
+              ? profile.chart
+              : profile.content;
+        const title = widget.title
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
+        const needsWideView = [
+          "evolucao",
+          "historico",
+          "previsao",
+          "mapa",
+          "calendario",
+          "perfil dos hospedes",
+        ].some((term) => title.includes(term));
+        const columns =
+          widget.kind === "kpi"
+            ? preset.columns
+            : needsWideView
+              ? 12
+              : Math.min(12, Math.max(preset.columns, widget.defaultColumns ?? preset.columns));
+        const height =
+          title.includes("mapa") || title.includes("perfil dos hospedes")
+            ? Math.max(400, widget.defaultHeight ?? preset.height)
+            : needsWideView
+              ? Math.max(preset.height, 300)
+              : preset.height;
+        return [
+          widget.id,
+          {
+            ...settings,
+            columns,
+            height,
+            fontSize: preset.fontSize,
+            contentScale: preset.contentScale,
+            backgroundOpacity: preset.backgroundOpacity,
+            backgroundColor: "var(--card)",
+            autoFit: profile.autoFit,
+            showLegend: widget.kind === "chart" ? profile.showLegend : settings.showLegend,
+            showLabels: widget.kind === "chart" ? profile.showLabels : settings.showLabels,
+            showAccentBorder: false,
+            chartType:
+              widget.kind === "chart"
+                ? recommendedChartType(widget, profile)
+                : settings.chartType,
+          },
+        ];
+      }),
+    ),
+  };
 }
 
 export function DashboardDesigner({
@@ -210,6 +288,19 @@ export function DashboardDesigner({
     },
     [],
   );
+
+  useEffect(() => {
+    function applyDesign(event: Event) {
+      const profile = normalizeAiDesignProfile((event as CustomEvent).detail);
+      setLayout((current) => {
+        const next = applyAiDesignProfile(current, widgets, profile);
+        window.localStorage.setItem(storageKey(companyId, dashboardId), JSON.stringify(next));
+        return next;
+      });
+    }
+    window.addEventListener("hotelreal:ai-design", applyDesign);
+    return () => window.removeEventListener("hotelreal:ai-design", applyDesign);
+  }, [companyId, dashboardId, widgets]);
 
   function updateWidget(id: string, patch: Partial<DashboardWidgetSettings>) {
     setLayout((current) => ({
@@ -470,9 +561,7 @@ export function DashboardDesigner({
 
       <div ref={gridRef} className="grid grid-cols-1 gap-3 lg:grid-cols-12">
         {orderedWidgets.map((widget) => {
-          const settings = fixed
-            ? defaultSettings(widget)
-            : layout.widgets[widget.id] ?? defaultSettings(widget);
+          const settings = layout.widgets[widget.id] ?? defaultSettings(widget);
           if (settings.hidden && !editing) return null;
           const defaultHeight = widget.defaultHeight ?? (widget.kind === "kpi" ? 110 : 290);
           const defaultColumns = widget.defaultColumns ?? (widget.kind === "kpi" ? 2 : 6);

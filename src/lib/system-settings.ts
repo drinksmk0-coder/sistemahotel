@@ -18,6 +18,7 @@ export type SystemSettings = {
   shadows: "none" | "soft" | "strong";
   chartPalette: string[];
   autoPalette: boolean;
+  aiDesignerEnabled: boolean;
   requiredGuestFields: Record<GuestFieldKey, boolean>;
 };
 
@@ -38,6 +39,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   shadows: "soft",
   chartPalette: ["#2878e8", "#10b981", "#f59e0b", "#f43f5e", "#7c3aed", "#64748b"],
   autoPalette: true,
+  aiDesignerEnabled: true,
   requiredGuestFields: {
     cpf: true,
     telefone: true,

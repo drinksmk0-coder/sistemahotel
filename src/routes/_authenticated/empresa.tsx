@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { BarChart3, ImagePlus, Palette, Plus, Save } from "lucide-react";
+import { BarChart3, ImagePlus, Palette, Plus, RotateCcw, Save, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Field, Modal } from "@/components/ui-kit";
 import { useCurrentCompany, useInsert, useRooms, useUpdate, type Company, type Room } from "@/lib/data";
@@ -15,6 +15,12 @@ import {
   type GuestFieldKey,
   type SystemSettings,
 } from "@/lib/system-settings";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  normalizeAiDesignProfile,
+  saveAiDesignProfile,
+  type AiDesignProfile,
+} from "@/lib/ai-designer";
 
 export const Route = createFileRoute("/_authenticated/empresa")({
   component: Empresa,
@@ -152,6 +158,12 @@ const GUEST_FIELD_LABELS: Record<GuestFieldKey, string> = {
 
 function SystemCustomization({ companyId }: { companyId: string }) {
   const [settings, setSettings] = useState<SystemSettings>(() => getSystemSettings(companyId));
+  const [designerBusy, setDesignerBusy] = useState(false);
+  const [designerSuggestion, setDesignerSuggestion] = useState<{
+    system: Partial<SystemSettings>;
+    profile: AiDesignProfile;
+  } | null>(null);
+  const [previousSettings, setPreviousSettings] = useState<SystemSettings | null>(null);
 
   useEffect(() => {
     applySystemSettings(settings);
@@ -180,6 +192,72 @@ function SystemCustomization({ companyId }: { companyId: string }) {
       theme,
       autoPalette: true,
     }));
+  }
+
+  async function analyzeDesign() {
+    setDesignerBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("hotel-analyst", {
+        body: {
+          mode: "design",
+          company_id: companyId,
+          current_settings: {
+            primaryColor: settings.primaryColor,
+            accentColor: settings.accentColor,
+            backgroundColor: settings.backgroundColor,
+            surfaceColor: settings.surfaceColor,
+            textColor: settings.textColor,
+            theme: settings.theme,
+            backgroundStyle: settings.backgroundStyle,
+            surfaceOpacity: settings.surfaceOpacity,
+            chartSurfaceOpacity: settings.chartSurfaceOpacity,
+            borderRadius: settings.borderRadius,
+            uiScale: settings.uiScale,
+            glassEffect: settings.glassEffect,
+            shadows: settings.shadows,
+            chartPalette: settings.chartPalette,
+          },
+        },
+      });
+      if (error) throw error;
+      if (!data?.design?.system || !data?.design?.profile) {
+        throw new Error("O Gemini não retornou uma proposta visual válida.");
+      }
+      setDesignerSuggestion({
+        system: data.design.system as Partial<SystemSettings>,
+        profile: normalizeAiDesignProfile(data.design.profile),
+      });
+      toast.success("Análise visual concluída. Confira a prévia antes de aplicar.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao consultar o designer Gemini.");
+    } finally {
+      setDesignerBusy(false);
+    }
+  }
+
+  function applyAiSuggestion() {
+    if (!designerSuggestion) return;
+    const next: SystemSettings = {
+      ...settings,
+      ...designerSuggestion.system,
+      autoPalette: true,
+      aiDesignerEnabled: true,
+      requiredGuestFields: settings.requiredGuestFields,
+    };
+    setPreviousSettings(settings);
+    setSettings(next);
+    saveSystemSettings(companyId, next);
+    saveAiDesignProfile(companyId, designerSuggestion.profile);
+    setDesignerSuggestion(null);
+    toast.success("Designer Gemini aplicado em todo o sistema e nos dashboards.");
+  }
+
+  function undoAiDesign() {
+    if (!previousSettings) return;
+    setSettings(previousSettings);
+    saveSystemSettings(companyId, previousSettings);
+    setPreviousSettings(null);
+    toast.success("Visual anterior restaurado.");
   }
 
   return (
@@ -405,6 +483,93 @@ function SystemCustomization({ companyId }: { companyId: string }) {
               }}
             />
           </label>
+          <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <span>
+                <span className="flex items-center gap-1.5 text-sm font-bold text-pine-dark">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Designer Gemini automático
+                </span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+                  Analisa contraste, densidade, tamanhos, legendas e tipos de gráfico. A proposta
+                  aparece antes de ser aplicada e pode ser desfeita.
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.aiDesignerEnabled}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    aiDesignerEnabled: event.target.checked,
+                  }))
+                }
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-primary flex items-center gap-1.5 text-xs"
+                disabled={designerBusy || !settings.aiDesignerEnabled}
+                onClick={analyzeDesign}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {designerBusy ? "Analisando…" : "Analisar visual agora"}
+              </button>
+              {previousSettings && (
+                <button
+                  type="button"
+                  className="btn-ghost flex items-center gap-1.5 text-xs"
+                  onClick={undoAiDesign}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Desfazer IA
+                </button>
+              )}
+            </div>
+          </div>
+          {designerSuggestion && (
+            <div className="rounded-lg border border-sage/40 bg-sage-bg/55 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-pine-dark">Prévia sugerida pelo Gemini</p>
+                  <p className="max-w-2xl text-[11px] text-muted-foreground">
+                    {designerSuggestion.profile.explanation}
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  {(designerSuggestion.system.chartPalette ?? settings.chartPalette).map(
+                    (color, index) => (
+                      <span
+                        key={`${color}-${index}`}
+                        className="h-6 w-6 rounded-full border border-white shadow"
+                        style={{ backgroundColor: color }}
+                        title={`Cor ${index + 1}: ${color}`}
+                      />
+                    ),
+                  )}
+                </div>
+              </div>
+              {designerSuggestion.profile.diagnostics.length > 0 && (
+                <ul className="mt-2 grid gap-1 text-[11px] text-muted-foreground sm:grid-cols-2">
+                  {designerSuggestion.profile.diagnostics.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button type="button" className="btn-primary text-xs" onClick={applyAiSuggestion}>
+                  Aplicar em todo o sistema
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost text-xs"
+                  onClick={() => setDesignerSuggestion(null)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-5">

@@ -48,6 +48,7 @@ import {
 } from "recharts";
 import {
   useClients,
+  useComplaints,
   useExpenses,
   useFeedbacks,
   useReservations,
@@ -55,6 +56,7 @@ import {
   useSales,
   useCurrentCompany,
   type Client,
+  type Complaint,
   type Expense,
   type Feedback,
   type Reservation,
@@ -82,8 +84,6 @@ export const Route = createFileRoute("/_authenticated/dashboard-estrategico")({
   component: DashboardEstrategico,
 });
 
-type DashboardSection = "geral" | "canais" | "quartos" | "clientes" | "tendencias";
-
 const COLORS = {
   pine: "var(--pine)",
   sage: "var(--sage)",
@@ -110,8 +110,8 @@ function DashboardEstrategico() {
   const { data: expenses = [] } = useExpenses();
   const { data: clients = [] } = useClients();
   const { data: feedbacks = [] } = useFeedbacks();
+  const { data: complaints = [] } = useComplaints();
   const currentCompany = useCurrentCompany();
-  const [section, setSection] = useState<DashboardSection>("geral");
   const [period, setPeriod] = useState<DashboardPeriod>("mes");
   const range = periodRange(period, today);
   const previousRange = periodRange(period, today, -1);
@@ -222,6 +222,21 @@ function DashboardEstrategico() {
     "profissao",
   );
   const profileRevenueRows = buildProfileRevenue(filteredReservations, clientById);
+  const occupancyWeekdayRows = buildWeekdayOccupancy(
+    filteredReservations,
+    rooms.length,
+    range.start,
+    range.end,
+  );
+  const paymentRows = buildPaymentRows(filteredReservations, filteredSales);
+  const roomTypeRows = buildRoomTypePerformance(
+    filteredReservations,
+    rooms,
+    range.start,
+    range.end,
+  );
+  const feedbackRows = buildFeedbackCriteria(feedbacks);
+  const complaintRows = buildComplaintRows(complaints);
   const dashboardWidgets: DashboardWidget[] = [
     {
       id: "reservas",
@@ -484,6 +499,141 @@ function DashboardEstrategico() {
       render: (settings) => <FutureOccupancyGauge settings={settings} value={ocupacao30} />,
     },
   ];
+  const occupancyWidgets: DashboardWidget[] = [
+    {
+      id: "ocupacao-semana",
+      title: "Ocupação por dia da semana",
+      kind: "chart",
+      defaultColumns: 7,
+      defaultHeight: 270,
+      defaultColor: "var(--chart-1)",
+      chartTypes: ["bar", "line", "area", "radar"],
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={occupancyWeekdayRows}
+          categoryKey="dia"
+          series={[{ key: "ocupacao", label: "Ocupação %", color: settings.color }]}
+          settings={settings}
+        />
+      ),
+    },
+    {
+      id: "demanda-30-dias",
+      title: "Demanda e receita dos próximos 30 dias",
+      kind: "chart",
+      defaultColumns: 5,
+      defaultHeight: 270,
+      defaultColor: "var(--chart-2)",
+      chartTypes: ["composed", "line", "area", "bar"],
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={forecast}
+          categoryKey="label"
+          series={[
+            { key: "ocupacao", label: "Ocupação %", color: settings.color },
+            { key: "receita", label: "Receita", color: "var(--chart-3)", currency: true },
+          ]}
+          settings={settings}
+        />
+      ),
+    },
+  ];
+  const pricingWidgets: DashboardWidget[] = [
+    {
+      id: "desempenho-tipo-quarto",
+      title: "ADR e ocupação por tipo de quarto",
+      kind: "chart",
+      defaultColumns: 7,
+      defaultHeight: 290,
+      defaultColor: "var(--chart-1)",
+      chartTypes: ["composed", "bar", "horizontalBar", "radar"],
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={roomTypeRows}
+          categoryKey="tipo"
+          series={[
+            { key: "adr", label: "ADR", color: settings.color, currency: true },
+            { key: "ocupacao", label: "Ocupação %", color: "var(--chart-2)" },
+          ]}
+          settings={settings}
+        />
+      ),
+    },
+    {
+      id: "receita-tipo-quarto",
+      title: "Receita por tipo de quarto",
+      kind: "chart",
+      defaultColumns: 5,
+      defaultHeight: 290,
+      defaultColor: "var(--chart-2)",
+      chartTypes: ["horizontalBar", "bar", "doughnut", "pie", "radar"],
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={roomTypeRows}
+          categoryKey="tipo"
+          series={[
+            { key: "receita", label: "Receita", color: settings.color, currency: true },
+          ]}
+          settings={settings}
+        />
+      ),
+    },
+  ];
+  const financialWidgets: DashboardWidget[] = [
+    {
+      id: "formas-pagamento",
+      title: "Formas de pagamento",
+      kind: "chart",
+      defaultColumns: 5,
+      defaultHeight: 280,
+      defaultColor: "var(--chart-2)",
+      chartTypes: ["doughnut", "pie", "horizontalBar", "bar", "radar"],
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={paymentRows}
+          categoryKey="name"
+          series={[{ key: "value", label: "Recebido", color: settings.color, currency: true }]}
+          settings={settings}
+        />
+      ),
+    },
+  ];
+  const evaluationWidgets: DashboardWidget[] = [
+    {
+      id: "avaliacoes-criterios",
+      title: "Avaliações por critério",
+      kind: "chart",
+      defaultColumns: 6,
+      defaultHeight: 290,
+      defaultColor: "var(--chart-2)",
+      chartTypes: ["radar", "bar", "horizontalBar", "line"],
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={feedbackRows}
+          categoryKey="name"
+          series={[{ key: "value", label: "Nota média", color: settings.color }]}
+          settings={settings}
+        />
+      ),
+    },
+    {
+      id: "reclamacoes-categoria",
+      title: "Reclamações por categoria",
+      kind: "chart",
+      defaultColumns: 6,
+      defaultHeight: 290,
+      defaultColor: "var(--chart-4)",
+      chartTypes: ["horizontalBar", "bar", "doughnut", "pie", "radar"],
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={complaintRows}
+          categoryKey="name"
+          series={[{ key: "value", label: "Reclamações", color: settings.color }]}
+          settings={settings}
+        />
+      ),
+    },
+  ];
   const clientWidgets: DashboardWidget[] = [
     {
       id: "mapa-perfil-hospedes",
@@ -700,116 +850,150 @@ function DashboardEstrategico() {
         onPeriodChange={setPeriod}
       />
 
-      <div className="grid gap-3 xl:grid-cols-[9rem_1fr]">
-        <nav className="flex flex-row flex-wrap gap-2 xl:flex-col">
-          {[
-            ["geral", "Visão geral"],
-            ["canais", "Canais"],
-            ["quartos", "Quartos"],
-            ["clientes", "Clientes"],
-            ["tendencias", "Tendências"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setSection(key as DashboardSection)}
-              className={`rounded-lg border px-3 py-2 text-left text-xs font-bold transition ${
-                section === key
-                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                  : "border-border bg-card text-pine-dark hover:bg-muted"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </nav>
+      <main className="min-w-0 space-y-5">
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="estrategico-kpis"
+          widgets={dashboardWidgets}
+          title="KPIs estratégicos"
+          fixed
+        />
 
-        <main className="min-w-0 space-y-3">
-          <DashboardDesigner
-            companyId={currentCompany.data?.id}
-            dashboardId="estrategico-kpis"
-            widgets={dashboardWidgets}
-            title="Personalizar KPIs estratégicos"
-            description="Mova, oculte e escolha o tamanho exato de cada indicador"
-            fixed
-          />
+        <IndicatorSectionTitle
+          number={1}
+          title="Ocupação e demanda"
+          description="Disponibilidade, comportamento semanal e previsão dos próximos dias."
+        />
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="indicadores-ocupacao"
+          widgets={occupancyWidgets}
+          fixed
+        />
 
-          {section === "geral" && (
-            <DashboardDesigner
-              companyId={currentCompany.data?.id}
-              dashboardId="estrategico-geral"
-              widgets={generalWidgets}
-              title="Personalizar gráficos gerais"
-              fixed
-            />
+        <IndicatorSectionTitle
+          number={2}
+          title="Receita"
+          description="Evolução financeira, origem da receita e expectativa futura."
+        />
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="estrategico-geral"
+          widgets={generalWidgets.filter((widget) =>
+            ["evolucao-financeira", "origem-receita", "forecast"].includes(widget.id),
           )}
+          fixed
+        />
 
-          {section === "canais" && (
-            <DashboardDesigner
-              companyId={currentCompany.data?.id}
-              dashboardId="estrategico-canais"
-              widgets={channelWidgets}
-              title="Personalizar análise de canais"
-              fixed
-            />
-          )}
+        <IndicatorSectionTitle
+          number={3}
+          title="Preços e quartos"
+          description="ADR, ocupação, receita e rentabilidade por categoria e unidade habitacional."
+        />
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="indicadores-precos"
+          widgets={pricingWidgets}
+          fixed
+        />
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="estrategico-quartos"
+          widgets={roomWidgets}
+          fixed
+        />
 
-          {section === "clientes" && (
-            <DashboardDesigner
-              companyId={currentCompany.data?.id}
-              dashboardId="estrategico-clientes"
-              widgets={clientWidgets}
-              title="Personalizar perfil dos hóspedes"
-              fixed
-            />
-          )}
+        <IndicatorSectionTitle
+          number={4}
+          title="Indicadores financeiros"
+          description="Receita, despesas, lucro, formas de pagamento e custos operacionais."
+        />
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="indicadores-financeiro"
+          widgets={[
+            ...generalWidgets.filter((widget) => widget.id === "despesas-categoria"),
+            ...trendWidgets,
+            ...financialWidgets,
+          ]}
+          fixed
+        />
 
-          {section === "tendencias" && (
-            <DashboardDesigner
-              companyId={currentCompany.data?.id}
-              dashboardId="estrategico-tendencias"
-              widgets={trendWidgets}
-              title="Personalizar tendências e previsões"
-              fixed
-            />
-          )}
+        <IndicatorSectionTitle
+          number={5}
+          title="Perfil dos hóspedes"
+          description="Origem, receita, sexo, estado civil e profissão no mesmo campo de visão."
+        />
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="estrategico-clientes"
+          widgets={clientWidgets}
+          fixed
+        />
 
-          {section === "quartos" && (
-            <DashboardDesigner
-              companyId={currentCompany.data?.id}
-              dashboardId="estrategico-quartos"
-              widgets={roomWidgets}
-              title="Personalizar desempenho dos quartos"
-              fixed
-            />
-          )}
+        <IndicatorSectionTitle
+          number={6}
+          title="Avaliações e reclamações"
+          description="Notas por critério e assuntos que mais prejudicam a experiência."
+        />
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="indicadores-avaliacoes"
+          widgets={evaluationWidgets}
+          fixed
+        />
 
-          {section === "clientes" && (
-            <DashboardDesigner
-              companyId={currentCompany.data?.id}
-              dashboardId="estrategico-clientes-detalhes"
-              widgets={clientDetailWidgets}
-              title="Personalizar relacionamento e cobranças"
-              fixed
-            />
-          )}
+        <IndicatorSectionTitle
+          number={7}
+          title="Canais e oportunidades"
+          description="Receita líquida, custos, recorrência e recomendações de ação."
+        />
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="estrategico-canais"
+          widgets={channelWidgets}
+          fixed
+        />
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="estrategico-insights"
+          widgets={insightWidgets}
+          fixed
+        />
 
-          {section === "geral" && (
-            <DashboardDesigner
-              companyId={currentCompany.data?.id}
-              dashboardId="estrategico-insights"
-              widgets={insightWidgets}
-              title="Personalizar recomendações estratégicas"
-              fixed
-            />
-          )}
+        <IndicatorSectionTitle
+          number={8}
+          title="Contas e relacionamento"
+          description="Saldos pendentes, cobranças e hóspedes recorrentes."
+        />
+        <DashboardDesigner
+          companyId={currentCompany.data?.id}
+          dashboardId="estrategico-clientes-detalhes"
+          widgets={clientDetailWidgets}
+          fixed
+        />
+      </main>
+    </div>
+  );
+}
 
-          {section !== "geral" && (
-            <div className="rounded-lg border border-brass/35 bg-brass/10 px-3 py-2 text-xs text-pine-dark">
-              Foco ativo: <strong>{sectionLabel(section)}</strong>. O seletor Dia/Mês/Ano recalcula
-              esta tela.
-            </div>
-          )}
-        </main>
+function IndicatorSectionTitle({
+  number,
+  title,
+  description,
+}: {
+  number: number;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 border-t border-border/70 pt-4 first:border-t-0">
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-extrabold text-primary">
+        {number}
+      </span>
+      <div>
+        <h2 className="text-base font-extrabold text-pine-dark">{title}</h2>
+        <p className="text-[11px] text-muted-foreground">{description}</p>
       </div>
     </div>
   );
@@ -1894,6 +2078,125 @@ function buildExpenseCategoryRows(expenses: Expense[]) {
     .slice(0, 8);
 }
 
+function buildWeekdayOccupancy(
+  reservations: Reservation[],
+  roomCount: number,
+  start: string,
+  end: string,
+) {
+  const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const totals = labels.map(() => ({ occupied: 0, available: 0 }));
+  const cursor = new Date(`${start}T12:00:00`);
+  const last = new Date(`${end}T12:00:00`);
+  while (cursor <= last) {
+    const date = cursor.toISOString().slice(0, 10);
+    const weekday = cursor.getDay();
+    totals[weekday].available += roomCount;
+    totals[weekday].occupied += reservations.filter(
+      (reservation) =>
+        reservation.status !== "cancelado" &&
+        reservation.status !== "manutencao" &&
+        reservation.checkin <= date &&
+        reservation.checkout > date,
+    ).length;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return labels.map((dia, index) => ({
+    dia,
+    ocupacao: totals[index].available
+      ? Number(((totals[index].occupied / totals[index].available) * 100).toFixed(2))
+      : 0,
+  }));
+}
+
+function buildPaymentRows(reservations: Reservation[], sales: Sale[]) {
+  const rows = new Map<string, number>();
+  reservations.forEach((reservation) => {
+    const name = String(reservation.pagamento || "Não informado");
+    rows.set(name, (rows.get(name) ?? 0) + Number(reservation.valor_pago ?? 0));
+  });
+  sales.forEach((sale) => {
+    const name = String(sale.pagamento || "Não informado");
+    rows.set(name, (rows.get(name) ?? 0) + Number(sale.valor_pago ?? 0));
+  });
+  return [...rows]
+    .map(([name, value]) => ({ name: labelize(name), value }))
+    .filter((row) => row.value > 0)
+    .sort((a, b) => b.value - a.value);
+}
+
+function buildRoomTypePerformance(
+  reservations: Reservation[],
+  rooms: Room[],
+  start: string,
+  end: string,
+) {
+  const roomByNumber = new Map(rooms.map((room) => [room.numero, room]));
+  const roomCountByType = new Map<string, number>();
+  rooms.forEach((room) => {
+    const type = roomLabel(room);
+    roomCountByType.set(type, (roomCountByType.get(type) ?? 0) + 1);
+  });
+  const rows = new Map<string, { receita: number; noites: number }>();
+  reservations.forEach((reservation) => {
+    if (reservation.status === "cancelado" || reservation.status === "manutencao") return;
+    const room = roomByNumber.get(reservation.quarto);
+    const type = room ? roomLabel(room) : "Não informado";
+    const current = rows.get(type) ?? { receita: 0, noites: 0 };
+    current.receita += reservationRevenue(reservation);
+    current.noites += Math.max(0, Number(reservation.diarias ?? 0));
+    rows.set(type, current);
+  });
+  const days = Math.max(
+    1,
+    Math.round(
+      (new Date(`${end}T12:00:00`).getTime() -
+        new Date(`${start}T12:00:00`).getTime()) /
+        86_400_000,
+    ) + 1,
+  );
+  return [...rows]
+    .map(([tipo, row]) => {
+      const available = (roomCountByType.get(tipo) ?? 1) * days;
+      return {
+        tipo,
+        receita: row.receita,
+        adr: safeDivide(row.receita, row.noites),
+        ocupacao: Number(((row.noites / Math.max(1, available)) * 100).toFixed(2)),
+      };
+    })
+    .sort((a, b) => b.receita - a.receita);
+}
+
+function buildFeedbackCriteria(feedbacks: Feedback[]) {
+  const criteria = [
+    ["Geral", "nota_geral"],
+    ["Atendimento", "nota_atendimento"],
+    ["Limpeza", "nota_limpeza"],
+    ["Conforto", "nota_conforto"],
+    ["Wi-Fi", "nota_wifi"],
+    ["Comodidades", "nota_chuveiro"],
+  ] as const;
+  return criteria.map(([name, key]) => {
+    const values = feedbacks
+      .map((feedback) => Number(feedback[key] ?? 0))
+      .filter((value) => value > 0);
+    return { name, value: values.length ? Number(average(values).toFixed(2)) : 0 };
+  });
+}
+
+function buildComplaintRows(complaints: Complaint[]) {
+  const rows = new Map<string, number>();
+  complaints.forEach((complaint) => {
+    const name = labelize(String(complaint.categoria || "Geral"));
+    rows.set(name, (rows.get(name) ?? 0) + 1);
+  });
+  return [...rows]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+}
+
 function buildRoomRows(
   reservations: Reservation[],
   rooms: Room[],
@@ -2219,16 +2522,6 @@ function formatShortDate(value: string) {
   if (!value) return "—";
   const [year, month, day] = value.slice(0, 10).split("-");
   return `${day}/${month}/${year}`;
-}
-
-function sectionLabel(section: DashboardSection) {
-  return {
-    geral: "Visão geral",
-    canais: "Análise por canal",
-    quartos: "Análise por quarto",
-    clientes: "Análise de clientes",
-    tendencias: "Tendências mensais",
-  }[section];
 }
 
 function normalizeState(value: string) {

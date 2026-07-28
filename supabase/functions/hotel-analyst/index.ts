@@ -34,11 +34,11 @@ Deno.serve(async (request) => {
   if (!authorization) return json({ error: "Login obrigatório." }, 401);
 
   const body = (await request.json().catch(() => ({}))) as {
+    mode?: "analysis" | "design";
     question?: string;
     company_id?: string;
+    current_settings?: RecordRow;
   };
-  const question = String(body.question ?? "").trim().slice(0, 2000);
-  if (!question) return json({ error: "Escreva uma pergunta para o analista." }, 400);
   if (!body.company_id) return json({ error: "Empresa não informada." }, 400);
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -59,8 +59,24 @@ Deno.serve(async (request) => {
   if (!membership) return json({ error: "Acesso negado a esta empresa." }, 403);
 
   try {
-    const snapshot = await buildHotelSnapshot(admin, body.company_id);
     const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.5-flash";
+    if (body.mode === "design") {
+      const design = await generateVisualDesign(
+        geminiKey,
+        model,
+        body.current_settings ?? {},
+      );
+      return json({
+        design,
+        model,
+        generated_at: new Date().toISOString(),
+        privacy: "Somente metadados visuais; nenhum dado de hóspede foi enviado.",
+      });
+    }
+
+    const question = String(body.question ?? "").trim().slice(0, 2000);
+    if (!question) return json({ error: "Escreva uma pergunta para o analista." }, 400);
+    const snapshot = await buildHotelSnapshot(admin, body.company_id);
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       {
@@ -112,6 +128,215 @@ Deno.serve(async (request) => {
     );
   }
 });
+
+async function generateVisualDesign(
+  geminiKey: string,
+  model: string,
+  currentSettings: RecordRow,
+) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text: `Você é um diretor de arte e especialista em dashboards de BI para hotelaria.
+Crie uma configuração visual profissional, compacta, acessível e responsiva.
+Priorize leitura rápida, contraste, ausência de sobreposição, legendas claras e variedade correta:
+linhas para evolução, composto para comparações, rosca para composição e barras horizontais para rankings.
+Responda somente JSON válido, sem markdown. Não altere dados nem invente métricas.`,
+            },
+          ],
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `Configuração visual atual:\n${JSON.stringify(currentSettings)}
+
+Retorne exatamente este formato:
+{
+  "system": {
+    "primaryColor": "#RRGGBB",
+    "accentColor": "#RRGGBB",
+    "backgroundColor": "#RRGGBB",
+    "surfaceColor": "#RRGGBB",
+    "textColor": "#RRGGBB",
+    "theme": "light|soft|dark",
+    "backgroundStyle": "clean|soft|gradient",
+    "surfaceOpacity": 45-100,
+    "chartSurfaceOpacity": 45-100,
+    "borderRadius": 0-28,
+    "uiScale": 0.85-1.15,
+    "glassEffect": true|false,
+    "shadows": "none|soft|strong",
+    "chartPalette": ["#RRGGBB", "#RRGGBB", "#RRGGBB", "#RRGGBB", "#RRGGBB", "#RRGGBB"]
+  },
+  "profile": {
+    "density": "compacta|equilibrada|confortavel",
+    "kpi": {"columns":1-4,"height":72-180,"fontSize":55-130,"contentScale":60-130,"backgroundOpacity":45-100},
+    "chart": {"columns":4-12,"height":180-500,"fontSize":55-130,"contentScale":60-130,"backgroundOpacity":45-100},
+    "content": {"columns":4-12,"height":180-600,"fontSize":55-130,"contentScale":60-130,"backgroundOpacity":45-100},
+    "chartTypes": {"trend":"line|area","comparison":"composed|bar","composition":"doughnut|pie","ranking":"horizontalBar|bar"},
+    "showLegend": true,
+    "showLabels": true,
+    "autoFit": true,
+    "diagnostics": ["problema e correção"],
+    "explanation": "resumo curto"
+  }
+}`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.15,
+          maxOutputTokens: 1800,
+          responseMimeType: "application/json",
+        },
+      }),
+    },
+  );
+  const payload = (await response.json().catch(() => ({}))) as RecordRow;
+  if (!response.ok) {
+    throw new Error(nestedString(payload, ["error", "message"]) || "Falha no designer Gemini.");
+  }
+  const rawText = extractGeminiText(payload);
+  const parsed = JSON.parse(rawText) as RecordRow;
+  return normalizeVisualDesign(parsed, currentSettings);
+}
+
+function normalizeVisualDesign(value: RecordRow, current: RecordRow) {
+  const system = isRecord(value.system) ? value.system : {};
+  const profile = isRecord(value.profile) ? value.profile : {};
+  const currentPalette = Array.isArray(current.chartPalette)
+    ? current.chartPalette.map(String)
+    : [];
+  const suggestedPalette = Array.isArray(system.chartPalette)
+    ? system.chartPalette.map(String).filter(isHexColor)
+    : [];
+  const palette = [...suggestedPalette, ...currentPalette.filter(isHexColor)].slice(0, 6);
+  while (palette.length < 6) {
+    palette.push(["#2878e8", "#10b981", "#f59e0b", "#f43f5e", "#7c3aed", "#64748b"][palette.length]);
+  }
+
+  return {
+    system: {
+      primaryColor: color(system.primaryColor, current.primaryColor, "#2878e8"),
+      accentColor: color(system.accentColor, current.accentColor, "#10b981"),
+      backgroundColor: color(system.backgroundColor, current.backgroundColor, "#f4f7fa"),
+      surfaceColor: color(system.surfaceColor, current.surfaceColor, "#ffffff"),
+      textColor: color(system.textColor, current.textColor, "#071a38"),
+      theme: oneOf(system.theme, ["light", "soft", "dark"], "light"),
+      backgroundStyle: oneOf(
+        system.backgroundStyle,
+        ["clean", "soft", "gradient"],
+        "clean",
+      ),
+      surfaceOpacity: bounded(system.surfaceOpacity, 45, 100, 100),
+      chartSurfaceOpacity: bounded(system.chartSurfaceOpacity, 45, 100, 100),
+      borderRadius: bounded(system.borderRadius, 0, 28, 12),
+      uiScale: bounded(system.uiScale, 0.85, 1.15, 1),
+      glassEffect: Boolean(system.glassEffect),
+      shadows: oneOf(system.shadows, ["none", "soft", "strong"], "soft"),
+      chartPalette: palette,
+    },
+    profile: {
+      version: crypto.randomUUID(),
+      generatedAt: new Date().toISOString(),
+      density: oneOf(profile.density, ["compacta", "equilibrada", "confortavel"], "compacta"),
+      kpi: normalizeDesignPreset(profile.kpi, {
+        columns: 2,
+        height: 104,
+        fontSize: 88,
+        contentScale: 100,
+        backgroundOpacity: 100,
+      }),
+      chart: normalizeDesignPreset(profile.chart, {
+        columns: 6,
+        height: 284,
+        fontSize: 92,
+        contentScale: 100,
+        backgroundOpacity: 100,
+      }),
+      content: normalizeDesignPreset(profile.content, {
+        columns: 6,
+        height: 280,
+        fontSize: 92,
+        contentScale: 100,
+        backgroundOpacity: 100,
+      }),
+      chartTypes: normalizeChartTypes(profile.chartTypes),
+      showLegend: profile.showLegend !== false,
+      showLabels: profile.showLabels !== false,
+      autoFit: profile.autoFit !== false,
+      diagnostics: Array.isArray(profile.diagnostics)
+        ? profile.diagnostics.map(String).slice(0, 8)
+        : [],
+      explanation: String(
+        profile.explanation ??
+          "Layout compacto, responsivo e adequado para análise gerencial.",
+      ).slice(0, 800),
+    },
+  };
+}
+
+function normalizeDesignPreset(value: unknown, fallback: RecordRow) {
+  const source = isRecord(value) ? value : {};
+  return {
+    columns: bounded(source.columns, 1, 12, Number(fallback.columns)),
+    height: bounded(source.height, 72, 720, Number(fallback.height)),
+    fontSize: bounded(source.fontSize, 55, 130, Number(fallback.fontSize)),
+    contentScale: bounded(source.contentScale, 60, 130, Number(fallback.contentScale)),
+    backgroundOpacity: bounded(
+      source.backgroundOpacity,
+      45,
+      100,
+      Number(fallback.backgroundOpacity),
+    ),
+  };
+}
+
+function normalizeChartTypes(value: unknown) {
+  const source = isRecord(value) ? value : {};
+  return {
+    trend: oneOf(source.trend, ["line", "area"], "line"),
+    comparison: oneOf(source.comparison, ["composed", "bar"], "composed"),
+    composition: oneOf(source.composition, ["doughnut", "pie"], "doughnut"),
+    ranking: oneOf(source.ranking, ["horizontalBar", "bar"], "horizontalBar"),
+  };
+}
+
+function bounded(value: unknown, min: number, max: number, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback;
+}
+
+function oneOf<T extends string>(value: unknown, values: T[], fallback: T): T {
+  return values.includes(value as T) ? (value as T) : fallback;
+}
+
+function isHexColor(value: string) {
+  return /^#[0-9a-f]{6}$/i.test(value);
+}
+
+function color(value: unknown, current: unknown, fallback: string) {
+  const suggested = String(value ?? "");
+  if (isHexColor(suggested)) return suggested;
+  const existing = String(current ?? "");
+  return isHexColor(existing) ? existing : fallback;
+}
+
+function isRecord(value: unknown): value is RecordRow {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
 
 async function buildHotelSnapshot(
   admin: ReturnType<typeof createClient>,

@@ -31,6 +31,7 @@ import {
 } from "@/lib/data";
 import { fmtBRL, fmtDate, fmtTime, todayISO } from "@/lib/format";
 import { complaintLabel } from "@/lib/constants";
+import { buildGuestAccount } from "@/lib/guest-account";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Badge } from "@/components/ui-kit";
 import { ReservaForm, type ReservaRow } from "@/components/ReservaForm";
@@ -125,7 +126,7 @@ function Mapa() {
     ).length;
     const unavailable = new Set(
       rooms
-        .filter((room) => roomVisualStatus(reservations, room, viewDate) !== "livre")
+        .filter((room) => roomVisualStatus(reservations, sales, room, viewDate) !== "livre")
         .map((room) => room.numero),
     ).size;
     const available = Math.max(0, rooms.length - unavailable);
@@ -137,7 +138,7 @@ function Mapa() {
       cleaning,
       available,
     };
-  }, [reservations, rooms, viewDate]);
+  }, [reservations, rooms, sales, viewDate]);
 
   const filteredRoomGroups = useMemo(
     () =>
@@ -147,14 +148,14 @@ function Mapa() {
           rooms: group.rooms
             .filter((room) => {
               if (statusFilter === "todos") return true;
-              return roomVisualStatus(reservations, room, viewDate) === statusFilter;
+              return roomVisualStatus(reservations, sales, room, viewDate) === statusFilter;
             })
             .filter((room) =>
               roomSearch.trim() ? String(room.numero).includes(roomSearch.trim()) : true,
             ),
         }))
         .filter((group) => group.rooms.length > 0),
-    [roomGroups, reservations, roomSearch, statusFilter, viewDate],
+    [roomGroups, reservations, roomSearch, sales, statusFilter, viewDate],
   );
   const searchedRoom = useMemo(
     () => rooms.find((room) => String(room.numero) === roomSearch.trim()) ?? null,
@@ -356,7 +357,7 @@ function Mapa() {
               activeReservationForRoom(reservations, searchedRoom.numero),
             )}
             revenue={revenueByRoom.get(searchedRoom.numero) ?? 0}
-            status={roomVisualStatus(reservations, searchedRoom, viewDate)}
+            status={roomVisualStatus(reservations, sales, searchedRoom, viewDate)}
             onOpen={() => setSelected(searchedRoom)}
           />
         )}
@@ -429,7 +430,7 @@ function Mapa() {
               </div>
               <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 2xl:grid-cols-10">
                 {group.rooms.map((r) => {
-                  const st = roomVisualStatus(reservations, r, viewDate);
+                  const st = roomVisualStatus(reservations, sales, r, viewDate);
                   const style = STATUS_STYLE[st] ?? STATUS_STYLE.livre;
                   const n = complaintsByRoom.get(r.numero) ?? 0;
                   const intensity = n / maxComplaints;
@@ -951,19 +952,26 @@ function normalizeRoomText(value: string) {
     .trim();
 }
 
-function roomVisualStatus(reservations: Reservation[], room: Room, date: string) {
+function roomVisualStatus(
+  reservations: Reservation[],
+  sales: Sale[],
+  room: Room,
+  date: string,
+) {
   const base = roomStatusAtDate(reservations, room, date);
   if (base === "livre" || base === "limpeza" || base === "manutencao") return base;
   const reservation =
     reservationForDate(reservations, room.numero, date) ??
     activeReservationForRoom(reservations, room.numero);
   if (!reservation) return base;
-  const paid = Number(reservation.valor_pago ?? 0);
-  const total = Number(reservation.valor_total ?? 0);
-  if (reservation.status === "ocupado")
-    return paid >= total && total > 0 ? "hospedado_pago" : "hospedado_debito";
-  if (paid > 0 && paid < total) return "sinal_pago";
-  if (paid >= total && total > 0) return "hospedado_pago";
+  const account = buildGuestAccount(reservation, sales);
+  const isCurrentStay = reservation.status === "ocupado" || reservation.checkin < date;
+  if (isCurrentStay) {
+    return account.balance <= 0 && account.total > 0
+      ? "hospedado_pago"
+      : "hospedado_debito";
+  }
+  if (account.paid > 0 && account.balance > 0) return "sinal_pago";
   return "reservado";
 }
 
