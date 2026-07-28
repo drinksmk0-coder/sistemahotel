@@ -116,7 +116,7 @@ function CadastroEmpresa() {
 
       localStorage.removeItem(PENDING_COMPANY_KEY);
       toast.success("Empresa criada");
-      await navigate({ to: "/painel" });
+      await navigate({ to: "/mapa" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erro ao cadastrar empresa");
     } finally {

@@ -4,7 +4,7 @@ import { getValidAuth } from "@/lib/auth";
 export const Route = createFileRoute("/")({
   ssr: false,
   beforeLoad: async () => {
-    if (await getValidAuth()) throw redirect({ to: "/painel" });
+    if (await getValidAuth()) throw redirect({ to: "/mapa" });
     throw redirect({ to: "/auth" });
   },
   component: () => null,

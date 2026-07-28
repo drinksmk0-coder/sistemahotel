@@ -29,6 +29,30 @@ function Tarifario() {
     () => [...new Set(rooms.map((room) => room.configuracao).filter(Boolean))].sort(),
     [rooms],
   );
+  const activeRules = rules.filter((rule) => rule.ativo);
+  const averageRate = rooms.length
+    ? rooms.reduce((sum, room) => sum + Number(room.preco ?? 0), 0) / rooms.length
+    : 0;
+  const maximumRate = Math.max(
+    0,
+    ...rooms.map((room) => Number(room.preco ?? 0)),
+    ...rules.map((rule) => Number(rule.valor_base ?? 0)),
+  );
+  const categoryRows = useMemo(
+    () =>
+      configurations.map((configuration) => {
+        const categoryRooms = rooms.filter((room) => room.configuracao === configuration);
+        return {
+          configuration,
+          rooms: categoryRooms.map((room) => room.numero).join(", "),
+          base: categoryRooms.length
+            ? categoryRooms.reduce((sum, room) => sum + Number(room.preco ?? 0), 0) /
+              categoryRooms.length
+            : 0,
+        };
+      }),
+    [configurations, rooms],
+  );
 
   return (
     <div>
@@ -43,39 +67,56 @@ function Tarifario() {
         }
       />
 
+      <div className="mb-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <div className="stat-card">
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Categorias</p>
+          <strong className="text-lg text-pine-dark">{configurations.length}</strong>
+        </div>
+        <div className="stat-card">
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Temporadas ativas</p>
+          <strong className="text-lg text-pine-dark">{activeRules.length}</strong>
+        </div>
+        <div className="stat-card">
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Diária média</p>
+          <strong className="text-lg text-pine-dark">{fmtBRL(averageRate)}</strong>
+        </div>
+        <div className="stat-card">
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Diária máxima</p>
+          <strong className="text-lg text-pine-dark">{fmtBRL(maximumRate)}</strong>
+        </div>
+      </div>
+
       {rules.length === 0 ? (
         <EmptyState text="Nenhuma tarifa especial cadastrada. Os quartos continuam usando o preço padrão." />
       ) : (
-        <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-          {rules.map((rule) => (
-            <article key={rule.id} className={`card-surface p-4 ${rule.ativo ? "" : "opacity-60"}`}>
+        <section className="card-surface mb-3 p-3">
+          <h3 className="mb-2 text-sm font-extrabold text-pine-dark">Temporadas</h3>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+            {rules.map((rule, index) => (
+            <article
+              key={rule.id}
+              className={`rounded-lg border p-3 ${rule.ativo ? "" : "opacity-55"}`}
+              style={{
+                borderColor: `var(--chart-${(index % 6) + 1})`,
+                background: `color-mix(in srgb, var(--chart-${(index % 6) + 1}) 9%, var(--card))`,
+              }}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="flex items-center gap-2">
-                    <CalendarRange className="h-4 w-4 text-pine" />
-                    <h3 className="font-serif text-lg font-bold">{rule.nome}</h3>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="text-[9px] font-bold uppercase text-muted-foreground">
                     {fmtDate(rule.inicio)} a {fmtDate(rule.fim)}
                   </p>
+                  <h4 className="mt-1 truncate text-sm font-extrabold text-pine-dark">{rule.nome}</h4>
                 </div>
-                <span className="rounded-full bg-sage-bg px-2 py-1 text-xs font-bold text-pine-dark">
-                  prioridade {rule.prioridade}
-                </span>
+                <CalendarRange className="h-4 w-4 text-primary" />
               </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                <Info label="Diária base" value={fmtBRL(rule.valor_base)} />
-                <Info label="Categoria" value={rule.configuracao_quarto || "Todos os quartos"} />
-                <Info label="Hóspedes inclusos" value={String(rule.hospedes_inclusos)} />
-                <Info label="Adicional por pessoa" value={fmtBRL(rule.adicional_hospede)} />
-                <Info label="Estadia mínima" value={`${rule.minimo_diarias} diária(s)`} />
-                <Info label="Situação" value={rule.ativo ? "Ativa" : "Desativada"} />
-              </div>
-
-              <div className="mt-4 flex justify-end gap-2">
+              <p className="mt-2 text-lg font-extrabold text-primary">{fmtBRL(rule.valor_base)}</p>
+              <p className="truncate text-[9px] text-muted-foreground">
+                {rule.configuracao_quarto || "Todas as categorias"} · mínimo {rule.minimo_diarias} diária(s)
+              </p>
+              <div className="mt-2 flex justify-end gap-1">
                 <button
-                  className="btn-ghost flex items-center gap-1 text-xs"
+                  className="btn-ghost flex h-7 items-center gap-1 px-2 text-[9px]"
                   onClick={() =>
                     update.mutate(
                       { id: rule.id, patch: { ativo: !rule.ativo } },
@@ -90,11 +131,11 @@ function Tarifario() {
                   <Power className="h-3.5 w-3.5" />
                   {rule.ativo ? "Desativar" : "Ativar"}
                 </button>
-                <button className="btn-ghost p-2" onClick={() => setEditing(rule)} title="Editar">
+                <button className="btn-ghost p-1.5" onClick={() => setEditing(rule)} title="Editar">
                   <Pencil className="h-3.5 w-3.5" />
                 </button>
                 <button
-                  className="rounded-md bg-brick-bg p-2 text-brick"
+                  className="rounded-md bg-brick-bg p-1.5 text-brick"
                   title="Excluir"
                   onClick={() => {
                     if (!window.confirm(`Excluir a tarifa “${rule.nome}”?`)) return;
@@ -108,8 +149,50 @@ function Tarifario() {
                 </button>
               </div>
             </article>
-          ))}
-        </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {categoryRows.length > 0 && (
+        <section className="card-surface overflow-x-auto">
+          <div className="border-b border-border px-3 py-2">
+            <h3 className="text-sm font-extrabold text-pine-dark">Tarifas por categoria</h3>
+            <p className="text-[9px] text-muted-foreground">
+              Valores médios das UHs e regras especiais aplicáveis.
+            </p>
+          </div>
+          <table className="w-full min-w-[720px] text-xs">
+            <thead className="bg-muted/55 text-left text-[9px] uppercase text-muted-foreground">
+              <tr>
+                <th className="p-2.5">Categoria</th>
+                <th className="p-2.5">UHs</th>
+                <th className="p-2.5">Capacidade</th>
+                <th className="p-2.5">Diária base</th>
+                {activeRules.slice(0, 4).map((rule) => (
+                  <th key={rule.id} className="p-2.5">{rule.nome}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {categoryRows.map((row) => (
+                <tr key={row.configuration} className="border-t border-border/70">
+                  <td className="p-2.5 font-bold text-pine-dark">{row.configuration}</td>
+                  <td className="p-2.5 text-muted-foreground">{row.rooms}</td>
+                  <td className="p-2.5 text-muted-foreground">Definida na reserva</td>
+                  <td className="p-2.5 font-bold">{fmtBRL(row.base)}</td>
+                  {activeRules.slice(0, 4).map((rule) => (
+                    <td key={rule.id} className="p-2.5 font-semibold text-primary">
+                      {!rule.configuracao_quarto || rule.configuracao_quarto === row.configuration
+                        ? fmtBRL(rule.valor_base)
+                        : "—"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
       )}
 
       {(open || editing) && (
@@ -295,15 +378,6 @@ function RateModal({
         </div>
       </form>
     </Modal>
-  );
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <span className="block text-xs text-muted-foreground">{label}</span>
-      <strong className="block">{value}</strong>
-    </div>
   );
 }
 

@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Download, Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
+import { ChartHtmlLegend } from "@/components/DashboardKit";
 import { EmptyState, Field, Modal } from "@/components/ui-kit";
 import { useDelete, useExpenses, useInsert, useUpdate, type Expense } from "@/lib/data";
 import { downloadExcel, fmtBRL, fmtDate, todayISO } from "@/lib/format";
@@ -11,7 +12,6 @@ import {
   BarChart,
   CartesianGrid,
   LabelList,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -79,27 +79,28 @@ function Despesas() {
         }
       />
 
-      <div className="mb-4 grid gap-3 md:grid-cols-3">
+      <div className="mb-3 grid grid-cols-3 gap-2">
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Despesas do mes</p>
-          <p className="font-serif text-2xl font-bold">{fmtBRL(totalMes)}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Despesas do mês</p>
+          <p className="text-base font-extrabold text-pine-dark">{fmtBRL(totalMes)}</p>
         </div>
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Lancamentos</p>
-          <p className="font-serif text-2xl font-bold">{expenses.length}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Lançamentos</p>
+          <p className="text-base font-extrabold text-pine-dark">{expenses.length}</p>
         </div>
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Categorias</p>
-          <p className="font-serif text-2xl font-bold">{byCategory.length}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Categorias</p>
+          <p className="text-base font-extrabold text-pine-dark">{byCategory.length}</p>
         </div>
       </div>
 
       {(categoryChart.length > 0 || monthlyChart.length > 0) && (
-        <div className="mb-4 grid gap-4 lg:grid-cols-2">
-          <section className="card-surface p-4">
-            <h3 className="font-serif text-lg font-bold">Despesas por categoria</h3>
-            <p className="text-xs text-muted-foreground">Principais centros de custo.</p>
-            <div className="mt-3 h-64">
+        <div className="mb-3 grid gap-3 lg:grid-cols-2">
+          <section className="card-surface p-3">
+            <h3 className="text-sm font-extrabold text-pine-dark">Despesas por categoria</h3>
+            <p className="text-[9px] text-muted-foreground">Principais centros de custo.</p>
+            <ChartHtmlLegend items={[{ label: "Despesa", color: "var(--brick)" }]} />
+            <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={categoryChart}
@@ -113,9 +114,8 @@ function Despesas() {
                     interval={0}
                     height={55}
                   />
-                  <YAxis tickFormatter={(value) => `R$${Math.round(value / 1000)}k`} />
+                  <YAxis tick={{ fontSize: 9 }} tickFormatter={formatCompactCurrency} />
                   <Tooltip formatter={(value) => fmtBRL(Number(value))} />
-                  <Legend />
                   <Bar
                     dataKey="valor"
                     name="Despesa"
@@ -125,24 +125,25 @@ function Despesas() {
                     <LabelList
                       dataKey="valor"
                       position="top"
-                      formatter={(value: number) => fmtBRL(value)}
+                      fontSize={9}
+                      formatter={(value: number) => formatCompactCurrency(value)}
                     />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
           </section>
-          <section className="card-surface p-4">
-            <h3 className="font-serif text-lg font-bold">Evolução das despesas</h3>
-            <p className="text-xs text-muted-foreground">Comparação mensal do histórico.</p>
-            <div className="mt-3 h-64">
+          <section className="card-surface p-3">
+            <h3 className="text-sm font-extrabold text-pine-dark">Evolução das despesas</h3>
+            <p className="text-[9px] text-muted-foreground">Comparação mensal do histórico.</p>
+            <ChartHtmlLegend items={[{ label: "Despesa mensal", color: "var(--brick)" }]} />
+            <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyChart} margin={{ top: 18, right: 18, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="mes" />
-                  <YAxis tickFormatter={(value) => `R$${Math.round(value / 1000)}k`} />
+                  <YAxis tick={{ fontSize: 9 }} tickFormatter={formatCompactCurrency} />
                   <Tooltip formatter={(value) => fmtBRL(Number(value))} />
-                  <Legend />
                   <Line
                     type="monotone"
                     dataKey="valor"
@@ -154,7 +155,8 @@ function Despesas() {
                     <LabelList
                       dataKey="valor"
                       position="top"
-                      formatter={(value: number) => fmtBRL(value)}
+                      fontSize={9}
+                      formatter={(value: number) => formatCompactCurrency(value)}
                     />
                   </Line>
                 </LineChart>
@@ -163,22 +165,6 @@ function Despesas() {
           </section>
         </div>
       )}
-
-      <div className="mb-4 card-surface p-4">
-        <h3 className="mb-2 font-serif text-lg font-bold">Por categoria</h3>
-        {byCategory.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sem despesas ainda.</p>
-        ) : (
-          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-            {byCategory.map(([category, total]) => (
-              <div key={category} className="rounded-md border border-border p-3">
-                <p className="text-xs uppercase text-muted-foreground">{category}</p>
-                <p className="font-serif text-lg font-bold">{fmtBRL(total)}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {expenses.length === 0 ? (
         <EmptyState text="Nenhuma despesa cadastrada." />
@@ -271,6 +257,23 @@ function Despesas() {
       )}
     </div>
   );
+}
+
+function formatCompactCurrency(value: number) {
+  const absolute = Math.abs(Number(value));
+  if (absolute >= 1_000_000) {
+    return `R$ ${(Number(value) / 1_000_000).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} mi`;
+  }
+  if (absolute >= 1_000) {
+    return `R$ ${(Number(value) / 1_000).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} mil`;
+  }
+  return fmtBRL(Number(value));
 }
 
 function ExpenseForm({

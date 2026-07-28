@@ -374,10 +374,13 @@ function Reservas() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                <th className="p-2.5">Código</th>
+                <th className="p-2.5">Hóspede</th>
                 <th className="p-2.5">Quarto</th>
-                <th className="p-2.5">Cliente</th>
-                <th className="p-2.5">Período</th>
-                <th className="p-2.5">Pago / Total</th>
+                <th className="p-2.5">Check-in</th>
+                <th className="p-2.5">Check-out</th>
+                <th className="p-2.5">Canal</th>
+                <th className="p-2.5">Valor</th>
                 <th className="p-2.5">Status</th>
                 <th className="p-2.5"></th>
               </tr>
@@ -392,43 +395,58 @@ function Reservas() {
                   r.status !== "manutencao" &&
                   daysOverdue > 0 &&
                   account.balance > 0;
+                const room = rooms.find((item) => item.numero === r.quarto);
                 return (
                   <tr
                     key={r.id}
                     className={`border-b border-border/50 ${needsAttention ? "bg-brick-bg/35" : ""}`}
                   >
-                    <td className="p-2.5 font-serif text-base font-bold">{r.quarto}</td>
-                    <td className="p-2.5">{r.cliente_nome}</td>
-                    <td className="p-2.5 text-muted-foreground">
-                      {fmtDate(r.checkin)} {fmtTime(r.horario_checkin)} → {fmtDate(r.checkout)}{" "}
-                      {fmtTime(r.horario_checkout)}
-                      {r.motivo_estadia && (
-                        <div className="mt-1 text-xs">Motivo: {r.motivo_estadia}</div>
-                      )}
+                    <td className="p-2.5 text-xs font-bold text-primary">
+                      #{String(r.id).slice(0, 6).toUpperCase()}
+                    </td>
+                    <td className="p-2.5">
+                      <strong className="block text-sm text-pine-dark">{r.cliente_nome}</strong>
                       {r.group_id && (
-                        <div className="mt-1 text-xs font-semibold text-pine">
-                          Grupo:{" "}
+                        <span className="text-[9px] font-semibold text-primary">
                           {reservationGroups.find((group) => group.id === r.group_id)?.nome ??
                             "Reserva em grupo"}
-                        </div>
+                        </span>
                       )}
                     </td>
                     <td className="p-2.5">
-                      <div>
-                        {fmtBRL(r.valor_pago)} / {fmtBRL(r.valor_total)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        Consumos: {fmtBRL(account.extrasTotal)}
-                      </div>
-                      <Badge tone={account.balance <= 0 ? "sage" : "brass"}>
-                        {account.balance <= 0
-                          ? "conta quitada"
-                          : account.paid > 0
-                            ? `parcial · falta ${fmtBRL(account.balance)}`
-                            : `a receber ${fmtBRL(account.balance)}`}
-                      </Badge>
+                      <strong className="block text-sm text-pine-dark">UH {r.quarto}</strong>
+                      <span className="text-[9px] text-muted-foreground">
+                        {room?.configuracao || "Unidade habitacional"}
+                      </span>
+                    </td>
+                    <td className="p-2.5 text-xs">
+                      {fmtDate(r.checkin)}
+                      <span className="block text-[9px] text-muted-foreground">
+                        {fmtTime(r.horario_checkin)}
+                      </span>
+                    </td>
+                    <td className="p-2.5 text-xs">
+                      {fmtDate(r.checkout)}
+                      <span className="block text-[9px] text-muted-foreground">
+                        {fmtTime(r.horario_checkout)}
+                      </span>
+                    </td>
+                    <td className="p-2.5 text-xs font-semibold">{r.canal || "Direto"}</td>
+                    <td className="p-2.5">
+                      <strong className="block whitespace-nowrap text-sm text-pine-dark">
+                        {fmtBRL(account.total)}
+                      </strong>
+                      <span
+                        className={`text-[9px] font-semibold ${
+                          account.balance > 0 ? "text-brick" : "text-sage"
+                        }`}
+                      >
+                        {account.balance > 0
+                          ? `Falta ${fmtBRL(account.balance)}`
+                          : "Conta quitada"}
+                      </span>
                       {needsAttention && (
-                        <div className="mt-1 text-xs font-bold text-brick">
+                        <div className="mt-1 text-[9px] font-bold text-brick">
                           {r.status === "finalizado"
                             ? "Checkout com saldo"
                             : r.status === "ocupado"

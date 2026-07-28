@@ -74,6 +74,29 @@ export function DashboardTvButton() {
   );
 }
 
+export function ChartHtmlLegend({
+  items,
+}: {
+  items: { label: string; color: string }[];
+}) {
+  return (
+    <div
+      className="flex min-h-6 flex-wrap items-center justify-end gap-x-3 gap-y-1 py-1 text-[9px] font-semibold text-pine-dark"
+      aria-label="Legenda do gráfico"
+    >
+      {items.map((item) => (
+        <span key={`${item.label}-${item.color}`} className="inline-flex items-center gap-1.5">
+          <span
+            className="h-2.5 w-2.5 rounded-sm border border-black/10"
+            style={{ backgroundColor: item.color }}
+          />
+          {item.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export function PeriodSelector({
   value,
   onChange,

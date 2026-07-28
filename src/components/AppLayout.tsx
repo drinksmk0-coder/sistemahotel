@@ -1,24 +1,21 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import {
-  BarChart3,
   BedDouble,
   Bot,
   CalendarRange,
+  ChevronDown,
+  ChevronUp,
   CreditCard,
   DollarSign,
   FileWarning,
-  LayoutDashboard,
   LogOut,
   Menu,
   MessageSquare,
-  Lightbulb,
-  PackageSearch,
   QrCode,
   Settings,
   Star,
   Users,
-  WalletCards,
   X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,17 +26,6 @@ import { applySystemSettings, getSystemSettings } from "@/lib/system-settings";
 import { SystemMonitor } from "@/components/SystemMonitor";
 
 const TABS = [
-  {
-    to: "/painel",
-    label: "Painel",
-    icon: BarChart3,
-    roles: ["dono", "recepcao", "limpeza", "cafe"],
-  },
-  { to: "/dashboard-estrategico", label: "Estratégico", icon: LayoutDashboard, roles: ["dono"] },
-  { to: "/decisoes", label: "Decisões", icon: Lightbulb, roles: ["dono"] },
-  { to: "/financeiro", label: "Financeiro", icon: WalletCards, roles: ["dono"] },
-  { to: "/vendas-produtos", label: "Produtos", icon: PackageSearch, roles: ["dono", "recepcao"] },
-  { to: "/dashboard-quartos", label: "Quartos", icon: BedDouble, roles: ["dono", "recepcao"] },
   { to: "/mapa", label: "Mapa", icon: BedDouble, roles: ["dono", "recepcao"] },
   { to: "/reservas", label: "Reservas", icon: CreditCard, roles: ["dono", "recepcao"] },
   { to: "/tarifario", label: "Tarifário", icon: CalendarRange, roles: ["dono"] },
@@ -47,6 +33,9 @@ const TABS = [
   { to: "/vendas", label: "Vendas", icon: DollarSign, roles: ["dono", "recepcao"] },
   { to: "/despesas", label: "Despesas", icon: FileWarning, roles: ["dono"] },
   { to: "/reclamacoes", label: "Reclamacoes", icon: MessageSquare, roles: ["dono", "recepcao"] },
+];
+
+const SECONDARY_TABS = [
   {
     to: "/assistente",
     label: "Assistente 24h",
@@ -60,7 +49,7 @@ const TABS = [
   { to: "/equipe", label: "Equipe", icon: Users, roles: ["dono"] },
 ];
 
-const MOBILE_PRIMARY_TABS = ["/painel", "/mapa", "/reservas", "/clientes"] as const;
+const MOBILE_PRIMARY_TABS = ["/mapa", "/reservas", "/clientes", "/vendas"] as const;
 
 const ROLE_LABELS: Record<string, string> = {
   dono: "Dono - acesso total",
@@ -101,7 +90,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const visibleTabs = TABS.filter((tab) => !role || tab.roles.includes(role));
+  const secondaryTabs = SECONDARY_TABS.filter((tab) => !role || tab.roles.includes(role));
   const mobileTabs = visibleTabs
     .filter((tab) => MOBILE_PRIMARY_TABS.includes(tab.to as (typeof MOBILE_PRIMARY_TABS)[number]))
     .slice(0, 4);
@@ -133,30 +124,30 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   const sidebar = (
     <aside
-      className="app-sidebar flex h-full w-[min(16rem,86vw)] flex-col border-r border-white/8 text-primary-foreground shadow-2xl xl:w-64"
+      className="app-sidebar flex h-full w-[min(13.5rem,86vw)] flex-col border-r border-white/8 text-primary-foreground shadow-2xl xl:w-[13.5rem]"
       style={
         {
           "--sidebar-primary": systemSettings.primaryColor,
         } as CSSProperties
       }
     >
-      <div className="border-b border-white/10 px-5 py-5">
-        <div className="flex items-center gap-3">
+      <div className="border-b border-white/10 px-4 py-3.5">
+        <div className="flex items-center gap-2.5">
           <img
             src={systemSettings.logo}
             alt={companyName}
-            className="h-10 w-10 rounded-xl bg-primary object-contain p-1.5 shadow-lg"
+            className="h-8 w-8 rounded-lg bg-primary object-contain p-1 shadow-lg"
           />
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-extrabold text-white">{companyName}</h1>
-            <p className="text-[10px] uppercase tracking-[0.15em] text-white/50">
+            <h1 className="truncate text-sm font-extrabold text-white">{companyName}</h1>
+            <p className="text-[8px] uppercase tracking-[0.13em] text-white/50">
               {role ? ROLE_SUBTITLES[role] : "Aguardando acesso"}
             </p>
           </div>
         </div>
 
         {showCompanySelector ? (
-          <label className="mt-4 block">
+          <label className="mt-3 block">
             <span className="mb-1 block text-[11px] font-semibold uppercase text-white/70">
               Empresa
             </span>
@@ -173,14 +164,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </select>
           </label>
         ) : (
-          <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2">
+          <div className="mt-3 rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1.5">
             <span className="block text-[11px] font-semibold uppercase text-white/65">Empresa</span>
             <span className="block truncate text-sm font-semibold text-white">{companyName}</span>
           </div>
         )}
       </div>
 
-      <nav className="app-sidebar-nav flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav className="app-sidebar-nav flex-1 space-y-1 overflow-y-auto px-2.5 py-3">
         {visibleTabs.map((t) => {
           const active = path.startsWith(t.to);
           const Icon = t.icon;
@@ -189,7 +180,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               key={t.to}
               to={t.to}
               onClick={() => setMenuOpen(false)}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${
+              className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-xs font-semibold transition ${
                 active
                   ? "bg-white/12 text-white shadow-sm"
                   : "text-white/65 hover:bg-white/[0.07] hover:text-white"
@@ -200,11 +191,44 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </Link>
           );
         })}
+        {secondaryTabs.length > 0 && (
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setToolsOpen((value) => !value)}
+              className="flex w-full items-center justify-between rounded-md px-2.5 py-2 text-xs font-semibold text-white/65 hover:bg-white/[0.07] hover:text-white"
+            >
+              <span>Mais ferramentas</span>
+              {toolsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            </button>
+            {toolsOpen && (
+              <div className="mt-1 space-y-1 border-l border-white/15 pl-2">
+                {secondaryTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const active = path.startsWith(tab.to);
+                  return (
+                    <Link
+                      key={tab.to}
+                      to={tab.to}
+                      onClick={() => setMenuOpen(false)}
+                      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-semibold ${
+                        active ? "bg-white/12 text-white" : "text-white/60 hover:bg-white/[0.07] hover:text-white"
+                      }`}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {tab.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
 
-      <div className="border-t border-white/10 p-4">
+      <div className="border-t border-white/10 p-3">
         <Clock />
-        <div className="mt-3">
+        <div className="mt-2">
           <div className="truncate text-xs font-semibold text-white">
             {profile?.nome ?? user?.email}
           </div>
@@ -214,7 +238,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
         <button
           onClick={signOut}
-          className="mt-3 flex w-full items-center justify-center gap-2 rounded-md border border-white/20 px-3 py-2 text-sm font-semibold text-white hover:bg-white/10"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-white/20 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10"
         >
           <LogOut className="h-4 w-4" />
           Sair
@@ -254,7 +278,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <main className="app-main min-w-0 px-3 pb-24 pt-16 sm:px-5 md:px-7 xl:ml-64 xl:px-8 xl:pb-8 xl:pt-7">
+      <main className="app-main min-w-0 px-3 pb-24 pt-16 sm:px-5 md:px-7 xl:ml-[13.5rem] xl:px-6 xl:pb-8 xl:pt-5">
         <div className="mx-auto w-full max-w-[1880px]">{children}</div>
       </main>
 
@@ -296,11 +320,11 @@ export function PageHeader({
   return (
     <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
       <div className="min-w-0">
-        <h2 className="section-title text-lg font-extrabold tracking-tight text-pine-dark sm:text-xl">
+        <h2 className="section-title text-base font-extrabold tracking-tight text-pine-dark sm:text-lg">
           {title}
         </h2>
         {subtitle && (
-          <p className="mt-0.5 max-w-3xl truncate text-[11px] text-muted-foreground" title={subtitle}>
+          <p className="max-w-3xl truncate text-[10px] text-muted-foreground" title={subtitle}>
             {subtitle}
           </p>
         )}

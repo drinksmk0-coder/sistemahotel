@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Download, Pencil, Plus, Trash2 } from "lucide-react";
 import {
@@ -46,20 +46,11 @@ function Vendas() {
   const totalMes = sales
     .filter((s) => (s.data || "").slice(0, 7) === today.slice(0, 7))
     .reduce((a, s) => a + Number(s.total), 0);
-  const categoryTotals = useMemo(() => {
-    const m = new Map<string, number>();
-    sales.forEach((s) => {
-      const key = s.categoria || "Geral";
-      m.set(key, (m.get(key) ?? 0) + Number(s.total));
-    });
-    return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  }, [sales]);
   const lowStock = products.filter((p) => p.ativo && p.estoque_atual <= p.estoque_minimo);
   const totalPendente = sales.reduce(
     (a, s) => a + Math.max(0, Number(s.total) - Number(s.valor_pago ?? s.total)),
     0,
   );
-  const cafeStock = products.filter((p) => p.ativo && p.categoria.toLowerCase().includes("café"));
   const clientsById = new Map(clients.map((client) => [client.id, client]));
 
   function exportCSV() {
@@ -124,26 +115,26 @@ function Vendas() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-5">
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Hoje</p>
-          <p className="font-serif text-xl font-bold">{fmtBRL(totalHoje)}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Hoje</p>
+          <p className="text-base font-extrabold text-pine-dark">{fmtBRL(totalHoje)}</p>
         </div>
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Este mês</p>
-          <p className="font-serif text-xl font-bold">{fmtBRL(totalMes)}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Este mês</p>
+          <p className="text-base font-extrabold text-pine-dark">{fmtBRL(totalMes)}</p>
         </div>
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Produtos</p>
-          <p className="font-serif text-xl font-bold">{products.filter((p) => p.ativo).length}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Produtos</p>
+          <p className="text-base font-extrabold text-pine-dark">{products.filter((p) => p.ativo).length}</p>
         </div>
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Estoque baixo</p>
-          <p className="font-serif text-xl font-bold">{lowStock.length}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Estoque baixo</p>
+          <p className="text-base font-extrabold text-pine-dark">{lowStock.length}</p>
         </div>
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">A receber</p>
-          <p className="font-serif text-xl font-bold">{fmtBRL(totalPendente)}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">A receber</p>
+          <p className="text-base font-extrabold text-pine-dark">{fmtBRL(totalPendente)}</p>
         </div>
       </div>
 
@@ -164,7 +155,7 @@ function Vendas() {
         </div>
       )}
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+      <div className="mb-3">
         <div className="card-surface overflow-x-auto">
           <div className="border-b border-border px-3 py-2">
             <h3 className="font-semibold">Estoque de produtos</h3>
@@ -227,47 +218,6 @@ function Vendas() {
           )}
         </div>
 
-        <div className="card-surface">
-          <div className="border-b border-border px-3 py-2">
-            <h3 className="font-semibold">Vendas por categoria</h3>
-          </div>
-          {categoryTotals.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground">Sem vendas segmentadas ainda.</div>
-          ) : (
-            <ul className="divide-y divide-border/60 text-sm">
-              {categoryTotals.map(([categoria, total]) => (
-                <li key={categoria} className="flex justify-between px-3 py-2">
-                  <span>{categoria}</span>
-                  <strong>{fmtBRL(total)}</strong>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      <div className="mb-4 card-surface p-4">
-        <h3 className="font-semibold">Estoque do café</h3>
-        {cafeStock.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">
-            Cadastre produtos com categoria “Café” para acompanhar consumo e compra.
-          </p>
-        ) : (
-          <div className="mt-3 grid gap-2 md:grid-cols-3">
-            {cafeStock.map((p) => (
-              <div key={p.id} className="rounded-md border border-border p-3 text-sm">
-                <strong>{p.nome}</strong>
-                <p
-                  className={
-                    p.estoque_atual <= p.estoque_minimo ? "text-brick" : "text-muted-foreground"
-                  }
-                >
-                  Estoque {p.estoque_atual} · mínimo {p.estoque_minimo}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {sales.length === 0 ? (

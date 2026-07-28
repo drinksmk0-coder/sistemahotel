@@ -42,7 +42,7 @@ function AuthPage() {
         return;
       }
       if (auth) {
-        await navigate({ to: "/painel", replace: true });
+        await navigate({ to: "/mapa", replace: true });
         return;
       }
       setCheckingSession(false);
@@ -63,7 +63,7 @@ function AuthPage() {
       });
       if (error) throw error;
       if (!data.session || !data.user) throw new Error("Não foi possível iniciar sua sessão.");
-      await navigate({ to: "/painel", replace: true });
+      await navigate({ to: "/mapa", replace: true });
     } catch (err) {
       toast.error(authErrorMessage(err));
     } finally {
@@ -112,7 +112,7 @@ function AuthPage() {
       const { error } = await supabase.auth.updateUser({ password: novaSenha });
       if (error) throw error;
       toast.success("Nova senha salva. Acesso liberado.");
-      navigate({ to: "/painel", replace: true });
+      navigate({ to: "/mapa", replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao confirmar convite");
     } finally {

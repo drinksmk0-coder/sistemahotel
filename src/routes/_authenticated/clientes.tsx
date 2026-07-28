@@ -1,7 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Eye, Pencil, Plus, Power, Printer, Search } from "lucide-react";
+import {
+  CalendarDays,
+  Download,
+  FileText,
+  History,
+  Mail,
+  Pencil,
+  Phone,
+  Plus,
+  Power,
+  Search,
+} from "lucide-react";
 import {
   useClients,
   useCurrentCompany,
@@ -10,6 +21,7 @@ import {
   useSales,
   useUpdate,
   type Client,
+  type Reservation,
 } from "@/lib/data";
 import { fmtBRL, fmtDate, downloadExcel, todayISO } from "@/lib/format";
 import { CLIENT_TYPES, BR_STATES, stateFromPhone } from "@/lib/constants";
@@ -52,6 +64,22 @@ function Clientes() {
     () => buildClientInsights(clients, reservations, sales),
     [clients, reservations, sales],
   );
+  const currentStayByClient = useMemo(() => {
+    const today = todayISO();
+    const map = new Map<string, (typeof reservations)[number]>();
+    reservations
+      .filter(
+        (reservation) =>
+          !["cancelado", "finalizado", "manutencao"].includes(reservation.status) &&
+          reservation.checkin <= today &&
+          reservation.checkout >= today,
+      )
+      .forEach((reservation) => {
+        if (reservation.cliente_id) map.set(reservation.cliente_id, reservation);
+        map.set(`nome:${normalizeText(reservation.cliente_nome)}`, reservation);
+      });
+    return map;
+  }, [reservations]);
 
   const filtered = clients.filter((c) => {
     const created = (c.created_at || "").slice(0, 10);
@@ -226,16 +254,20 @@ function Clientes() {
       {filtered.length === 0 ? (
         <EmptyState text="Nenhum cliente encontrado." />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
           {filtered.map((c) => {
             const insight = insights.get(c.id);
+            const stay =
+              currentStayByClient.get(c.id) ??
+              currentStayByClient.get(`nome:${normalizeText(c.nome)}`);
+            const email = (c as Client & { email?: string | null }).email;
             return (
-              <div key={c.id} className="card-surface p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-2">
+              <article key={c.id} className="card-surface overflow-hidden p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-start gap-2.5">
                     <input
                       type="checkbox"
-                      className="mt-1"
+                      className="mt-3"
                       checked={selectedIds.includes(c.id)}
                       onChange={(e) =>
                         setSelectedIds((ids) =>
@@ -246,131 +278,115 @@ function Clientes() {
                       }
                       aria-label={`Selecionar ${c.nome}`}
                     />
-                    <div>
-                      <p className="font-serif text-lg font-bold">{c.nome}</p>
-                      {c.telefone && <p className="text-sm text-muted-foreground">{c.telefone}</p>}
-                      {(c as Client & { email?: string | null }).email && (
-                        <p className="text-sm text-muted-foreground">
-                          {(c as Client & { email?: string | null }).email}
-                        </p>
-                      )}
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-extrabold text-primary">
+                      {clientInitials(c.nome)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-extrabold text-pine-dark">{c.nome}</p>
+                      <p className="truncate text-[9px] text-muted-foreground">
+                        {c.cpf || c.documento || "Documento não informado"}
+                      </p>
                     </div>
                   </div>
-                  <Badge
-                    tone={
-                      isClientDisabled(c) ? "slate" : c.tipo === "cliente fixo" ? "brass" : "sage"
-                    }
-                  >
-                    {isClientDisabled(c) ? "desativado" : c.tipo}
-                  </Badge>
-                </div>
-                <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
-                  {c.cpf && <p>CPF: {c.cpf}</p>}
-                  {c.sexo && <p>Sexo: {c.sexo}</p>}
-                  {c.estado_civil && <p>Estado civil: {c.estado_civil}</p>}
-                  {c.tem_filhos != null && (
-                    <p>Filhos: {c.tem_filhos ? (c.quantidade_filhos ?? 0) : "Não"}</p>
-                  )}
-                  {c.bairro && <p>Bairro: {c.bairro}</p>}
-                  {(c.cidade || c.estado) && (
-                    <p>{[c.cidade, c.estado].filter(Boolean).join(" / ")}</p>
-                  )}
-                  {c.pais && <p>País: {c.pais}</p>}
-                  {(c as Client & { cep?: string | null }).cep && (
-                    <p>CEP: {(c as Client & { cep?: string | null }).cep}</p>
-                  )}
-                  {c.profissao && <p>{c.profissao}</p>}
-                  {c.data_nascimento && <p>Nasc.: {fmtDate(c.data_nascimento)}</p>}
-                  <p>Cadastrado em {fmtDate(c.created_at)}</p>
-                </div>
-                <div className="mt-3 flex justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {insight?.visits ?? c.visitas} visita(s)
-                  </span>
-                  <span className="font-semibold">{fmtBRL(insight?.totalCharged ?? 0)}</span>
-                </div>
-                {insight && (
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                    <TierBadge tier={insight.tier} />
-                    <span className="text-xs text-muted-foreground">
-                      Média {fmtBRL(insight.averageSpend)}
-                    </span>
+                  <div className="flex items-center gap-1">
+                    <Badge tone={isClientDisabled(c) ? "slate" : "sage"}>
+                      {isClientDisabled(c) ? "inativo" : stay?.canal || c.tipo}
+                    </Badge>
+                    <button
+                      type="button"
+                      className="rounded-md p-1 text-muted-foreground hover:bg-muted"
+                      onClick={() => setEditing(c)}
+                      title="Editar cliente"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      className={`rounded-md p-1 ${isClientDisabled(c) ? "text-sage" : "text-brick"}`}
+                      onClick={() => {
+                        const disabling = !isClientDisabled(c);
+                        if (!window.confirm(`${disabling ? "Desativar" : "Reativar"} ${c.nome}?`))
+                          return;
+                        update.mutate(
+                          { id: c.id, patch: { ativo: !disabling } },
+                          {
+                            onSuccess: () =>
+                              toast.success(disabling ? "Cliente desativado" : "Cliente reativado"),
+                            onError: (error) => toast.error(error.message),
+                          },
+                        );
+                      }}
+                      title={isClientDisabled(c) ? "Reativar cliente" : "Desativar cliente"}
+                    >
+                      <Power className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                )}
-                <div className="mt-3 flex justify-end gap-1.5">
+                </div>
+
+                <div className="mt-3 grid gap-1 text-[10px] text-muted-foreground">
+                  {email && (
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <Mail className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{email}</span>
+                    </span>
+                  )}
+                  {c.telefone && (
+                    <span className="flex items-center gap-1.5">
+                      <Phone className="h-3.5 w-3.5" /> {c.telefone}
+                    </span>
+                  )}
+                  <span className="flex items-center gap-1.5">
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    {insight?.visits ?? c.visitas} estadia(s) ·{" "}
+                    {fmtBRL(insight?.totalCharged ?? 0)}
+                  </span>
+                </div>
+
+                <div className="mt-3 rounded-lg bg-muted px-2.5 py-2 text-[10px]">
+                  <div className="flex items-center justify-between text-muted-foreground">
+                    <span>{stay ? "Estadia atual" : "Último perfil registrado"}</span>
+                    {insight && <TierBadge tier={insight.tier} />}
+                  </div>
+                  {stay ? (
+                    <>
+                      <strong className="mt-0.5 block text-pine-dark">
+                        Quarto {stay.quarto} · {stay.status}
+                      </strong>
+                      <span className="text-muted-foreground">
+                        {fmtDate(stay.checkin)} → {fmtDate(stay.checkout)}
+                      </span>
+                    </>
+                  ) : (
+                    <strong className="mt-0.5 block text-pine-dark">
+                      Média por estadia {fmtBRL(insight?.averageSpend ?? 0)}
+                    </strong>
+                  )}
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-1.5">
                   <button
                     type="button"
-                    className="rounded-md bg-brass-bg px-2 py-1 text-xs font-semibold text-pine-dark"
+                    className="btn-ghost flex h-8 items-center justify-center gap-1 px-2 text-[9px]"
+                    onClick={() => printGuestForm(c)}
+                  >
+                    <FileText className="h-3 w-3" /> FNRH
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost flex h-8 items-center justify-center gap-1 px-2 text-[9px]"
+                    onClick={() => printGuestVoucher(c, stay)}
+                  >
+                    <FileText className="h-3 w-3" /> Voucher
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary flex h-8 items-center justify-center gap-1 px-2 text-[9px]"
                     onClick={() => setProfileClientId(c.id)}
-                    title="Ver consumo, preferências e segmento"
                   >
-                    <Eye className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md bg-sage-bg px-2 py-1 text-xs font-semibold text-pine-dark"
-                    onClick={() => {
-                      const params = new URLSearchParams({
-                        tipo: "cadastro",
-                        nome: c.nome,
-                        cpf: c.cpf ?? "",
-                        telefone: c.telefone ?? "",
-                        email: (c as Client & { email?: string | null }).email ?? "",
-                        nascimento: c.data_nascimento ? fmtDate(c.data_nascimento) : "",
-                        estadoCivil: c.estado_civil ?? "",
-                        profissao: c.profissao ?? "",
-                        origem: [c.cidade, c.estado, "Brasil"].filter(Boolean).join(" / "),
-                        endereco: [(c as Client & { cep?: string | null }).cep, c.bairro]
-                          .filter(Boolean)
-                          .join(" / "),
-                      });
-                      window.open(
-                        `/imprimir?${params.toString()}`,
-                        "_blank",
-                        "noopener,noreferrer",
-                      );
-                    }}
-                    title="Imprimir ficha do hóspede"
-                  >
-                    <Printer className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground"
-                    onClick={() => setEditing(c)}
-                    title="Editar cliente"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className={`rounded-md px-2 py-1 text-xs font-semibold ${isClientDisabled(c) ? "bg-sage-bg text-pine-dark" : "bg-brick-bg text-brick"}`}
-                    onClick={() => {
-                      const disabling = !isClientDisabled(c);
-                      if (
-                        !window.confirm(
-                          `${disabling ? "Desativar" : "Reativar"} ${c.nome}? O histórico de reservas será preservado.`,
-                        )
-                      )
-                        return;
-                      update.mutate(
-                        {
-                          id: c.id,
-                          patch: { ativo: !disabling },
-                        },
-                        {
-                          onSuccess: () =>
-                            toast.success(disabling ? "Cliente desativado" : "Cliente reativado"),
-                          onError: (e) => toast.error(e.message),
-                        },
-                      );
-                    }}
-                    title={isClientDisabled(c) ? "Reativar cliente" : "Desativar cliente"}
-                  >
-                    <Power className="h-3.5 w-3.5" />
+                    <History className="h-3 w-3" /> Histórico
                   </button>
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
@@ -417,6 +433,47 @@ function Clientes() {
       )}
     </div>
   );
+}
+
+function clientInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function printGuestForm(client: Client) {
+  const params = new URLSearchParams({
+    tipo: "cadastro",
+    nome: client.nome,
+    cpf: client.cpf ?? "",
+    telefone: client.telefone ?? "",
+    email: client.email ?? "",
+    nascimento: client.data_nascimento ? fmtDate(client.data_nascimento) : "",
+    estadoCivil: client.estado_civil ?? "",
+    profissao: client.profissao ?? "",
+    origem: [client.cidade, client.estado, client.pais].filter(Boolean).join(" / "),
+    endereco: [client.cep, client.bairro].filter(Boolean).join(" / "),
+  });
+  window.open(`/imprimir?${params.toString()}`, "_blank", "noopener,noreferrer");
+}
+
+function printGuestVoucher(
+  client: Client,
+  reservation?: Reservation,
+) {
+  const params = new URLSearchParams({
+    tipo: "voucher",
+    nome: client.nome,
+    telefone: client.telefone ?? "",
+    quarto: reservation ? String(reservation.quarto) : "",
+    checkin: reservation ? fmtDate(reservation.checkin) : "",
+    checkout: reservation ? fmtDate(reservation.checkout) : "",
+    total: reservation ? fmtBRL(reservation.valor_total) : "",
+  });
+  window.open(`/imprimir?${params.toString()}`, "_blank", "noopener,noreferrer");
 }
 
 function isClientDisabled(client: Client) {

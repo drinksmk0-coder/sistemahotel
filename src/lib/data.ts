@@ -221,7 +221,7 @@ export function useCurrentCompany() {
 export function setCurrentCompanyId(userId: string | undefined, companyId: string) {
   if (typeof window !== "undefined") {
     localStorage.setItem(selectedCompanyStorageKey(userId), companyId);
-    window.location.assign("/painel");
+    window.location.assign("/mapa");
   }
 }
 
