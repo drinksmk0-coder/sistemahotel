@@ -70,12 +70,12 @@
 
   --pine: #2878e8;
   --pine-dark: #071a38;
-  --brass: #10b981;
-  --brass-bg: #e7f8f2;
-  --brick: #f43f5e;
+  --brass: #168aad;
+  --brass-bg: #e7f4f8;
+  --brick: #c62828;
   --brick-bg: #fff0f3;
-  --sage: #10b981;
-  --sage-bg: #e7f8f2;
+  --sage: #2878e8;
+  --sage-bg: #e8f1fd;
   --slate: #64748b;
   --slate-bg: #eef2f6;
 
@@ -93,12 +93,13 @@
   --border: #d8e1eb;
   --input: #d8e1eb;
   --ring: #2878e8;
-  --chart-1: var(--pine);
-  --chart-2: var(--sage);
-  --chart-3: var(--brass);
-  --chart-4: var(--brick);
-  --chart-5: #2f8a72;
-  --chart-6: #6f8f7a;
+  --chart-1: #1859a9;
+  --chart-2: #2878e8;
+  --chart-3: #168aad;
+  --chart-4: #0f6f8f;
+  --chart-5: #4c91e8;
+  --chart-6: #336ca8;
+  --warning: #b45309;
 }
 
 @layer base {

@@ -7,7 +7,6 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Line,
   LineChart,
   Pie,
@@ -26,6 +25,7 @@ import {
   type Reservation,
 } from "@/lib/data";
 import { fmtBRL, todayISO } from "@/lib/format";
+import { semanticChartColor } from "@/lib/chart-colors";
 import {
   expensesTotal,
   inRange,
@@ -44,6 +44,7 @@ import {
 } from "@/lib/dashboard-utils";
 import {
   AlertBanner,
+  ChartHtmlLegend,
   DashboardHeader,
   DashboardTabs,
   FunnelStage,
@@ -60,8 +61,6 @@ export const Route = createFileRoute("/_authenticated/financeiro")({
 });
 
 type FinancialTab = "pagamento" | "despesa" | "canal";
-
-const COLORS = ["var(--pine)", "var(--sage)", "var(--brass)", "var(--brick)", "#6f8f7a", "#c7a94c"];
 
 function Financeiro() {
   const today = todayISO();
@@ -279,6 +278,7 @@ function Financeiro() {
       defaultHeight: 300,
       defaultColor: "var(--chart-1)",
       chartTypes: ["doughnut", "pie", "bar", "horizontalBar", "line", "area"],
+      dataRole: "distribution",
       render: (settings) => <FinancialCompositionChart rows={composition} settings={settings} />,
     },
     {
@@ -289,6 +289,7 @@ function Financeiro() {
       defaultHeight: 300,
       defaultColor: "var(--chart-1)",
       chartTypes: ["horizontalBar", "bar", "line", "area"],
+      dataRole: "ranking",
       render: (settings) => (
         <FinancialSeriesChart
           rows={channelRows}
@@ -332,6 +333,7 @@ function Financeiro() {
             defaultHeight: 300,
             defaultColor: "var(--chart-4)",
             chartTypes: ["line", "area", "bar"] as DashboardWidget["chartTypes"],
+            dataRole: "temporal" as const,
             render: (settings: DashboardWidgetSettings) => (
               <FinancialSeriesChart
                 rows={otaTrend}
@@ -457,26 +459,32 @@ function FinancialCompositionChart({
       />
     );
   }
+  const visibleRows = rows.slice(0, 10);
   return (
-    <FinancialChartFrame settings={settings}>
+    <FinancialChartFrame
+      settings={settings}
+      legendItems={visibleRows.map((row, index) => ({
+        label: row.name,
+        color: semanticChartColor(row.name, index, settings.color),
+      }))}
+    >
       <PieChart>
         <Pie
-          data={rows.slice(0, 10)}
+          data={visibleRows}
           dataKey="value"
           nameKey="name"
-          innerRadius={settings.chartType === "doughnut" ? "48%" : 0}
-          outerRadius="74%"
+          innerRadius="52%"
+          outerRadius="72%"
           paddingAngle={2}
         >
-          {rows.slice(0, 10).map((row, index) => (
+          {visibleRows.map((row, index) => (
             <Cell
               key={row.name}
-              fill={index === 0 ? settings.color : COLORS[index % COLORS.length]}
+              fill={semanticChartColor(row.name, index, settings.color)}
             />
           ))}
         </Pie>
         <Tooltip formatter={(value: number) => fmtBRL(value)} />
-        <Legend wrapperStyle={{ fontSize: 10 }} />
       </PieChart>
     </FinancialChartFrame>
   );
@@ -497,15 +505,24 @@ function FinancialSeriesChart({
 }) {
   const tooltipFormatter = (value: number) =>
     percentAxis ? `${Number(value).toFixed(1)}%` : fmtBRL(value);
+  const categoryAxisWidth = Math.min(
+    180,
+    Math.max(
+      88,
+      rows.reduce(
+        (width, row) => Math.max(width, String(row[categoryKey] ?? "").length * 6.2),
+        0,
+      ),
+    ),
+  );
   let chart: React.ReactNode;
   if (settings.chartType === "line") {
     chart = (
-      <LineChart data={rows} margin={{ left: 0, right: 14 }}>
+      <LineChart data={rows} margin={{ left: 8, right: 20, top: 12, bottom: 12 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-        <XAxis dataKey={categoryKey} tick={{ fontSize: 9 }} />
-        <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9 }} />
+        <XAxis dataKey={categoryKey} tick={{ fontSize: 9, fill: "var(--foreground)" }} />
+        <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9, fill: "var(--foreground)" }} />
         <Tooltip formatter={tooltipFormatter} />
-        <Legend wrapperStyle={{ fontSize: 10 }} />
         {series.map((item) => (
           <Line
             key={item.key}
@@ -520,12 +537,11 @@ function FinancialSeriesChart({
     );
   } else if (settings.chartType === "area") {
     chart = (
-      <AreaChart data={rows} margin={{ left: 0, right: 14 }}>
+      <AreaChart data={rows} margin={{ left: 8, right: 20, top: 12, bottom: 12 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-        <XAxis dataKey={categoryKey} tick={{ fontSize: 9 }} />
-        <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9 }} />
+        <XAxis dataKey={categoryKey} tick={{ fontSize: 9, fill: "var(--foreground)" }} />
+        <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9, fill: "var(--foreground)" }} />
         <Tooltip formatter={tooltipFormatter} />
-        <Legend wrapperStyle={{ fontSize: 10 }} />
         {series.map((item) => (
           <Area
             key={item.key}
@@ -545,7 +561,7 @@ function FinancialSeriesChart({
       <BarChart
         data={rows}
         layout={horizontal ? "vertical" : "horizontal"}
-        margin={horizontal ? { left: 62, right: 14 } : { left: 0, right: 14 }}
+        margin={horizontal ? { left: 8, right: 24, top: 12, bottom: 12 } : { left: 8, right: 20, top: 12, bottom: 24 }}
       >
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         {horizontal ? (
@@ -553,18 +569,27 @@ function FinancialSeriesChart({
             <XAxis
               type="number"
               domain={percentAxis ? [0, 100] : undefined}
-              tick={{ fontSize: 9 }}
+              tick={{ fontSize: 9, fill: "var(--foreground)" }}
             />
-            <YAxis type="category" dataKey={categoryKey} width={68} tick={{ fontSize: 9 }} />
+            <YAxis
+              type="category"
+              dataKey={categoryKey}
+              width={categoryAxisWidth}
+              interval={0}
+              tick={{ fontSize: 9, fill: "var(--foreground)" }}
+            />
           </>
         ) : (
           <>
-            <XAxis dataKey={categoryKey} tick={{ fontSize: 9 }} />
-            <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9 }} />
+            <XAxis
+              dataKey={categoryKey}
+              interval={0}
+              tick={{ fontSize: 9, fill: "var(--foreground)" }}
+            />
+            <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9, fill: "var(--foreground)" }} />
           </>
         )}
         <Tooltip formatter={tooltipFormatter} />
-        <Legend wrapperStyle={{ fontSize: 10 }} />
         {series.map((item) => (
           <Bar
             key={item.key}
@@ -577,20 +602,34 @@ function FinancialSeriesChart({
       </BarChart>
     );
   }
-  return <FinancialChartFrame settings={settings}>{chart}</FinancialChartFrame>;
+  return (
+    <FinancialChartFrame
+      settings={settings}
+      legendItems={series.map((item) => ({ label: item.label, color: item.color }))}
+    >
+      {chart}
+    </FinancialChartFrame>
+  );
 }
 
 function FinancialChartFrame({
   settings,
   children,
+  legendItems,
 }: {
   settings: DashboardWidgetSettings;
   children: React.ReactElement;
+  legendItems: { label: string; color: string }[];
 }) {
   return (
-    <section className="chart-surface h-full p-3 shadow-sm">
-      <h2 className="mb-2 text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>
-      <ResponsiveContainer width="100%" height={Math.max(72, settings.height - 54)}>
+    <section className="chart-surface flex h-full min-w-0 flex-col overflow-hidden p-3 shadow-sm">
+      <div className="mb-1 flex min-w-0 flex-wrap items-start justify-between gap-2">
+        <h2 className="min-w-0 truncate text-xs font-bold uppercase text-pine-dark" title={settings.title}>
+          {settings.title}
+        </h2>
+        <ChartHtmlLegend items={legendItems} />
+      </div>
+      <ResponsiveContainer width="100%" height={Math.max(120, settings.height - 82)}>
         {children}
       </ResponsiveContainer>
     </section>

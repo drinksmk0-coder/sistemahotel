@@ -101,32 +101,33 @@ function Despesas() {
           <section className="card-surface p-3">
             <h3 className="text-sm font-extrabold text-pine-dark">Despesas por categoria</h3>
             <p className="text-[9px] text-muted-foreground">Principais centros de custo.</p>
-            <ChartHtmlLegend items={[{ label: "Despesa", color: "var(--brick)" }]} />
-            <div className="h-52">
+            <ChartHtmlLegend items={[{ label: "Despesa", color: "var(--chart-4)" }]} />
+            <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={categoryChart}
-                  margin={{ top: 18, right: 14, left: 0, bottom: 24 }}
+                  layout="vertical"
+                  margin={{ top: 12, right: 72, left: 8, bottom: 12 }}
                 >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={formatCompactCurrency} />
+                  <YAxis
+                    type="category"
                     dataKey="categoria"
-                    angle={-20}
-                    textAnchor="end"
                     interval={0}
-                    height={55}
+                    width={128}
+                    tick={{ fontSize: 9, fill: "var(--foreground)" }}
                   />
-                  <YAxis tick={{ fontSize: 9 }} tickFormatter={formatCompactCurrency} />
                   <Tooltip formatter={(value) => fmtBRL(Number(value))} />
                   <Bar
                     dataKey="valor"
                     name="Despesa"
-                    fill="var(--brick)"
-                    radius={[5, 5, 0, 0]}
+                    fill="var(--chart-4)"
+                    radius={[0, 5, 5, 0]}
                   >
                     <LabelList
                       dataKey="valor"
-                      position="top"
+                      position="right"
                       fontSize={9}
                       formatter={(value: number) => formatCompactCurrency(value)}
                     />
@@ -138,7 +139,7 @@ function Despesas() {
           <section className="card-surface p-3">
             <h3 className="text-sm font-extrabold text-pine-dark">Evolução das despesas</h3>
             <p className="text-[9px] text-muted-foreground">Comparação mensal do histórico.</p>
-            <ChartHtmlLegend items={[{ label: "Despesa mensal", color: "var(--brick)" }]} />
+            <ChartHtmlLegend items={[{ label: "Despesa mensal", color: "var(--chart-4)" }]} />
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyChart} margin={{ top: 18, right: 18, left: 0 }}>
@@ -150,17 +151,10 @@ function Despesas() {
                     type="monotone"
                     dataKey="valor"
                     name="Despesa mensal"
-                    stroke="var(--brick)"
+                    stroke="var(--chart-4)"
                     strokeWidth={3}
-                    dot={{ r: 4 }}
-                  >
-                    <LabelList
-                      dataKey="valor"
-                      position="top"
-                      fontSize={9}
-                      formatter={(value: number) => formatCompactCurrency(value)}
-                    />
-                  </Line>
+                    dot={false}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>

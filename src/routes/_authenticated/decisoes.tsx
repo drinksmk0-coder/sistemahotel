@@ -535,7 +535,7 @@ function FinancialStoryChart({
             <Line dataKey="receita" name="Receita" stroke={settings.color} strokeWidth={3}>
               {labels("receita")}
             </Line>
-            <Line dataKey="despesas" name="Despesas" stroke="var(--brick)" strokeWidth={2}>
+            <Line dataKey="despesas" name="Despesas" stroke="var(--chart-4)" strokeWidth={2}>
               {labels("despesas")}
             </Line>
             <Line dataKey="lucro" name="Lucro" stroke="var(--sage)" strokeWidth={2}>
@@ -549,7 +549,7 @@ function FinancialStoryChart({
             <Bar dataKey="receita" name="Receita" fill={settings.color} radius={[4, 4, 0, 0]}>
               {labels("receita")}
             </Bar>
-            <Bar dataKey="despesas" name="Despesas" fill="var(--brick)" radius={[4, 4, 0, 0]}>
+            <Bar dataKey="despesas" name="Despesas" fill="var(--chart-4)" radius={[4, 4, 0, 0]}>
               {labels("despesas")}
             </Bar>
             <Line dataKey="lucro" name="Lucro" stroke="var(--sage)" strokeWidth={3}>

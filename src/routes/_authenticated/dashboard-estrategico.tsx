@@ -65,6 +65,7 @@ import {
   type Sale,
 } from "@/lib/data";
 import { fmtBRL, todayISO } from "@/lib/format";
+import { semanticChartColor } from "@/lib/chart-colors";
 import { ReceivablesPanel } from "@/components/ReceivablesPanel";
 import { DashboardHeader } from "@/components/DashboardKit";
 import {
@@ -505,6 +506,7 @@ function DashboardEstrategico() {
       defaultHeight: 320,
       defaultColor: "var(--chart-2)",
       chartTypes: ["doughnut", "pie", "bar", "horizontalBar", "radar"],
+      dataRole: "distribution",
       render: (settings) => (
         <EditableStrategicChart
           rows={channelRows}
@@ -650,6 +652,7 @@ function DashboardEstrategico() {
       defaultHeight: 280,
       defaultColor: "var(--chart-2)",
       chartTypes: ["doughnut", "pie", "horizontalBar", "bar", "radar"],
+      dataRole: "distribution",
       render: (settings) => (
         <EditableStrategicChart
           rows={paymentRows}
@@ -727,6 +730,7 @@ function DashboardEstrategico() {
       defaultHeight: 300,
       defaultColor: "var(--chart-1)",
       chartTypes: ["bar", "horizontalBar", "line", "area", "composed"],
+      dataRole: "ranking",
       render: (settings) => (
         <EditableStrategicChart
           rows={channelRows}
@@ -747,6 +751,7 @@ function DashboardEstrategico() {
       defaultHeight: 300,
       defaultColor: "var(--chart-2)",
       chartTypes: ["bar", "horizontalBar", "line", "area", "composed", "radar"],
+      dataRole: "ranking",
       render: (settings) => (
         <EditableStrategicChart
           rows={channelRows}
@@ -812,6 +817,7 @@ function DashboardEstrategico() {
       defaultHeight: 300,
       defaultColor: "var(--chart-1)",
       chartTypes: ["bar", "horizontalBar", "line", "area", "doughnut", "pie", "radar"],
+      dataRole: "ranking",
       render: (settings) => (
         <EditableStrategicChart
           rows={roomRows.slice(0, 8)}
@@ -1414,6 +1420,16 @@ function EditableStrategicChart({
   const labelFormatter = (value: number, currency = false) =>
     formatStrategicValue(value, currency);
   const primaryCurrency = Boolean(series[0]?.currency);
+  const categoryAxisWidth = Math.min(
+    180,
+    Math.max(
+      88,
+      rows.reduce(
+        (width, row) => Math.max(width, String(row[categoryKey] ?? "").length * 6.2),
+        0,
+      ),
+    ),
+  );
   const common = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -1436,7 +1452,7 @@ function EditableStrategicChart({
           {rows.map((row, index) => (
             <Cell
               key={`${String(row[categoryKey])}-${index}`}
-              fill={strategicSliceColor(index, first.color)}
+              fill={strategicSliceColor(index, first.color, row[categoryKey])}
             />
           ))}
         </Pie>
@@ -1464,9 +1480,13 @@ function EditableStrategicChart({
     );
   } else if (settings.chartType === "line") {
     chart = (
-      <LineChart data={rows} margin={{ left: -4, right: 14 }}>
+      <LineChart data={rows} margin={{ left: 8, right: 20, top: 12, bottom: 8 }}>
         {common}
-        <XAxis dataKey={categoryKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+        <XAxis
+          dataKey={categoryKey}
+          tick={{ fontSize: 10, fill: "var(--foreground)" }}
+          interval="preserveStartEnd"
+        />
         <YAxis
           tick={{ fontSize: 9 }}
           tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
@@ -1495,9 +1515,13 @@ function EditableStrategicChart({
     );
   } else if (settings.chartType === "area") {
     chart = (
-      <AreaChart data={rows} margin={{ left: -4, right: 14 }}>
+      <AreaChart data={rows} margin={{ left: 8, right: 20, top: 12, bottom: 8 }}>
         {common}
-        <XAxis dataKey={categoryKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+        <XAxis
+          dataKey={categoryKey}
+          tick={{ fontSize: 10, fill: "var(--foreground)" }}
+          interval="preserveStartEnd"
+        />
         <YAxis
           tick={{ fontSize: 9 }}
           tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
@@ -1526,9 +1550,13 @@ function EditableStrategicChart({
     );
   } else if (settings.chartType === "composed") {
     chart = (
-      <ComposedChart data={rows} margin={{ left: -4, right: 14 }}>
+      <ComposedChart data={rows} margin={{ left: 8, right: 20, top: 12, bottom: 8 }}>
         {common}
-        <XAxis dataKey={categoryKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+        <XAxis
+          dataKey={categoryKey}
+          tick={{ fontSize: 10, fill: "var(--foreground)" }}
+          interval="preserveStartEnd"
+        />
         <YAxis
           tick={{ fontSize: 9 }}
           tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
@@ -1583,8 +1611,8 @@ function EditableStrategicChart({
         layout={horizontal ? "vertical" : "horizontal"}
         margin={
           horizontal
-            ? { left: 4, right: 72, top: 10, bottom: 10 }
-            : { left: -4, right: 20, top: 24, bottom: 18 }
+            ? { left: 8, right: 88, top: 12, bottom: 14 }
+            : { left: 8, right: 20, top: 24, bottom: 24 }
         }
       >
         {common}
@@ -1600,15 +1628,20 @@ function EditableStrategicChart({
             <YAxis
               type="category"
               dataKey={categoryKey}
-              width={122}
+              width={categoryAxisWidth}
               interval={0}
-              tick={{ fontSize: 9, fill: "var(--pine-dark)" }}
+              tick={{ fontSize: 9, fill: "var(--foreground)" }}
               tickFormatter={(value) => truncateChartLabel(String(value))}
             />
           </>
         ) : (
           <>
-            <XAxis dataKey={categoryKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
+            <XAxis
+              dataKey={categoryKey}
+              tick={{ fontSize: 10, fill: "var(--foreground)" }}
+              interval={0}
+              minTickGap={4}
+            />
             <YAxis
               tick={{ fontSize: 9 }}
               tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
@@ -1674,7 +1707,13 @@ function EditableStrategicChart({
                     <span className="flex min-w-0 items-center gap-1.5">
                       <span
                         className="h-2.5 w-2.5 shrink-0 rounded-sm"
-                        style={{ backgroundColor: strategicSliceColor(index, series[0].color) }}
+                        style={{
+                          backgroundColor: strategicSliceColor(
+                            index,
+                            series[0].color,
+                            row[categoryKey],
+                          ),
+                        }}
                       />
                       <span className="truncate font-semibold text-pine-dark">
                         {String(row[categoryKey])}
@@ -1702,8 +1741,8 @@ function EditableStrategicChart({
   );
 }
 
-function strategicSliceColor(index: number, primary: string) {
-  return index === 0 ? primary : `var(--chart-${(index % 6) + 1})`;
+function strategicSliceColor(index: number, primary: string, label?: unknown) {
+  return semanticChartColor(label, index, primary);
 }
 
 function formatStrategicValue(value: number, currency = false) {
@@ -1951,7 +1990,10 @@ function ProfileDonut({
               paddingAngle={2}
             >
               {visible.map((row, index) => (
-                <Cell key={row.name} fill={`var(--chart-${(index % 6) + 1})`} />
+                <Cell
+                  key={row.name}
+                  fill={semanticChartColor(row.name, index, "var(--pine)")}
+                />
               ))}
             </Pie>
             <Tooltip
@@ -1964,7 +2006,9 @@ function ProfileDonut({
             <div key={row.name} className="grid min-w-0 grid-cols-[8px_1fr_auto] items-center gap-1">
               <span
                 className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: `var(--chart-${(index % 6) + 1})` }}
+                style={{
+                  backgroundColor: semanticChartColor(row.name, index, "var(--pine)"),
+                }}
               />
               <span className="truncate text-[9px] text-pine-dark" title={row.name}>
                 {row.name}

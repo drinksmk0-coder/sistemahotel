@@ -64,6 +64,7 @@ import {
   type Complaint,
 } from "@/lib/data";
 import { fmtBRL, todayISO } from "@/lib/format";
+import { semanticChartColor } from "@/lib/chart-colors";
 import { complaintLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge } from "@/components/ui-kit";
@@ -76,6 +77,7 @@ import {
 } from "@/components/DashboardDesigner";
 import {
   AlertBanner,
+  ChartHtmlLegend,
   ChartPanel,
   CompactKpi,
   DashboardHeader,
@@ -526,7 +528,7 @@ function Painel() {
                   />
                 ))}
               </Bar>
-              <Bar dataKey="despesas" name="Despesas" fill="var(--brick)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="despesas" name="Despesas" fill="var(--chart-4)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -552,7 +554,7 @@ function Painel() {
                 type="monotone"
                 dataKey="cancelamentos"
                 name="Cancelamentos"
-                stroke="var(--brick)"
+                stroke="var(--chart-4)"
                 strokeWidth={2}
                 dot={false}
               />
@@ -847,7 +849,7 @@ function OwnerCompactDashboard({
       id: "checkout-debt",
       title: "Check-outs com dívida",
       kind: "kpi",
-      defaultColor: "var(--brick)",
+      defaultColor: "var(--chart-4)",
       render: (settings) => (
         <CompactKpi
           label={settings.title}
@@ -880,7 +882,7 @@ function OwnerCompactDashboard({
       id: "expenses",
       title: "Despesas",
       kind: "kpi",
-      defaultColor: "var(--brick)",
+      defaultColor: "var(--chart-4)",
       render: (settings) => (
         <CompactKpi label={settings.title} value={fmtBRL(cost)} lowerIsBetter />
       ),
@@ -920,7 +922,7 @@ function OwnerCompactDashboard({
       kind: "chart",
       defaultColumns: 6,
       defaultHeight: 250,
-      defaultColor: "var(--brick)",
+      defaultColor: "var(--chart-4)",
       chartTypes: ["horizontalBar", "bar", "doughnut", "pie"],
       render: (settings) => (
         <EditableSingleSeriesChart rows={expenseRows.slice(0, 7)} settings={settings} currency />
@@ -977,13 +979,6 @@ function EditableSingleSeriesChart({
   const chartHeight = Math.max(56, settings.height - 55);
   const tooltipFormatter = (value: number) => (currency ? fmtBRL(value) : value);
   const labelFormatter = (value: number) => formatChartValue(value, currency);
-  const legend = settings.showLegend ? (
-    <Legend
-      verticalAlign="top"
-      align="right"
-      wrapperStyle={{ fontSize: 10, paddingBottom: 8 }}
-    />
-  ) : null;
   let chart: React.ReactNode;
 
   if (settings.chartType === "pie" || settings.chartType === "doughnut") {
@@ -1002,12 +997,11 @@ function EditableSingleSeriesChart({
           {rows.map((row, index) => (
             <Cell
               key={row.name}
-              fill={index === 0 ? settings.color : `var(--chart-${(index % 6) + 1})`}
+              fill={semanticChartColor(row.name, index, settings.color)}
             />
           ))}
         </Pie>
         <Tooltip formatter={tooltipFormatter} />
-        {legend}
       </PieChart>
     );
   } else if (settings.chartType === "radar") {
@@ -1017,7 +1011,6 @@ function EditableSingleSeriesChart({
         <PolarAngleAxis dataKey="name" tick={{ fontSize: 10 }} />
         <PolarRadiusAxis tick={{ fontSize: 9 }} />
         <Tooltip formatter={tooltipFormatter} />
-        {legend}
         <Radar
           dataKey="value"
           name="Valor"
@@ -1045,7 +1038,6 @@ function EditableSingleSeriesChart({
             <LabelList dataKey="value" position="top" formatter={labelFormatter} />
           )}
         </Line>
-        {legend}
       </LineChart>
     );
   } else if (settings.chartType === "area") {
@@ -1067,7 +1059,6 @@ function EditableSingleSeriesChart({
             <LabelList dataKey="value" position="top" formatter={labelFormatter} />
           )}
         </Area>
-        {legend}
       </AreaChart>
     );
   } else if (settings.chartType === "composed") {
@@ -1083,7 +1074,6 @@ function EditableSingleSeriesChart({
           )}
         </Area>
         <Line dataKey="value" name="Valor" stroke={settings.color} strokeWidth={3} />
-        {legend}
       </ComposedChart>
     );
   } else {
@@ -1102,20 +1092,24 @@ function EditableSingleSeriesChart({
           <>
             <XAxis
               type="number"
-              tick={{ fontSize: 9 }}
+              tick={{ fontSize: 9, fill: "var(--foreground)" }}
               tickFormatter={(value) => formatChartValue(Number(value))}
             />
             <YAxis
               type="category"
               dataKey="name"
-              tick={{ fontSize: 10, fill: "var(--pine-dark)" }}
-              width={112}
+              tick={{ fontSize: 10, fill: "var(--foreground)" }}
+              width={140}
               interval={0}
             />
           </>
         ) : (
           <>
-            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+            <XAxis
+              dataKey="name"
+              interval={0}
+              tick={{ fontSize: 10, fill: "var(--foreground)" }}
+            />
             <YAxis
               tick={{ fontSize: 9 }}
               tickFormatter={(value) => formatChartValue(Number(value))}
@@ -1132,13 +1126,22 @@ function EditableSingleSeriesChart({
             />
           )}
         </Bar>
-        {legend}
       </BarChart>
     );
   }
 
   return (
     <ChartPanel title={settings.title} span={12}>
+      <ChartHtmlLegend
+        items={
+          settings.chartType === "doughnut" || settings.chartType === "pie"
+            ? rows.map((row, index) => ({
+                label: row.name,
+                color: semanticChartColor(row.name, index, settings.color),
+              }))
+            : [{ label: "Valor", color: settings.color }]
+        }
+      />
       <ResponsiveContainer width="100%" height={chartHeight}>
         {chart}
       </ResponsiveContainer>
@@ -2784,7 +2787,7 @@ function RevenueExpenseHighlights({
     {
       nome: "Despesas",
       valor: expenseRows.reduce((sum, row) => sum + row.valor, 0),
-      fill: "var(--brick)",
+      fill: "var(--chart-4)",
     },
   ];
 
@@ -3043,12 +3046,12 @@ function normalizeText(value: string) {
 }
 
 const CHART_COLORS = [
-  "var(--pine)",
-  "var(--brass)",
-  "var(--sage)",
-  "var(--brick)",
-  "oklch(0.48 0.08 190)",
-  "oklch(0.55 0.11 300)",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--chart-6)",
 ];
 
 function ChannelStrategy({ reservations, sales }: { reservations: Reservation[]; sales: Sale[] }) {
@@ -3071,7 +3074,10 @@ function ChannelStrategy({ reservations, sales }: { reservations: Reservation[];
                 paddingAngle={2}
               >
                 {rows.map((row, index) => (
-                  <Cell key={row.canal} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                  <Cell
+                    key={row.canal}
+                    fill={semanticChartColor(row.canal, index, "var(--pine)")}
+                  />
                 ))}
               </Pie>
               <Tooltip formatter={(v: number) => fmtBRL(v)} />
@@ -3088,9 +3094,23 @@ function ChannelStrategy({ reservations, sales }: { reservations: Reservation[];
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
+                {rows.map((row, index) => (
                   <tr key={row.canal} className="border-b border-border/50">
-                    <td className="p-2 font-semibold">{row.canal}</td>
+                    <td className="p-2 font-semibold">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{
+                            backgroundColor: semanticChartColor(
+                              row.canal,
+                              index,
+                              "var(--pine)",
+                            ),
+                          }}
+                        />
+                        {row.canal}
+                      </span>
+                    </td>
                     <td className="p-2">{fmtBRL(row.bruto)}</td>
                     <td className="p-2 text-brick">{fmtBRL(row.comissao)}</td>
                     <td className="p-2 font-semibold text-pine">{fmtBRL(row.liquido)}</td>

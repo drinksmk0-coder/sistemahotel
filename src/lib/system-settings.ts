@@ -25,7 +25,7 @@ export type SystemSettings = {
 const DEFAULT_SETTINGS: SystemSettings = {
   logo: "/hotel-real-logo.png",
   primaryColor: "#2878e8",
-  accentColor: "#10b981",
+  accentColor: "#168aad",
   backgroundColor: "#f4f7fa",
   surfaceColor: "#ffffff",
   textColor: "#071a38",
@@ -37,7 +37,7 @@ const DEFAULT_SETTINGS: SystemSettings = {
   uiScale: 1,
   glassEffect: false,
   shadows: "soft",
-  chartPalette: ["#2878e8", "#10b981", "#f59e0b", "#f43f5e", "#7c3aed", "#64748b"],
+  chartPalette: ["#1859a9", "#2878e8", "#168aad", "#0f6f8f", "#4c91e8", "#336ca8"],
   autoPalette: true,
   aiDesignerEnabled: true,
   requiredGuestFields: {
@@ -103,15 +103,20 @@ export function buildHarmonicPalette(
 > {
   const { h, s, l } = hexToHsl(primaryColor);
   const primary = hslToHex(h, clamp(s, 42, 78), clamp(l, 32, 52));
-  const accent = hslToHex(h - 96, clamp(s + 14, 55, 88), theme === "dark" ? 62 : 53);
-  const secondary = hslToHex(h + 28, clamp(s + 4, 38, 72), theme === "dark" ? 62 : 48);
-  const complement = hslToHex(h + 168, clamp(s + 8, 48, 82), theme === "dark" ? 65 : 50);
-  const warm = hslToHex(h - 62, clamp(s + 18, 52, 88), theme === "dark" ? 66 : 55);
-  const cool = hslToHex(h + 62, clamp(s + 10, 45, 82), theme === "dark" ? 64 : 49);
+  const chartLightness = theme === "dark" ? [68, 60, 74, 64, 56, 70] : [38, 49, 43, 55, 34, 47];
+  const chartHueOffsets = [0, 14, 28, -14, -28, 38];
+  const chartPalette = chartHueOffsets.map((offset, index) =>
+    hslToHex(
+      h + offset,
+      clamp(s + (index % 2 ? -4 : 6), 44, 82),
+      chartLightness[index],
+    ),
+  );
+  const accent = chartPalette[2];
   const backgroundColor =
     theme === "dark" ? hslToHex(h, 15, 10) : hslToHex(h, clamp(s * 0.18, 8, 18), theme === "light" ? 98 : 95);
   const surfaceColor = theme === "dark" ? hslToHex(h, 13, 15) : hslToHex(h, 12, 99);
-  const textColor = theme === "dark" ? hslToHex(h, 10, 94) : hslToHex(h, 18, 18);
+  const textColor = theme === "dark" ? "#F8F9FA" : "#1A1D20";
 
   return {
     primaryColor: primary,
@@ -119,8 +124,29 @@ export function buildHarmonicPalette(
     backgroundColor,
     surfaceColor,
     textColor,
-    chartPalette: [primary, secondary, accent, warm, complement, cool],
+    chartPalette,
   };
+}
+
+function rgb(hex: string) {
+  const clean = hex.replace("#", "");
+  const value = Number.parseInt(clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean, 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
+
+function relativeLuminance(hex: string) {
+  const channels = rgb(hex).map((channel) => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+function accessibleForeground(background: string) {
+  const luminance = relativeLuminance(background);
+  const whiteContrast = 1.05 / (luminance + 0.05);
+  const darkContrast = (luminance + 0.05) / 0.0607;
+  return whiteContrast >= darkContrast ? "#FFFFFF" : "#1A1D20";
 }
 
 function storageKey(companyId?: string | null) {
@@ -177,7 +203,7 @@ export function applySystemSettings(settings: SystemSettings) {
   root.style.setProperty("--pine", settings.primaryColor);
   root.style.setProperty(
     "--pine-dark",
-    `color-mix(in srgb, ${settings.primaryColor} 72%, black)`,
+    dark ? text : `color-mix(in srgb, ${settings.primaryColor} 72%, black)`,
   );
   root.style.setProperty("--brass", settings.accentColor);
   root.style.setProperty(
@@ -189,10 +215,10 @@ export function applySystemSettings(settings: SystemSettings) {
     "--sage-bg",
     `color-mix(in srgb, ${settings.chartPalette[1] ?? settings.primaryColor} 14%, ${surface})`,
   );
-  root.style.setProperty("--brick", settings.chartPalette[3] ?? "#a2462d");
+  root.style.setProperty("--brick", "#C62828");
   root.style.setProperty(
     "--brick-bg",
-    `color-mix(in srgb, ${settings.chartPalette[3] ?? "#a2462d"} 14%, ${surface})`,
+    `color-mix(in srgb, #C62828 14%, ${surface})`,
   );
   root.style.setProperty("--background", background);
   root.style.setProperty("--paper", background);
@@ -215,7 +241,10 @@ export function applySystemSettings(settings: SystemSettings) {
   root.style.setProperty("--popover", surface);
   root.style.setProperty("--popover-foreground", text);
   root.style.setProperty("--primary", settings.primaryColor);
+  root.style.setProperty("--primary-foreground", accessibleForeground(settings.primaryColor));
   root.style.setProperty("--accent", settings.accentColor);
+  root.style.setProperty("--accent-foreground", accessibleForeground(settings.accentColor));
+  root.style.setProperty("--warning", "#B45309");
   root.style.setProperty("--ring", settings.accentColor);
   root.style.setProperty(
     "--muted",

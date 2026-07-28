@@ -29,6 +29,13 @@ import {
 export type DashboardChartType =
   "bar" | "horizontalBar" | "line" | "area" | "pie" | "doughnut" | "radar" | "composed";
 
+export type DashboardDataRole =
+  | "temporal"
+  | "ranking"
+  | "weekday"
+  | "distribution"
+  | "comparison";
+
 export type DashboardWidgetSettings = {
   id: string;
   title: string;
@@ -55,6 +62,7 @@ export type DashboardWidget = {
   defaultHeight?: number;
   defaultColor?: string;
   chartTypes?: DashboardChartType[];
+  dataRole?: DashboardDataRole;
   render: (settings: DashboardWidgetSettings) => ReactNode;
 };
 
@@ -64,31 +72,129 @@ type StoredLayout = {
   aiDesignVersion?: string;
 };
 
-const MIN_WIDGET_HEIGHT = 2;
 const MAX_WIDGET_HEIGHT = 1200;
+
+function normalizeTitle(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function dashboardDataRole(widget: DashboardWidget): DashboardDataRole {
+  if (widget.dataRole) return widget.dataRole;
+  const title = normalizeTitle(widget.title);
+  if (["dia da semana", "segunda", "domingo"].some((term) => title.includes(term))) {
+    return "weekday";
+  }
+  if (
+    ["evolucao", "historico", "previsao", "tendencia", "12 meses", "mensal", "diaria"].some(
+      (term) => title.includes(term),
+    )
+  ) {
+    return "temporal";
+  }
+  if (
+    ["forma de pagamento", "sexo", "estado civil", "distribuicao", "composicao"].some((term) =>
+      title.includes(term),
+    )
+  ) {
+    return "distribution";
+  }
+  if (
+    ["ranking", "maiores", "categoria", "reclamacao", "profissao", "por quarto", "por cliente"].some(
+      (term) => title.includes(term),
+    )
+  ) {
+    return "ranking";
+  }
+  return "comparison";
+}
+
+function allowedChartTypes(widget: DashboardWidget): DashboardChartType[] {
+  const available = widget.chartTypes ?? [];
+  if (!available.length) return [];
+  const preferred: Record<DashboardDataRole, DashboardChartType[]> = {
+    temporal: ["line", "area"],
+    ranking: ["horizontalBar"],
+    weekday: ["bar"],
+    distribution: ["doughnut"],
+    comparison: available,
+  };
+  const allowed = preferred[dashboardDataRole(widget)].filter((type) => available.includes(type));
+  return allowed.length ? allowed : [available[0]];
+}
+
+function minimumWidgetHeight(widget: DashboardWidget) {
+  if (widget.kind !== "chart") return widget.kind === "kpi" ? 72 : 120;
+  const role = dashboardDataRole(widget);
+  if (role === "temporal") return 300;
+  if (role === "ranking") return 260;
+  if (role === "distribution") return 240;
+  return 250;
+}
+
+function constrainWidgetSettings(
+  widget: DashboardWidget,
+  settings: DashboardWidgetSettings,
+): DashboardWidgetSettings {
+  if (widget.kind !== "chart") {
+    return { ...settings, height: Math.max(minimumWidgetHeight(widget), settings.height) };
+  }
+  const role = dashboardDataRole(widget);
+  const allowed = allowedChartTypes(widget);
+  return {
+    ...settings,
+    columns:
+      role === "temporal"
+        ? Math.max(8, settings.columns)
+        : role === "distribution"
+          ? Math.min(4, settings.columns)
+          : settings.columns,
+    height: Math.max(minimumWidgetHeight(widget), settings.height),
+    chartType:
+      allowed.length && !allowed.includes(settings.chartType) ? allowed[0] : settings.chartType,
+    showLegend: true,
+    showLabels: role === "temporal" ? false : settings.showLabels,
+    autoFit: true,
+  };
+}
 
 function storageKey(companyId: string | null | undefined, dashboardId: string) {
   return `hotelreal.dashboard.v6r2.${companyId ?? "default"}.${dashboardId}`;
 }
 
 function defaultSettings(widget: DashboardWidget): DashboardWidgetSettings {
-  return {
+  const role = dashboardDataRole(widget);
+  const allowedTypes = allowedChartTypes(widget);
+  const defaultColumns =
+    widget.kind !== "chart"
+      ? widget.defaultColumns ?? (widget.kind === "kpi" ? 2 : 6)
+      : role === "temporal"
+        ? Math.max(8, widget.defaultColumns ?? 8)
+        : role === "distribution"
+          ? Math.min(4, widget.defaultColumns ?? 4)
+          : widget.defaultColumns ?? 6;
+  return constrainWidgetSettings(widget, {
     id: widget.id,
     title: widget.title,
     color: widget.defaultColor ?? "var(--pine)",
     backgroundColor: "var(--card)",
     backgroundOpacity: 100,
-    columns: widget.defaultColumns ?? (widget.kind === "kpi" ? 2 : 6),
-    height: widget.defaultHeight ?? (widget.kind === "kpi" ? 110 : 290),
+    columns: defaultColumns,
+    height: Math.max(
+      minimumWidgetHeight(widget),
+      widget.defaultHeight ?? (widget.kind === "kpi" ? 110 : 290),
+    ),
     hidden: false,
-    chartType: widget.chartTypes?.[0] ?? "bar",
+    chartType: allowedTypes[0] ?? widget.chartTypes?.[0] ?? "bar",
     contentScale: 100,
     fontSize: 100,
     autoFit: true,
     showLegend: true,
-    showLabels: widget.kind === "chart",
+    showLabels: widget.kind === "chart" && role !== "temporal",
     showAccentBorder: false,
-  };
+  });
 }
 
 function loadLayout(
@@ -113,7 +219,11 @@ function loadLayout(
       widgets: Object.fromEntries(
         widgets.map((widget) => [
           widget.id,
-          { ...defaultSettings(widget), ...storedWidgets[widget.id], id: widget.id },
+          constrainWidgetSettings(widget, {
+            ...defaultSettings(widget),
+            ...storedWidgets[widget.id],
+            id: widget.id,
+          }),
         ]),
       ),
       aiDesignVersion: stored.aiDesignVersion,
@@ -163,7 +273,7 @@ function applyAiDesignProfile(
             : widget.defaultHeight ?? preset.height;
         return [
           widget.id,
-          {
+          constrainWidgetSettings(widget, {
             ...settings,
             columns,
             height,
@@ -179,7 +289,7 @@ function applyAiDesignProfile(
               widget.kind === "chart"
                 ? recommendedChartType(widget, profile)
                 : settings.chartType,
-          },
+          }),
         ];
       }),
     ),
@@ -246,7 +356,7 @@ export function DashboardDesigner({
       const height = Math.min(
         MAX_WIDGET_HEIGHT,
         Math.max(
-          MIN_WIDGET_HEIGHT,
+          minimumWidgetHeight(widgetById.get(resizing!.id)!),
           Math.round((resizing!.startHeight + event.clientY - resizing!.startY) / 4) * 4,
         ),
       );
@@ -254,11 +364,11 @@ export function DashboardDesigner({
         ...current,
         widgets: {
           ...current.widgets,
-          [resizing!.id]: {
+          [resizing!.id]: constrainWidgetSettings(widgetById.get(resizing!.id)!, {
             ...current.widgets[resizing!.id],
             columns,
             height,
-          },
+          }),
         },
       }));
     }
@@ -271,7 +381,7 @@ export function DashboardDesigner({
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
-  }, [resizing]);
+  }, [resizing, widgetById]);
 
   useEffect(
     () => () => {
@@ -296,11 +406,13 @@ export function DashboardDesigner({
   }, [companyId, dashboardId, widgets]);
 
   function updateWidget(id: string, patch: Partial<DashboardWidgetSettings>) {
+    const widget = widgetById.get(id);
+    if (!widget) return;
     setLayout((current) => ({
       ...current,
       widgets: {
         ...current.widgets,
-        [id]: { ...current.widgets[id], ...patch },
+        [id]: constrainWidgetSettings(widget, { ...current.widgets[id], ...patch }),
       },
     }));
   }
@@ -696,13 +808,19 @@ function EditorPanel({
             <input className="field h-8 py-1 text-xs" value={settings.title} onChange={(event) => onChange({ title: event.target.value })} />
           </EditorField>
           <NumberEditor label="Largura (1–12)" min={1} max={12} value={settings.columns} onValue={(columns) => onChange({ columns })} />
-          <NumberEditor label="Altura (2–1200 px)" min={MIN_WIDGET_HEIGHT} max={MAX_WIDGET_HEIGHT} value={settings.height} onValue={(height) => onChange({ height })} />
+          <NumberEditor
+            label={`Altura segura (mín. ${minimumWidgetHeight(widget)} px)`}
+            min={minimumWidgetHeight(widget)}
+            max={MAX_WIDGET_HEIGHT}
+            value={settings.height}
+            onValue={(height) => onChange({ height })}
+          />
           <NumberEditor label="Conteúdo (%)" min={5} max={200} value={settings.contentScale} onValue={(contentScale) => onChange({ contentScale })} />
           <NumberEditor label="Letras/números (%)" min={25} max={200} value={settings.fontSize} onValue={(fontSize) => onChange({ fontSize })} />
           {widget.chartTypes?.length ? (
             <EditorField label="Tipo de gráfico">
               <select className="field h-8 py-1 text-xs" value={settings.chartType} onChange={(event) => onChange({ chartType: event.target.value as DashboardChartType })}>
-                {widget.chartTypes.map((type) => <option key={type} value={type}>{chartTypeLabel(type)}</option>)}
+                {allowedChartTypes(widget).map((type) => <option key={type} value={type}>{chartTypeLabel(type)}</option>)}
               </select>
             </EditorField>
           ) : <span />}
