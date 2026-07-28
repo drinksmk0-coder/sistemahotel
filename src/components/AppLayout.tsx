@@ -5,8 +5,6 @@ import {
   ChartNoAxesCombined,
   Bot,
   CalendarRange,
-  ChevronDown,
-  ChevronUp,
   CreditCard,
   DollarSign,
   FileWarning,
@@ -102,7 +100,6 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [menuOpen, setMenuOpen] = useState(false);
-  const [toolsOpen, setToolsOpen] = useState(false);
   const visibleTabs = TABS.filter((tab) => !role || tab.roles.includes(role));
   const secondaryTabs = SECONDARY_TABS.filter((tab) => !role || tab.roles.includes(role));
   const mobileTabs = visibleTabs
@@ -183,7 +180,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         )}
       </div>
 
-      <nav className="app-sidebar-nav flex-1 space-y-1 overflow-hidden px-2.5 py-3">
+      <nav className="app-sidebar-nav flex-1 space-y-0.5 overflow-y-auto px-2.5 py-2">
         {visibleTabs.map((t) => {
           const active = path.startsWith(t.to);
           const Icon = t.icon;
@@ -192,7 +189,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               key={t.to}
               to={t.to}
               onClick={() => setMenuOpen(false)}
-              className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-xs font-semibold transition ${
+              className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${
                 active
                   ? "bg-white/12 text-white shadow-sm"
                   : "text-white/65 hover:bg-white/[0.07] hover:text-white"
@@ -204,36 +201,26 @@ export function AppLayout({ children }: { children: ReactNode }) {
           );
         })}
         {secondaryTabs.length > 0 && (
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={() => setToolsOpen((value) => !value)}
-              className="flex w-full items-center justify-between rounded-md px-2.5 py-2 text-xs font-semibold text-white/65 hover:bg-white/[0.07] hover:text-white"
-            >
-              <span>Mais ferramentas</span>
-              {toolsOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-            </button>
-            {toolsOpen && (
-              <div className="mt-1 space-y-1 border-l border-white/15 pl-2">
-                {secondaryTabs.map((tab) => {
-                  const Icon = tab.icon;
-                  const active = path.startsWith(tab.to);
-                  return (
-                    <Link
-                      key={tab.to}
-                      to={tab.to}
-                      onClick={() => setMenuOpen(false)}
-                      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] font-semibold ${
-                        active ? "bg-white/12 text-white" : "text-white/60 hover:bg-white/[0.07] hover:text-white"
-                      }`}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                      {tab.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
+          <div className="mt-1 space-y-0.5 border-t border-white/10 pt-1">
+            {secondaryTabs.map((tab) => {
+              const Icon = tab.icon;
+              const active = path.startsWith(tab.to);
+              return (
+                <Link
+                  key={tab.to}
+                  to={tab.to}
+                  onClick={() => setMenuOpen(false)}
+                  className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs font-semibold ${
+                    active
+                      ? "bg-white/12 text-white"
+                      : "text-white/65 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </Link>
+              );
+            })}
           </div>
         )}
       </nav>

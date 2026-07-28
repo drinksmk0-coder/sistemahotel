@@ -1081,6 +1081,7 @@ function DashboardEstrategico() {
       defaultHeight: 400,
       render: () => <SatisfactionCard feedbacks={feedbacks} />,
     },
+    compactWidget(clientWidgets[0], "geral-perfil-hospedes", 12, 560),
   ];
   const overviewKpis = dashboardWidgets
     .filter((widget) => ["reservas", "receita", "ocupacao"].includes(widget.id))
@@ -1116,7 +1117,7 @@ function DashboardEstrategico() {
 
       <main className="min-w-0 space-y-3">
         {activeView === "geral" && (
-          <section className="grid min-w-0 gap-3 xl:grid-cols-[13.5rem_minmax(0,1fr)]">
+          <section className="min-w-0 space-y-3">
             <ExecutiveFilterPanel
               period={period}
               accommodation={accommodationFilter}
@@ -1133,22 +1134,20 @@ function DashboardEstrategico() {
                 setChannelFilter("todos");
               }}
             />
-            <div className="min-w-0 space-y-3">
-              <DashboardDesigner
-                key="indicadores-geral-kpis-v13"
-                companyId={companyId}
-                dashboardId="indicadores-geral-kpis-v13"
-                widgets={overviewKpis}
-                fixed
-              />
-              <DashboardDesigner
-                key="indicadores-geral-graficos-v13"
-                companyId={companyId}
-                dashboardId="indicadores-geral-graficos-v13"
-                widgets={overviewWidgets}
-                fixed
-              />
-            </div>
+            <DashboardDesigner
+              key="indicadores-geral-kpis-v13"
+              companyId={companyId}
+              dashboardId="indicadores-geral-kpis-v13"
+              widgets={overviewKpis}
+              fixed
+            />
+            <DashboardDesigner
+              key="indicadores-geral-graficos-v13"
+              companyId={companyId}
+              dashboardId="indicadores-geral-graficos-v13"
+              widgets={overviewWidgets}
+              fixed
+            />
           </section>
         )}
 
@@ -1264,68 +1263,87 @@ function ExecutiveFilterPanel({
   onChannelChange: (value: string) => void;
   onReset: () => void;
 }) {
+  const activeFilters = [
+    period !== "mes",
+    accommodation !== "todos",
+    status !== "todos",
+    channel !== "todos",
+  ].filter(Boolean).length;
   return (
-    <aside className="executive-filter-panel h-fit rounded-lg border p-3 xl:sticky xl:top-3">
-      <div className="mb-4 flex items-center gap-2">
+    <details className="group relative z-40 w-fit">
+      <summary className="executive-filter-panel flex h-9 cursor-pointer list-none items-center gap-2 rounded-lg border px-3 text-[11px] font-extrabold text-pine-dark shadow-lg">
         <Filter className="h-4 w-4 text-primary" />
-        <div>
+        Filtros
+        {activeFilters > 0 ? (
+          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[9px] text-primary-foreground">
+            {activeFilters}
+          </span>
+        ) : null}
+        <ChevronDown className="h-3.5 w-3.5 transition group-open:rotate-180" />
+      </summary>
+      <div className="executive-filter-panel absolute left-0 top-11 z-50 w-[min(42rem,calc(100vw-3rem))] rounded-lg border p-3 shadow-2xl">
+        <div className="mb-3">
           <h2 className="text-xs font-extrabold text-pine-dark">Filtros do painel</h2>
-          <p className="text-[10px] text-muted-foreground">Refine toda a visão executiva.</p>
+          <p className="text-[10px] text-muted-foreground">
+            Os gráficos e indicadores são atualizados juntos.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <ExecutiveSelect
+            label="Período"
+            value={period}
+            onChange={(value) => onPeriodChange(value as DashboardPeriod)}
+            options={[
+              ["dia", "Hoje"],
+              ["mes", "Mês atual"],
+              ["ano", "Ano atual"],
+            ]}
+          />
+          <ExecutiveSelect
+            label="Tipo de acomodação"
+            value={accommodation}
+            onChange={onAccommodationChange}
+            options={[
+              ["todos", "Todos os quartos"],
+              ["padrao", "Padrão — R$ 90"],
+              ["superior", "Superior — R$ 110"],
+            ]}
+          />
+          <ExecutiveSelect
+            label="Status da reserva"
+            value={status}
+            onChange={onStatusChange}
+            options={[
+              ["todos", "Todos os status"],
+              ["confirmada", "Confirmada"],
+              ["sinal", "Pendente sinal 50%"],
+              ["checkin", "Check-in feito"],
+              ["cancelada", "Cancelada"],
+            ]}
+          />
+          <ExecutiveSelect
+            label="Canal de origem"
+            value={channel}
+            onChange={onChannelChange}
+            options={[
+              ["todos", "Todos os canais"],
+              ["whatsapp", "WhatsApp AI"],
+              ["balcao", "Balcão / direto"],
+              ["ota", "OTA"],
+            ]}
+          />
+        </div>
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            className="rounded-md bg-primary px-3 py-2 text-[11px] font-extrabold text-primary-foreground"
+            onClick={onReset}
+          >
+            Resetar filtros
+          </button>
         </div>
       </div>
-      <div className="space-y-3">
-        <ExecutiveSelect
-          label="Período"
-          value={period}
-          onChange={(value) => onPeriodChange(value as DashboardPeriod)}
-          options={[
-            ["dia", "Hoje"],
-            ["mes", "Mês atual"],
-            ["ano", "Ano atual"],
-          ]}
-        />
-        <ExecutiveSelect
-          label="Tipo de acomodação"
-          value={accommodation}
-          onChange={onAccommodationChange}
-          options={[
-            ["todos", "Todos os quartos"],
-            ["padrao", "Padrão — R$ 90"],
-            ["superior", "Superior — R$ 110"],
-          ]}
-        />
-        <ExecutiveSelect
-          label="Status da reserva"
-          value={status}
-          onChange={onStatusChange}
-          options={[
-            ["todos", "Todos os status"],
-            ["confirmada", "Confirmada"],
-            ["sinal", "Pendente sinal 50%"],
-            ["checkin", "Check-in feito"],
-            ["cancelada", "Cancelada"],
-          ]}
-        />
-        <ExecutiveSelect
-          label="Canal de origem"
-          value={channel}
-          onChange={onChannelChange}
-          options={[
-            ["todos", "Todos os canais"],
-            ["whatsapp", "WhatsApp AI"],
-            ["balcao", "Balcão / direto"],
-            ["ota", "OTA"],
-          ]}
-        />
-      </div>
-      <button
-        type="button"
-        className="mt-4 w-full rounded-md bg-primary px-3 py-2 text-[11px] font-extrabold text-primary-foreground shadow-lg shadow-primary/20"
-        onClick={onReset}
-      >
-        Resetar filtros
-      </button>
-    </aside>
+    </details>
   );
 }
 
@@ -2111,7 +2129,7 @@ function EditableStrategicChart({
         <h2 className="min-w-0 truncate text-xs font-bold uppercase text-pine-dark">
           {settings.title}
         </h2>
-        {settings.showLegend && !isCircular && (
+        {!isCircular && (
           <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[9px] font-semibold text-muted-foreground">
             {series.map((item) => (
               <span key={item.key} className="inline-flex items-center gap-1 whitespace-nowrap">
@@ -2276,7 +2294,7 @@ function GuestProfileOverview({
 }) {
   const [mapMode, setMapMode] = useState<"brasil" | "mundo">("brasil");
   return (
-    <section className="h-full min-w-0 overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm">
+    <section className="guest-profile-overview h-full min-w-0 overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>
@@ -2299,8 +2317,8 @@ function GuestProfileOverview({
           ))}
         </div>
       </div>
-      <div className="grid h-[calc(100%-44px)] min-h-0 gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.9fr)]">
-        <div className="min-h-0 overflow-hidden rounded-lg border border-border/70 bg-muted/30">
+      <div className="grid min-h-0 gap-3 xl:h-[calc(100%-44px)] xl:grid-cols-[minmax(0,1.25fr)_minmax(420px,0.9fr)]">
+        <div className="min-h-[380px] overflow-hidden rounded-lg border border-border/70 bg-muted/30">
           {mapMode === "brasil" ? (
             <BrazilGuestMap rows={states} color={settings.color} />
           ) : (
@@ -2311,7 +2329,7 @@ function GuestProfileOverview({
             />
           )}
         </div>
-        <div className="grid min-h-0 grid-cols-2 gap-2">
+        <div className="grid min-h-0 grid-cols-1 gap-2 sm:grid-cols-2">
           <ProfileDonut title="Receita" rows={revenue} currency />
           <ProfileDonut title="Sexo" rows={gender} />
           <ProfileDonut title="Estado civil" rows={civil} />
@@ -2363,7 +2381,7 @@ function BrazilGuestMap({
   const rowByUf = new Map(rows.map((row) => [row.uf.toLowerCase(), row]));
   const maxRevenue = Math.max(1, ...rows.map((row) => row.receita));
   return (
-    <div className="grid h-full min-h-[380px] grid-cols-[minmax(0,1fr)_160px]">
+    <div className="grid h-full min-h-[380px] grid-cols-1 sm:grid-cols-[minmax(0,1fr)_160px]">
       <svg
         viewBox={map.viewBox}
         className="h-full max-h-[410px] w-full p-3"
@@ -2392,7 +2410,7 @@ function BrazilGuestMap({
           );
         })}
       </svg>
-      <div className="border-l border-border/70 p-3">
+      <div className="border-t border-border/70 p-3 sm:border-l sm:border-t-0">
         <strong className="text-[10px] uppercase text-pine-dark">Estados líderes</strong>
         <div className="mt-2 space-y-2">
           {rows.slice(0, 7).map((row, index) => (

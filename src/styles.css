@@ -126,6 +126,20 @@
         color-mix(in srgb, var(--sidebar-primary) 24%, #071426)
       );
   }
+  .app-sidebar-nav {
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+    scrollbar-width: thin;
+  }
+  .app-sidebar-nav::-webkit-scrollbar {
+    width: 4px;
+  }
+  .app-sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .app-sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+  }
   html[data-background-style="soft"] body {
     background-image:
       radial-gradient(circle at 8% 8%, color-mix(in srgb, var(--pine) 9%, transparent), transparent 24rem),
@@ -360,6 +374,24 @@ html[data-dashboard-mode="tv"] .dashboard-designer-widget {
 
   table {
     min-width: 640px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .dashboard-designer-widget[data-dashboard-widget-id$="perfil-hospedes"] {
+    height: auto !important;
+  }
+
+  .dashboard-designer-widget[data-dashboard-widget-id$="perfil-hospedes"] > div,
+  .dashboard-designer-widget[data-dashboard-widget-id$="perfil-hospedes"] .dashboard-designer-content,
+  .dashboard-designer-widget[data-dashboard-widget-id$="perfil-hospedes"] .guest-profile-overview {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .dashboard-designer-widget[data-dashboard-widget-id$="perfil-hospedes"] .dashboard-designer-content {
+    width: 100% !important;
+    transform: none !important;
   }
 }
 
