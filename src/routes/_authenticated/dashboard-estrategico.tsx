@@ -29,7 +29,6 @@ import {
   CartesianGrid,
   ComposedChart,
   LabelList,
-  Legend,
   Line,
   LineChart,
   Pie,
@@ -102,6 +101,27 @@ const CHANNEL_COST: Record<string, number> = {
   site: 0,
 };
 
+type IndicatorView =
+  | "geral"
+  | "ocupacao"
+  | "receita"
+  | "financeiro"
+  | "hospedes"
+  | "experiencia"
+  | "canais"
+  | "contas";
+
+const INDICATOR_VIEWS: { id: IndicatorView; label: string }[] = [
+  { id: "geral", label: "Visão geral" },
+  { id: "ocupacao", label: "Ocupação" },
+  { id: "receita", label: "Receita e preços" },
+  { id: "financeiro", label: "Financeiro" },
+  { id: "hospedes", label: "Hóspedes" },
+  { id: "experiencia", label: "Experiência" },
+  { id: "canais", label: "Canais" },
+  { id: "contas", label: "Contas" },
+];
+
 function DashboardEstrategico() {
   const today = todayISO();
   const { data: rooms = [] } = useRooms();
@@ -113,6 +133,7 @@ function DashboardEstrategico() {
   const { data: complaints = [] } = useComplaints();
   const currentCompany = useCurrentCompany();
   const [period, setPeriod] = useState<DashboardPeriod>("mes");
+  const [activeView, setActiveView] = useState<IndicatorView>("geral");
   const range = periodRange(period, today);
   const previousRange = periodRange(period, today, -1);
   const previousYearToday = `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`;
@@ -221,6 +242,7 @@ function DashboardEstrategico() {
     clientById,
     "profissao",
   );
+  const ageRows = buildAgeDistribution(filteredReservations, clients, clientById, today);
   const profileRevenueRows = buildProfileRevenue(filteredReservations, clientById);
   const occupancyWeekdayRows = buildWeekdayOccupancy(
     filteredReservations,
@@ -242,6 +264,8 @@ function DashboardEstrategico() {
       id: "reservas",
       title: "Reservas",
       kind: "kpi",
+      defaultColumns: 2,
+      defaultHeight: 100,
       render: (settings) => (
         <StoryKpi
           icon={<BedDouble />}
@@ -258,6 +282,8 @@ function DashboardEstrategico() {
       id: "receita",
       title: "Receita",
       kind: "kpi",
+      defaultColumns: 2,
+      defaultHeight: 100,
       defaultColor: "var(--chart-2)",
       render: (settings) => (
         <StoryKpi
@@ -275,6 +301,8 @@ function DashboardEstrategico() {
       id: "a-receber",
       title: "A receber",
       kind: "kpi",
+      defaultColumns: 2,
+      defaultHeight: 100,
       defaultColor: "var(--brass)",
       render: (settings) => (
         <StoryKpi
@@ -290,6 +318,8 @@ function DashboardEstrategico() {
       id: "ocupacao",
       title: "Ocupação",
       kind: "kpi",
+      defaultColumns: 2,
+      defaultHeight: 100,
       render: (settings) => (
         <StoryKpi
           icon={<Activity />}
@@ -306,6 +336,8 @@ function DashboardEstrategico() {
       id: "lucro",
       title: "Lucro",
       kind: "kpi",
+      defaultColumns: 2,
+      defaultHeight: 100,
       defaultColor: lucro >= 0 ? "var(--chart-2)" : "var(--brick)",
       render: (settings) => (
         <StoryKpi
@@ -323,6 +355,8 @@ function DashboardEstrategico() {
       id: "ticket",
       title: "Ticket médio",
       kind: "kpi",
+      defaultColumns: 2,
+      defaultHeight: 100,
       defaultColor: "var(--chart-2)",
       render: (settings) => (
         <StoryKpi
@@ -393,12 +427,38 @@ function DashboardEstrategico() {
         previousDelta: percentChange(goppar, previousHotelKpis.goppar),
         yearDelta: percentChange(goppar, previousYearHotelKpis.goppar),
       },
+      {
+        id: "margem-operacional",
+        title: "Margem operacional",
+        value: `${margem}%`,
+        formula: `${fmtBRL(lucro)} / ${fmtBRL(receita)}`,
+        meaning: "Percentual da receita que permanece após as despesas operacionais.",
+        strategy:
+          lucro >= 0
+            ? "Margem positiva. Compare com a meta e investigue custos que crescem acima da receita."
+            : "Margem negativa. Priorize cobrança, precificação e redução dos maiores custos.",
+        tone: lucro >= 0 ? ("sage" as const) : ("brick" as const),
+        previousDelta: percentChange(
+          Number(margem),
+          safeDivide(
+            previousHotelKpis.grossOperatingProfit * 100,
+            previousHotelKpis.totalRevenue,
+          ),
+        ),
+        yearDelta: percentChange(
+          Number(margem),
+          safeDivide(
+            previousYearHotelKpis.grossOperatingProfit * 100,
+            previousYearHotelKpis.totalRevenue,
+          ),
+        ),
+      },
     ].map((metric): DashboardWidget => ({
       id: metric.id,
       title: metric.title,
       kind: "kpi",
       defaultColumns: 2,
-      defaultHeight: 145,
+      defaultHeight: 112,
       render: (settings) => (
         <HotelMetricCard
           label={settings.title}
@@ -640,7 +700,7 @@ function DashboardEstrategico() {
       title: "Origem e perfil dos hóspedes",
       kind: "content",
       defaultColumns: 12,
-      defaultHeight: 505,
+      defaultHeight: 560,
       defaultColor: "var(--chart-1)",
       render: (settings) => (
         <GuestProfileOverview
@@ -651,6 +711,7 @@ function DashboardEstrategico() {
           civil={civilRows}
           gender={genderRows}
           profession={professionRows}
+          age={ageRows}
         />
       ),
     },
@@ -840,6 +901,45 @@ function DashboardEstrategico() {
       ),
     },
   ];
+  const compactWidget = (
+    widget: DashboardWidget,
+    id: string,
+    columns = 4,
+    height = 195,
+  ): DashboardWidget => ({
+    ...widget,
+    id,
+    defaultColumns: columns,
+    defaultHeight: height,
+  });
+  const overviewWidgets: DashboardWidget[] = [
+    compactWidget(occupancyWidgets[0], "geral-ocupacao-semana"),
+    compactWidget(generalWidgets[0], "geral-evolucao-financeira"),
+    compactWidget(financialWidgets[0], "geral-formas-pagamento"),
+    compactWidget(generalWidgets[1], "geral-origem-receita"),
+    compactWidget(generalWidgets[2], "geral-despesas-categoria"),
+    compactWidget(pricingWidgets[1], "geral-receita-tipo-quarto"),
+    {
+      id: "geral-idade-hospedes",
+      title: "Idade dos hóspedes",
+      kind: "chart",
+      defaultColumns: 4,
+      defaultHeight: 195,
+      defaultColor: "var(--chart-2)",
+      chartTypes: ["doughnut", "horizontalBar", "bar", "pie"],
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={ageRows}
+          categoryKey="name"
+          series={[{ key: "value", label: "Hóspedes", color: settings.color }]}
+          settings={settings}
+        />
+      ),
+    },
+    compactWidget(evaluationWidgets[0], "geral-avaliacoes"),
+    compactWidget(evaluationWidgets[1], "geral-reclamacoes"),
+  ];
+  const companyId = currentCompany.data?.id;
 
   return (
     <div className="space-y-3 pb-6">
@@ -850,130 +950,181 @@ function DashboardEstrategico() {
         onPeriodChange={setPeriod}
       />
 
-      <main className="min-w-0 space-y-5">
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="estrategico-kpis"
-          widgets={dashboardWidgets}
-          title="KPIs estratégicos"
-          fixed
-        />
+      <IndicatorViewTabs active={activeView} onChange={setActiveView} />
 
-        <IndicatorSectionTitle
-          number={1}
-          title="Ocupação e demanda"
-          description="Disponibilidade, comportamento semanal e previsão dos próximos dias."
-        />
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="indicadores-ocupacao"
-          widgets={occupancyWidgets}
-          fixed
-        />
+      <main className="min-w-0 space-y-3">
+        {activeView === "geral" && (
+          <>
+            <IndicatorSectionTitle
+              number={1}
+              title="Visão executiva"
+              description="Os principais indicadores e comparações em uma única tela."
+              compact
+            />
+            <DashboardDesigner
+              key="indicadores-geral-kpis"
+              companyId={companyId}
+              dashboardId="indicadores-geral-kpis"
+              widgets={dashboardWidgets}
+              fixed
+            />
+            <DashboardDesigner
+              key="indicadores-geral-graficos"
+              companyId={companyId}
+              dashboardId="indicadores-geral-graficos"
+              widgets={overviewWidgets}
+              fixed
+            />
+          </>
+        )}
 
-        <IndicatorSectionTitle
-          number={2}
-          title="Receita"
-          description="Evolução financeira, origem da receita e expectativa futura."
-        />
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="estrategico-geral"
-          widgets={generalWidgets.filter((widget) =>
-            ["evolucao-financeira", "origem-receita", "forecast"].includes(widget.id),
-          )}
-          fixed
-        />
+        {activeView === "ocupacao" && (
+          <IndicatorTopic
+            number={2}
+            title="Ocupação e demanda"
+            description="Comportamento semanal, disponibilidade e previsão dos próximos 30 dias."
+            companyId={companyId}
+            dashboardId="indicadores-ocupacao-v2"
+            widgets={[...occupancyWidgets, ...generalWidgets.slice(3)]}
+          />
+        )}
 
-        <IndicatorSectionTitle
-          number={3}
-          title="Preços e quartos"
-          description="ADR, ocupação, receita e rentabilidade por categoria e unidade habitacional."
-        />
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="indicadores-precos"
-          widgets={pricingWidgets}
-          fixed
-        />
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="estrategico-quartos"
-          widgets={roomWidgets}
-          fixed
-        />
+        {activeView === "receita" && (
+          <IndicatorTopic
+            number={3}
+            title="Receita, preços e quartos"
+            description="Evolução, origem, ADR, ocupação e rentabilidade por UH e categoria."
+            companyId={companyId}
+            dashboardId="indicadores-receita-v2"
+            widgets={[
+              ...generalWidgets.filter((widget) =>
+                ["evolucao-financeira", "origem-receita"].includes(widget.id),
+              ),
+              ...pricingWidgets,
+              ...roomWidgets,
+            ]}
+          />
+        )}
 
-        <IndicatorSectionTitle
-          number={4}
-          title="Indicadores financeiros"
-          description="Receita, despesas, lucro, formas de pagamento e custos operacionais."
-        />
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="indicadores-financeiro"
-          widgets={[
-            ...generalWidgets.filter((widget) => widget.id === "despesas-categoria"),
-            ...trendWidgets,
-            ...financialWidgets,
-          ]}
-          fixed
-        />
+        {activeView === "financeiro" && (
+          <IndicatorTopic
+            number={4}
+            title="Indicadores financeiros"
+            description="Receita, despesas, lucro, formas de pagamento e custos operacionais."
+            companyId={companyId}
+            dashboardId="indicadores-financeiro-v2"
+            widgets={[
+              ...generalWidgets.filter((widget) => widget.id === "despesas-categoria"),
+              ...trendWidgets,
+              ...financialWidgets,
+            ]}
+          />
+        )}
 
-        <IndicatorSectionTitle
-          number={5}
-          title="Perfil dos hóspedes"
-          description="Origem, receita, sexo, estado civil e profissão no mesmo campo de visão."
-        />
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="estrategico-clientes"
-          widgets={clientWidgets}
-          fixed
-        />
+        {activeView === "hospedes" && (
+          <IndicatorTopic
+            number={5}
+            title="Perfil dos hóspedes"
+            description="Mapa, receita, idade, sexo, estado civil e profissão lado a lado."
+            companyId={companyId}
+            dashboardId="indicadores-hospedes-v2"
+            widgets={clientWidgets}
+          />
+        )}
 
-        <IndicatorSectionTitle
-          number={6}
-          title="Avaliações e reclamações"
-          description="Notas por critério e assuntos que mais prejudicam a experiência."
-        />
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="indicadores-avaliacoes"
-          widgets={evaluationWidgets}
-          fixed
-        />
+        {activeView === "experiencia" && (
+          <IndicatorTopic
+            number={6}
+            title="Avaliações e reclamações"
+            description="Notas por critério e temas que mais afetam a experiência."
+            companyId={companyId}
+            dashboardId="indicadores-experiencia-v2"
+            widgets={evaluationWidgets}
+          />
+        )}
 
-        <IndicatorSectionTitle
-          number={7}
-          title="Canais e oportunidades"
-          description="Receita líquida, custos, recorrência e recomendações de ação."
-        />
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="estrategico-canais"
-          widgets={channelWidgets}
-          fixed
-        />
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="estrategico-insights"
-          widgets={insightWidgets}
-          fixed
-        />
+        {activeView === "canais" && (
+          <IndicatorTopic
+            number={7}
+            title="Canais e oportunidades"
+            description="Receita líquida, custos, recorrência e recomendações de ação."
+            companyId={companyId}
+            dashboardId="indicadores-canais-v2"
+            widgets={[...channelWidgets, ...insightWidgets]}
+          />
+        )}
 
-        <IndicatorSectionTitle
-          number={8}
-          title="Contas e relacionamento"
-          description="Saldos pendentes, cobranças e hóspedes recorrentes."
-        />
-        <DashboardDesigner
-          companyId={currentCompany.data?.id}
-          dashboardId="estrategico-clientes-detalhes"
-          widgets={clientDetailWidgets}
-          fixed
-        />
+        {activeView === "contas" && (
+          <IndicatorTopic
+            number={8}
+            title="Contas e relacionamento"
+            description="Saldos pendentes, cobranças e hóspedes recorrentes."
+            companyId={companyId}
+            dashboardId="indicadores-contas-v2"
+            widgets={clientDetailWidgets}
+          />
+        )}
       </main>
     </div>
+  );
+}
+
+function IndicatorViewTabs({
+  active,
+  onChange,
+}: {
+  active: IndicatorView;
+  onChange: (view: IndicatorView) => void;
+}) {
+  return (
+    <nav
+      className="flex max-w-full gap-1 overflow-x-auto rounded-lg border border-border bg-card p-1 shadow-sm"
+      aria-label="Temas dos indicadores"
+    >
+      {INDICATOR_VIEWS.map((view) => (
+        <button
+          key={view.id}
+          type="button"
+          onClick={() => onChange(view.id)}
+          className={`shrink-0 rounded-md px-3 py-1.5 text-[11px] font-bold transition ${
+            active === view.id
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:bg-muted hover:text-pine-dark"
+          }`}
+        >
+          {view.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function IndicatorTopic({
+  number,
+  title,
+  description,
+  companyId,
+  dashboardId,
+  widgets,
+}: {
+  number: number;
+  title: string;
+  description: string;
+  companyId?: string;
+  dashboardId: string;
+  widgets: DashboardWidget[];
+}) {
+  return (
+    <>
+      <IndicatorSectionTitle number={number} title={title} description={description} compact />
+      <DashboardDesigner
+        key={dashboardId}
+        companyId={companyId}
+        dashboardId={dashboardId}
+        widgets={widgets}
+        fixed
+      />
+    </>
   );
 }
 
@@ -981,18 +1132,24 @@ function IndicatorSectionTitle({
   number,
   title,
   description,
+  compact = false,
 }: {
   number: number;
   title: string;
   description: string;
+  compact?: boolean;
 }) {
   return (
-    <div className="flex items-start gap-3 border-t border-border/70 pt-4 first:border-t-0">
-      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-extrabold text-primary">
+    <div
+      className={`flex items-start gap-2 border-border/70 ${
+        compact ? "border-b pb-2" : "border-t pt-4 first:border-t-0"
+      }`}
+    >
+      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary/10 text-[10px] font-extrabold text-primary">
         {number}
       </span>
       <div>
-        <h2 className="text-base font-extrabold text-pine-dark">{title}</h2>
+        <h2 className="text-sm font-extrabold text-pine-dark">{title}</h2>
         <p className="text-[11px] text-muted-foreground">{description}</p>
       </div>
     </div>
@@ -1248,22 +1405,17 @@ function EditableStrategicChart({
   series: StrategicSeries[];
   settings: DashboardWidgetSettings;
 }) {
-  const height = Math.max(56, settings.height - 54);
+  const height = Math.max(56, settings.height - 78);
+  const canShowLabels = settings.showLabels && rows.length <= 12;
   const formatter = (value: number, name: string) =>
     series.find((item) => item.label === name)?.currency ? fmtBRL(value) : value;
   const labelFormatter = (value: number, currency = false) =>
     formatStrategicValue(value, currency);
+  const primaryCurrency = Boolean(series[0]?.currency);
   const common = (
     <>
       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
       <Tooltip formatter={formatter} />
-      {settings.showLegend && (
-        <Legend
-          verticalAlign="top"
-          align="right"
-          wrapperStyle={{ fontSize: 10, paddingBottom: 8 }}
-        />
-      )}
     </>
   );
   let chart: React.ReactNode;
@@ -1279,7 +1431,7 @@ function EditableStrategicChart({
           innerRadius={settings.chartType === "doughnut" ? "48%" : 0}
           outerRadius="76%"
         >
-          {settings.showLabels && (
+          {canShowLabels && (
             <LabelList
               dataKey={first.key}
               position="outside"
@@ -1294,9 +1446,6 @@ function EditableStrategicChart({
           ))}
         </Pie>
         <Tooltip formatter={formatter} />
-        {settings.showLegend && (
-          <Legend verticalAlign="top" align="right" wrapperStyle={{ fontSize: 10 }} />
-        )}
       </PieChart>
     );
   } else if (settings.chartType === "radar") {
@@ -1306,7 +1455,6 @@ function EditableStrategicChart({
         <PolarAngleAxis dataKey={categoryKey} tick={{ fontSize: 10 }} />
         <PolarRadiusAxis tick={{ fontSize: 9 }} />
         <Tooltip formatter={formatter} />
-        {settings.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
         {series.map((item, index) => (
           <Radar
             key={item.key}
@@ -1324,7 +1472,11 @@ function EditableStrategicChart({
       <LineChart data={rows} margin={{ left: -4, right: 14 }}>
         {common}
         <XAxis dataKey={categoryKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-        <YAxis tick={{ fontSize: 9 }} />
+        <YAxis
+          tick={{ fontSize: 9 }}
+          tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
+          width={primaryCurrency ? 68 : 42}
+        />
         {series.map((item) => (
           <Line
             key={item.key}
@@ -1335,7 +1487,7 @@ function EditableStrategicChart({
             strokeWidth={2.5}
             dot={false}
           >
-            {settings.showLabels && (
+            {canShowLabels && (
               <LabelList
                 dataKey={item.key}
                 position="top"
@@ -1351,7 +1503,11 @@ function EditableStrategicChart({
       <AreaChart data={rows} margin={{ left: -4, right: 14 }}>
         {common}
         <XAxis dataKey={categoryKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-        <YAxis tick={{ fontSize: 9 }} />
+        <YAxis
+          tick={{ fontSize: 9 }}
+          tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
+          width={primaryCurrency ? 68 : 42}
+        />
         {series.map((item, index) => (
           <Area
             key={item.key}
@@ -1362,7 +1518,7 @@ function EditableStrategicChart({
             fill={item.color}
             fillOpacity={index ? 0.12 : 0.24}
           >
-            {settings.showLabels && (
+            {canShowLabels && (
               <LabelList
                 dataKey={item.key}
                 position="top"
@@ -1378,7 +1534,11 @@ function EditableStrategicChart({
       <ComposedChart data={rows} margin={{ left: -4, right: 14 }}>
         {common}
         <XAxis dataKey={categoryKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-        <YAxis tick={{ fontSize: 9 }} />
+        <YAxis
+          tick={{ fontSize: 9 }}
+          tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
+          width={primaryCurrency ? 68 : 42}
+        />
         {series.map((item, index) =>
           index === 0 ? (
             <Area
@@ -1390,7 +1550,7 @@ function EditableStrategicChart({
               fill={item.color}
               fillOpacity={0.18}
             >
-              {settings.showLabels && (
+              {canShowLabels && (
                 <LabelList
                   dataKey={item.key}
                   position="top"
@@ -1408,7 +1568,7 @@ function EditableStrategicChart({
               strokeWidth={2.5}
               dot={false}
             >
-              {settings.showLabels && (
+              {canShowLabels && (
                 <LabelList
                   dataKey={item.key}
                   position="top"
@@ -1438,7 +1598,9 @@ function EditableStrategicChart({
             <XAxis
               type="number"
               tick={{ fontSize: 9 }}
-              tickFormatter={(value) => formatStrategicValue(Number(value))}
+              tickFormatter={(value) =>
+                formatStrategicValue(Number(value), primaryCurrency)
+              }
             />
             <YAxis
               type="category"
@@ -1452,7 +1614,11 @@ function EditableStrategicChart({
         ) : (
           <>
             <XAxis dataKey={categoryKey} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-            <YAxis tick={{ fontSize: 9 }} />
+            <YAxis
+              tick={{ fontSize: 9 }}
+              tickFormatter={(value) => formatStrategicValue(Number(value), primaryCurrency)}
+              width={primaryCurrency ? 68 : 42}
+            />
           </>
         )}
         {series.map((item) => (
@@ -1463,7 +1629,7 @@ function EditableStrategicChart({
             fill={item.color}
             radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
           >
-            {settings.showLabels && (
+            {canShowLabels && (
               <LabelList
                 dataKey={item.key}
                 position={horizontal ? "right" : "top"}
@@ -1478,7 +1644,24 @@ function EditableStrategicChart({
 
   return (
     <section className="h-full min-w-0 rounded-lg border border-border bg-card p-3 shadow-sm">
-      <h2 className="mb-2 text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>
+      <div className="mb-1.5 flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h2 className="min-w-0 truncate text-xs font-bold uppercase text-pine-dark">
+          {settings.title}
+        </h2>
+        {settings.showLegend && (
+          <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[9px] font-semibold text-muted-foreground">
+            {series.map((item) => (
+              <span key={item.key} className="inline-flex items-center gap-1 whitespace-nowrap">
+                <span
+                  className="h-2.5 w-2.5 rounded-sm"
+                  style={{ backgroundColor: item.color }}
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
       {rows.length ? (
         <ResponsiveContainer width="100%" height={height}>
           {chart}
@@ -1551,6 +1734,7 @@ function GuestProfileOverview({
   civil,
   gender,
   profession,
+  age,
 }: {
   settings: DashboardWidgetSettings;
   states: { uf: string; label: string; value: number; receita: number }[];
@@ -1559,6 +1743,7 @@ function GuestProfileOverview({
   civil: { name: string; value: number }[];
   gender: { name: string; value: number }[];
   profession: { name: string; value: number }[];
+  age: { name: string; value: number }[];
 }) {
   const [mapMode, setMapMode] = useState<"brasil" | "mundo">("brasil");
   return (
@@ -1602,9 +1787,36 @@ function GuestProfileOverview({
           <ProfileDonut title="Sexo" rows={gender} />
           <ProfileDonut title="Estado civil" rows={civil} />
           <ProfileDonut title="Profissão" rows={profession} />
+          <ProfileDonut title="Idade" rows={age} />
+          <ProfileSummary
+            total={gender.reduce((sum, row) => sum + row.value, 0)}
+            states={states.length}
+            countries={countries.length}
+          />
         </div>
       </div>
     </section>
+  );
+}
+
+function ProfileSummary({
+  total,
+  states,
+  countries,
+}: {
+  total: number;
+  states: number;
+  countries: number;
+}) {
+  return (
+    <article className="grid min-h-[150px] place-content-center rounded-lg border border-border/70 bg-[linear-gradient(145deg,var(--primary)_8%,var(--card))] p-3 text-center">
+      <strong className="font-serif text-2xl text-pine-dark">{total}</strong>
+      <span className="text-[9px] font-bold uppercase text-muted-foreground">hóspedes no perfil</span>
+      <div className="mt-2 flex justify-center gap-3 text-[9px] text-muted-foreground">
+        <span>{states} estados</span>
+        <span>{countries} países</span>
+      </div>
+    </article>
   );
 }
 
@@ -2009,6 +2221,58 @@ function buildProfileDistribution(
     .map(([name, value]) => ({ name, value }))
     .sort((a, b) => b.value - a.value)
     .slice(0, field === "profissao" ? 8 : 6);
+}
+
+function buildAgeDistribution(
+  reservations: Reservation[],
+  clients: Client[],
+  clientById: Map<string, Client>,
+  referenceDate: string,
+) {
+  const referenced = new Set(
+    reservations
+      .map((reservation) => readClientId(reservation))
+      .filter((id): id is string => Boolean(id)),
+  );
+  const source = referenced.size
+    ? [...referenced]
+        .map((id) => clientById.get(id))
+        .filter((client): client is Client => Boolean(client))
+    : clients;
+  const order = ["Até 17", "18–24", "25–34", "35–44", "45–59", "60+", "Não informado"];
+  const counts = new Map(order.map((name) => [name, 0]));
+  const reference = new Date(`${referenceDate}T12:00:00`);
+
+  source.forEach((client) => {
+    const birthValue = String(client.data_nascimento ?? "").slice(0, 10);
+    const birth = birthValue ? new Date(`${birthValue}T12:00:00`) : null;
+    if (!birth || Number.isNaN(birth.getTime()) || birth > reference) {
+      counts.set("Não informado", (counts.get("Não informado") ?? 0) + 1);
+      return;
+    }
+    let age = reference.getFullYear() - birth.getFullYear();
+    const beforeBirthday =
+      reference.getMonth() < birth.getMonth() ||
+      (reference.getMonth() === birth.getMonth() && reference.getDate() < birth.getDate());
+    if (beforeBirthday) age -= 1;
+    const range =
+      age <= 17
+        ? "Até 17"
+        : age <= 24
+          ? "18–24"
+          : age <= 34
+            ? "25–34"
+            : age <= 44
+              ? "35–44"
+              : age <= 59
+                ? "45–59"
+                : "60+";
+    counts.set(range, (counts.get(range) ?? 0) + 1);
+  });
+
+  return order
+    .map((name) => ({ name, value: counts.get(name) ?? 0 }))
+    .filter((row) => row.value > 0);
 }
 
 function buildCountryRows(

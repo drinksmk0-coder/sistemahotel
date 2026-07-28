@@ -148,26 +148,19 @@ function applyAiDesignProfile(
           .normalize("NFD")
           .replace(/[\u0300-\u036f]/g, "")
           .toLowerCase();
-        const needsWideView = [
-          "evolucao",
-          "historico",
-          "previsao",
-          "mapa",
-          "calendario",
-          "perfil dos hospedes",
-        ].some((term) => title.includes(term));
+        const needsWideView = ["mapa", "calendario", "perfil dos hospedes"].some((term) =>
+          title.includes(term),
+        );
         const columns =
           widget.kind === "kpi"
-            ? preset.columns
+            ? widget.defaultColumns ?? preset.columns
             : needsWideView
               ? 12
-              : Math.min(12, Math.max(preset.columns, widget.defaultColumns ?? preset.columns));
+              : widget.defaultColumns ?? preset.columns;
         const height =
           title.includes("mapa") || title.includes("perfil dos hospedes")
             ? Math.max(400, widget.defaultHeight ?? preset.height)
-            : needsWideView
-              ? Math.max(preset.height, 300)
-              : preset.height;
+            : widget.defaultHeight ?? preset.height;
         return [
           widget.id,
           {
@@ -584,7 +577,9 @@ export function DashboardDesigner({
             borderTopColor: settings.showAccentBorder ? settings.color : "transparent",
             borderTopWidth: settings.showAccentBorder ? 4 : 0,
             borderTopStyle: "solid",
-            background: `color-mix(in srgb, ${settings.backgroundColor} ${settings.backgroundOpacity}%, transparent)`,
+            background: fixed
+              ? "transparent"
+              : `color-mix(in srgb, ${settings.backgroundColor} ${settings.backgroundOpacity}%, transparent)`,
             height: settings.height,
             opacity: settings.hidden ? 0.5 : dragging?.id === widget.id ? 0.35 : 1,
           } as CSSProperties;
@@ -600,7 +595,11 @@ export function DashboardDesigner({
             <div
               key={widget.id}
               data-dashboard-widget-id={widget.id}
-              className={`dashboard-widget dashboard-designer-widget relative min-w-0 overflow-hidden rounded-xl border border-border/80 shadow-[0_4px_18px_rgba(15,35,60,0.045)] transition-shadow hover:shadow-[0_8px_24px_rgba(15,35,60,0.075)] ${
+              className={`dashboard-widget dashboard-designer-widget relative min-w-0 rounded-xl ${
+                fixed
+                  ? "overflow-visible border-0 bg-transparent shadow-none"
+                  : "overflow-hidden border border-border/80 shadow-[0_4px_18px_rgba(15,35,60,0.045)] transition-shadow hover:shadow-[0_8px_24px_rgba(15,35,60,0.075)]"
+              } ${
                 editing
                   ? selectedId === widget.id
                     ? "z-10 border-2 border-brass shadow-md"
