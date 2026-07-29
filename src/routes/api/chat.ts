@@ -36,7 +36,13 @@ export const Route = createFileRoute("/api/chat")({
             authorization,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ question, company_id: companyId, mode: assistantMode }),
+          body: JSON.stringify({
+            question,
+            company_id: companyId,
+            mode: assistantMode,
+            reception_context:
+              assistantMode === "reception" ? extractReceptionContext(messages) : undefined,
+          }),
         });
         const payload = (await response.json().catch(() => ({}))) as {
           answer?: string;
@@ -76,4 +82,30 @@ function latestUserText(messages: UIMessage[]) {
     .join("\n")
     .trim()
     .slice(0, 2000);
+}
+
+
+function extractReceptionContext(messages: UIMessage[]) {
+  const text = messages
+    .filter((message) => message.role === "user")
+    .slice(-12)
+    .flatMap((message) =>
+      message.parts
+        .filter((part): part is Extract<(typeof message.parts)[number], { type: "text" }> =>
+          part.type === "text",
+        )
+        .map((part) => part.text),
+    )
+    .join("\n")
+    .slice(-8000);
+
+  const dates = text.match(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b/g) ?? [];
+  const peopleMatches = [...text.matchAll(/\b(\d{1,2})\s*(?:pessoas?|h[oó]spedes?|adultos?)\b/gi)];
+  const lastPeople = peopleMatches.at(-1)?.[1];
+
+  return {
+    checkin: dates.length >= 2 ? dates.at(-2) : dates.at(-1),
+    checkout: dates.length >= 2 ? dates.at(-1) : undefined,
+    pessoas: lastPeople ? Number(lastPeople) : undefined,
+  };
 }
