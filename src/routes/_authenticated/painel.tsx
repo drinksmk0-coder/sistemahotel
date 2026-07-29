@@ -84,6 +84,7 @@ import {
   ShortList,
 } from "@/components/DashboardKit";
 import {
+  calculateHotelKpis,
   expensesTotal,
   inRange,
   percentChange,
@@ -736,6 +737,22 @@ function OwnerCompactDashboard({
   );
   const cost = expensesTotal(periodExpenses);
   const profit = revenue - cost;
+  const hotelKpis = calculateHotelKpis({
+    rooms,
+    reservations,
+    sales,
+    expenses,
+    range,
+  });
+  const financialEvolution = buildMonthlySeries(
+    today.slice(0, 7),
+    reservations,
+    sales,
+    expenses,
+  ).map((item) => ({
+    ...item,
+    lucro: item.receita - item.despesas,
+  }));
   const activeReservations = reservations.filter(
     (reservation) =>
       reservation.status !== "cancelado" && reservation.status !== "manutencao",
@@ -893,6 +910,67 @@ function OwnerCompactDashboard({
       kind: "kpi",
       defaultColor: "var(--chart-2)",
       render: (settings) => <CompactKpi label={settings.title} value={fmtBRL(profit)} />,
+    },
+    {
+      id: "adr",
+      title: "Diária média (ADR)",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={fmtBRL(hotelKpis.adr)}
+          hint={`${hotelKpis.soldRoomNights} UH(s) vendida(s)`}
+        />
+      ),
+    },
+    {
+      id: "revpar",
+      title: "RevPAR",
+      kind: "kpi",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={fmtBRL(hotelKpis.revpar)}
+          hint="receita de hospedagem por UH disponível"
+        />
+      ),
+    },
+    {
+      id: "trevpar",
+      title: "TRevPAR",
+      kind: "kpi",
+      defaultColor: "var(--chart-2)",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={fmtBRL(hotelKpis.trevpar)}
+          hint="receita total por UH disponível"
+        />
+      ),
+    },
+    {
+      id: "goppar",
+      title: "GOPPAR",
+      kind: "kpi",
+      defaultColor: "var(--chart-3)",
+      render: (settings) => (
+        <CompactKpi
+          label={settings.title}
+          value={fmtBRL(hotelKpis.goppar)}
+          hint="lucro operacional por UH disponível"
+        />
+      ),
+    },
+    {
+      id: "financial-evolution",
+      title: "Evolução: receita, despesas e lucro",
+      kind: "chart",
+      defaultColumns: 12,
+      defaultHeight: 330,
+      chartTypes: ["line", "area", "composed"],
+      render: (settings) => (
+        <FinancialEvolutionChart rows={financialEvolution} settings={settings} />
+      ),
     },
     {
       id: "receivables",
@@ -1144,6 +1222,77 @@ function EditableSingleSeriesChart({
       />
       <ResponsiveContainer width="100%" height={chartHeight}>
         {chart}
+      </ResponsiveContainer>
+    </ChartPanel>
+  );
+}
+
+function FinancialEvolutionChart({
+  rows,
+  settings,
+}: {
+  rows: { label: string; receita: number; despesas: number; lucro: number }[];
+  settings: DashboardWidgetSettings;
+}) {
+  const height = Math.max(190, settings.height - 76);
+  const colors = {
+    receita: "var(--chart-1)",
+    despesas: "var(--chart-4)",
+    lucro: "var(--chart-2)",
+  };
+
+  return (
+    <ChartPanel title={settings.title} span={12}>
+      <ChartHtmlLegend
+        items={[
+          { label: "Receita", color: colors.receita },
+          { label: "Despesas", color: colors.despesas },
+          { label: "Lucro", color: colors.lucro },
+        ]}
+      />
+      <ResponsiveContainer width="100%" height={height}>
+        <ComposedChart data={rows} margin={{ top: 8, right: 20, bottom: 4, left: 14 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis
+            dataKey="label"
+            interval={0}
+            tick={{ fontSize: 10, fill: "var(--foreground)" }}
+          />
+          <YAxis
+            width={68}
+            tick={{ fontSize: 9, fill: "var(--foreground)" }}
+            tickFormatter={(value) => formatChartValue(Number(value), true)}
+          />
+          <Tooltip
+            formatter={(value: number, name: string) => [fmtBRL(Number(value)), name]}
+            labelFormatter={(label) => `Período: ${label}`}
+          />
+          <Area
+            type="monotone"
+            dataKey="receita"
+            name="Receita"
+            stroke={colors.receita}
+            fill={colors.receita}
+            fillOpacity={0.12}
+            strokeWidth={2.5}
+          />
+          <Line
+            type="monotone"
+            dataKey="despesas"
+            name="Despesas"
+            stroke={colors.despesas}
+            strokeWidth={2.5}
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="lucro"
+            name="Lucro"
+            stroke={colors.lucro}
+            strokeWidth={2.5}
+            dot={false}
+          />
+        </ComposedChart>
       </ResponsiveContainer>
     </ChartPanel>
   );
