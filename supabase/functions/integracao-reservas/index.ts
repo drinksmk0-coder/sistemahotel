@@ -120,7 +120,11 @@ async function handleWhatsAppBusiness(body: Record<string, unknown>, companyId: 
   const missing = firstMissingField(draft, { requireCpf: false, requireDailyConfirmation: true });
   if (missing) {
     const operationalReply = await questionForReservation(missing, draft, companyId);
-    const reply = personalizeReply(await receptionReply(companyId, operationalReply, draft), draft.nome);
+    const reply = personalizeReply(
+      await receptionReply(companyId, operationalReply, draft, Boolean(current)),
+      draft.nome,
+      !current,
+    );
     await upsertSession(inbound.phone, inbound.phone, companyId, missing, draft, inbound.text, reply);
     await sendWhatsAppBusinessText(inbound.phone, reply, companyId);
     return { created: false, reply };
@@ -128,7 +132,11 @@ async function handleWhatsAppBusiness(body: Record<string, unknown>, companyId: 
 
   const created = await createReservation(draft);
   const operationalReply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}.`;
-  const reply = personalizeReply(await receptionReply(companyId, operationalReply, draft), draft.nome);
+  const reply = personalizeReply(
+    await receptionReply(companyId, operationalReply, draft, true),
+    draft.nome,
+    false,
+  );
   await upsertSession(
     inbound.phone,
     inbound.phone,
@@ -350,7 +358,12 @@ async function upsertSession(phone: string, chatId: string, companyId: string, s
   if (error) throw error;
 }
 
-async function receptionReply(companyId: string, operationalReply: string, draft: Draft) {
+async function receptionReply(
+  companyId: string,
+  operationalReply: string,
+  draft: Draft,
+  conversationStarted = false,
+) {
   if (!geminiApiKey) return operationalReply;
   const { data } = await supabase
     .from("company_integrations")
@@ -373,6 +386,7 @@ async function receptionReply(companyId: string, operationalReply: string, draft
     valor_diaria: draft.valorDiaria,
     valor_total: draft.valorTotal,
     diaria_confirmada: draft.diariaConfirmada,
+    conversa_ja_iniciada: conversationStarted,
   };
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent`,
@@ -392,6 +406,8 @@ REGRAS FIXAS:
 - Preserve datas, preços, quarto e disponibilidade da resposta operacional.
 - Não invente Pix, pagamento, link, nota fiscal ou confirmação.
 - Não inclua nome, CPF, telefone ou qualquer dado pessoal.
+- Se conversa_ja_iniciada for true, não repita Olá, bom dia, boa tarde, boa noite nem apresentação.
+- Faça somente a próxima pergunta necessária e nunca peça novamente um dado já presente no contexto.
 - Responda somente com a mensagem final para o hóspede, em português do Brasil.`,
             },
           ],
@@ -425,13 +441,15 @@ REGRAS FIXAS:
   return text || operationalReply;
 }
 
-function personalizeReply(reply: string, guestName?: string) {
+function personalizeReply(reply: string, guestName?: string, shouldGreet = false) {
   const firstName = String(guestName ?? "")
     .trim()
     .split(/\s+/)[0]
     ?.replace(/[^\p{L}'-]/gu, "")
     .slice(0, 40);
-  if (!firstName || normalizeText(reply).includes(normalizeText(firstName))) return reply;
+  if (!shouldGreet || !firstName || normalizeText(reply).includes(normalizeText(firstName))) {
+    return reply;
+  }
   return `Olá, ${firstName}! ${reply}`;
 }
 
@@ -531,13 +549,17 @@ function parseMessage(text: string, stage?: string | null, previous?: Draft | nu
   parsed.valorTotal = moneyValue(stringFromRegex(normalized, /\b(?:total)\s*[:#-]?\s*(?:r\$\s*)?([\d.,]+)/i));
   parsed.diariaConfirmada = /\b(confirmo|confirmado|fechado|ok|pode reservar|reserva|reservar|aceito)\b/i.test(normalized) && Boolean(parsed.valorDiaria ?? parsed.valorTotal ?? previous?.valorDiaria ?? previous?.valorTotal);
 
+  const relativeStay = relativeStayDates(normalized);
+  parsed.checkin = parsed.checkin ?? relativeStay.checkin;
+  parsed.checkout = parsed.checkout ?? relativeStay.checkout;
+
   if (stage && !text.includes(":")) {
     if (stage === "nome") parsed.nome = cleanName(text);
     if (stage === "cpf") parsed.cpf = onlyDigits(text);
     if (stage === "quarto") parsed.quarto = Number(onlyDigits(text));
-    if (stage === "checkin") parsed.checkin = normalizeDate(text);
-    if (stage === "checkout") parsed.checkout = normalizeDate(text);
-    if (stage === "pessoas") parsed.pessoas = Number(onlyDigits(text));
+    if (stage === "checkin") parsed.checkin = normalizeDate(text) ?? relativeDate(text);
+    if (stage === "checkout") parsed.checkout = normalizeDate(text) ?? relativeDate(text);
+    if (stage === "pessoas") parsed.pessoas = parsePeopleCount(text);
     if (stage === "valorDiaria") parsed.valorDiaria = moneyValue(text);
     if (stage === "diariaConfirmada") parsed.diariaConfirmada = /\b(sim|confirmo|confirmado|fechado|ok|aceito|pode)\b/i.test(normalized);
   }
@@ -632,6 +654,80 @@ function normalizeDate(value?: string | null) {
     isoDate = `${Number(year) + 1}-${month}-${day}`;
   }
   return isoDate;
+}
+
+function relativeStayDates(value: string) {
+  if (!/\b(fim de semana|final de semana|fds|sabado|domingo)\b/i.test(value)) {
+    return {} as Pick<Draft, "checkin" | "checkout">;
+  }
+  const saturday = nextWeekdayIso(6);
+  if (/\b(domingo)\b/i.test(value) && !/\b(sabado|fim de semana|final de semana|fds)\b/i.test(value)) {
+    const sunday = nextWeekdayIso(0);
+    return { checkin: sunday, checkout: addDaysIso(sunday, 1) };
+  }
+  return { checkin: saturday, checkout: addDaysIso(saturday, 1) };
+}
+
+function relativeDate(value: string) {
+  const normalized = normalizeText(value);
+  if (/\bhoje\b/.test(normalized)) return localIsoDate();
+  if (/\bamanha\b/.test(normalized)) return addDaysIso(localIsoDate(), 1);
+  const weekdays: Array<[RegExp, number]> = [
+    [/\bdomingo\b/, 0],
+    [/\bsegunda(?:-feira)?\b/, 1],
+    [/\bterca(?:-feira)?\b/, 2],
+    [/\bquarta(?:-feira)?\b/, 3],
+    [/\bquinta(?:-feira)?\b/, 4],
+    [/\bsexta(?:-feira)?\b/, 5],
+    [/\bsabado\b/, 6],
+  ];
+  const match = weekdays.find(([pattern]) => pattern.test(normalized));
+  return match ? nextWeekdayIso(match[1]) : undefined;
+}
+
+function nextWeekdayIso(targetDay: number) {
+  const today = new Date(`${localIsoDate()}T12:00:00-03:00`);
+  let distance = (targetDay - today.getDay() + 7) % 7;
+  if (distance === 0) distance = 7;
+  today.setDate(today.getDate() + distance);
+  return localIsoDate(today);
+}
+
+function localIsoDate(value = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
+}
+
+function addDaysIso(value: string, amount: number) {
+  const date = new Date(`${value}T12:00:00-03:00`);
+  date.setDate(date.getDate() + amount);
+  return localIsoDate(date);
+}
+
+function parsePeopleCount(value: string) {
+  const digits = Number(onlyDigits(value));
+  if (digits > 0) return digits;
+  const words: Record<string, number> = {
+    um: 1,
+    uma: 1,
+    dois: 2,
+    duas: 2,
+    tres: 3,
+    quatro: 4,
+    cinco: 5,
+    seis: 6,
+    sete: 7,
+    oito: 8,
+    nove: 9,
+    dez: 10,
+  };
+  const normalized = normalizeText(value);
+  const found = Object.entries(words).find(([word]) => new RegExp(`\\b${word}\\b`).test(normalized));
+  return found?.[1];
 }
 
 function daysBetween(checkin: string, checkout: string) {
