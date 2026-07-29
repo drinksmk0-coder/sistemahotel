@@ -198,7 +198,7 @@ function AssistenteWorkspace() {
       </div>
 
       <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.55fr)]">
-        <section className="card-surface flex h-[calc(100dvh-13rem)] min-h-[30rem] max-h-[52rem] flex-col overflow-hidden">
+        <section className="card-surface flex h-[clamp(24rem,62dvh,40rem)] min-h-0 flex-col overflow-hidden">
           <div className="shrink-0 border-b border-border px-3 py-2.5">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="flex items-center gap-2 font-bold text-pine-dark">
@@ -238,7 +238,7 @@ function AssistenteWorkspace() {
             <p className="text-xs text-muted-foreground">
               {assistantMode === "analysis"
                 ? "Usa dados agregados da empresa. Não envia nomes, CPF, telefone ou e-mail ao Gemini."
-                : "Responde seguindo o treinamento do hotel e consulta disponibilidade sem enviar dados pessoais ao Gemini."}
+                : "Mantém o contexto da conversa e o nome informado pelo hóspede, sem consultar nem expor dados pessoais de outras reservas."}
             </p>
           </div>
 
@@ -325,7 +325,7 @@ function AssistenteWorkspace() {
           </form>
         </section>
 
-        <div className="max-h-[calc(100dvh-13rem)] space-y-3 overflow-y-auto pr-1">
+        <div className="max-h-[clamp(24rem,62dvh,40rem)] space-y-3 overflow-y-auto pr-1">
           <section className="card-surface p-3">
             <div className="mb-2 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
