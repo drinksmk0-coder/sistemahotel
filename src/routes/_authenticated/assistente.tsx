@@ -5,6 +5,7 @@ import { DefaultChatTransport } from "ai";
 import {
   Bot,
   CheckCircle2,
+  Copy,
   MessageSquareWarning,
   Save,
   Send,
@@ -27,7 +28,13 @@ import {
   ConversationEmptyState,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message";
+import {
+  Message,
+  MessageAction,
+  MessageActions,
+  MessageContent,
+  MessageResponse,
+} from "@/components/ai-elements/message";
 import { Field } from "@/components/ui-kit";
 import { fmtDate } from "@/lib/format";
 import {
@@ -260,9 +267,28 @@ function AssistenteWorkspace() {
                     <MessageContent>
                       {message.parts.map((part, index) =>
                         part.type === "text" ? (
-                          <MessageResponse key={`${message.id}-${index}`}>
-                            {part.text}
-                          </MessageResponse>
+                          <div key={`${message.id}-${index}`} className="select-text">
+                            <MessageResponse className="select-text">
+                              {part.text}
+                            </MessageResponse>
+                            {message.role === "assistant" && (
+                              <MessageActions className="mt-1">
+                                <MessageAction
+                                  tooltip="Copiar resposta"
+                                  label="Copiar resposta"
+                                  className="h-8 w-8"
+                                  onClick={() => {
+                                    void navigator.clipboard.writeText(part.text).then(
+                                      () => toast.success("Resposta copiada."),
+                                      () => toast.error("Não foi possível copiar a resposta."),
+                                    );
+                                  }}
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                </MessageAction>
+                              </MessageActions>
+                            )}
+                          </div>
                         ) : null,
                       )}
                     </MessageContent>
