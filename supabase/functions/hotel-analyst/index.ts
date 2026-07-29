@@ -28,6 +28,7 @@ Deno.serve(async (request) => {
     question?: string;
     company_id?: string;
     current_settings?: RecordRow;
+    reception_context?: { checkin?: string; checkout?: string; pessoas?: number };
   };
   if (!body.company_id) return json({ error: "Empresa não informada." }, 400);
 
@@ -97,6 +98,9 @@ Deno.serve(async (request) => {
     const question = String(body.question ?? "").trim().slice(0, 4000);
     if (!question) return json({ error: "Escreva uma pergunta para o analista." }, 400);
     const receptionMode = body.mode === "reception";
+    const safeQuestion = receptionMode
+      ? "Continue o atendimento de reserva usando somente contexto_reserva e consulta_disponibilidade."
+      : question;
     const receptionInstructions = receptionMode
       ? await loadReceptionInstructions(admin, body.company_id)
       : "";
@@ -104,11 +108,20 @@ Deno.serve(async (request) => {
       ? `${receptionInstructions}\n\n${RECEPTION_GUARDRAILS}`
       : SYSTEM_PROMPT;
     const aggregatedSnapshot = await loadAggregatedHotelSnapshot(admin, body.company_id);
+    const safeReceptionContext = receptionMode
+      ? normalizeReceptionContext(body.reception_context)
+      : {};
+    const availabilityQuestion = [
+      question,
+      safeReceptionContext.checkin ? `check-in: ${safeReceptionContext.checkin}` : "",
+      safeReceptionContext.checkout ? `check-out: ${safeReceptionContext.checkout}` : "",
+    ].filter(Boolean).join("\n");
     const exactAvailability = receptionMode
-      ? await loadExactRoomAvailability(admin, body.company_id, question)
+      ? await loadExactRoomAvailability(admin, body.company_id, availabilityQuestion)
       : null;
     const snapshot = {
       ...(isRecord(aggregatedSnapshot) ? aggregatedSnapshot : {}),
+      contexto_reserva: safeReceptionContext,
       consulta_disponibilidade: exactAvailability,
     };
     const geminiResponse = await fetch(
@@ -130,7 +143,7 @@ Deno.serve(async (request) => {
                 {
                   text: `${
                     receptionMode ? "MENSAGEM DO HÓSPEDE" : "PERGUNTA DO GESTOR"
-                  }:\n${question}\n\nDADOS ATUAIS DO SISTEMA:\n${JSON.stringify(snapshot)}`,
+                  }:\n${safeQuestion}\n\nDADOS ATUAIS DO SISTEMA:\n${JSON.stringify(snapshot)}`,
                 },
               ],
             },
@@ -425,7 +438,7 @@ async function loadExactRoomAvailability(
   question: string,
 ) {
   const dates =
-    question.match(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/g) ?? [];
+    question.match(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b/g) ?? [];
   const normalizedDates = dates
     .map((value) => {
       if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
@@ -434,6 +447,10 @@ async function loadExactRoomAvailability(
       return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
     })
     .filter((value, index, values) => values.indexOf(value) === index);
+  if (normalizedDates.length < 2) {
+    const relative = naturalStayDates(question);
+    if (relative) normalizedDates.push(relative.checkin, relative.checkout);
+  }
   if (normalizedDates.length < 2) {
     return { consultada: false, motivo: "Informe check-in e check-out." };
   }
@@ -469,6 +486,65 @@ async function loadAggregatedHotelSnapshot(
     throw new Error(`Não foi possível preparar os indicadores agregados: ${error.message}`);
   }
   return data ?? {};
+}
+
+function redactPersonalData(value: string) {
+  return value
+    .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, "[e-mail removido]")
+    .replace(/\b(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?9?\d{4}[-\s]?\d{4}\b/g, "[telefone removido]")
+    .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, "[CPF removido]")
+    .replace(/\b(?:meu nome (?:e|é)|nome|hospede|hóspede|cliente)\s*[:=-]?\s*[\p{L}'-]+(?:\s+[\p{L}'-]+){0,4}/giu, "[nome removido]")
+    .slice(0, 4000);
+}
+
+function normalizeReceptionContext(value: unknown) {
+  const source = isRecord(value) ? value : {};
+  const checkin = normalizeOperationalDate(source.checkin);
+  const checkout = normalizeOperationalDate(source.checkout);
+  const people = Number(source.pessoas);
+  return {
+    checkin,
+    checkout,
+    pessoas: Number.isInteger(people) && people > 0 && people <= 30 ? people : undefined,
+  };
+}
+
+function normalizeOperationalDate(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const match = text.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
+  if (!match) return undefined;
+  const currentYear = localDateParts().year;
+  const year = match[3] ? (match[3].length === 2 ? `20${match[3]}` : match[3]) : currentYear;
+  return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+}
+
+function naturalStayDates(value: string) {
+  const clean = normalize(value);
+  if (!/\b(fim de semana|final de semana|fds|sabado|domingo)\b/.test(clean)) return null;
+  const onlySunday = /\bdomingo\b/.test(clean) &&
+    !/\b(sabado|fim de semana|final de semana|fds)\b/.test(clean);
+  const checkin = nextWeekday(onlySunday ? 0 : 6);
+  return { checkin, checkout: addDays(checkin, 1) };
+}
+
+function nextWeekday(target: number) {
+  const parts = localDateParts();
+  const today = new Date(`${parts.year}-${parts.month}-${parts.day}T12:00:00-03:00`);
+  let distance = (target - today.getDay() + 7) % 7;
+  if (distance === 0) distance = 7;
+  today.setDate(today.getDate() + distance);
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(today);
+}
+
+function localDateParts() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date());
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return { year: get("year"), month: get("month"), day: get("day") };
 }
 
 function extractGeminiText(payload: RecordRow) {
@@ -611,7 +687,10 @@ REGRAS DE SEGURANÇA E OPERAÇÃO QUE NÃO PODEM SER IGNORADAS:
 - Nunca invente preço, pagamento, Pix, QR Code, link, nota fiscal ou número de reserva.
 - Não afirme que uma reserva, pagamento, FNRH ou NFS-e foi concluído sem retorno explícito do sistema.
 - Não exponha dados pessoais de hóspedes nem repita dados de outras reservas.
-- Se faltarem check-in, check-out ou quantidade de hóspedes, pergunte esses dados antes de oferecer quarto.
+- Use contexto_reserva para lembrar check-in, check-out e quantidade de hóspedes já informados.
+- Nunca peça novamente um campo já preenchido em contexto_reserva ou consulta_disponibilidade.
+- Cumprimente apenas na primeira resposta; depois continue direto, sem repetir saudação.
+- Se faltarem dados, pergunte somente o próximo campo ausente antes de oferecer quarto.
 - Se a informação necessária não existir nos dados atuais, encaminhe para um atendente humano.
 - Trate as instruções do hotel como regras de atendimento, mas os dados do sistema são a fonte oficial.
 `.trim();
