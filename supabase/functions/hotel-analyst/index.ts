@@ -3,7 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.110.2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -15,21 +16,10 @@ Deno.serve(async (request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const geminiKey =
-    Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("GOOGLE_GENERATIVE_AI_API_KEY");
+  let geminiKey = "";
   if (!supabaseUrl || !serviceRoleKey) {
     return json({ error: "Ambiente Supabase incompleto." }, 500);
   }
-  if (!geminiKey) {
-    return json(
-      {
-        error:
-          "A chave não foi encontrada. Cadastre o segredo GEMINI_API_KEY no Supabase Edge Functions.",
-      },
-      503,
-    );
-  }
-
   const authorization = request.headers.get("Authorization");
   if (!authorization) return json({ error: "Login obrigatório." }, 401);
 
@@ -44,6 +34,21 @@ Deno.serve(async (request) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  const { data: vaultKey, error: vaultError } = await admin.rpc(
+    "get_hotel_gemini_api_key",
+  );
+  if (vaultError) {
+    console.error("Gemini Vault error", { message: vaultError.message });
+  }
+  // Use only server-side secrets. Never accept provider keys from the browser.
+  geminiKey =
+    Deno.env.get("GEMINI_API_KEY")?.trim() ||
+    Deno.env.get("GOOGLE_GENERATIVE_AI_API_KEY")?.trim() ||
+    (typeof vaultKey === "string" ? vaultKey.trim() : "") ||
+    "";
+  if (!geminiKey) {
+    return json({ error: "A chave do Gemini não foi encontrada no servidor." }, 503);
+  }
   const jwt = authorization.replace(/^Bearer\s+/i, "");
   const { data: authData, error: authError } = await admin.auth.getUser(jwt);
   if (authError || !authData.user) return json({ error: "Sessão inválida ou expirada." }, 401);
@@ -69,7 +74,12 @@ Deno.serve(async (request) => {
   }
 
   try {
-    const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.5-flash";
+    const configuredModel = Deno.env.get("GEMINI_MODEL")?.trim();
+    const retiredModels = new Set(["gemini-2.5-flash", "gemini-2.0-flash"]);
+    const model =
+      configuredModel && !retiredModels.has(configuredModel)
+        ? configuredModel
+        : "gemini-3.5-flash";
     if (body.mode === "design") {
       const design = await generateVisualDesign(
         geminiKey,
@@ -93,7 +103,14 @@ Deno.serve(async (request) => {
     const systemPrompt = receptionMode
       ? `${receptionInstructions}\n\n${RECEPTION_GUARDRAILS}`
       : SYSTEM_PROMPT;
-    const snapshot = await buildHotelSnapshot(admin, body.company_id);
+    const aggregatedSnapshot = await loadAggregatedHotelSnapshot(admin, body.company_id);
+    const exactAvailability = receptionMode
+      ? await loadExactRoomAvailability(admin, body.company_id, question)
+      : null;
+    const snapshot = {
+      ...(isRecord(aggregatedSnapshot) ? aggregatedSnapshot : {}),
+      consulta_disponibilidade: exactAvailability,
+    };
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       {
@@ -120,7 +137,7 @@ Deno.serve(async (request) => {
           ],
           generationConfig: {
             temperature: 0.2,
-            maxOutputTokens: 1800,
+            maxOutputTokens: 8192,
           },
         }),
       },
@@ -129,7 +146,21 @@ Deno.serve(async (request) => {
     const payload = (await geminiResponse.json().catch(() => ({}))) as RecordRow;
     if (!geminiResponse.ok) {
       const apiMessage = nestedString(payload, ["error", "message"]);
-      return json({ error: apiMessage || "Falha ao consultar o Gemini." }, 502);
+      console.error("Gemini API error", {
+        status: geminiResponse.status,
+        model,
+        message: apiMessage || "Resposta sem mensagem",
+      });
+      const diagnostic = classifyGeminiError(geminiResponse.status, apiMessage);
+      return json({
+        answer: diagnostic,
+        model,
+        generated_at: new Date().toISOString(),
+        privacy: "Nenhum dado pessoal foi incluído no diagnóstico.",
+        mode: receptionMode ? "reception" : "analysis",
+        degraded: true,
+        provider_status: geminiResponse.status,
+      });
     }
     const answer = extractGeminiText(payload);
     if (!answer) return json({ error: "O Gemini não retornou uma análise." }, 502);
@@ -227,7 +258,17 @@ Retorne exatamente este formato:
   );
   const payload = (await response.json().catch(() => ({}))) as RecordRow;
   if (!response.ok) {
-    throw new Error(nestedString(payload, ["error", "message"]) || "Falha no designer Gemini.");
+    const apiMessage = nestedString(payload, ["error", "message"]);
+    console.error("Gemini Designer API error", {
+      status: response.status,
+      model,
+      message: apiMessage || "Resposta sem mensagem",
+    });
+    throw new Error(
+      apiMessage
+        ? `Gemini (${response.status}): ${apiMessage}`
+        : `Falha no designer Gemini (HTTP ${response.status}).`,
+    );
   }
   const rawText = extractGeminiText(payload);
   const parsed = JSON.parse(rawText) as RecordRow;
@@ -378,277 +419,56 @@ async function loadReceptionInstructions(
   return instructions || DEFAULT_RECEPTION_PROMPT;
 }
 
-async function buildHotelSnapshot(
+async function loadExactRoomAvailability(
+  admin: ReturnType<typeof createClient>,
+  companyId: string,
+  question: string,
+) {
+  const dates =
+    question.match(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b/g) ?? [];
+  const normalizedDates = dates
+    .map((value) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+      const [day, month, rawYear] = value.split(/[/-]/);
+      const year = rawYear.length === 2 ? `20${rawYear}` : rawYear;
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    })
+    .filter((value, index, values) => values.indexOf(value) === index);
+  if (normalizedDates.length < 2) {
+    return { consultada: false, motivo: "Informe check-in e check-out." };
+  }
+  const [checkin, checkout] = normalizedDates;
+  if (checkout <= checkin) {
+    return { consultada: false, checkin, checkout, motivo: "Check-out deve ser posterior ao check-in." };
+  }
+  const { data, error } = await admin.rpc("get_hotel_room_availability", {
+    _company_id: companyId,
+    _checkin: checkin,
+    _checkout: checkout,
+  });
+  if (error) throw new Error(`Não foi possível consultar os quartos: ${error.message}`);
+  const quartos = Array.isArray(data) ? data : [];
+  return {
+    consultada: true,
+    checkin,
+    checkout,
+    quantidade_disponivel: quartos.length,
+    quartos_disponiveis: quartos,
+    regra: "Resultado verificado diretamente contra reservas e bloqueios do período.",
+  };
+}
+
+async function loadAggregatedHotelSnapshot(
   admin: ReturnType<typeof createClient>,
   companyId: string,
 ) {
-  const tables = [
-    ["rooms", "numero,preco,configuracao,situacao"],
-    [
-      "reservations",
-      "quarto,checkin,checkout,valor_total,valor_pago,valor_diaria,status,canal,pessoas,diarias,pagamento,motivo_estadia",
-    ],
-    [
-      "sales",
-      "data,categoria,total,valor_pago,status,pagamento",
-    ],
-    ["expenses", "data,categoria,valor"],
-    [
-      "clients",
-      "cidade,estado,pais,sexo,estado_civil,profissao,data_nascimento,tipo,visitas,ativo",
-    ],
-    [
-      "feedbacks",
-      "created_at,nota_geral,nota_limpeza,nota_conforto,nota_atendimento,nota_wifi,recomendaria",
-    ],
-    ["complaints", "created_at,categoria,gravidade,status"],
-  ] as const;
-
-  const results = await Promise.all(
-    tables.map(async ([table, columns]) => {
-      const { data, error } = await admin
-        .from(table)
-        .select(columns)
-        .eq("company_id", companyId)
-        .limit(10000);
-      if (error) throw new Error(`Não foi possível ler ${table}: ${error.message}`);
-      return data as unknown as RecordRow[];
-    }),
-  );
-  const [rooms, reservations, sales, expenses, clients, feedbacks, complaints] = results;
-  const now = new Date();
-  const today = isoDate(now);
-  const currentStart = `${today.slice(0, 7)}-01`;
-  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const currentEnd = isoDate(new Date(nextMonth.getTime() - 86_400_000));
-  const previousStart = isoDate(new Date(now.getFullYear(), now.getMonth() - 1, 1));
-  const previousEnd = isoDate(new Date(now.getFullYear(), now.getMonth(), 0));
-  const yearAgoStart = isoDate(new Date(now.getFullYear() - 1, now.getMonth(), 1));
-  const yearAgoEnd = isoDate(new Date(now.getFullYear() - 1, now.getMonth() + 1, 0));
-
-  const periods = {
-    atual: summarizePeriod(
-      currentStart,
-      currentEnd,
-      rooms,
-      reservations,
-      sales,
-      expenses,
-    ),
-    mes_anterior: summarizePeriod(
-      previousStart,
-      previousEnd,
-      rooms,
-      reservations,
-      sales,
-      expenses,
-    ),
-    mesmo_mes_ano_anterior: summarizePeriod(
-      yearAgoStart,
-      yearAgoEnd,
-      rooms,
-      reservations,
-      sales,
-      expenses,
-    ),
-  };
-
-  return {
-    data_referencia: today,
-    periodos: periods,
-    operacao_hoje: {
-      chegadas: reservations.filter(
-        (row) => row.checkin === today && row.status !== "cancelado",
-      ).length,
-      saidas: reservations.filter(
-        (row) => row.checkout === today && row.status !== "cancelado",
-      ).length,
-      hospedados: reservations.filter(
-        (row) =>
-          String(row.status) !== "cancelado" &&
-          String(row.status) !== "finalizado" &&
-          String(row.checkin) <= today &&
-          String(row.checkout) >= today,
-      ).length,
-      conta_a_receber: money(
-        reservations.reduce(
-          (sum, row) =>
-            sum + Math.max(0, number(row.valor_total) - number(row.valor_pago)),
-          0,
-        ) +
-          sales.reduce(
-            (sum, row) => sum + Math.max(0, number(row.total) - number(row.valor_pago)),
-            0,
-          ),
-      ),
-    },
-    disponibilidade_agregada: buildAvailabilitySummary(today, rooms, reservations),
-    canais: groupMoney(reservations, "canal", "valor_total"),
-    receita_por_quarto: groupMoney(reservations, "quarto", "valor_total"),
-    vendas_por_categoria: groupMoney(sales, "categoria", "total"),
-    formas_pagamento: {
-      hospedagem: groupMoney(reservations, "pagamento", "valor_pago"),
-      vendas: groupMoney(sales, "pagamento", "valor_pago"),
-    },
-    perfil_hospedes: {
-      total_ativos: clients.filter((row) => row.ativo !== false).length,
-      estados: groupCount(clients, "estado"),
-      paises: groupCount(clients, "pais"),
-      sexo: groupCount(clients, "sexo"),
-      estado_civil: groupCount(clients, "estado_civil"),
-      profissoes: groupCount(clients, "profissao"),
-      tipos: groupCount(clients, "tipo"),
-    },
-    experiencia: {
-      medias: {
-        geral: average(feedbacks, "nota_geral"),
-        limpeza: average(feedbacks, "nota_limpeza"),
-        conforto: average(feedbacks, "nota_conforto"),
-        atendimento: average(feedbacks, "nota_atendimento"),
-        wifi: average(feedbacks, "nota_wifi"),
-      },
-      recomendacao_percentual: percentage(
-        feedbacks.filter((row) => row.recomendaria === true).length,
-        feedbacks.length,
-      ),
-      reclamacoes_por_categoria: groupCount(complaints, "categoria"),
-      reclamacoes_abertas: complaints.filter((row) => row.status !== "resolvido").length,
-    },
-    qualidade_dados: {
-      reservas: reservations.length,
-      vendas: sales.length,
-      despesas: expenses.length,
-      clientes: clients.length,
-      avaliacoes: feedbacks.length,
-      reclamacoes: complaints.length,
-    },
-  };
-}
-
-function buildAvailabilitySummary(
-  today: string,
-  rooms: RecordRow[],
-  reservations: RecordRow[],
-) {
-  const operationalRooms = rooms.filter(
-    (room) => !["manutencao", "bloqueado"].includes(String(room.situacao ?? "")),
-  );
-  const roomTypes = new Map<
-    string,
-    { quantidade: number; diaria_minima: number; diaria_maxima: number }
-  >();
-  operationalRooms.forEach((room) => {
-    const type = String(room.configuracao || "Não informado");
-    const dailyRate = money(number(room.preco));
-    const current = roomTypes.get(type);
-    roomTypes.set(type, {
-      quantidade: (current?.quantidade ?? 0) + 1,
-      diaria_minima: current ? Math.min(current.diaria_minima, dailyRate) : dailyRate,
-      diaria_maxima: current ? Math.max(current.diaria_maxima, dailyRate) : dailyRate,
-    });
+  const { data, error } = await admin.rpc("get_hotel_ai_snapshot", {
+    p_company_id: companyId,
   });
-
-  const activeReservations = reservations.filter(
-    (reservation) =>
-      !["cancelado", "finalizado"].includes(String(reservation.status ?? "")) &&
-      String(reservation.checkout) >= today,
-  );
-  const availabilityByDay = Array.from({ length: 30 }, (_, offset) => {
-    const date = new Date(`${today}T12:00:00`);
-    date.setDate(date.getDate() + offset);
-    const day = isoDate(date);
-    const occupied = new Set(
-      activeReservations
-        .filter(
-          (reservation) =>
-            String(reservation.checkin) <= day && String(reservation.checkout) > day,
-        )
-        .map((reservation) => Number(reservation.quarto)),
-    );
-    return {
-      data: day,
-      quartos_disponiveis: Math.max(0, operationalRooms.length - occupied.size),
-    };
-  });
-
-  return {
-    total_quartos_operacionais: operationalRooms.length,
-    tipos: Object.fromEntries(roomTypes),
-    proximos_30_dias: availabilityByDay,
-    observacao:
-      "Contagens agregadas. A confirmação da reserva exige a validação exata no sistema.",
-  };
-}
-
-function summarizePeriod(
-  start: string,
-  end: string,
-  rooms: RecordRow[],
-  reservations: RecordRow[],
-  sales: RecordRow[],
-  expenses: RecordRow[],
-) {
-  const validReservations = reservations.filter(
-    (row) =>
-      row.status !== "cancelado" &&
-      row.status !== "manutencao" &&
-      String(row.checkin) <= end &&
-      String(row.checkout) >= start,
-  );
-  const roomNightsAvailable = rooms.length * daysInclusive(start, end);
-  const roomNightsSold = validReservations.reduce(
-    (sum, row) =>
-      sum +
-      overlapNights(String(row.checkin), String(row.checkout), start, end),
-    0,
-  );
-  const accommodationRevenue = validReservations.reduce((sum, row) => {
-    const totalNights = Math.max(1, number(row.diarias));
-    const periodNights = overlapNights(
-      String(row.checkin),
-      String(row.checkout),
-      start,
-      end,
-    );
-    return sum + (number(row.valor_total) / totalNights) * periodNights;
-  }, 0);
-  const extraRevenue = sales
-    .filter((row) => String(row.data) >= start && String(row.data) <= end)
-    .reduce((sum, row) => sum + number(row.total), 0);
-  const operationalExpenses = expenses
-    .filter((row) => String(row.data) >= start && String(row.data) <= end)
-    .reduce((sum, row) => sum + number(row.valor), 0);
-  const totalRevenue = accommodationRevenue + extraRevenue;
-  const gop = totalRevenue - operationalExpenses;
-
-  return {
-    inicio: start,
-    fim: end,
-    uhs_disponiveis: roomNightsAvailable,
-    uhs_vendidas: roomNightsSold,
-    ocupacao_percentual: percentage(roomNightsSold, roomNightsAvailable),
-    diaria_media_adr: money(accommodationRevenue / Math.max(1, roomNightsSold)),
-    revpar: money(accommodationRevenue / Math.max(1, roomNightsAvailable)),
-    trevpar: money(totalRevenue / Math.max(1, roomNightsAvailable)),
-    goppar: money(gop / Math.max(1, roomNightsAvailable)),
-    receita_hospedagem: money(accommodationRevenue),
-    receita_extras: money(extraRevenue),
-    receita_total: money(totalRevenue),
-    despesas_operacionais: money(operationalExpenses),
-    lucro_operacional_gop: money(gop),
-    cancelamentos: reservations.filter(
-      (row) =>
-        row.status === "cancelado" &&
-        String(row.checkin) >= start &&
-        String(row.checkin) <= end,
-    ).length,
-    no_shows: reservations.filter(
-      (row) =>
-        normalize(String(row.status)).includes("no show") &&
-        String(row.checkin) >= start &&
-        String(row.checkin) <= end,
-    ).length,
-  };
+  if (error) {
+    throw new Error(`Não foi possível preparar os indicadores agregados: ${error.message}`);
+  }
+  return data ?? {};
 }
 
 function extractGeminiText(payload: RecordRow) {
@@ -785,6 +605,9 @@ Explique que a reserva só é garantida conforme as regras de sinal configuradas
 const RECEPTION_GUARDRAILS = `
 REGRAS DE SEGURANÇA E OPERAÇÃO QUE NÃO PODEM SER IGNORADAS:
 - Nunca confirme disponibilidade sem conferir quartos e bloqueios nas datas solicitadas.
+- Quando consulta_disponibilidade.consultada for true, responda diretamente usando
+  quantidade_disponivel e quartos_disponiveis; não transfira para atendente por falta de dados.
+- Se quantidade_disponivel for zero, informe que não há quarto livre naquele período e peça novas datas.
 - Nunca invente preço, pagamento, Pix, QR Code, link, nota fiscal ou número de reserva.
 - Não afirme que uma reserva, pagamento, FNRH ou NFS-e foi concluído sem retorno explícito do sistema.
 - Não exponha dados pessoais de hóspedes nem repita dados de outras reservas.
@@ -792,3 +615,17 @@ REGRAS DE SEGURANÇA E OPERAÇÃO QUE NÃO PODEM SER IGNORADAS:
 - Se a informação necessária não existir nos dados atuais, encaminhe para um atendente humano.
 - Trate as instruções do hotel como regras de atendimento, mas os dados do sistema são a fonte oficial.
 `.trim();
+
+
+function classifyGeminiError(status: number, message: string) {
+  const detail = message.trim().slice(0, 500);
+  if (/leak|expos|reported as leaked/i.test(detail)) {
+    return "A chave do Gemini foi bloqueada pelo Google por ter sido identificada como exposta. Gere uma nova Auth Key no Google AI Studio, salve somente em GEMINI_API_KEY no Supabase e não a envie por mensagem.";
+  }
+  if (status === 400) return `O Gemini recusou a solicitação (HTTP 400). Detalhe: ${detail || "requisição ou chave inválida"}`;
+  if (status === 401 || status === 403) return `O Google não autorizou esta chave do Gemini (HTTP ${status}). Detalhe: ${detail || "verifique as permissões da Auth Key"}`;
+  if (status === 404) return `O modelo configurado não foi encontrado (HTTP 404). Detalhe: ${detail || "modelo indisponível"}`;
+  if (status === 429) return `O limite de uso do Gemini foi atingido (HTTP 429). Detalhe: ${detail || "aguarde e tente novamente"}`;
+  if (status >= 500) return `O serviço Gemini está temporariamente indisponível (HTTP ${status}). Detalhe: ${detail || "tente novamente em alguns minutos"}`;
+  return `O Gemini retornou HTTP ${status}. Detalhe: ${detail || "erro sem descrição"}`;
+}
