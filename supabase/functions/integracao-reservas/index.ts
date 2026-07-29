@@ -176,7 +176,11 @@ async function handleWaha(body: Record<string, unknown>, companyId: string) {
   const missing = firstMissingField(draft, { requireCpf: false, requireDailyConfirmation: true });
   if (missing) {
     const operationalReply = await questionForReservation(missing, draft, companyId);
-    const reply = personalizeReply(await receptionReply(companyId, operationalReply, draft), draft.nome);
+    const reply = personalizeReply(
+      await receptionReply(companyId, operationalReply, draft, Boolean(current)),
+      draft.nome,
+      !current,
+    );
     await upsertSession(phone, chatId, companyId, missing, draft, text, reply);
     await sendWahaText(chatId, reply);
     return { created: false, reply };
@@ -184,7 +188,11 @@ async function handleWaha(body: Record<string, unknown>, companyId: string) {
 
   const created = await createReservation(draft);
   const operationalReply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}.`;
-  const reply = personalizeReply(await receptionReply(companyId, operationalReply, draft), draft.nome);
+  const reply = personalizeReply(
+    await receptionReply(companyId, operationalReply, draft, true),
+    draft.nome,
+    false,
+  );
   await upsertSession(
     phone,
     chatId,
