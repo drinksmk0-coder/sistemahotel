@@ -169,13 +169,13 @@ function AssistenteWorkspace() {
   };
 
   return (
-    <div>
+    <div className="flex min-h-0 flex-col">
       <PageHeader
-        title="Assistente e Central 24h"
-        subtitle="Tire dúvidas sobre o sistema e acompanhe falhas registradas automaticamente ou pela equipe."
+        title="Assistente 24h"
+        subtitle="Análises do hotel e recepção virtual."
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <StatusCard icon={<ShieldCheck />} label="Monitor do navegador" value="Ativo" tone="sage" />
         <StatusCard
           icon={<MessageSquareWarning />}
@@ -197,9 +197,9 @@ function AssistenteWorkspace() {
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.25fr_0.75fr]">
-        <section className="card-surface flex min-h-[34rem] flex-col overflow-hidden">
-          <div className="border-b border-border px-4 py-3">
+      <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.55fr)]">
+        <section className="card-surface flex h-[calc(100dvh-13rem)] min-h-[30rem] max-h-[52rem] flex-col overflow-hidden">
+          <div className="shrink-0 border-b border-border px-3 py-2.5">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="flex items-center gap-2 font-bold text-pine-dark">
                 <Bot className="h-5 w-5 text-primary" />
@@ -242,8 +242,8 @@ function AssistenteWorkspace() {
             </p>
           </div>
 
-          <Conversation className="h-[25rem]">
-            <ConversationContent>
+          <Conversation className="min-h-0 flex-1">
+            <ConversationContent className="px-3 py-3">
               {messages.length === 0 ? (
                 <ConversationEmptyState
                   icon={<Bot className="h-8 w-8" />}
@@ -280,12 +280,12 @@ function AssistenteWorkspace() {
             <ConversationScrollButton />
           </Conversation>
 
-          <div className="flex flex-wrap gap-1.5 border-t border-border px-3 py-2">
+          <div className="flex shrink-0 gap-1.5 overflow-x-auto border-t border-border px-3 py-2">
             {SUGGESTIONS[assistantMode].map((suggestion) => (
               <button
                 key={suggestion}
                 type="button"
-                className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+                className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
                 onClick={() => submitMessage(suggestion)}
                 disabled={busy}
               >
@@ -295,13 +295,13 @@ function AssistenteWorkspace() {
           </div>
 
           {error && (
-            <p className="mx-3 mt-2 rounded-md bg-brick-bg px-3 py-2 text-xs text-brick">
-              Não foi possível consultar o Gemini. Confirme o segredo GEMINI_API_KEY no Supabase.
+            <p className="mx-3 mt-2 shrink-0 rounded-md bg-brick-bg px-3 py-2 text-xs text-brick">
+              {error.message || "Não foi possível consultar o assistente. Tente novamente."}
             </p>
           )}
 
           <form
-            className="flex gap-2 border-t border-border p-3"
+            className="sticky bottom-0 z-10 flex shrink-0 gap-2 border-t border-border bg-card/95 p-3 backdrop-blur"
             onSubmit={(event) => {
               event.preventDefault();
               submitMessage(input);
@@ -325,8 +325,8 @@ function AssistenteWorkspace() {
           </form>
         </section>
 
-        <div className="space-y-4">
-          <section className="card-surface p-4">
+        <div className="max-h-[calc(100dvh-13rem)] space-y-3 overflow-y-auto pr-1">
+          <section className="card-surface p-3">
             <div className="mb-2 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
               <h2 className="font-bold text-pine-dark">Treinamento da recepção virtual</h2>
@@ -336,7 +336,7 @@ function AssistenteWorkspace() {
               salvas para esta empresa e orientam as respostas da IA.
             </p>
             <textarea
-              className="field min-h-[22rem] resize-y font-mono text-xs leading-relaxed"
+              className="field min-h-[12rem] resize-y font-mono text-xs leading-relaxed"
               value={receptionPrompt}
               onChange={(event) => {
                 setReceptionPrompt(event.target.value);

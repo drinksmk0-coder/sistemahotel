@@ -101,6 +101,15 @@ async function handleWhatsAppBusiness(body: Record<string, unknown>, companyId: 
   if (!inbound?.phone || !inbound.text) return { created: false, reply: "Mensagem ignorada." };
 
   const current = await getSession(inbound.phone, companyId);
+  if (
+    current?.last_message &&
+    current?.last_response &&
+    normalizeText(String(current.last_message)) === normalizeText(inbound.text)
+  ) {
+    const repeatedReply = String(current.last_response);
+    await sendWhatsAppBusinessText(inbound.phone, repeatedReply, companyId);
+    return { created: false, repeated: true, reply: repeatedReply };
+  }
   const draft = mergeDraft(current?.draft as Draft | null, parseMessage(inbound.text, current?.stage, current?.draft as Draft | null));
   draft.nome = draft.nome ?? inbound.name;
   draft.telefone = inbound.phone;
@@ -111,7 +120,7 @@ async function handleWhatsAppBusiness(body: Record<string, unknown>, companyId: 
   const missing = firstMissingField(draft, { requireCpf: false, requireDailyConfirmation: true });
   if (missing) {
     const operationalReply = await questionForReservation(missing, draft, companyId);
-    const reply = await receptionReply(companyId, operationalReply, draft);
+    const reply = personalizeReply(await receptionReply(companyId, operationalReply, draft), draft.nome);
     await upsertSession(inbound.phone, inbound.phone, companyId, missing, draft, inbound.text, reply);
     await sendWhatsAppBusinessText(inbound.phone, reply, companyId);
     return { created: false, reply };
@@ -119,8 +128,16 @@ async function handleWhatsAppBusiness(body: Record<string, unknown>, companyId: 
 
   const created = await createReservation(draft);
   const operationalReply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}.`;
-  const reply = await receptionReply(companyId, operationalReply, draft);
-  await upsertSession(inbound.phone, inbound.phone, companyId, "done", {}, inbound.text, reply);
+  const reply = personalizeReply(await receptionReply(companyId, operationalReply, draft), draft.nome);
+  await upsertSession(
+    inbound.phone,
+    inbound.phone,
+    companyId,
+    "done",
+    { nome: draft.nome, telefone: draft.telefone, source: draft.source },
+    inbound.text,
+    reply,
+  );
   await sendWhatsAppBusinessText(inbound.phone, reply, companyId);
   return { created: true, reservationId: created.reservationId, reply };
 }
@@ -133,6 +150,15 @@ async function handleWaha(body: Record<string, unknown>, companyId: string) {
 
   const phone = chatId.replace(/\D/g, "");
   const current = await getSession(phone, companyId);
+  if (
+    current?.last_message &&
+    current?.last_response &&
+    normalizeText(String(current.last_message)) === normalizeText(text)
+  ) {
+    const repeatedReply = String(current.last_response);
+    await sendWahaText(chatId, repeatedReply);
+    return { created: false, repeated: true, reply: repeatedReply };
+  }
   const draft = mergeDraft(current?.draft as Draft | null, parseMessage(text, current?.stage, current?.draft as Draft | null));
   draft.telefone = phone;
   draft.source = "WhatsApp";
@@ -142,7 +168,7 @@ async function handleWaha(body: Record<string, unknown>, companyId: string) {
   const missing = firstMissingField(draft, { requireCpf: false, requireDailyConfirmation: true });
   if (missing) {
     const operationalReply = await questionForReservation(missing, draft, companyId);
-    const reply = await receptionReply(companyId, operationalReply, draft);
+    const reply = personalizeReply(await receptionReply(companyId, operationalReply, draft), draft.nome);
     await upsertSession(phone, chatId, companyId, missing, draft, text, reply);
     await sendWahaText(chatId, reply);
     return { created: false, reply };
@@ -150,8 +176,16 @@ async function handleWaha(body: Record<string, unknown>, companyId: string) {
 
   const created = await createReservation(draft);
   const operationalReply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}.`;
-  const reply = await receptionReply(companyId, operationalReply, draft);
-  await upsertSession(phone, chatId, companyId, "done", {}, text, reply);
+  const reply = personalizeReply(await receptionReply(companyId, operationalReply, draft), draft.nome);
+  await upsertSession(
+    phone,
+    chatId,
+    companyId,
+    "done",
+    { nome: draft.nome, telefone: draft.telefone, source: draft.source },
+    text,
+    reply,
+  );
   await sendWahaText(chatId, reply);
   return { created: true, reservationId: created.reservationId, reply };
 }
@@ -389,6 +423,16 @@ REGRAS FIXAS:
     .join("\n")
     .trim();
   return text || operationalReply;
+}
+
+function personalizeReply(reply: string, guestName?: string) {
+  const firstName = String(guestName ?? "")
+    .trim()
+    .split(/\s+/)[0]
+    ?.replace(/[^\p{L}'-]/gu, "")
+    .slice(0, 40);
+  if (!firstName || normalizeText(reply).includes(normalizeText(firstName))) return reply;
+  return `Olá, ${firstName}! ${reply}`;
 }
 
 async function sendWhatsAppBusinessText(to: string, text: string, companyId: string) {
