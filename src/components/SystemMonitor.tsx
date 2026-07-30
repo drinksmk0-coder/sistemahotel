@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { BellRing, FileSignature } from "lucide-react";
+import { BellRing } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRole, useSession } from "@/hooks/use-auth";
 import { useCurrentCompany } from "@/lib/data";
@@ -45,7 +45,10 @@ export function SystemMonitor() {
       code?: string;
       context?: Record<string, unknown>;
     }) => {
-      const signature = `${title}|${description}|${window.location.pathname}`.slice(0, 500);
+      const signature = `${title}|${description}|${window.location.pathname}`.slice(
+        0,
+        500,
+      );
       if (recent.has(signature) || description.includes("system_issues")) return;
       recent.add(signature);
       window.setTimeout(() => recent.delete(signature), 60_000);
@@ -61,7 +64,9 @@ export function SystemMonitor() {
         error_code: code?.slice(0, 120) || null,
         context: context ?? {},
       } as never);
-      if (error) console.warn("[Monitor] Falha ao registrar incidente:", error.message);
+      if (error) {
+        console.warn("[Monitor] Falha ao registrar incidente:", error.message);
+      }
     };
 
     const onError = (event: ErrorEvent) => {
@@ -85,7 +90,10 @@ export function SystemMonitor() {
       void capture({
         title: "Falha não tratada no sistema",
         description: reason,
-        code: event.reason instanceof Error ? event.reason.name : "unhandled_rejection",
+        code:
+          event.reason instanceof Error
+            ? event.reason.name
+            : "unhandled_rejection",
       });
     };
 
@@ -100,39 +108,29 @@ export function SystemMonitor() {
   if (!canReviewCheckins || !company.data?.id) return null;
 
   const pendingCount = pendingCheckins.data ?? 0;
-  if (pendingCount > 0) {
-    return (
-      <Link
-        to="/fichas-checkin"
-        className="fixed bottom-20 right-3 z-[70] flex w-[min(23rem,calc(100vw-1.5rem))] items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-emerald-950 shadow-xl transition hover:-translate-y-0.5 hover:shadow-2xl md:bottom-4"
-        aria-label={`${pendingCount} ficha(s) de check-in aguardando conferência`}
-      >
-        <span className="relative mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-emerald-700 text-white">
-          <BellRing className="h-4 w-4" />
-          <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
-            {pendingCount > 99 ? "99+" : pendingCount}
-          </span>
-        </span>
-        <span className="min-w-0">
-          <strong className="block text-sm">
-            {pendingCount} ficha(s) preenchida(s)
-          </strong>
-          <span className="mt-0.5 block text-xs leading-relaxed text-emerald-800">
-            Aguardando conferência da recepção. Clique para ver os dados e a assinatura.
-          </span>
-        </span>
-      </Link>
-    );
-  }
+  if (pendingCount <= 0) return null;
 
   return (
     <Link
       to="/fichas-checkin"
-      className="fixed bottom-20 right-3 z-[60] flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground shadow-lg transition hover:text-foreground md:bottom-4"
-      aria-label="Abrir fichas de check-in"
+      className="fixed right-3 top-14 z-[80] flex w-[min(24rem,calc(100vw-1.5rem))] items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-emerald-950 shadow-2xl transition hover:-translate-y-0.5 sm:right-5 sm:top-4"
+      aria-label={`${pendingCount} ficha(s) de check-in aguardando conferência`}
     >
-      <FileSignature className="h-4 w-4 text-primary" />
-      Fichas de check-in
+      <span className="relative mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-700 text-white">
+        <BellRing className="h-5 w-5" />
+        <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
+          {pendingCount > 99 ? "99+" : pendingCount}
+        </span>
+      </span>
+      <span className="min-w-0">
+        <strong className="block text-sm">
+          Nova ficha de check-in recebida
+        </strong>
+        <span className="mt-0.5 block text-xs leading-relaxed text-emerald-800">
+          {pendingCount} ficha(s) aguardando conferência. Clique para abrir os
+          dados e a assinatura.
+        </span>
+      </span>
     </Link>
   );
 }
