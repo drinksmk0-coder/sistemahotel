@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">HospedaMais</title>
+  <desc id="desc">Símbolo da plataforma HospedaMais</desc>
+  <defs>
+    <linearGradient id="bg" x1="64" y1="40" x2="448" y2="472" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2878E8"/>
+      <stop offset="1" stop-color="#135A8A"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M112 245 256 128l144 117v143a36 36 0 0 1-36 36H148a36 36 0 0 1-36-36V245Z" fill="#fff" opacity=".97"/>
+  <path d="M176 232h52v64h56v-64h52v160h-52v-52h-56v52h-52V232Z" fill="#135A8A"/>
+  <circle cx="371" cy="143" r="43" fill="#F4C95D"/>
+  <path d="M371 120v46M348 143h46" stroke="#135A8A" stroke-width="15" stroke-linecap="round"/>
+</svg>
