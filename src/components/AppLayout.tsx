@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  Sparkles,
   Settings,
   Star,
   Users,
@@ -100,6 +101,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const path = useRouterState({ select: (s) => s.location.pathname });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const visibleTabs = TABS.filter((tab) => !role || tab.roles.includes(role));
   const secondaryTabs = SECONDARY_TABS.filter((tab) => !role || tab.roles.includes(role));
   const mobileTabs = visibleTabs
@@ -280,6 +282,59 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <main className="app-main min-w-0 px-3 pb-24 pt-16 sm:px-5 md:px-7 xl:ml-[13.5rem] xl:px-6 xl:pb-8 xl:pt-5">
         <div className="mx-auto w-full max-w-[1880px]">{children}</div>
       </main>
+
+      {(role === "dono" || role === "recepcao") && !path.startsWith("/assistente") && (
+        <div className="fixed bottom-24 right-4 z-40 flex flex-col items-end gap-2 xl:bottom-6 xl:right-6">
+          {assistantOpen && (
+            <div className="w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-primary/20 bg-card/95 shadow-2xl backdrop-blur">
+              <div className="bg-[linear-gradient(135deg,var(--primary),var(--accent))] p-3 text-primary-foreground">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/15">
+                      <Bot className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <strong className="block text-sm">HotelAI</strong>
+                      <span className="text-[10px] opacity-80">Assistente do Hotel Real</span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-full p-1 hover:bg-white/15"
+                    onClick={() => setAssistantOpen(false)}
+                    aria-label="Fechar assistente"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-3 p-3">
+                <div className="rounded-xl rounded-tl-sm bg-muted p-3 text-xs leading-relaxed text-foreground">
+                  Posso analisar ocupação, receita, despesas, reservas e oportunidades do hotel.
+                </div>
+                <Link
+                  to="/assistente"
+                  onClick={() => setAssistantOpen(false)}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground shadow-sm"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Conversar com o HotelAI
+                </Link>
+              </div>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => setAssistantOpen((open) => !open)}
+            className="group relative grid h-14 w-14 place-items-center rounded-2xl bg-[linear-gradient(135deg,var(--primary),var(--accent))] text-primary-foreground shadow-[0_12px_35px_color-mix(in_srgb,var(--primary)_38%,transparent)] transition hover:-translate-y-1 hover:scale-105"
+            aria-label={assistantOpen ? "Fechar HotelAI" : "Abrir HotelAI"}
+            aria-expanded={assistantOpen}
+          >
+            <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card bg-sage" />
+            {assistantOpen ? <X className="h-6 w-6" /> : <Bot className="h-7 w-7" />}
+          </button>
+        </div>
+      )}
 
       {mobileTabs.length > 0 && (
         <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-pine-dark/15 bg-card/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-10px_30px_rgba(42,33,24,0.12)] backdrop-blur xl:hidden">
