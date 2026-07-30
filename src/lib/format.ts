@@ -1,3 +1,8 @@
+export const HOTEL_TIME_ZONE = "America/Sao_Paulo";
+export const HOTEL_DAY_CUTOFF_HOUR = 6;
+export const DEFAULT_CHECKIN_TIME = "15:00";
+export const DEFAULT_CHECKOUT_TIME = "12:00";
+
 export function fmtBRL(n: number | null | undefined): string {
   const v = Number(n) || 0;
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -16,18 +21,57 @@ export function fmtTime(value: string | null | undefined): string {
 }
 
 export function todayISO(): string {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return localDateParts(new Date()).date;
+}
+
+export function hotelOperationalDateISO(now = new Date()): string {
+  const parts = localDateParts(now);
+  if (parts.hour >= HOTEL_DAY_CUTOFF_HOUR) return parts.date;
+  return addDaysISO(parts.date, -1);
+}
+
+export function hotelLocalTime(now = new Date()): string {
+  const parts = localDateParts(now);
+  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+}
+
+export function addDaysISO(date: string, days: number): string {
+  if (!date) return "";
+  const [year, month, day] = date.split("-").map(Number);
+  if (!year || !month || !day) return "";
+  const value = new Date(Date.UTC(year, month - 1, day));
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
 }
 
 export function nightsBetween(a?: string, b?: string): number {
   if (!a || !b) return 0;
-  const d1 = new Date(a).getTime();
-  const d2 = new Date(b).getTime();
+  const d1 = new Date(`${a}T12:00:00Z`).getTime();
+  const d2 = new Date(`${b}T12:00:00Z`).getTime();
   return Math.max(0, Math.round((d2 - d1) / 86400000));
+}
+
+function localDateParts(date: Date) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: HOTEL_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    hour: Number(parts.hour),
+    minute: Number(parts.minute),
+  };
 }
 
 // CSV export with formula-injection protection (fixes the CSV injection flaw).
