@@ -1,4 +1,12 @@
-import { AlertTriangle, CalendarClock, CircleDollarSign, MessageCircle } from "lucide-react";
+import { useState } from "react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  ChevronDown,
+  ChevronUp,
+  CircleDollarSign,
+  MessageCircle,
+} from "lucide-react";
 import {
   type Client,
   type Reservation,
@@ -33,6 +41,7 @@ export function ReceivablesPanel({
   sales,
   compact = false,
 }: ReceivablesPanelProps) {
+  const [expanded, setExpanded] = useState(false);
   const today = todayISO();
   const clientsById = new Map(clients.map((client) => [client.id, client]));
   const rows = reservations
@@ -68,6 +77,7 @@ export function ReceivablesPanel({
   const expiredStayRows = rows.filter((row) => row.state === "estadia_vencida");
   const checkoutDebtRows = rows.filter((row) => row.state === "checkout_com_saldo");
   const expiredBookingRows = rows.filter((row) => row.state === "reserva_vencida");
+  const visibleRows = compact && !expanded ? rows.slice(0, 5) : rows;
 
   return (
     <section className="rounded-lg border border-brass/40 bg-card p-3 shadow-sm">
@@ -124,9 +134,7 @@ export function ReceivablesPanel({
           Nenhuma reserva com saldo pendente.
         </p>
       ) : (
-        <div
-          className={`mt-3 overflow-x-auto ${compact ? "max-h-72" : "max-h-[30rem]"} overflow-y-auto`}
-        >
+        <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[760px] text-xs">
             <thead className="sticky top-0 bg-card">
               <tr className="border-b border-border text-left text-muted-foreground">
@@ -140,7 +148,7 @@ export function ReceivablesPanel({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {visibleRows.map((row) => {
                 const phone = normalizePhone(row.client?.telefone);
                 const message = collectionMessage(row);
                 return (
@@ -200,6 +208,24 @@ export function ReceivablesPanel({
             </tbody>
           </table>
         </div>
+      )}
+
+      {compact && rows.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((value) => !value)}
+          className="mx-auto mt-2 flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-[10px] font-bold text-pine-dark shadow-sm hover:bg-muted"
+        >
+          {expanded ? (
+            <>
+              <ChevronUp className="h-3.5 w-3.5" /> Mostrar somente as primeiras
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-3.5 w-3.5" /> Ver todas as {rows.length} pendências
+            </>
+          )}
+        </button>
       )}
 
       {expiredStayRows.length + checkoutDebtRows.length + expiredBookingRows.length > 0 && (
