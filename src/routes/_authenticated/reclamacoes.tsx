@@ -17,6 +17,8 @@ const sevTone: Record<string, string> = { baixa: "sage", media: "brass", alta: "
 const STOP_WORDS = new Set([
   "para", "com", "uma", "que", "não", "nao", "dos", "das", "por", "sem", "está",
   "esta", "muito", "mais", "foi", "tem", "de", "da", "do", "no", "na", "em",
+  "solicitado", "solicitada", "relatado", "relatada", "avaliacao", "hospede",
+  "quarto", "problema", "cliente", "informou", "pedido", "reclamacao",
 ]);
 
 function Reclamacoes() {
@@ -123,18 +125,18 @@ function Reclamacoes() {
       </div>
 
       {frequentWords.length > 0 && (
-        <section className="card-surface mb-4 p-4">
-          <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        <section className="card-surface mb-4 p-3">
+          <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <div>
-              <h3 className="font-serif text-lg font-bold">Mapa de calor dos assuntos</h3>
-              <p className="text-xs text-muted-foreground">
-                Quanto mais escura e maior a célula, mais vezes o assunto apareceu.
+              <h3 className="text-sm font-extrabold text-pine-dark">Assuntos recorrentes</h3>
+              <p className="text-[10px] text-muted-foreground">
+                Tamanho e intensidade mostram as causas mais repetidas.
               </p>
               <ComplaintWordHeatmap rows={frequentWords} />
             </div>
             <div>
-              <h3 className="font-serif text-lg font-bold">Categoria × gravidade</h3>
-              <p className="text-xs text-muted-foreground">
+              <h3 className="text-sm font-extrabold text-pine-dark">Mapa de risco</h3>
+              <p className="text-[10px] text-muted-foreground">
                 Concentração das reclamações por assunto e nível de urgência.
               </p>
               <ComplaintSeverityHeatmap rows={categoryHeat} />
@@ -226,14 +228,18 @@ function ComplaintWordHeatmap({
 }) {
   const max = Math.max(1, ...rows.map((row) => row.ocorrencias));
   return (
-    <div className="mt-3 grid auto-rows-[64px] grid-cols-2 gap-2 sm:grid-cols-4">
-      {rows.map((row) => {
+    <div className="mt-2 grid auto-rows-[58px] grid-cols-2 gap-1.5 sm:grid-cols-6">
+      {rows.map((row, index) => {
         const intensity = row.ocorrencias / max;
         return (
           <div
             key={row.palavra}
-            className={`flex min-w-0 flex-col justify-between rounded-lg border p-2.5 ${
-              intensity >= 0.7 ? "sm:col-span-2" : ""
+            className={`flex min-w-0 flex-col justify-between rounded-lg border p-2 transition hover:-translate-y-0.5 hover:shadow-md ${
+              index === 0
+                ? "sm:col-span-3 sm:row-span-2"
+                : intensity >= 0.55
+                  ? "sm:col-span-2"
+                  : "sm:col-span-1"
             }`}
             style={{
               background: `color-mix(in srgb, var(--primary) ${30 + intensity * 70}%, var(--card))`,
@@ -242,7 +248,7 @@ function ComplaintWordHeatmap({
             }}
             title={`${row.palavra}: ${row.ocorrencias} ocorrência(s)`}
           >
-            <strong className="truncate text-sm capitalize">{row.palavra}</strong>
+            <strong className="truncate text-xs capitalize sm:text-sm">{row.palavra}</strong>
             <span className="text-[10px] font-bold opacity-85">
               {row.ocorrencias} ocorrência(s)
             </span>
