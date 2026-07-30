@@ -78,6 +78,32 @@ export function ReceivablesPanel({
   const checkoutDebtRows = rows.filter((row) => row.state === "checkout_com_saldo");
   const expiredBookingRows = rows.filter((row) => row.state === "reserva_vencida");
   const visibleRows = compact && !expanded ? rows.slice(0, 5) : rows;
+  const statusCards = [
+    {
+      label: "Pagamento parcial",
+      rows: partialRows,
+      hint: `${partialRows.length} reserva(s)`,
+      tone: "brass" as const,
+    },
+    {
+      label: "Estadia vencida",
+      rows: expiredStayRows,
+      hint: `${expiredStayRows.length} ainda ocupada(s)`,
+      tone: "brick" as const,
+    },
+    {
+      label: "Checkout com saldo",
+      rows: checkoutDebtRows,
+      hint: `${checkoutDebtRows.length} encerrada(s)`,
+      tone: "brick" as const,
+    },
+    {
+      label: "Reserva vencida",
+      rows: expiredBookingRows,
+      hint: `${expiredBookingRows.length} sem check-in`,
+      tone: "pine" as const,
+    },
+  ].filter((card) => card.rows.length > 0);
 
   return (
     <section className="rounded-lg border border-brass/40 bg-card p-3 shadow-sm">
@@ -96,37 +122,24 @@ export function ReceivablesPanel({
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+      <div
+        className="grid grid-cols-2 gap-2 lg:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]"
+      >
         <ReceivableKpi
           label="Total a receber"
           value={fmtBRL(totalBalance)}
           hint={`${fmtBRL(totalPaid)} já recebido`}
           tone="brick"
         />
-        <ReceivableKpi
-          label="Pagamento parcial"
-          value={fmtBRL(partialRows.reduce((sum, row) => sum + row.balance, 0))}
-          hint={`${partialRows.length} reserva(s)`}
-          tone="brass"
-        />
-        <ReceivableKpi
-          label="Estadia vencida"
-          value={fmtBRL(expiredStayRows.reduce((sum, row) => sum + row.balance, 0))}
-          hint={`${expiredStayRows.length} ainda ocupada(s)`}
-          tone="brick"
-        />
-        <ReceivableKpi
-          label="Checkout com saldo"
-          value={fmtBRL(checkoutDebtRows.reduce((sum, row) => sum + row.balance, 0))}
-          hint={`${checkoutDebtRows.length} encerrada(s)`}
-          tone="brick"
-        />
-        <ReceivableKpi
-          label="Reserva vencida"
-          value={fmtBRL(expiredBookingRows.reduce((sum, row) => sum + row.balance, 0))}
-          hint={`${expiredBookingRows.length} sem check-in`}
-          tone="pine"
-        />
+        {statusCards.map((card) => (
+          <ReceivableKpi
+            key={card.label}
+            label={card.label}
+            value={fmtBRL(card.rows.reduce((sum, row) => sum + row.balance, 0))}
+            hint={card.hint}
+            tone={card.tone}
+          />
+        ))}
       </div>
 
       {rows.length === 0 ? (

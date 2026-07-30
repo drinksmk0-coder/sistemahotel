@@ -149,7 +149,7 @@ export function expensesTotal(expenses: Expense[]): number {
 }
 
 export function percentChange(current: number, previous: number): number | null {
-  if (!previous) return current ? 100 : null;
+  if (!previous) return null;
   return ((current - previous) / Math.abs(previous)) * 100;
 }
 

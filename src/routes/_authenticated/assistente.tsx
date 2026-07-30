@@ -9,7 +9,6 @@ import {
   MessageSquareWarning,
   Save,
   Send,
-  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -182,8 +181,7 @@ function AssistenteWorkspace() {
         subtitle="Análises do hotel e recepção virtual."
       />
 
-      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <StatusCard icon={<ShieldCheck />} label="Monitor do navegador" value="Ativo" tone="sage" />
+      <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
         <StatusCard
           icon={<MessageSquareWarning />}
           label="Incidentes abertos"
@@ -204,8 +202,8 @@ function AssistenteWorkspace() {
         />
       </div>
 
-      <div className="grid min-h-0 gap-3 xl:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.55fr)]">
-        <section className="card-surface flex h-[clamp(24rem,62dvh,40rem)] min-h-0 flex-col overflow-hidden">
+      <div className="grid min-h-0 items-start gap-3 xl:grid-cols-[minmax(0,1.6fr)_minmax(20rem,0.6fr)]">
+        <section className="card-surface flex h-[clamp(34rem,72dvh,48rem)] min-h-0 flex-col overflow-hidden">
           <div className="shrink-0 border-b border-border px-3 py-2.5">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h2 className="flex items-center gap-2 font-bold text-pine-dark">
@@ -306,12 +304,12 @@ function AssistenteWorkspace() {
             <ConversationScrollButton />
           </Conversation>
 
-          <div className="flex shrink-0 gap-1.5 overflow-x-auto border-t border-border px-3 py-2">
+          <div className="flex shrink-0 flex-wrap gap-1.5 border-t border-border px-3 py-2">
             {SUGGESTIONS[assistantMode].map((suggestion) => (
               <button
                 key={suggestion}
                 type="button"
-                className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+                className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground"
                 onClick={() => submitMessage(suggestion)}
                 disabled={busy}
               >
@@ -351,7 +349,7 @@ function AssistenteWorkspace() {
           </form>
         </section>
 
-        <div className="max-h-[clamp(24rem,62dvh,40rem)] space-y-3 overflow-y-auto pr-1">
+        <div className="space-y-3">
           <section className="card-surface p-3">
             <div className="mb-2 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
@@ -391,8 +389,13 @@ function AssistenteWorkspace() {
             </div>
           </section>
 
-          <section className="card-surface p-4">
-            <h2 className="font-bold text-pine-dark">Registrar problema</h2>
+          <details className="card-surface group p-4">
+            <summary className="cursor-pointer list-none font-bold text-pine-dark">
+              Registrar problema
+              <span className="float-right text-xs text-muted-foreground group-open:hidden">
+                Abrir
+              </span>
+            </summary>
             <p className="mb-3 text-xs text-muted-foreground">
               Informe o que aconteceu. Erros técnicos do navegador também são capturados
               automaticamente.
@@ -456,18 +459,21 @@ function AssistenteWorkspace() {
                 Registrar incidente
               </button>
             </form>
-          </section>
+          </details>
 
-          <section className="card-surface overflow-hidden">
-            <h2 className="border-b border-border px-4 py-3 font-bold text-pine-dark">
+          <details className="card-surface group overflow-hidden">
+            <summary className="cursor-pointer list-none border-b border-border px-4 py-3 font-bold text-pine-dark">
               Acompanhamento
-            </h2>
+              <span className="float-right text-xs text-muted-foreground group-open:hidden">
+                {issues.length} registro(s)
+              </span>
+            </summary>
             {issues.length === 0 ? (
               <p className="px-4 py-6 text-sm text-muted-foreground">
                 Nenhum incidente registrado.
               </p>
             ) : (
-              <ul className="max-h-[26rem] divide-y divide-border/60 overflow-y-auto">
+              <ul className="divide-y divide-border/60">
                 {issues.slice(0, 30).map((issue) => (
                   <li key={issue.id} className="px-4 py-3 text-sm">
                     <div className="flex items-start justify-between gap-2">
@@ -515,7 +521,7 @@ function AssistenteWorkspace() {
                 ))}
               </ul>
             )}
-          </section>
+          </details>
         </div>
       </div>
     </div>

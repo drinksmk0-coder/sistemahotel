@@ -1433,6 +1433,18 @@ function SatisfactionCard({ feedbacks }: { feedbacks: Feedback[] }) {
       percentage: ratings.length ? Math.round((count / ratings.length) * 100) : 0,
     };
   });
+  if (!ratings.length) {
+    return (
+      <section className="flex h-full min-h-40 items-center justify-center rounded-lg bg-muted/30 p-4 text-center">
+        <div>
+          <p className="text-sm font-bold text-pine-dark">Sem avaliações no período</p>
+          <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+            Envie o link de avaliação após o checkout para começar a medir a experiência.
+          </p>
+        </div>
+      </section>
+    );
+  }
   return (
     <section className="flex h-full min-w-0 flex-col p-1">
       <div className="mb-4">
@@ -2153,7 +2165,7 @@ function EditableStrategicChart({
               </ResponsiveContainer>
             </div>
             <div
-              className="max-h-[220px] space-y-1.5 overflow-auto rounded-md bg-muted/35 p-2 pr-1 text-[10px]"
+              className="space-y-1.5 rounded-md bg-muted/35 p-2 text-[10px]"
               aria-label={`Legenda de ${settings.title}`}
             >
               {rows.map((row, index) => {
@@ -2175,7 +2187,7 @@ function EditableStrategicChart({
                           ),
                         }}
                       />
-                      <span className="truncate font-semibold text-pine-dark">
+                      <span className="break-words font-semibold leading-tight text-pine-dark">
                         {String(row[categoryKey])}
                       </span>
                     </span>
@@ -2236,13 +2248,10 @@ function StrategicHorizontalBars({
   );
 
   return (
-    <div
-      className="space-y-3 overflow-auto rounded-md bg-muted/20 p-2"
-      style={{ maxHeight: Math.max(180, height) }}
-    >
+    <div className="space-y-3 rounded-md bg-muted/20 p-2" style={{ minHeight: Math.min(180, height) }}>
       {rows.map((row, rowIndex) => (
         <div key={`${String(row[categoryKey])}-${rowIndex}`} className="min-w-0">
-          <div className="mb-1 truncate text-[10px] font-bold text-foreground" title={String(row[categoryKey])}>
+          <div className="mb-1 break-words text-[10px] font-bold leading-tight text-foreground">
             {String(row[categoryKey])}
           </div>
           <div className="space-y-1.5">

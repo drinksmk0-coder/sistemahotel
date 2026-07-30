@@ -291,7 +291,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </main>
 
       {(role === "dono" || role === "recepcao") && !path.startsWith("/assistente") && (
-        <div className="fixed bottom-24 right-4 z-40 flex flex-col items-end gap-2 xl:bottom-6 xl:right-6">
+        <div className="fixed bottom-24 right-3 z-40 flex flex-col items-end gap-2 xl:bottom-4 xl:right-4">
           {assistantOpen && (
             <div className="w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-primary/20 bg-card/95 shadow-2xl backdrop-blur">
               <div className="bg-[linear-gradient(135deg,var(--primary),var(--accent))] p-3 text-primary-foreground">
@@ -333,12 +333,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <button
             type="button"
             onClick={() => setAssistantOpen((open) => !open)}
-            className="group relative grid h-14 w-14 place-items-center rounded-2xl bg-[linear-gradient(135deg,var(--primary),var(--accent))] text-primary-foreground shadow-[0_12px_35px_color-mix(in_srgb,var(--primary)_38%,transparent)] transition hover:-translate-y-1 hover:scale-105"
+            className="group relative grid h-11 w-11 place-items-center rounded-xl bg-[linear-gradient(135deg,var(--primary),var(--accent))] text-primary-foreground opacity-80 shadow-[0_8px_24px_color-mix(in_srgb,var(--primary)_30%,transparent)] transition hover:-translate-y-0.5 hover:scale-105 hover:opacity-100"
             aria-label={assistantOpen ? "Fechar HotelAI" : "Abrir HotelAI"}
             aria-expanded={assistantOpen}
           >
             <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card bg-sage" />
-            {assistantOpen ? <X className="h-6 w-6" /> : <Bot className="h-7 w-7" />}
+            {assistantOpen ? <X className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
           </button>
         </div>
       )}

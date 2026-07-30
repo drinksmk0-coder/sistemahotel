@@ -31,6 +31,10 @@ function Despesas() {
   const remove = useDelete("expenses", ["expenses"]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
+  const currentMonthLabel = new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${todayISO().slice(0, 7)}-01T12:00:00`));
   const totalMes = expenses
     .filter((e) => (e.data || "").slice(0, 7) === todayISO().slice(0, 7))
     .reduce((sum, e) => sum + Number(e.valor), 0);
@@ -82,7 +86,9 @@ function Despesas() {
 
       <div className="mb-3 flex flex-wrap gap-2">
         <div className="stat-card w-full max-w-[230px] flex-1 basis-[170px]">
-          <p className="text-[9px] font-bold uppercase text-muted-foreground">Despesas do mês</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">
+            Despesas · {currentMonthLabel}
+          </p>
           <p className="text-base font-extrabold text-pine-dark">{fmtBRL(totalMes)}</p>
         </div>
         <div className="stat-card w-full max-w-[230px] flex-1 basis-[170px]">
@@ -132,7 +138,7 @@ function Despesas() {
                       dataKey="valor"
                       position="right"
                       fontSize={9}
-                      formatter={(value: number) => formatCompactCurrency(value)}
+                      formatter={(value: number) => formatCompactCurrency(value).replace(" ", "\u00a0")}
                     />
                   </Bar>
                 </BarChart>

@@ -817,11 +817,13 @@ function OwnerCompactDashboard({
 
   const paymentMap = new Map<string, number>();
   periodReservations.forEach((reservation) => {
-    const payment = reservation.pagamento || "Não informado";
+    const rawPayment = reservation.pagamento?.trim();
+    const payment = rawPayment && rawPayment !== "-" ? rawPayment : "Não informado";
     paymentMap.set(payment, (paymentMap.get(payment) ?? 0) + reservationReceived(reservation));
   });
   const paymentRows = [...paymentMap]
     .map(([name, value]) => ({ name, value }))
+    .filter((row) => row.value > 0)
     .sort((a, b) => b.value - a.value);
   const expenseMap = new Map<string, number>();
   periodExpenses.forEach((expense) => {
@@ -909,7 +911,7 @@ function OwnerCompactDashboard({
     },
     {
       id: "revenue",
-      title: "Receita recebida",
+      title: "Receita recebida no período",
       kind: "kpi",
       defaultColumns: 3,
       defaultHeight: 86,
@@ -933,7 +935,7 @@ function OwnerCompactDashboard({
     },
     {
       id: "expenses",
-      title: "Despesas",
+      title: "Despesas do período",
       kind: "kpi",
       defaultColumns: 3,
       defaultHeight: 86,
@@ -944,7 +946,7 @@ function OwnerCompactDashboard({
     },
     {
       id: "profit",
-      title: "Lucro",
+      title: "Resultado do período",
       kind: "kpi",
       defaultColumns: 3,
       defaultHeight: 86,
@@ -1075,15 +1077,21 @@ function OwnerCompactDashboard({
     "pending",
     "expenses",
     "profit",
-    "financial-evolution",
     "receivables",
+    "financial-evolution",
     "payments",
     "largest-expenses",
     "problem-rooms",
   ];
   const orderedDashboardWidgets = panelOrder
     .map((id) => dashboardWidgets.find((widget) => widget.id === id))
-    .filter((widget): widget is DashboardWidget => Boolean(widget));
+    .filter((widget): widget is DashboardWidget => {
+      if (!widget) return false;
+      if (widget.id === "problem-rooms" && problemRooms.length === 0) return false;
+      if (widget.id === "payments" && paymentRows.length === 0) return false;
+      if (widget.id === "largest-expenses" && expenseRows.length === 0) return false;
+      return true;
+    });
 
   return (
     <div className="space-y-3 pb-6">
