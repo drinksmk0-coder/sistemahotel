@@ -491,6 +491,29 @@ export function useDelete(table: TableName, invalidate: string[]) {
   });
 }
 
+export function useDeleteClientsWithHistory() {
+  const qc = useQueryClient();
+  const company = useCurrentCompany();
+  return useMutation({
+    mutationFn: async (clientIds: string[]) => {
+      if (!company.data?.id) throw new Error("Empresa não encontrada.");
+      if (clientIds.length === 0) return { clients_deleted: 0, reservations_deleted: 0 };
+
+      const { data, error } = await (supabase as any).rpc("delete_clients_with_history", {
+        p_company_id: company.data.id,
+        p_client_ids: clientIds,
+      });
+      if (error) throw error;
+      return data as { clients_deleted: number; reservations_deleted: number };
+    },
+    onSuccess: () => {
+      ["clients", "reservations", "sales", "guest_payments", "integration_events"].forEach((key) =>
+        qc.invalidateQueries({ queryKey: [key] }),
+      );
+    },
+  });
+}
+
 // --- Derived helpers ---
 // `roomSituacao` is the manual override set from the map (limpeza/manutencao).
 export function roomStatusToday(
