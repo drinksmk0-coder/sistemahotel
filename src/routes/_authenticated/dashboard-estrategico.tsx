@@ -1595,16 +1595,16 @@ function StoryKpi({
   yearDelta?: number | null;
 }) {
   const toneClass = {
-    pine: "border-t-pine bg-[linear-gradient(180deg,rgba(35,77,56,.10),var(--card)_55%)]",
-    sage: "border-t-sage bg-[linear-gradient(180deg,rgba(88,139,105,.12),var(--card)_55%)]",
-    brass: "border-t-brass bg-[linear-gradient(180deg,rgba(208,178,91,.18),var(--card)_55%)]",
-    brick: "border-t-brick bg-[linear-gradient(180deg,rgba(162,70,45,.12),var(--card)_55%)]",
+    pine: "bg-[linear-gradient(180deg,color-mix(in_srgb,var(--primary)_8%,var(--card)),var(--card)_55%)]",
+    sage: "bg-[linear-gradient(180deg,color-mix(in_srgb,var(--sage)_8%,var(--card)),var(--card)_55%)]",
+    brass: "bg-[linear-gradient(180deg,color-mix(in_srgb,var(--brass)_8%,var(--card)),var(--card)_55%)]",
+    brick: "bg-[linear-gradient(180deg,color-mix(in_srgb,var(--brick)_8%,var(--card)),var(--card)_55%)]",
   }[tone];
   const sparklineEnd =
     previousDelta == null ? 12 : Math.max(3, Math.min(21, 12 - previousDelta / 4));
   return (
     <div
-      className={`relative min-w-0 overflow-hidden rounded-md border border-border border-t-4 p-2 shadow-sm ${toneClass}`}
+      className={`relative h-full min-w-0 overflow-hidden rounded-md border border-border p-2 shadow-sm ${toneClass}`}
     >
       {previousDelta != null && (
         <svg
