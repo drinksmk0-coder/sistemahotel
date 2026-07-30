@@ -1,15 +1,17 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { BellRing } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRole, useSession } from "@/hooks/use-auth";
 import { useCurrentCompany } from "@/lib/data";
+import { BRAND_STORAGE_PREFIX } from "@/lib/brand";
 
 export function SystemMonitor() {
   const company = useCurrentCompany();
   const { user } = useSession();
   const { data: role } = useRole(user);
+  const path = useRouterState({ select: (state) => state.location.pathname });
   const canReviewCheckins = role === "dono" || role === "recepcao";
 
   const pendingCheckins = useQuery({
@@ -28,6 +30,44 @@ export function SystemMonitor() {
       return count ?? 0;
     },
   });
+
+  useEffect(() => {
+    const companyId = company.data?.id;
+    if (!companyId || !user?.id || !role) return;
+
+    const sessionKey = `${BRAND_STORAGE_PREFIX}:session:${companyId}:${user.id}`;
+    const isNewSession = !window.sessionStorage.getItem(sessionKey);
+    if (isNewSession) window.sessionStorage.setItem(sessionKey, "1");
+    let firstRequest = true;
+
+    const record = async () => {
+      if (document.visibilityState === "hidden") return;
+      const { error } = await (supabase as any).rpc("record_user_activity", {
+        p_company_id: companyId,
+        p_path: window.location.pathname,
+        p_new_session: firstRequest && isNewSession,
+      });
+      firstRequest = false;
+      if (error) {
+        console.warn("[Activity] Não foi possível atualizar o último acesso:", error.message);
+      }
+    };
+
+    void record();
+    const interval = window.setInterval(() => void record(), 120_000);
+    const onFocus = () => void record();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") void record();
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [company.data?.id, path, role, user?.id]);
 
   useEffect(() => {
     const companyId = company.data?.id;
@@ -60,7 +100,7 @@ export function SystemMonitor() {
         severity: "alta",
         status: "aberto",
         source: "frontend",
-        page_url: window.location.href,
+        page_url: `${window.location.origin}${window.location.pathname}`,
         error_code: code?.slice(0, 120) || null,
         context: context ?? {},
       } as never);
