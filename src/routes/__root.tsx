@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { useInspectorGuard } from "@/hooks/use-inspector-guard";
 import { BRAND, brandedPageTitle } from "@/lib/brand";
+import { normalizeGuestFacingUrl } from "@/lib/public-url";
 
 function NotFoundComponent() {
   return (
@@ -152,6 +153,17 @@ function RootComponent() {
     });
     return () => sub.subscription.unsubscribe();
   }, [router, queryClient]);
+
+  useEffect(() => {
+    const originalOpen = window.open;
+    window.open = function patchedOpen(url, target, features) {
+      const normalized = typeof url === "string" ? normalizeGuestFacingUrl(url) : url;
+      return originalOpen.call(window, normalized, target, features);
+    };
+    return () => {
+      window.open = originalOpen;
+    };
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
