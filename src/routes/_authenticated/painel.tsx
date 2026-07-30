@@ -857,7 +857,7 @@ function OwnerCompactDashboard({
       id: "occupancy-now",
       title: "Ocupação agora",
       kind: "kpi",
-      defaultHeight: 104,
+      defaultHeight: 86,
       render: (settings) => (
         <CompactKpi
           label={settings.title}
@@ -869,7 +869,7 @@ function OwnerCompactDashboard({
       id: "arrivals-today",
       title: "Entradas hoje",
       kind: "kpi",
-      defaultHeight: 104,
+      defaultHeight: 86,
       render: (settings) => (
         <CompactKpi label={settings.title} value={String(arrivalsToday)} />
       ),
@@ -878,7 +878,7 @@ function OwnerCompactDashboard({
       id: "departures-today",
       title: "Saídas hoje",
       kind: "kpi",
-      defaultHeight: 104,
+      defaultHeight: 86,
       defaultColor: "var(--chart-3)",
       render: (settings) => (
         <CompactKpi label={settings.title} value={String(departuresToday)} />
@@ -888,7 +888,7 @@ function OwnerCompactDashboard({
       id: "free-rooms",
       title: "Quartos livres",
       kind: "kpi",
-      defaultHeight: 104,
+      defaultHeight: 86,
       render: (settings) => (
         <CompactKpi label={settings.title} value={String(rooms.length - occupied)} />
       ),
@@ -897,7 +897,7 @@ function OwnerCompactDashboard({
       id: "room-attention",
       title: "Limpeza / manutenção",
       kind: "kpi",
-      defaultHeight: 104,
+      defaultHeight: 86,
       defaultColor: "var(--brass)",
       render: (settings) => (
         <CompactKpi
@@ -911,7 +911,7 @@ function OwnerCompactDashboard({
       id: "checkout-debt",
       title: "Check-outs com dívida",
       kind: "kpi",
-      defaultHeight: 104,
+      defaultHeight: 86,
       defaultColor: "var(--chart-4)",
       render: (settings) => (
         <CompactKpi
@@ -926,7 +926,7 @@ function OwnerCompactDashboard({
       title: "Receita recebida",
       kind: "kpi",
       defaultColumns: 3,
-      defaultHeight: 104,
+      defaultHeight: 86,
       render: (settings) => (
         <CompactKpi
           label={settings.title}
@@ -941,7 +941,7 @@ function OwnerCompactDashboard({
       title: "Conta total a receber",
       kind: "kpi",
       defaultColumns: 3,
-      defaultHeight: 104,
+      defaultHeight: 86,
       defaultColor: "var(--brass)",
       render: (settings) => <CompactKpi label={settings.title} value={fmtBRL(pending)} />,
     },
@@ -950,7 +950,7 @@ function OwnerCompactDashboard({
       title: "Despesas",
       kind: "kpi",
       defaultColumns: 3,
-      defaultHeight: 104,
+      defaultHeight: 86,
       defaultColor: "var(--chart-4)",
       render: (settings) => (
         <CompactKpi label={settings.title} value={fmtBRL(cost)} lowerIsBetter />
@@ -961,7 +961,7 @@ function OwnerCompactDashboard({
       title: "Lucro",
       kind: "kpi",
       defaultColumns: 3,
-      defaultHeight: 104,
+      defaultHeight: 86,
       defaultColor: "var(--chart-2)",
       render: (settings) => <CompactKpi label={settings.title} value={fmtBRL(profit)} />,
     },
@@ -970,7 +970,7 @@ function OwnerCompactDashboard({
       title: "Diária média (ADR)",
       kind: "kpi",
       defaultColumns: 3,
-      defaultHeight: 104,
+      defaultHeight: 86,
       render: (settings) => (
         <CompactKpi
           label={settings.title}
@@ -984,7 +984,7 @@ function OwnerCompactDashboard({
       title: "RevPAR",
       kind: "kpi",
       defaultColumns: 3,
-      defaultHeight: 104,
+      defaultHeight: 86,
       render: (settings) => (
         <CompactKpi
           label={settings.title}
@@ -998,7 +998,7 @@ function OwnerCompactDashboard({
       title: "TRevPAR",
       kind: "kpi",
       defaultColumns: 3,
-      defaultHeight: 104,
+      defaultHeight: 86,
       defaultColor: "var(--chart-2)",
       render: (settings) => (
         <CompactKpi
@@ -1013,7 +1013,7 @@ function OwnerCompactDashboard({
       title: "GOPPAR",
       kind: "kpi",
       defaultColumns: 3,
-      defaultHeight: 104,
+      defaultHeight: 86,
       defaultColor: "var(--chart-3)",
       render: (settings) => (
         <CompactKpi
@@ -1028,7 +1028,7 @@ function OwnerCompactDashboard({
       title: "Evolução: receita, despesas e lucro",
       kind: "chart",
       defaultColumns: 12,
-      defaultHeight: 320,
+      defaultHeight: 300,
       chartTypes: ["line", "area", "composed"],
       render: (settings) => (
         <FinancialEvolutionChart rows={financialEvolution} settings={settings} />
@@ -1039,7 +1039,7 @@ function OwnerCompactDashboard({
       title: "Clientes e cobranças pendentes",
       kind: "content",
       defaultColumns: 12,
-      defaultHeight: 240,
+      defaultHeight: 220,
       render: () => (
         <ReceivablesPanel reservations={reservations} clients={clients} sales={sales} compact />
       ),
@@ -1049,7 +1049,7 @@ function OwnerCompactDashboard({
       title: "Formas de pagamento",
       kind: "chart",
       defaultColumns: 4,
-      defaultHeight: 280,
+      defaultHeight: 240,
       defaultColor: "var(--chart-3)",
       chartTypes: ["doughnut", "pie", "horizontalBar", "bar"],
       render: (settings) => (
@@ -1061,7 +1061,7 @@ function OwnerCompactDashboard({
       title: "Maiores despesas",
       kind: "chart",
       defaultColumns: 4,
-      defaultHeight: 280,
+      defaultHeight: 240,
       defaultColor: "var(--chart-4)",
       chartTypes: ["horizontalBar", "bar", "doughnut", "pie"],
       render: (settings) => (
@@ -1073,7 +1073,7 @@ function OwnerCompactDashboard({
       title: "Quartos com problemas",
       kind: "content",
       defaultColumns: 4,
-      defaultHeight: 280,
+      defaultHeight: 240,
       render: (settings) => <ShortList title={settings.title} rows={problemRooms} />,
     },
   ];
@@ -1089,12 +1089,8 @@ function OwnerCompactDashboard({
     "pending",
     "expenses",
     "profit",
-    "adr",
-    "revpar",
-    "trevpar",
-    "goppar",
-    "receivables",
     "financial-evolution",
+    "receivables",
     "payments",
     "largest-expenses",
     "problem-rooms",
@@ -1123,10 +1119,10 @@ function OwnerCompactDashboard({
       )}
       <DashboardDesigner
         companyId={companyId}
-        dashboardId="painel-dono-v14-organizado"
+        dashboardId="painel-dono-v15-enxuto"
         widgets={orderedDashboardWidgets}
-        title="Personalizar Painel Operacional"
-        description="Arraste com o mouse, redimensione livremente e salve a visão de trabalho da equipe."
+        title="Organizar painel"
+        description="Mover, redimensionar ou ocultar itens."
       />
     </div>
   );
