@@ -1,10 +1,16 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BedDouble,
   Bot,
   CalendarRange,
   ChartNoAxesCombined,
+  CircleHelp,
   CreditCard,
   DollarSign,
   FileWarning,
@@ -22,9 +28,17 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useProfile, useRole, useSession, type AppRole } from "@/hooks/use-auth";
+import {
+  useProfile,
+  useRole,
+  useSession,
+  type AppRole,
+} from "@/hooks/use-auth";
 import { setCurrentCompanyId, useCurrentCompany } from "@/lib/data";
-import { applySystemSettings, getSystemSettings } from "@/lib/system-settings";
+import {
+  applySystemSettings,
+  getSystemSettings,
+} from "@/lib/system-settings";
 import { SystemMonitor } from "@/components/SystemMonitor";
 
 type NavigationItem = {
@@ -47,12 +61,42 @@ const TABS: NavigationItem[] = [
     icon: LayoutDashboard,
     roles: ["recepcao", "limpeza", "cafe"],
   },
-  { to: "/mapa", label: "Mapa", icon: BedDouble, roles: ["dono", "recepcao"] },
-  { to: "/reservas", label: "Reservas", icon: CreditCard, roles: ["dono", "recepcao"] },
-  { to: "/tarifario", label: "Tarifário", icon: CalendarRange, roles: ["dono"] },
-  { to: "/clientes", label: "Clientes", icon: Users, roles: ["dono", "recepcao"] },
-  { to: "/vendas", label: "Vendas", icon: DollarSign, roles: ["dono", "recepcao"] },
-  { to: "/despesas", label: "Despesas", icon: FileWarning, roles: ["dono"] },
+  {
+    to: "/mapa",
+    label: "Quadro de quartos",
+    icon: BedDouble,
+    roles: ["dono", "recepcao", "limpeza", "cafe"],
+  },
+  {
+    to: "/reservas",
+    label: "Reservas",
+    icon: CreditCard,
+    roles: ["dono", "recepcao"],
+  },
+  {
+    to: "/tarifario",
+    label: "Tarifário",
+    icon: CalendarRange,
+    roles: ["dono"],
+  },
+  {
+    to: "/clientes",
+    label: "Clientes",
+    icon: Users,
+    roles: ["dono", "recepcao"],
+  },
+  {
+    to: "/vendas",
+    label: "Vendas",
+    icon: DollarSign,
+    roles: ["dono", "recepcao"],
+  },
+  {
+    to: "/despesas",
+    label: "Despesas",
+    icon: FileWarning,
+    roles: ["dono"],
+  },
   {
     to: "/reclamacoes",
     label: "Reclamações",
@@ -70,9 +114,15 @@ const TABS: NavigationItem[] = [
 const SECONDARY_TABS: NavigationItem[] = [
   {
     to: "/assistente",
-    label: "Assistente 24h",
+    label: "HotelAI — Análises",
     icon: Bot,
-    roles: ["dono", "recepcao"],
+    roles: ["dono"],
+  },
+  {
+    to: "/ajuda-sistema",
+    label: "Ajuda do sistema",
+    icon: CircleHelp,
+    roles: ["recepcao", "limpeza", "cafe"],
   },
   {
     to: "/avaliacoes",
@@ -80,9 +130,24 @@ const SECONDARY_TABS: NavigationItem[] = [
     icon: Star,
     roles: ["dono", "recepcao"],
   },
-  { to: "/integracoes", label: "Integrações", icon: Settings, roles: ["dono"] },
-  { to: "/empresa", label: "Aparência do sistema", icon: Settings, roles: ["dono"] },
-  { to: "/equipe", label: "Equipe", icon: Users, roles: ["dono"] },
+  {
+    to: "/integracoes",
+    label: "Integrações",
+    icon: Settings,
+    roles: ["dono"],
+  },
+  {
+    to: "/empresa",
+    label: "Aparência do sistema",
+    icon: Settings,
+    roles: ["dono"],
+  },
+  {
+    to: "/equipe",
+    label: "Equipe",
+    icon: Users,
+    roles: ["dono"],
+  },
 ];
 
 const MOBILE_PRIMARY_TABS = new Set([
@@ -92,20 +157,21 @@ const MOBILE_PRIMARY_TABS = new Set([
   "/reservas",
   "/clientes",
   "/vendas",
+  "/ajuda-sistema",
 ]);
 
 const ROLE_LABELS: Record<AppRole, string> = {
-  dono: "Dono - acesso total",
-  recepcao: "Recepção",
-  limpeza: "Limpeza",
-  cafe: "Café",
+  dono: "Dono — acesso total",
+  recepcao: "Recepcionista",
+  limpeza: "Camareira / Governança",
+  cafe: "Atendente de A&B — Café da manhã",
 };
 
 const ROLE_SUBTITLES: Record<AppRole, string> = {
   dono: "Gestão do hotel",
-  recepcao: "Recepção",
-  limpeza: "Limpeza",
-  cafe: "Café da manhã",
+  recepcao: "Recepção e reservas",
+  limpeza: "Governança hoteleira",
+  cafe: "Alimentos e bebidas",
 };
 
 function Clock() {
@@ -137,13 +203,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const currentCompany = useCurrentCompany();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const path = useRouterState({ select: (state) => state.location.pathname });
+  const path = useRouterState({
+    select: (state) => state.location.pathname,
+  });
   const [menuOpen, setMenuOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const visibleTabs = TABS.filter((tab) => !role || tab.roles.includes(role));
-  const secondaryTabs = SECONDARY_TABS.filter((tab) => !role || tab.roles.includes(role));
-  const mobileTabs = visibleTabs.filter((tab) => MOBILE_PRIMARY_TABS.has(tab.to)).slice(0, 4);
-  const showCompanySelector = role === "dono" && currentCompany.companies.length > 1;
+  const visibleTabs = TABS.filter(
+    (tab) => !role || tab.roles.includes(role),
+  );
+  const secondaryTabs = SECONDARY_TABS.filter(
+    (tab) => !role || tab.roles.includes(role),
+  );
+  const mobileTabs = visibleTabs
+    .concat(secondaryTabs)
+    .filter((tab) => MOBILE_PRIMARY_TABS.has(tab.to))
+    .slice(0, 4);
+  const showCompanySelector =
+    role === "dono" && currentCompany.companies.length > 1;
   const companyName = currentCompany.data?.nome ?? "Hotel Real";
   const [systemSettings, setSystemSettings] = useState(() =>
     getSystemSettings(currentCompany.data?.id),
@@ -155,13 +231,32 @@ export function AppLayout({ children }: { children: ReactNode }) {
     applySystemSettings(settings);
     const handleSettings = (event: Event) => {
       const next =
-        (event as CustomEvent).detail ?? getSystemSettings(currentCompany.data?.id);
+        (event as CustomEvent).detail ??
+        getSystemSettings(currentCompany.data?.id);
       setSystemSettings(next);
       applySystemSettings(next);
     };
     window.addEventListener("hotelreal:settings", handleSettings);
-    return () => window.removeEventListener("hotelreal:settings", handleSettings);
+    return () =>
+      window.removeEventListener("hotelreal:settings", handleSettings);
   }, [currentCompany.data?.id]);
+
+  useEffect(() => {
+    if (!role) return;
+    if (role !== "dono" && path.startsWith("/assistente")) {
+      void navigate({ to: "/ajuda-sistema", replace: true });
+    }
+    if (
+      (role === "limpeza" || role === "cafe") &&
+      (path.startsWith("/reservas") ||
+        path.startsWith("/clientes") ||
+        path.startsWith("/vendas") ||
+        path.startsWith("/reclamacoes") ||
+        path.startsWith("/mensagens"))
+    ) {
+      void navigate({ to: "/mapa", replace: true });
+    }
+  }, [navigate, path, role]);
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -173,7 +268,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const sidebar = (
     <aside
       className="app-sidebar flex h-full w-[min(13.5rem,86vw)] flex-col border-r border-white/8 text-primary-foreground shadow-2xl xl:w-[13.5rem]"
-      style={{ "--sidebar-primary": systemSettings.primaryColor } as CSSProperties}
+      style={
+        { "--sidebar-primary": systemSettings.primaryColor } as CSSProperties
+      }
     >
       <div className="border-b border-white/10 px-4 py-3.5">
         <div className="flex items-center gap-2.5">
@@ -183,7 +280,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
             className="h-8 w-8 rounded-lg bg-primary object-contain p-1 shadow-lg"
           />
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-extrabold text-white">{companyName}</h1>
+            <h1 className="truncate text-sm font-extrabold text-white">
+              {companyName}
+            </h1>
             <p className="text-[8px] uppercase tracking-[0.13em] text-white/50">
               {role ? ROLE_SUBTITLES[role] : "Aguardando acesso"}
             </p>
@@ -198,7 +297,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
             <select
               className="field border-white/20 bg-white/95 text-sm text-foreground"
               value={currentCompany.data?.id ?? ""}
-              onChange={(event) => setCurrentCompanyId(user?.id, event.target.value)}
+              onChange={(event) =>
+                setCurrentCompanyId(user?.id, event.target.value)
+              }
             >
               {currentCompany.companies.map((company) => (
                 <option key={company.id} value={company.id}>
@@ -209,8 +310,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </label>
         ) : (
           <div className="mt-3 rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1.5">
-            <span className="block text-[11px] font-semibold uppercase text-white/65">Empresa</span>
-            <span className="block truncate text-sm font-semibold text-white">{companyName}</span>
+            <span className="block text-[11px] font-semibold uppercase text-white/65">
+              Empresa
+            </span>
+            <span className="block truncate text-sm font-semibold text-white">
+              {companyName}
+            </span>
           </div>
         )}
       </div>
@@ -272,14 +377,19 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <Menu className="h-5 w-5" />
       </button>
 
-      <div className="fixed inset-y-0 left-0 z-40 hidden xl:block">{sidebar}</div>
+      <div className="fixed inset-y-0 left-0 z-40 hidden xl:block">
+        {sidebar}
+      </div>
 
       {menuOpen && (
         <div
           className="fixed inset-0 z-50 bg-black/40 xl:hidden"
           onClick={() => setMenuOpen(false)}
         >
-          <div className="h-full" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="h-full"
+            onClick={(event) => event.stopPropagation()}
+          >
             <button
               type="button"
               className="absolute left-[min(15rem,84vw)] top-4 rounded-r-md bg-card p-2 shadow"
@@ -297,8 +407,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto w-full max-w-[1880px]">{children}</div>
       </main>
 
-      {(role === "dono" || role === "recepcao") && !path.startsWith("/assistente") && (
-        <div className="fixed bottom-24 right-3 z-40 flex flex-col items-end gap-2 xl:bottom-4 xl:right-4">
+      {role === "dono" && !path.startsWith("/assistente") && (
+        <div className="fixed bottom-24 right-3 z-40 flex flex-col items-end gap-2 sm:bottom-auto sm:right-4 sm:top-1/2 sm:-translate-y-1/2">
           {assistantOpen && (
             <div className="w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-primary/20 bg-card/95 shadow-2xl backdrop-blur">
               <div className="bg-[linear-gradient(135deg,var(--primary),var(--accent))] p-3 text-primary-foreground">
@@ -309,7 +419,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     </span>
                     <div>
                       <strong className="block text-sm">HotelAI</strong>
-                      <span className="text-[10px] opacity-80">Assistente do hotel</span>
+                      <span className="text-[10px] opacity-80">
+                        Análises exclusivas do dono
+                      </span>
                     </div>
                   </div>
                   <button
@@ -324,7 +436,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </div>
               <div className="space-y-3 p-3">
                 <div className="rounded-xl rounded-tl-sm bg-muted p-3 text-xs leading-relaxed text-foreground">
-                  Posso analisar ocupação, receita, despesas, reservas e oportunidades do hotel.
+                  Analiso ocupação, receita, despesas, reservas e oportunidades
+                  estratégicas do hotel.
                 </div>
                 <Link
                   to="/assistente"
@@ -332,7 +445,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground shadow-sm"
                 >
                   <Sparkles className="h-4 w-4" />
-                  Conversar com o HotelAI
+                  Abrir HotelAI
                 </Link>
               </div>
             </div>
@@ -345,7 +458,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
             aria-expanded={assistantOpen}
           >
             <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card bg-sage" />
-            {assistantOpen ? <X className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+            {assistantOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Bot className="h-5 w-5" />
+            )}
           </button>
         </div>
       )}
@@ -361,7 +478,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
                   key={tab.to}
                   to={tab.to}
                   className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-[10px] font-semibold transition ${
-                    active ? "bg-pine text-white" : "text-pine-dark hover:bg-sage-bg"
+                    active
+                      ? "bg-pine text-white"
+                      : "text-pine-dark hover:bg-sage-bg"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -396,7 +515,11 @@ function NavigationLink({
           : "text-white/65 hover:bg-white/[0.07] hover:text-white"
       }`}
     >
-      <Icon className={`h-4 w-4 ${active ? "text-white" : "text-white/55"}`} />
+      <Icon
+        className={`h-4 w-4 ${
+          active ? "text-white" : "text-white/55"
+        }`}
+      />
       {item.label}
     </Link>
   );
@@ -418,7 +541,10 @@ export function PageHeader({
           {title}
         </h2>
         {subtitle && (
-          <p className="max-w-3xl truncate text-[10px] text-muted-foreground" title={subtitle}>
+          <p
+            className="max-w-3xl truncate text-[10px] text-muted-foreground"
+            title={subtitle}
+          >
             {subtitle}
           </p>
         )}
