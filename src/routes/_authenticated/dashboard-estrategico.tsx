@@ -256,7 +256,7 @@ function DashboardEstrategico() {
   const previousTicket = safeDivide(previousHotelKpis.totalRevenue, previousClients);
   const previousYearTicket = safeDivide(previousYearHotelKpis.totalRevenue, previousYearClients);
   const countryRows = buildCountryRows(filteredReservations, clients, clientById);
-  const stateRows = buildStateRows(filteredReservations, clients, clientById);
+  const stateRows = buildStateRows(filteredReservations, clients, clientById, rooms);
   const civilRows = buildProfileDistribution(
     filteredReservations,
     clients,
@@ -989,29 +989,33 @@ function DashboardEstrategico() {
   const executiveRoomTypeRows = buildRoomTypeDistribution(filteredReservations, rooms);
   const overviewWidgets: DashboardWidget[] = [
     {
-      id: "geral-tipos-quarto",
-      title: "Distribuição por tipo de quarto",
+      id: "geral-receita-despesa-anual",
+      title: "1. Evolução da receita, despesas e lucro",
       kind: "chart",
-      defaultColumns: 3,
-      defaultHeight: 260,
+      defaultColumns: 12,
+      defaultHeight: 410,
       defaultColor: "#00D2FF",
-      chartTypes: ["doughnut"],
-      dataRole: "distribution",
+      chartTypes: ["area", "line"],
+      dataRole: "temporal",
       render: (settings) => (
         <EditableStrategicChart
-          rows={executiveRoomTypeRows}
-          categoryKey="name"
-          series={[{ key: "value", label: "Reservas", color: settings.color }]}
+          rows={trends}
+          categoryKey="mes"
+          series={[
+            { key: "receita", label: "Receita", color: settings.color, currency: true },
+            { key: "despesa", label: "Despesas", color: "#8B5CF6", currency: true },
+            { key: "lucro", label: "Lucro", color: "#22C55E", currency: true },
+          ]}
           settings={settings}
         />
       ),
     },
     {
       id: "geral-receita-canal",
-      title: "Receita por canal de venda",
+      title: "2. Quais canais geram mais receita",
       kind: "chart",
-      defaultColumns: 3,
-      defaultHeight: 260,
+      defaultColumns: 4,
+      defaultHeight: 280,
       defaultColor: "#00D2FF",
       chartTypes: ["horizontalBar"],
       dataRole: "ranking",
@@ -1026,10 +1030,10 @@ function DashboardEstrategico() {
     },
     {
       id: "geral-origem-estado",
-      title: "Origem dos hóspedes por estado",
+      title: "3. De quais estados vêm os hóspedes",
       kind: "chart",
-      defaultColumns: 3,
-      defaultHeight: 260,
+      defaultColumns: 4,
+      defaultHeight: 280,
       defaultColor: "#38BDF8",
       chartTypes: ["horizontalBar"],
       dataRole: "ranking",
@@ -1043,45 +1047,42 @@ function DashboardEstrategico() {
       ),
     },
     {
+      id: "geral-tipos-quarto",
+      title: "4. Quais quartos e tarifas vendem mais",
+      kind: "chart",
+      defaultColumns: 4,
+      defaultHeight: 280,
+      defaultColor: "#00D2FF",
+      chartTypes: ["doughnut"],
+      dataRole: "distribution",
+      render: (settings) => (
+        <EditableStrategicChart
+          rows={executiveRoomTypeRows}
+          categoryKey="name"
+          series={[{ key: "value", label: "Reservas", color: settings.color }]}
+          settings={settings}
+        />
+      ),
+    },
+    compactWidget(clientWidgets[0], "geral-perfil-hospedes", 12, 560),
+    {
       id: "geral-hospedes-frequentes",
-      title: "Hóspedes frequentes",
+      title: "5. Hóspedes com maior recorrência",
       kind: "content",
-      defaultColumns: 3,
-      defaultHeight: 260,
+      defaultColumns: 4,
+      defaultHeight: 300,
       render: (settings) => (
         <ExecutiveRanking title={settings.title} rows={recurring.slice(0, 5)} />
       ),
     },
     {
-      id: "geral-receita-despesa-anual",
-      title: "Evolução de receita vs despesas ao longo do ano",
-      kind: "chart",
-      defaultColumns: 8,
-      defaultHeight: 400,
-      defaultColor: "#00D2FF",
-      chartTypes: ["area"],
-      dataRole: "temporal",
-      render: (settings) => (
-        <EditableStrategicChart
-          rows={trends}
-          categoryKey="mes"
-          series={[
-            { key: "receita", label: "Receita", color: settings.color, currency: true },
-            { key: "despesa", label: "Despesas", color: "#8B5CF6", currency: true },
-          ]}
-          settings={settings}
-        />
-      ),
-    },
-    {
       id: "geral-satisfacao",
-      title: "Nota média das experiências",
+      title: "6. Experiência e satisfação",
       kind: "content",
-      defaultColumns: 4,
-      defaultHeight: 400,
+      defaultColumns: 8,
+      defaultHeight: 300,
       render: () => <SatisfactionCard feedbacks={feedbacks} />,
     },
-    compactWidget(clientWidgets[0], "geral-perfil-hospedes", 12, 560),
   ];
   const overviewKpis = dashboardWidgets
     .filter((widget) => ["reservas", "receita", "ocupacao"].includes(widget.id))
@@ -1142,9 +1143,9 @@ function DashboardEstrategico() {
               fixed
             />
             <DashboardDesigner
-              key="indicadores-geral-graficos-v13"
+              key="indicadores-geral-graficos-v14-story"
               companyId={companyId}
-              dashboardId="indicadores-geral-graficos-v13"
+              dashboardId="indicadores-geral-graficos-v14-story"
               widgets={overviewWidgets}
               fixed
             />
@@ -2354,7 +2355,7 @@ function GuestProfileOverview({
   age,
 }: {
   settings: DashboardWidgetSettings;
-  states: { uf: string; label: string; value: number; receita: number }[];
+  states: StateProfileRow[];
   countries: { code: string; name: string; value: number; receita: number }[];
   revenue: { name: string; value: number }[];
   civil: { name: string; value: number }[];
@@ -2369,7 +2370,7 @@ function GuestProfileOverview({
         <div>
           <h2 className="text-xs font-bold uppercase text-pine-dark">{settings.title}</h2>
           <p className="text-[10px] text-muted-foreground">
-            Cor = receita · intensidade/tamanho = frequência · detalhes ao passar o mouse
+            Cor do estado = receita · bolha = frequência por tarifa · detalhes ao passar o mouse
           </p>
         </div>
         <div className="flex rounded-lg border border-border bg-muted p-1">
@@ -2441,7 +2442,7 @@ function BrazilGuestMap({
   rows,
   color,
 }: {
-  rows: { uf: string; label: string; value: number; receita: number }[];
+  rows: StateProfileRow[];
   color: string;
 }) {
   const map = Brazil as {
@@ -2450,36 +2451,82 @@ function BrazilGuestMap({
   };
   const rowByUf = new Map(rows.map((row) => [row.uf.toLowerCase(), row]));
   const maxRevenue = Math.max(1, ...rows.map((row) => row.receita));
+  const maxTariffCount = Math.max(
+    1,
+    ...rows.flatMap((row) => row.tariffs.map((tariff) => tariff.value)),
+  );
   return (
     <div className="grid h-full min-h-[380px] grid-cols-1 sm:grid-cols-[minmax(0,1fr)_160px]">
-      <svg
-        viewBox={map.viewBox}
-        className="h-full max-h-[410px] w-full p-3"
-        role="img"
-        aria-label="Mapa coroplético do Brasil por origem e receita dos hóspedes"
-      >
-        {map.locations.map((location) => {
-          const row = rowByUf.get(location.id);
-          const intensity = row ? 0.22 + (row.receita / maxRevenue) * 0.78 : 0.06;
-          return (
-            <path
-              key={location.id}
-              d={location.path}
-              fill={row ? color : "var(--pine-dark)"}
-              fillOpacity={intensity}
-              stroke="var(--card-solid)"
-              strokeWidth="1.8"
-              className="transition hover:fill-opacity-100"
-            >
-              <title>
-                {row
-                  ? `${row.label}: ${row.value} hóspede(s) · ${fmtBRL(row.receita)}`
-                  : `${location.name}: sem dados`}
-              </title>
-            </path>
-          );
-        })}
-      </svg>
+      <div className="relative min-h-[380px]">
+        <svg
+          viewBox={map.viewBox}
+          className="h-full max-h-[410px] w-full p-3"
+          role="img"
+          aria-label="Mapa do Brasil com receita por estado e bolhas por tarifa de quarto"
+        >
+          {map.locations.map((location) => {
+            const row = rowByUf.get(location.id);
+            const intensity = row ? 0.22 + (row.receita / maxRevenue) * 0.78 : 0.06;
+            return (
+              <path
+                key={location.id}
+                d={location.path}
+                fill={row ? color : "var(--pine-dark)"}
+                fillOpacity={intensity}
+                stroke="var(--card-solid)"
+                strokeWidth="1.8"
+                className="transition hover:fill-opacity-100"
+              >
+                <title>
+                  {row
+                    ? `${row.label}: ${row.value} hóspede(s) · ${fmtBRL(row.receita)}`
+                    : `${location.name}: sem dados`}
+                </title>
+              </path>
+            );
+          })}
+          {rows.flatMap((row) => {
+            const point = BRAZIL_STATE_BUBBLE_POINTS[row.uf];
+            if (!point) return [];
+            const visibleTariffs = row.tariffs.slice(0, 3);
+            return visibleTariffs.map((tariff, index) => {
+              const radius = 5 + Math.sqrt(tariff.value / maxTariffCount) * 13;
+              const offset = (index - (visibleTariffs.length - 1) / 2) * 17;
+              return (
+                <circle
+                  key={`${row.uf}-${tariff.label}`}
+                  cx={point[0] + offset}
+                  cy={point[1]}
+                  r={radius}
+                  fill={tariff.color}
+                  fillOpacity="0.86"
+                  stroke="#FFFFFF"
+                  strokeWidth="2"
+                  className="transition hover:fill-opacity-100"
+                >
+                  <title>
+                    {`${row.label} · ${tariff.label}: ${tariff.value} reserva(s) · ${fmtBRL(
+                      tariff.receita,
+                    )}`}
+                  </title>
+                </circle>
+              );
+            });
+          })}
+        </svg>
+        <div className="pointer-events-none absolute bottom-2 left-2 flex flex-wrap gap-2 rounded-lg border border-border/70 bg-card/90 px-2 py-1 text-[9px] shadow-sm backdrop-blur">
+          {TARIFF_BUBBLE_LEGEND.map((item) => (
+            <span key={item.label} className="inline-flex items-center gap-1 whitespace-nowrap">
+              <i
+                className="h-2.5 w-2.5 rounded-full border border-white"
+                style={{ backgroundColor: item.color }}
+              />
+              {item.label}
+            </span>
+          ))}
+          <span className="text-muted-foreground">bolha maior = mais reservas</span>
+        </div>
+      </div>
       <div className="border-t border-border/70 p-3 sm:border-l sm:border-t-0">
         <strong className="text-[10px] uppercase text-pine-dark">Estados líderes</strong>
         <div className="mt-2 space-y-2">
@@ -2789,29 +2836,120 @@ function buildChannelRows(
     .sort((a, b) => b.receita - a.receita);
 }
 
+type TariffBubbleRow = {
+  label: string;
+  value: number;
+  receita: number;
+  color: string;
+};
+
+type StateProfileRow = {
+  uf: string;
+  label: string;
+  value: number;
+  receita: number;
+  tariffs: TariffBubbleRow[];
+};
+
+const TARIFF_BUBBLE_LEGEND = [
+  { label: "R$ 90", color: "#00D2FF" },
+  { label: "R$ 110", color: "#8B5CF6" },
+  { label: "Outras tarifas", color: "#22C55E" },
+] as const;
+
+const BRAZIL_STATE_BUBBLE_POINTS: Record<string, [number, number]> = {
+  AC: [95, 305],
+  AL: [531, 333],
+  AP: [365, 75],
+  AM: [190, 190],
+  BA: [445, 354],
+  CE: [509, 239],
+  DF: [365, 337],
+  ES: [470, 432],
+  GO: [350, 345],
+  MA: [448, 213],
+  MT: [285, 306],
+  MS: [310, 408],
+  MG: [408, 405],
+  PA: [330, 158],
+  PB: [538, 282],
+  PR: [342, 500],
+  PE: [522, 307],
+  PI: [465, 264],
+  RJ: [438, 455],
+  RN: [541, 253],
+  RS: [328, 580],
+  RO: [188, 294],
+  RR: [210, 88],
+  SC: [355, 542],
+  SP: [370, 454],
+  SE: [515, 352],
+  TO: [389, 275],
+};
+
+function tariffBubble(price: number) {
+  if (Math.abs(price - 90) < 0.5) return TARIFF_BUBBLE_LEGEND[0];
+  if (Math.abs(price - 110) < 0.5) return TARIFF_BUBBLE_LEGEND[1];
+  return TARIFF_BUBBLE_LEGEND[2];
+}
+
 function buildStateRows(
   reservations: Reservation[],
   clients: Client[],
   clientById: Map<string, Client>,
+  rooms: Room[],
 ) {
-  const map = new Map<string, { uf: string; label: string; value: number; receita: number }>();
+  const roomByNumber = new Map(rooms.map((room) => [room.numero, room]));
+  const map = new Map<
+    string,
+    StateProfileRow & { tariffMap: Map<string, TariffBubbleRow> }
+  >();
+  const getRow = (uf: string) => {
+    const current = map.get(uf);
+    if (current) return current;
+    const created = {
+      uf,
+      label: BRAZIL_STATE_NAMES[uf] ?? uf,
+      value: 0,
+      receita: 0,
+      tariffs: [],
+      tariffMap: new Map<string, TariffBubbleRow>(),
+    };
+    map.set(uf, created);
+    return created;
+  };
   clients.forEach((client) => {
     const uf = normalizeState(String(client.estado ?? ""));
     if (!uf) return;
-    const row = map.get(uf) ?? { uf, label: BRAZIL_STATE_NAMES[uf] ?? uf, value: 0, receita: 0 };
+    const row = getRow(uf);
     row.value += 1;
-    map.set(uf, row);
   });
   reservations.forEach((reservation) => {
     const client = clientById.get(readClientId(reservation) ?? "");
     const uf = normalizeState(String(client?.estado ?? ""));
     if (!uf) return;
-    const row = map.get(uf) ?? { uf, label: BRAZIL_STATE_NAMES[uf] ?? uf, value: 0, receita: 0 };
-    row.receita += reservationRevenue(reservation);
-    map.set(uf, row);
+    const row = getRow(uf);
+    const revenue = reservationRevenue(reservation);
+    const room = roomByNumber.get(reservation.quarto);
+    const price = Number(room?.preco ?? reservation.valor_diaria ?? 0);
+    const tariff = tariffBubble(price);
+    const tariffRow = row.tariffMap.get(tariff.label) ?? {
+      label: tariff.label,
+      value: 0,
+      receita: 0,
+      color: tariff.color,
+    };
+    row.receita += revenue;
+    tariffRow.value += 1;
+    tariffRow.receita += revenue;
+    row.tariffMap.set(tariff.label, tariffRow);
   });
   return [...map.values()]
     .filter((row) => row.value || row.receita)
+    .map(({ tariffMap, ...row }) => ({
+      ...row,
+      tariffs: [...tariffMap.values()].sort((a, b) => b.value - a.value),
+    }))
     .sort((a, b) => b.receita - a.receita);
 }
 
