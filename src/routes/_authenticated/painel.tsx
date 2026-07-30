@@ -466,11 +466,19 @@ function Painel() {
             </h3>
             <PerformanceLegend />
           </div>
+          <ChartHtmlLegend
+            align="start"
+            items={[{ label: "Receita", color: "var(--pine)" }]}
+          />
           <ResponsiveContainer width="100%" height={176}>
-            <BarChart data={decisionSeries} margin={{ left: -10, right: 8, top: 4 }}>
+            <BarChart data={decisionSeries} margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11 }} />
+              <YAxis
+                tick={{ fontSize: 10 }}
+                width={62}
+                tickFormatter={(value) => formatChartValue(Number(value), true)}
+              />
               <Tooltip formatter={(v: number) => fmtBRL(v)} />
               <Bar dataKey="receita" name="Receita" radius={[4, 4, 0, 0]}>
                 {decisionSeries.map((entry) => (
@@ -483,15 +491,21 @@ function Painel() {
 
         <div className="card-surface border-t-4 border-t-sage bg-[linear-gradient(180deg,rgba(88,139,105,0.12),var(--card)_44%)] p-3">
           <h3 className="section-title mb-2 text-sm">Previsão 30 dias</h3>
+          <ChartHtmlLegend
+            align="start"
+            items={[
+              { label: "Ocupação", color: "var(--sage)" },
+              { label: "Receita", color: "var(--brass)" },
+            ]}
+          />
           <ResponsiveContainer width="100%" height={176}>
-            <LineChart data={forecastSeries} margin={{ left: -16, right: 8, top: 4 }}>
+            <LineChart data={forecastSeries} margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 10 }} width={54} />
               <Tooltip
                 formatter={(v: number, name: string) => (name === "Receita" ? fmtBRL(v) : `${v}%`)}
               />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line
                 type="monotone"
                 dataKey="ocupacao"
@@ -514,13 +528,23 @@ function Painel() {
 
         <div className="card-surface border-t-4 border-t-brass bg-[linear-gradient(180deg,rgba(208,178,91,0.14),var(--card)_44%)] p-3">
           <h3 className="section-title mb-2 text-sm">Receita mensal x despesas</h3>
+          <ChartHtmlLegend
+            align="start"
+            items={[
+              { label: "Receita", color: "var(--pine)" },
+              { label: "Despesas", color: "var(--chart-4)" },
+            ]}
+          />
           <ResponsiveContainer width="100%" height={176}>
-            <BarChart data={monthlySeries} margin={{ left: -10, right: 8, top: 4 }}>
+            <BarChart data={monthlySeries} margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
+              <YAxis
+                tick={{ fontSize: 10 }}
+                width={62}
+                tickFormatter={(value) => formatChartValue(Number(value), true)}
+              />
               <Tooltip formatter={(v: number) => fmtBRL(v)} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar dataKey="receita" name="Receita" radius={[4, 4, 0, 0]}>
                 {monthlySeries.map((entry) => (
                   <Cell
@@ -536,13 +560,19 @@ function Painel() {
 
         <div className="card-surface border-t-4 border-t-brick bg-[linear-gradient(180deg,rgba(162,70,45,0.11),var(--card)_44%)] p-3">
           <h3 className="section-title mb-2 text-sm">Comparecimento x cancelamentos</h3>
+          <ChartHtmlLegend
+            align="start"
+            items={[
+              { label: "Comparecimento", color: "var(--sage)" },
+              { label: "Cancelamentos", color: "var(--chart-4)" },
+            ]}
+          />
           <ResponsiveContainer width="100%" height={176}>
-            <LineChart data={series} margin={{ left: -20, right: 8, top: 4 }}>
+            <LineChart data={series} margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line
                 type="monotone"
                 dataKey="comparecimento"
@@ -619,15 +649,25 @@ function Painel() {
         {receitaPorQuarto.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sem receita registrada ainda.</p>
         ) : (
-          <ResponsiveContainer width="100%" height={188}>
-            <BarChart data={receitaPorQuarto} margin={{ left: -10, right: 8, top: 4 }}>
+          <>
+            <ChartHtmlLegend
+              align="start"
+              items={[{ label: "Receita do quarto", color: "var(--pine)" }]}
+            />
+            <ResponsiveContainer width="100%" height={210}>
+            <BarChart data={receitaPorQuarto} margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
               <XAxis dataKey="quarto" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
+              <YAxis
+                tick={{ fontSize: 10 }}
+                width={62}
+                tickFormatter={(value) => formatChartValue(Number(value), true)}
+              />
               <Tooltip formatter={(v: number) => fmtBRL(v)} />
               <Bar dataKey="receita" name="Receita" fill="var(--pine)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+          </>
         )}
       </div>
 
@@ -1054,7 +1094,7 @@ function EditableSingleSeriesChart({
   settings: DashboardWidgetSettings;
   currency?: boolean;
 }) {
-  const chartHeight = Math.max(56, settings.height - 55);
+  const chartHeight = Math.max(180, settings.height - 72);
   const tooltipFormatter = (value: number) => (currency ? fmtBRL(value) : value);
   const labelFormatter = (value: number) => formatChartValue(value, currency);
   let chart: React.ReactNode;
@@ -1208,21 +1248,76 @@ function EditableSingleSeriesChart({
     );
   }
 
+  const circular = settings.chartType === "doughnut" || settings.chartType === "pie";
+  const total = rows.reduce((sum, row) => sum + Number(row.value || 0), 0);
+  const maximum = Math.max(1, ...rows.map((row) => Number(row.value || 0)));
+
   return (
     <ChartPanel title={settings.title} span={12}>
-      <ChartHtmlLegend
-        items={
-          settings.chartType === "doughnut" || settings.chartType === "pie"
-            ? rows.map((row, index) => ({
-                label: row.name,
-                color: semanticChartColor(row.name, index, settings.color),
-              }))
-            : [{ label: "Valor", color: settings.color }]
-        }
-      />
-      <ResponsiveContainer width="100%" height={chartHeight}>
-        {chart}
-      </ResponsiveContainer>
+      {settings.chartType === "horizontalBar" ? (
+        <div className="space-y-3 overflow-auto rounded-md bg-muted/20 p-2" style={{ maxHeight: chartHeight }}>
+          {rows.map((row, index) => (
+            <div key={`${row.name}-${index}`} className="min-w-0">
+              <div className="mb-1 flex min-w-0 items-center justify-between gap-3">
+                <span className="truncate text-[10px] font-bold text-foreground" title={row.name}>
+                  {row.name}
+                </span>
+                <strong className="whitespace-nowrap text-[10px] tabular-nums text-foreground">
+                  {labelFormatter(row.value)}
+                </strong>
+              </div>
+              <div className="h-3 overflow-hidden rounded-full bg-border/45">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.max(row.value > 0 ? 2 : 0, (row.value / maximum) * 100)}%`,
+                    backgroundColor: settings.color,
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : circular ? (
+        <div className="grid min-w-0 grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(170px,0.85fr)_minmax(180px,1.15fr)]">
+          <div className="min-w-0 overflow-hidden">
+            <ResponsiveContainer width="100%" height={Math.max(180, Math.min(chartHeight, 240))}>
+              {chart}
+            </ResponsiveContainer>
+          </div>
+          <div
+            className="max-h-[210px] space-y-2 overflow-auto rounded-md bg-muted/30 p-2"
+            aria-label={`Legenda de ${settings.title}`}
+          >
+            {rows.map((row, index) => (
+              <div key={`${row.name}-${index}`} className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                    style={{ backgroundColor: semanticChartColor(row.name, index, settings.color) }}
+                  />
+                  <span className="truncate font-semibold text-foreground" title={row.name}>
+                    {row.name}
+                  </span>
+                </span>
+                <strong className="whitespace-nowrap tabular-nums text-foreground">
+                  {total > 0 ? `${((row.value / total) * 100).toFixed(1).replace(".", ",")}%` : "0%"}
+                  {currency ? ` · ${labelFormatter(row.value)}` : ""}
+                </strong>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <>
+          <ChartHtmlLegend align="start" items={[{ label: "Valor", color: settings.color }]} />
+          <div className="min-w-0 overflow-hidden">
+            <ResponsiveContainer width="100%" height={chartHeight}>
+              {chart}
+            </ResponsiveContainer>
+          </div>
+        </>
+      )}
     </ChartPanel>
   );
 }
