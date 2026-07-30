@@ -18,7 +18,7 @@ export function RoomTimeline({
   onRoomClick: (room: Room) => void;
   onCreateReservation: (room: Room, date: string) => void;
 }) {
-  const [daysVisible, setDaysVisible] = useState<7 | 14 | 21>(14);
+  const [daysVisible, setDaysVisible] = useState<7 | 14 | 21>(7);
   const today = todayISO();
   const dates = useMemo(
     () => Array.from({ length: daysVisible }, (_, index) => addDaysISO(startDate, index)),
@@ -62,31 +62,31 @@ export function RoomTimeline({
     [dates, reservationsByRoom, rooms],
   );
 
-  const gridTemplateColumns = `184px repeat(${daysVisible}, minmax(76px, 1fr))`;
-  const minimumWidth = 184 + daysVisible * 76;
+  const gridTemplateColumns = `148px repeat(${daysVisible}, minmax(70px, 1fr))`;
+  const minimumWidth = 148 + daysVisible * 70;
   const endDate = dates[dates.length - 1] ?? startDate;
 
   return (
-    <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-      <div className="border-b border-border bg-card px-3 py-2">
-        <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+      <div className="border-b border-border bg-card px-2 py-1.5">
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
             <div className="min-w-0">
               <strong className="block truncate text-xs text-pine-dark">
                 {fmtDate(startDate)} a {fmtDate(endDate)}
               </strong>
-              <span className="block truncate text-[9px] text-muted-foreground">
+              <span className="sr-only">
                 Clique no espaço livre para reservar; clique na faixa para abrir a hospedagem.
               </span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-lg border border-border bg-muted p-0.5">
+          <div className="flex flex-wrap items-center gap-1 text-[10px]">
+            <div className="flex items-center">
               <button
                 type="button"
-                className="rounded-md p-1.5 text-pine-dark transition hover:bg-card"
+                className="rounded p-1 text-pine-dark transition hover:bg-muted"
                 onClick={() => onStartDateChange(addDaysISO(startDate, -daysVisible))}
                 aria-label="Período anterior"
               >
@@ -94,14 +94,14 @@ export function RoomTimeline({
               </button>
               <button
                 type="button"
-                className="rounded-md px-2.5 py-1.5 text-[10px] font-bold text-pine-dark transition hover:bg-card"
+                className="rounded px-1.5 py-1 font-bold text-pine-dark transition hover:bg-muted"
                 onClick={() => onStartDateChange(todayISO())}
               >
                 Hoje
               </button>
               <button
                 type="button"
-                className="rounded-md p-1.5 text-pine-dark transition hover:bg-card"
+                className="rounded p-1 text-pine-dark transition hover:bg-muted"
                 onClick={() => onStartDateChange(addDaysISO(startDate, daysVisible))}
                 aria-label="Próximo período"
               >
@@ -109,12 +109,12 @@ export function RoomTimeline({
               </button>
             </div>
 
-            <div className="flex rounded-lg border border-border bg-muted p-0.5 text-[10px] font-bold">
+            <div className="flex items-center font-bold">
               {[7, 14, 21].map((days) => (
                 <button
                   key={days}
                   type="button"
-                  className={`rounded-md px-2.5 py-1.5 transition ${
+                  className={`rounded px-1.5 py-1 transition ${
                     daysVisible === days
                       ? "bg-primary text-primary-foreground shadow"
                       : "text-muted-foreground hover:bg-card"
@@ -128,7 +128,7 @@ export function RoomTimeline({
           </div>
         </div>
 
-        <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] font-semibold text-muted-foreground">
+        <div className="mt-1 hidden flex-wrap gap-x-3 gap-y-1 text-[9px] font-semibold text-muted-foreground lg:flex">
           <Legend color="bg-pine-300" label="Hospedado / quitado" />
           <Legend color="bg-sky-400" label="Reserva sem pagamento" />
           <Legend color="bg-amber-400" label="Sinal pago" />
@@ -143,12 +143,12 @@ export function RoomTimeline({
             className="sticky top-0 z-30 grid border-b border-border bg-card/95 backdrop-blur"
             style={{ gridTemplateColumns }}
           >
-            <div className="sticky left-0 z-40 flex items-center border-r border-border bg-card px-4 py-3">
+            <div className="sticky left-0 z-40 flex items-center border-r border-border bg-card px-2 py-1.5">
               <div>
                 <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
                   Unidade
                 </span>
-                <strong className="text-sm text-pine-dark">{rooms.length} quartos</strong>
+                  <strong className="text-xs text-pine-dark">{rooms.length} quartos</strong>
               </div>
             </div>
             {dates.map((date) => {
@@ -158,7 +158,7 @@ export function RoomTimeline({
               return (
                 <div
                   key={date}
-                  className={`border-r border-border/70 px-1 py-2 text-center ${
+                  className={`border-r border-border/70 px-1 py-1 text-center ${
                     isToday ? "bg-brass-bg" : weekend ? "bg-muted/55" : ""
                   }`}
                 >
@@ -166,17 +166,14 @@ export function RoomTimeline({
                     {current.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
                   </span>
                   <span
-                    className={`mx-auto mt-1 flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${
+                    className={`mx-auto flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
                       isToday ? "bg-pine text-white shadow" : "text-foreground"
                     }`}
                   >
                     {current.getDate()}
                   </span>
-                  <span className="text-[9px] text-muted-foreground">
-                    {current.toLocaleDateString("pt-BR", { month: "short" }).replace(".", "")}
-                  </span>
                   <span
-                    className={`mt-1 block text-[8px] font-bold ${
+                    className={`block text-[8px] font-bold ${
                       (availabilityByDate.get(date) ?? 0) === 0 ? "text-brick" : "text-sage"
                     }`}
                   >
@@ -189,8 +186,8 @@ export function RoomTimeline({
 
           {groupedRooms.map((group) => (
             <div key={group.name}>
-              <div className="sticky left-0 z-20 flex h-9 items-center border-b border-pine/10 bg-sage-bg px-4">
-                <span className="text-[11px] font-extrabold uppercase tracking-[0.14em] text-pine-dark">
+              <div className="sticky left-0 z-20 flex h-6 items-center border-b border-pine/10 bg-sage-bg px-2">
+                <span className="text-[9px] font-extrabold uppercase tracking-[0.1em] text-pine-dark">
                   {group.name}
                 </span>
                 <span className="ml-2 rounded-full bg-white/75 px-2 py-0.5 text-[9px] font-bold text-muted-foreground">
@@ -212,25 +209,23 @@ export function RoomTimeline({
                 return (
                   <div
                     key={`${room.company_id}-${room.numero}`}
-                    className="relative grid min-h-[58px] border-b border-border/70"
+                    className="relative grid min-h-[34px] border-b border-border/70"
                     style={{ gridTemplateColumns }}
                   >
                     <button
                       type="button"
                       onClick={() => onRoomClick(room)}
-                      className="sticky left-0 z-20 flex items-center justify-between border-r border-border bg-card px-4 text-left transition hover:bg-sage-bg"
+                      className="sticky left-0 z-20 flex items-center justify-between border-r border-border bg-card px-2 text-left transition hover:bg-sage-bg"
                     >
                       <div>
-                        <span className="block text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground">
-                          Quarto
-                        </span>
-                        <strong className="font-serif text-lg text-pine-dark">{room.numero}</strong>
+                        <span className="sr-only">Quarto</span>
+                        <strong className="text-sm text-pine-dark">{room.numero}</strong>
                       </div>
                       <div className="text-right">
-                        <span className="block text-[10px] font-semibold text-muted-foreground">
+                        <span className="block text-[8px] font-semibold text-muted-foreground">
                           {room.andar}º andar
                         </span>
-                        <strong className="text-[10px] text-pine">{fmtBRL(room.preco)}</strong>
+                        <strong className="text-[8px] text-pine">{fmtBRL(room.preco)}</strong>
                       </div>
                     </button>
 
@@ -266,7 +261,7 @@ export function RoomTimeline({
                           key={reservation.id}
                           type="button"
                           onClick={() => onRoomClick(room)}
-                          className={`relative z-10 mx-0.5 my-2 flex min-w-0 items-center overflow-hidden border px-3 text-left shadow-sm transition hover:z-20 hover:-translate-y-0.5 hover:brightness-105 hover:shadow-lg ${visual.className}`}
+                          className={`relative z-10 mx-0.5 my-1 flex min-w-0 items-center overflow-hidden rounded px-1.5 text-left shadow-sm transition hover:z-20 hover:brightness-105 hover:shadow-lg ${visual.className}`}
                           style={{
                             gridColumn: `${startIndex + 2} / span ${span}`,
                             gridRow: 1,
@@ -278,11 +273,11 @@ export function RoomTimeline({
                           title={`${reservation.cliente_nome} · ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`}
                         >
                           <span className="min-w-0">
-                            <strong className="block truncate text-[11px]">
+                            <strong className="block truncate text-[9px]">
                               {reservation.cliente_nome}
                             </strong>
-                            <span className="flex items-center gap-1 truncate text-[9px] opacity-80">
-                              <CircleDollarSign className="h-3 w-3 shrink-0" />
+                            <span className="flex items-center gap-0.5 truncate text-[8px] opacity-80">
+                              <CircleDollarSign className="h-2.5 w-2.5 shrink-0" />
                               {visual.label} · {fmtBRL(reservation.valor_total)}
                             </span>
                           </span>
