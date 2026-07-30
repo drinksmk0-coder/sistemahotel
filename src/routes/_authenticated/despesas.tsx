@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
-import { ChartHtmlLegend } from "@/components/DashboardKit";
 import { EmptyState, Field, Modal } from "@/components/ui-kit";
 import { useDelete, useExpenses, useInsert, useUpdate, type Expense } from "@/lib/data";
 import { downloadExcel, fmtBRL, fmtDate, todayISO } from "@/lib/format";
@@ -81,16 +80,16 @@ function Despesas() {
         }
       />
 
-      <div className="mb-3 grid grid-cols-3 gap-2">
-        <div className="stat-card">
+      <div className="mb-3 flex flex-wrap gap-2">
+        <div className="stat-card w-full max-w-[230px] flex-1 basis-[170px]">
           <p className="text-[9px] font-bold uppercase text-muted-foreground">Despesas do mês</p>
           <p className="text-base font-extrabold text-pine-dark">{fmtBRL(totalMes)}</p>
         </div>
-        <div className="stat-card">
+        <div className="stat-card w-full max-w-[230px] flex-1 basis-[170px]">
           <p className="text-[9px] font-bold uppercase text-muted-foreground">Lançamentos</p>
           <p className="text-base font-extrabold text-pine-dark">{expenses.length}</p>
         </div>
-        <div className="stat-card">
+        <div className="stat-card w-full max-w-[230px] flex-1 basis-[170px]">
           <p className="text-[9px] font-bold uppercase text-muted-foreground">Categorias</p>
           <p className="text-base font-extrabold text-pine-dark">{byCategory.length}</p>
         </div>
@@ -101,16 +100,12 @@ function Despesas() {
           <section className="card-surface p-3">
             <h3 className="text-sm font-extrabold text-pine-dark">Despesas por categoria</h3>
             <p className="text-[9px] text-muted-foreground">Principais centros de custo.</p>
-            <ChartHtmlLegend
-              align="start"
-              items={[{ label: "Despesa por categoria", color: "var(--chart-4)" }]}
-            />
-            <div className="h-64">
+            <div className="mt-2 h-60">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
                   data={categoryChart}
                   layout="vertical"
-                  margin={{ top: 12, right: 72, left: 8, bottom: 12 }}
+                  margin={{ top: 8, right: 78, left: 14, bottom: 10 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
                   <XAxis
@@ -123,7 +118,7 @@ function Despesas() {
                     type="category"
                     dataKey="categoria"
                     interval={0}
-                    width={128}
+                    width={156}
                     tick={{ fontSize: 9, fill: "var(--foreground)" }}
                   />
                   <Tooltip formatter={(value) => fmtBRL(Number(value))} />
@@ -147,19 +142,15 @@ function Despesas() {
           <section className="card-surface p-3">
             <h3 className="text-sm font-extrabold text-pine-dark">Evolução das despesas</h3>
             <p className="text-[9px] text-muted-foreground">Comparação mensal do histórico.</p>
-            <ChartHtmlLegend
-              align="start"
-              items={[{ label: "Despesa mensal", color: "var(--chart-4)" }]}
-            />
-            <div className="h-52">
+            <div className="mt-2 h-60">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyChart} margin={{ top: 18, right: 18, left: 12, bottom: 8 }}>
+                <LineChart data={monthlyChart} margin={{ top: 12, right: 18, left: 26, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="mes" />
                   <YAxis
                     tick={{ fontSize: 9 }}
                     tickFormatter={formatCompactCurrency}
-                    width={68}
+                    width={84}
                   />
                   <Tooltip formatter={(value) => fmtBRL(Number(value))} />
                   <Line
