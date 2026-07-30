@@ -42,7 +42,7 @@ function Reclamacoes() {
   );
   const frequentWords = useMemo(() => {
     const counts = new Map<string, number>();
-    complaints.forEach((complaint) => {
+    filtered.forEach((complaint) => {
       normalizeWords(complaint.descricao ?? "").forEach((word) =>
         counts.set(word, (counts.get(word) ?? 0) + 1),
       );
@@ -51,20 +51,20 @@ function Reclamacoes() {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 12)
       .map(([palavra, ocorrencias]) => ({ palavra, ocorrencias }));
-  }, [complaints]);
+  }, [filtered]);
   const categoryHeat = useMemo(
     () =>
       COMPLAINT_CATEGORIES.map((category) => ({
         label: category.label,
         values: ["baixa", "media", "alta"].map(
           (severity) =>
-            complaints.filter(
+            filtered.filter(
               (complaint) =>
                 complaint.categoria === category.value && complaint.gravidade === severity,
             ).length,
         ),
       })).filter((row) => row.values.some(Boolean)),
-    [complaints],
+    [filtered],
   );
 
   function exportCSV(scope: ExportScope) {
@@ -124,7 +124,7 @@ function Reclamacoes() {
         </select>
       </div>
 
-      {frequentWords.length > 0 && (
+      {filtered.length > 0 && frequentWords.length > 0 && (
         <section className="card-surface mb-4 p-3">
           <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
             <div>
