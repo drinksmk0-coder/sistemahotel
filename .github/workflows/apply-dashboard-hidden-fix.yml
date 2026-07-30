@@ -1,16 +1,17 @@
 name: Apply dashboard hidden-widget fix
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/corrigir-layout-oculto-painel
+      - agent/reforma-dashboards-integracoes
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
 
 jobs:
   apply-fix:
-    if: github.actor != 'github-actions[bot]'
+    if: github.head_ref == 'agent/corrigir-layout-oculto-painel' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
