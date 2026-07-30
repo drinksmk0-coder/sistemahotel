@@ -241,11 +241,15 @@ export function CompactKpi({
   lowerIsBetter?: boolean;
 }) {
   return (
-    <article className="min-w-0 rounded-xl border border-border bg-card px-3 py-2.5 shadow-sm">
-      <p className="truncate text-[10px] font-bold uppercase text-muted-foreground">{label}</p>
-      <p className="truncate font-serif text-lg font-bold text-pine-dark">{value}</p>
+    <article className="flex h-full min-w-0 flex-col justify-center rounded-xl border border-border bg-card px-3 py-2.5 shadow-sm">
+      <p className="break-words text-[10px] font-bold uppercase leading-tight text-muted-foreground">
+        {label}
+      </p>
+      <p className="break-words font-serif text-lg font-bold leading-tight text-pine-dark">
+        {value}
+      </p>
       {hint ? (
-        <p className="mt-1 truncate text-[9px] text-muted-foreground" title={hint}>
+        <p className="mt-1 break-words text-[9px] leading-tight text-muted-foreground" title={hint}>
           {hint}
         </p>
       ) : (
