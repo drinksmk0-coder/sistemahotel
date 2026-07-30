@@ -99,6 +99,29 @@ function Clientes() {
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
 
+  async function deactivateSelected() {
+    if (
+      !window.confirm(
+        `Desativar ${selectedIds.length} cliente(s)? O histórico de reservas será mantido.`,
+      )
+    )
+      return;
+    try {
+      await Promise.all(
+        selectedIds.map((id) => {
+          const client = clients.find((item) => item.id === id);
+          return client && !isClientDisabled(client)
+            ? update.mutateAsync({ id, patch: { ativo: false } })
+            : Promise.resolve();
+        }),
+      );
+      toast.success("Clientes desativados; histórico preservado");
+      setSelectedIds([]);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao desativar clientes");
+    }
+  }
+
   function exportCSV(scope: ExportScope) {
     const clientIdsOnDate =
       scope.mode === "date"
@@ -235,37 +258,31 @@ function Clientes() {
           >
             {allFilteredSelected ? "Limpar seleção" : "Selecionar todos"}
           </button>
-          <button
-            type="button"
-            className="rounded-md bg-brick-bg px-3 py-2 text-sm font-semibold text-brick"
-            disabled={selectedIds.length === 0 || update.isPending}
-            onClick={async () => {
-              if (
-                !window.confirm(
-                  `Desativar ${selectedIds.length} cliente(s)? O histórico de reservas será mantido.`,
-                )
-              )
-                return;
-              try {
-                await Promise.all(
-                  selectedIds.map((id) => {
-                    const client = clients.find((item) => item.id === id);
-                    return client && !isClientDisabled(client)
-                      ? update.mutateAsync({ id, patch: { ativo: false } })
-                      : Promise.resolve();
-                  }),
-                );
-                toast.success("Clientes desativados; histórico preservado");
-                setSelectedIds([]);
-              } catch (e) {
-                toast.error(e instanceof Error ? e.message : "Falha ao desativar clientes");
-              }
-            }}
-          >
-            Desativar selecionados
-          </button>
         </div>
       </div>
+
+      {selectedIds.length > 0 && (
+        <div className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-border bg-card/95 px-3 py-2 shadow-2xl backdrop-blur xl:bottom-6 xl:left-[calc(50%+6.75rem)]">
+          <span className="whitespace-nowrap text-xs font-semibold text-pine-dark">
+            {selectedIds.length} selecionado(s)
+          </span>
+          <button
+            type="button"
+            className="rounded-full bg-brick px-3 py-1.5 text-xs font-bold text-white"
+            disabled={update.isPending}
+            onClick={deactivateSelected}
+          >
+            Desativar
+          </button>
+          <button
+            type="button"
+            className="rounded-full px-2 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted"
+            onClick={() => setSelectedIds([])}
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <EmptyState text="Nenhum cliente encontrado." />
