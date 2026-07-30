@@ -318,7 +318,7 @@ async function loadGeminiKey(admin: ReturnType<typeof createClient>) {
 }
 
 function shouldCheckAvailability(question: string) {
-  return /\b(disponibilidade|disponivel|disponíveis|quarto livre|reservar|reserva para|fim de semana|check-?in|check-?out)\b/i.test(
+  return /\b(disponibilidade|disponivel|disponíveis|quarto livre|reservar|reserva para|fim de semana|final de semana|fds)\b/i.test(
     question,
   );
 }
@@ -377,7 +377,7 @@ function deterministicSystemAnswer(question: string, context: RecordRow) {
   const checkin = isRecord(context.checkin_online) ? context.checkin_online : {};
 
   if (
-    /\b(onde foi|onde fica|onde encontro|para onde foi|formulario|formulário|fnrh|assinatura|assinei|check in online|check-in online)\b/.test(
+    /\b(onde foi|onde fica|onde encontro|para onde foi|formulario|fnrh|assinatura|assinei|status da ficha|recebeu a ficha)\b/.test(
       normalized,
     )
   ) {
