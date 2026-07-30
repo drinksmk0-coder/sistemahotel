@@ -14,13 +14,16 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { useInspectorGuard } from "@/hooks/use-inspector-guard";
+import { BRAND, brandedPageTitle } from "@/lib/brand";
 
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Página não encontrada</h2>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">
+          Página não encontrada
+        </h2>
         <p className="mt-2 text-sm text-muted-foreground">
           A página que você está procurando não existe ou foi movida.
         </p>
@@ -80,38 +83,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { name: "theme-color", content: "#234d38" },
+      { name: "theme-color", content: "#2878e8" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
-      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-      { name: "apple-mobile-web-app-title", content: "Hotel Real" },
-      { title: "Pousada Real Cruzília — Painel de Operação" },
       {
-        name: "description",
-        content:
-          "Sistema de gestão da Pousada Real Cruzília: reservas, quartos, vendas, reclamações e avaliações de hóspedes por QR code.",
+        name: "apple-mobile-web-app-status-bar-style",
+        content: "black-translucent",
       },
-      { name: "author", content: "Pousada Real Cruzília" },
-      { property: "og:title", content: "Pousada Real Cruzília — Painel de Operação" },
-      {
-        property: "og:description",
-        content: "Sistema de gestão da Pousada Real Cruzília: reservas, quartos, vendas, reclamações e avaliações de hóspedes por QR code.",
-      },
+      { name: "apple-mobile-web-app-title", content: BRAND.shortName },
+      { title: brandedPageTitle() },
+      { name: "description", content: BRAND.description },
+      { name: "application-name", content: BRAND.name },
+      { name: "author", content: BRAND.name },
+      { property: "og:title", content: brandedPageTitle() },
+      { property: "og:description", content: BRAND.description },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "Pousada Real Cruzília — Painel de Operação" },
-      { name: "twitter:description", content: "Sistema de gestão da Pousada Real Cruzília: reservas, quartos, vendas, reclamações e avaliações de hóspedes por QR code." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/7cdf396a-8e93-4ff7-8a32-d0bdfe4742f6" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/7cdf396a-8e93-4ff7-8a32-d0bdfe4742f6" },
+      { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: brandedPageTitle() },
+      { name: "twitter:description", content: BRAND.description },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
-      { rel: "manifest", href: "/manifest.webmanifest" },
-      { rel: "apple-touch-icon", href: "/hotel-real-logo.png" },
+      { rel: "icon", href: BRAND.icon, type: "image/svg+xml" },
+      { rel: "shortcut icon", href: BRAND.icon, type: "image/svg+xml" },
+      { rel: "manifest", href: BRAND.manifest },
+      { rel: "apple-touch-icon", href: BRAND.icon },
     ],
   }),
   shellComponent: RootShell,
@@ -141,7 +140,13 @@ function RootComponent() {
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+      if (
+        event !== "SIGNED_IN" &&
+        event !== "SIGNED_OUT" &&
+        event !== "USER_UPDATED"
+      ) {
+        return;
+      }
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
@@ -150,7 +155,6 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster richColors position="top-center" />
     </QueryClientProvider>
