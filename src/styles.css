@@ -323,48 +323,21 @@ html[data-dashboard-mode="tv"] .dashboard-designer-widget {
 }
 
 .hotel-command-dark {
-  --background: #0b0f19;
-  --foreground: #ffffff;
-  --card: #1e293b;
-  --card-foreground: #ffffff;
-  --popover: #172033;
-  --popover-foreground: #ffffff;
-  --pine: #00d2ff;
-  --pine-dark: #ffffff;
-  --primary: #00d2ff;
-  --primary-foreground: #07131f;
-  --secondary: #172033;
-  --secondary-foreground: #ffffff;
-  --muted: #263449;
-  --muted-foreground: #cbd5e1;
-  --accent: #38bdf8;
-  --accent-foreground: #07131f;
-  --border: #40516b;
-  --input: #52647f;
-  --ring: #00d2ff;
-  --sage: #22c55e;
-  --sage-bg: #123a2b;
-  --brass: #8b5cf6;
-  --brass-bg: #302451;
-  --brick: #f87171;
-  --brick-bg: #491f2a;
-  --chart-1: #00d2ff;
-  --chart-2: #38bdf8;
-  --chart-3: #22c55e;
-  --chart-4: #8b5cf6;
-  --chart-5: #0ea5e9;
-  --chart-6: #2563eb;
   background:
-    radial-gradient(circle at 84% 4%, rgba(56, 189, 248, 0.12), transparent 28rem),
-    #0b0f19;
-  color: #ffffff;
+    radial-gradient(
+      circle at 84% 4%,
+      color-mix(in srgb, var(--accent) 12%, transparent),
+      transparent 28rem
+    ),
+    var(--background);
+  color: var(--foreground);
   min-height: calc(100vh - 1.5rem);
 }
 
 .hotel-command-dark .dashboard-designer-widget,
 .hotel-command-dark .executive-filter-panel {
-  background: color-mix(in srgb, #1e293b 92%, transparent) !important;
-  border-color: #40516b !important;
+  background: color-mix(in srgb, var(--card) 92%, transparent) !important;
+  border-color: var(--border) !important;
   box-shadow: 0 14px 35px rgba(0, 0, 0, 0.24);
 }
 
@@ -373,19 +346,19 @@ html[data-dashboard-mode="tv"] .dashboard-designer-widget {
 }
 
 .hotel-command-dark .field {
-  background: #111827;
-  color: #ffffff;
-  border-color: #52647f;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border-color: var(--input);
 }
 
 .hotel-command-dark .field option {
-  background: #111827;
-  color: #ffffff;
+  background: var(--popover);
+  color: var(--popover-foreground);
 }
 
 .hotel-command-dark .recharts-cartesian-grid line,
 .hotel-command-dark .recharts-polar-grid-concentric-polygon {
-  stroke: #334155;
+  stroke: var(--border);
 }
 
 .hotel-command-dark .recharts-cartesian-axis-tick-value,
@@ -393,22 +366,22 @@ html[data-dashboard-mode="tv"] .dashboard-designer-widget {
 .hotel-command-dark .recharts-polar-radius-axis-tick-value,
 .hotel-command-dark .recharts-label,
 .hotel-command-dark .recharts-text {
-  fill: #f8fafc !important;
+  fill: var(--foreground) !important;
 }
 
 .hotel-command-dark .recharts-cartesian-axis-line,
 .hotel-command-dark .recharts-cartesian-axis-tick-line {
-  stroke: #64748b !important;
+  stroke: var(--muted-foreground) !important;
 }
 
 .hotel-command-dark .recharts-default-tooltip {
-  background: #111827 !important;
-  border-color: #52647f !important;
-  color: #ffffff !important;
+  background: var(--popover) !important;
+  border-color: var(--input) !important;
+  color: var(--popover-foreground) !important;
 }
 
 .hotel-command-dark .recharts-legend-item-text {
-  color: #f8fafc !important;
+  color: var(--foreground) !important;
 }
 
 @media (max-width: 640px) {
