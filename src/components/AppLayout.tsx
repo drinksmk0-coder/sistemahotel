@@ -12,6 +12,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  MessagesSquare,
   Sparkles,
   Settings,
   Star,
@@ -39,6 +40,12 @@ const TABS = [
   { to: "/vendas", label: "Vendas", icon: DollarSign, roles: ["dono", "recepcao"] },
   { to: "/despesas", label: "Despesas", icon: FileWarning, roles: ["dono"] },
   { to: "/reclamacoes", label: "Reclamacoes", icon: MessageSquare, roles: ["dono", "recepcao"] },
+  {
+    to: "/mensagens",
+    label: "Mensagens",
+    icon: MessagesSquare,
+    roles: ["dono", "recepcao"],
+  },
   {
     to: "/dashboard-estrategico",
     label: "Indicadores",
