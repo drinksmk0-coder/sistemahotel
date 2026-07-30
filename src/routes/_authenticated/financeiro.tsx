@@ -505,6 +505,8 @@ function FinancialSeriesChart({
 }) {
   const tooltipFormatter = (value: number) =>
     percentAxis ? `${Number(value).toFixed(1)}%` : fmtBRL(value);
+  const axisFormatter = (value: number) =>
+    percentAxis ? `${Number(value).toFixed(0)}%` : formatFinancialAxis(Number(value));
   const categoryAxisWidth = Math.min(
     180,
     Math.max(
@@ -521,7 +523,12 @@ function FinancialSeriesChart({
       <LineChart data={rows} margin={{ left: 8, right: 20, top: 12, bottom: 12 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey={categoryKey} tick={{ fontSize: 9, fill: "var(--foreground)" }} />
-        <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9, fill: "var(--foreground)" }} />
+        <YAxis
+          domain={percentAxis ? [0, 100] : undefined}
+          tick={{ fontSize: 9, fill: "var(--foreground)" }}
+          tickFormatter={axisFormatter}
+          width={percentAxis ? 42 : 62}
+        />
         <Tooltip formatter={tooltipFormatter} />
         {series.map((item) => (
           <Line
@@ -540,7 +547,12 @@ function FinancialSeriesChart({
       <AreaChart data={rows} margin={{ left: 8, right: 20, top: 12, bottom: 12 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis dataKey={categoryKey} tick={{ fontSize: 9, fill: "var(--foreground)" }} />
-        <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9, fill: "var(--foreground)" }} />
+        <YAxis
+          domain={percentAxis ? [0, 100] : undefined}
+          tick={{ fontSize: 9, fill: "var(--foreground)" }}
+          tickFormatter={axisFormatter}
+          width={percentAxis ? 42 : 62}
+        />
         <Tooltip formatter={tooltipFormatter} />
         {series.map((item) => (
           <Area
@@ -570,6 +582,7 @@ function FinancialSeriesChart({
               type="number"
               domain={percentAxis ? [0, 100] : undefined}
               tick={{ fontSize: 9, fill: "var(--foreground)" }}
+              tickFormatter={axisFormatter}
             />
             <YAxis
               type="category"
@@ -586,7 +599,12 @@ function FinancialSeriesChart({
               interval={0}
               tick={{ fontSize: 9, fill: "var(--foreground)" }}
             />
-            <YAxis domain={percentAxis ? [0, 100] : undefined} tick={{ fontSize: 9, fill: "var(--foreground)" }} />
+            <YAxis
+              domain={percentAxis ? [0, 100] : undefined}
+              tick={{ fontSize: 9, fill: "var(--foreground)" }}
+              tickFormatter={axisFormatter}
+              width={percentAxis ? 42 : 62}
+            />
           </>
         )}
         <Tooltip formatter={tooltipFormatter} />
@@ -629,11 +647,28 @@ function FinancialChartFrame({
         </h2>
         <ChartHtmlLegend items={legendItems} />
       </div>
-      <ResponsiveContainer width="100%" height={Math.max(120, settings.height - 82)}>
-        {children}
-      </ResponsiveContainer>
+      <div className="min-h-[190px] min-w-0 flex-1 overflow-hidden">
+        <ResponsiveContainer width="100%" height="100%" minHeight={190}>
+          {children}
+        </ResponsiveContainer>
+      </div>
     </section>
   );
+}
+
+function formatFinancialAxis(value: number) {
+  const absolute = Math.abs(value);
+  if (absolute >= 1_000_000) {
+    return `R$ ${(value / 1_000_000).toLocaleString("pt-BR", {
+      maximumFractionDigits: 1,
+    })} mi`;
+  }
+  if (absolute >= 1_000) {
+    return `R$ ${(value / 1_000).toLocaleString("pt-BR", {
+      maximumFractionDigits: 1,
+    })} mil`;
+  }
+  return `R$ ${value.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 }
 
 function groupValues<T>(rows: T[], label: (row: T) => string, value: (row: T) => number) {
