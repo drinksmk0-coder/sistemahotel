@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight, CircleDollarSign, Plus } from "lucide-react";
+import { RoomFeatureBadges, roomFeatureTags } from "@/components/RoomFeatures";
 import type { Reservation, Room } from "@/lib/data";
 import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
 
@@ -62,8 +63,9 @@ export function RoomTimeline({
     [dates, reservationsByRoom, rooms],
   );
 
-  const gridTemplateColumns = `148px repeat(${daysVisible}, minmax(70px, 1fr))`;
-  const minimumWidth = 148 + daysVisible * 70;
+  const roomColumnWidth = 208;
+  const gridTemplateColumns = `${roomColumnWidth}px repeat(${daysVisible}, minmax(70px, 1fr))`;
+  const minimumWidth = roomColumnWidth + daysVisible * 70;
   const endDate = dates[dates.length - 1] ?? startDate;
 
   return (
@@ -76,8 +78,8 @@ export function RoomTimeline({
               <strong className="block truncate text-xs text-pine-dark">
                 {fmtDate(startDate)} a {fmtDate(endDate)}
               </strong>
-              <span className="sr-only">
-                Clique no espaço livre para reservar; clique na faixa para abrir a hospedagem.
+              <span className="text-[9px] text-muted-foreground">
+                As etiquetas ao lado da UH mostram características confirmadas do quarto.
               </span>
             </div>
           </div>
@@ -146,9 +148,9 @@ export function RoomTimeline({
             <div className="sticky left-0 z-40 flex items-center border-r border-border bg-card px-2 py-1.5">
               <div>
                 <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                  Unidade
+                  Unidade e perfil
                 </span>
-                  <strong className="text-xs text-pine-dark">{rooms.length} quartos</strong>
+                <strong className="text-xs text-pine-dark">{rooms.length} quartos</strong>
               </div>
             </div>
             {dates.map((date) => {
@@ -205,28 +207,29 @@ export function RoomTimeline({
                       reservation.checkout > startDate,
                   )
                   .sort((left, right) => left.checkin.localeCompare(right.checkin));
+                const featureTitle = roomFeatureTags(room).map((tag) => tag.label).join(" · ");
 
                 return (
                   <div
                     key={`${room.company_id}-${room.numero}`}
-                    className="relative grid min-h-[34px] border-b border-border/70"
+                    className="relative grid min-h-[48px] border-b border-border/70"
                     style={{ gridTemplateColumns }}
                   >
                     <button
                       type="button"
                       onClick={() => onRoomClick(room)}
-                      className="sticky left-0 z-20 flex items-center justify-between border-r border-border bg-card px-2 text-left transition hover:bg-sage-bg"
+                      className="sticky left-0 z-20 flex items-center justify-between gap-2 border-r border-border bg-card px-2 text-left transition hover:bg-sage-bg"
+                      title={featureTitle || "Características ainda não cadastradas"}
                     >
-                      <div>
-                        <span className="sr-only">Quarto</span>
-                        <strong className="text-sm text-pine-dark">{room.numero}</strong>
+                      <div className="min-w-0">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="sr-only">Quarto</span>
+                          <strong className="text-sm text-pine-dark">{room.numero}</strong>
+                          <span className="text-[8px] font-semibold text-muted-foreground">{room.andar}º andar</span>
+                        </div>
+                        <RoomFeatureBadges room={room} compact max={2} />
                       </div>
-                      <div className="text-right">
-                        <span className="block text-[8px] font-semibold text-muted-foreground">
-                          {room.andar}º andar
-                        </span>
-                        <strong className="text-[8px] text-pine">{fmtBRL(room.preco)}</strong>
-                      </div>
+                      <strong className="shrink-0 text-[8px] text-pine">{fmtBRL(room.preco)}</strong>
                     </button>
 
                     {dates.map((date, index) => {
@@ -250,10 +253,7 @@ export function RoomTimeline({
 
                     {visibleReservations.map((reservation) => {
                       const startIndex = Math.max(0, daysBetween(startDate, reservation.checkin));
-                      const endIndex = Math.min(
-                        daysVisible,
-                        daysBetween(startDate, reservation.checkout),
-                      );
+                      const endIndex = Math.min(daysVisible, daysBetween(startDate, reservation.checkout));
                       const span = Math.max(1, endIndex - startIndex);
                       const visual = reservationVisual(reservation, today);
                       return (
@@ -273,9 +273,7 @@ export function RoomTimeline({
                           title={`${reservation.cliente_nome} · ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`}
                         >
                           <span className="min-w-0">
-                            <strong className="block truncate text-[9px]">
-                              {reservation.cliente_nome}
-                            </strong>
+                            <strong className="block truncate text-[9px]">{reservation.cliente_nome}</strong>
                             <span className="flex items-center gap-0.5 truncate text-[8px] opacity-80">
                               <CircleDollarSign className="h-2.5 w-2.5 shrink-0" />
                               {visual.label} · {fmtBRL(reservation.valor_total)}
@@ -318,34 +316,15 @@ function reservationVisual(reservation: Reservation, today: string) {
     reservation.checkout < today &&
     !["finalizado", "cancelado"].includes(reservation.status);
 
-  if (overdue) {
-    return {
-      className: "border-brick bg-brick text-white",
-      label: "Saldo vencido",
-    };
-  }
+  if (overdue) return { className: "border-brick bg-brick text-white", label: "Saldo vencido" };
   if (reservation.status === "finalizado") {
-    return {
-      className: "border-border bg-muted text-muted-foreground",
-      label: "Finalizada",
-    };
+    return { className: "border-border bg-muted text-muted-foreground", label: "Finalizada" };
   }
   if (reservation.pago || (total > 0 && paid >= total) || reservation.status === "ocupado") {
-    return {
-      className: "border-pine-dark bg-pine text-white",
-      label: "Quitado",
-    };
+    return { className: "border-pine-dark bg-pine text-white", label: "Quitado" };
   }
-  if (paid > 0) {
-    return {
-      className: "border-brass bg-brass text-pine-dark",
-      label: "Sinal pago",
-    };
-  }
-  return {
-    className: "border-[var(--chart-5)] bg-[var(--chart-5)] text-white",
-    label: "A receber",
-  };
+  if (paid > 0) return { className: "border-brass bg-brass text-pine-dark", label: "Sinal pago" };
+  return { className: "border-[var(--chart-5)] bg-[var(--chart-5)] text-white", label: "A receber" };
 }
 
 function parseDate(date: string) {
