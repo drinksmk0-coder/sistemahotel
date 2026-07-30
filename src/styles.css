@@ -178,6 +178,42 @@
     border-radius: var(--radius-lg);
     min-width: 0;
   }
+  .chart-surface .recharts-wrapper,
+  .card-surface .recharts-wrapper,
+  .dashboard-designer-widget .recharts-wrapper {
+    max-width: 100%;
+  }
+  .chart-surface .recharts-text,
+  .card-surface .recharts-text,
+  .dashboard-designer-widget .recharts-text {
+    fill: var(--color-foreground);
+  }
+  .chart-surface .recharts-cartesian-axis-tick-value,
+  .card-surface .recharts-cartesian-axis-tick-value,
+  .dashboard-designer-widget .recharts-cartesian-axis-tick-value {
+    font-size: 10px;
+  }
+  .chart-surface .recharts-legend-wrapper,
+  .card-surface .recharts-legend-wrapper,
+  .dashboard-designer-widget .recharts-legend-wrapper {
+    max-width: 100%;
+    overflow: visible;
+  }
+  .chart-surface .recharts-default-legend,
+  .card-surface .recharts-default-legend,
+  .dashboard-designer-widget .recharts-default-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.25rem 0.75rem;
+    line-height: 1.25;
+  }
+  .chart-surface .recharts-legend-item,
+  .card-surface .recharts-legend-item,
+  .dashboard-designer-widget .recharts-legend-item {
+    margin-right: 0 !important;
+    white-space: nowrap;
+  }
   .dashboard-widget > article,
   .dashboard-widget > section,
   .dashboard-widget > .card-surface,
