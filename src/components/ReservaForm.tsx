@@ -10,7 +10,15 @@ import {
   type Complaint,
   type RateRule,
 } from "@/lib/data";
-import { fmtBRL, todayISO, nightsBetween } from "@/lib/format";
+import {
+  addDaysISO,
+  DEFAULT_CHECKIN_TIME,
+  DEFAULT_CHECKOUT_TIME,
+  fmtBRL,
+  hotelLocalTime,
+  hotelOperationalDateISO,
+  nightsBetween,
+} from "@/lib/format";
 import {
   BR_STATES,
   CLIENT_TYPES,
@@ -41,6 +49,7 @@ export type ReservaRow = {
   cliente_estado_civil?: string | null;
   cliente_tem_filhos?: boolean | null;
   cliente_quantidade_filhos?: number | null;
+  data_reserva: string;
   checkin: string;
   checkout: string;
   horario_reserva: string | null;
@@ -95,10 +104,14 @@ export function ReservaForm({
     return Number.isFinite(parsed) ? parsed : fallback;
   };
 
+  const operationalDate = hotelOperationalDateISO();
+  const existingOperationalDate = (
+    editing as (Reservation & { data_reserva?: string | null }) | null | undefined
+  )?.data_reserva;
+  const reservationDate = existingOperationalDate ?? operationalDate;
   const initRoom = editing?.quarto ?? fixedRoom ?? rooms[0]?.numero ?? 0;
-  const initialCheckinValue = editing?.checkin ?? initialCheckin ?? todayISO();
-  const initialCheckoutValue =
-    editing?.checkout ?? (initialCheckin ? addDaysISO(initialCheckin, 1) : "");
+  const initialCheckinValue = editing?.checkin ?? initialCheckin ?? operationalDate;
+  const initialCheckoutValue = editing?.checkout ?? addDaysISO(initialCheckinValue, 1);
   const [quarto, setQuarto] = useState<number>(initRoom);
   const [clienteId, setClienteId] = useState(editing?.cliente_id ?? "");
   const [nome, setNome] = useState(editing && !editing.cliente_id ? editing.cliente_nome : "");
@@ -118,10 +131,14 @@ export function ReservaForm({
   const [quantidadeFilhos, setQuantidadeFilhos] = useState("0");
   const [checkin, setCheckin] = useState(initialCheckinValue);
   const [checkout, setCheckout] = useState(initialCheckoutValue);
-  const [horarioReserva, setHorarioReserva] = useState(editing?.horario_reserva?.slice(0, 5) ?? "");
-  const [horarioCheckin, setHorarioCheckin] = useState(editing?.horario_checkin?.slice(0, 5) ?? "");
+  const [horarioReserva] = useState(
+    editing?.horario_reserva?.slice(0, 5) ?? hotelLocalTime(),
+  );
+  const [horarioCheckin, setHorarioCheckin] = useState(
+    editing?.horario_checkin?.slice(0, 5) ?? DEFAULT_CHECKIN_TIME,
+  );
   const [horarioCheckout, setHorarioCheckout] = useState(
-    editing?.horario_checkout?.slice(0, 5) ?? "",
+    editing?.horario_checkout?.slice(0, 5) ?? DEFAULT_CHECKOUT_TIME,
   );
   const [diarias, setDiarias] = useState<string>(
     String(editing?.diarias ?? nightsBetween(initialCheckinValue, initialCheckoutValue)),
@@ -277,6 +294,7 @@ export function ReservaForm({
       cliente_estado_civil: clienteId ? null : requiredEstadoCivil || null,
       cliente_tem_filhos: clienteId ? null : temFilhos,
       cliente_quantidade_filhos: clienteId || !temFilhos ? null : parseIntNumber(quantidadeFilhos),
+      data_reserva: reservationDate,
       checkin,
       checkout,
       horario_reserva: horarioReserva || null,
@@ -594,14 +612,12 @@ export function ReservaForm({
           </Field>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Field label="Data da reserva">
+            <input type="date" className="field bg-muted" value={reservationDate} readOnly />
+          </Field>
           <Field label="Horário da reserva">
-            <input
-              type="time"
-              className="field"
-              value={horarioReserva}
-              onChange={(e) => setHorarioReserva(e.target.value)}
-            />
+            <input type="time" className="field bg-muted" value={horarioReserva} readOnly />
           </Field>
           <Field label="Horário do check-in">
             <input
@@ -620,6 +636,13 @@ export function ReservaForm({
             />
           </Field>
         </div>
+
+        {!editing && (
+          <p className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+            O dia operacional muda às 06:00. Reservas criadas entre 00:00 e 05:59 continuam
+            registradas na data anterior. Check-in padrão às 15:00 e check-out às 12:00.
+          </p>
+        )}
 
         <div className="grid grid-cols-4 gap-3">
           <Field label="Diárias">
@@ -814,12 +837,6 @@ export function ReservaForm({
       </form>
     </Modal>
   );
-}
-
-function addDaysISO(date: string, days: number) {
-  const current = new Date(`${date}T00:00:00`);
-  current.setDate(current.getDate() + days);
-  return current.toISOString().slice(0, 10);
 }
 
 function onlyDigits(value: string | null | undefined) {
