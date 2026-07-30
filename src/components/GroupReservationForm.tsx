@@ -4,7 +4,15 @@ import { toast } from "sonner";
 import { Field, Modal } from "@/components/ui-kit";
 import { hasActiveOverlap, type RateRule, type Reservation, type Room } from "@/lib/data";
 import { SALES_CHANNELS } from "@/lib/constants";
-import { fmtBRL, nightsBetween, todayISO } from "@/lib/format";
+import {
+  addDaysISO,
+  DEFAULT_CHECKIN_TIME,
+  DEFAULT_CHECKOUT_TIME,
+  fmtBRL,
+  hotelLocalTime,
+  hotelOperationalDateISO,
+  nightsBetween,
+} from "@/lib/format";
 import { quoteStay } from "@/lib/rates";
 
 type GroupRoom = {
@@ -28,8 +36,12 @@ export type GroupReservationPayload = {
     quarto: number;
     cliente_id: null;
     cliente_nome: string;
+    data_reserva: string;
     checkin: string;
     checkout: string;
+    horario_reserva: string;
+    horario_checkin: string;
+    horario_checkout: string;
     diarias: number;
     valor_diaria: number;
     valor_total: number;
@@ -58,11 +70,13 @@ export function GroupReservationForm({
   onSave: (payload: GroupReservationPayload) => void;
   busy?: boolean;
 }) {
+  const operationalDate = hotelOperationalDateISO();
+  const reservationTime = hotelLocalTime();
   const [nomeGrupo, setNomeGrupo] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [telefone, setTelefone] = useState("");
-  const [checkin, setCheckin] = useState(todayISO());
-  const [checkout, setCheckout] = useState(addDaysISO(todayISO(), 1));
+  const [checkin, setCheckin] = useState(operationalDate);
+  const [checkout, setCheckout] = useState(addDaysISO(operationalDate, 1));
   const [canal, setCanal] = useState<string>(SALES_CHANNELS[0]);
   const [observacoes, setObservacoes] = useState("");
   const [roomRows, setRoomRows] = useState<GroupRoom[]>([
@@ -116,8 +130,12 @@ export function GroupReservationForm({
         quarto: row.roomNumber,
         cliente_id: null,
         cliente_nome: cleanResponsible,
+        data_reserva: operationalDate,
         checkin,
         checkout,
+        horario_reserva: reservationTime,
+        horario_checkin: DEFAULT_CHECKIN_TIME,
+        horario_checkout: DEFAULT_CHECKOUT_TIME,
         diarias: nights,
         valor_diaria: roundMoney(row.quote.averageNightly),
         valor_total: roundMoney(row.quote.total),
@@ -193,6 +211,28 @@ export function GroupReservationForm({
               required
             />
           </Field>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs sm:grid-cols-4">
+          <div>
+            <span className="block text-muted-foreground">Data da reserva</span>
+            <strong>{operationalDate}</strong>
+          </div>
+          <div>
+            <span className="block text-muted-foreground">Horário</span>
+            <strong>{reservationTime}</strong>
+          </div>
+          <div>
+            <span className="block text-muted-foreground">Check-in padrão</span>
+            <strong>{DEFAULT_CHECKIN_TIME}</strong>
+          </div>
+          <div>
+            <span className="block text-muted-foreground">Check-out padrão</span>
+            <strong>{DEFAULT_CHECKOUT_TIME}</strong>
+          </div>
+          <p className="col-span-2 leading-relaxed text-muted-foreground sm:col-span-4">
+            Entre 00:00 e 05:59, a data operacional continua sendo a do dia anterior. A mudança ocorre às 06:00.
+          </p>
         </div>
 
         <div className="rounded-xl border border-border bg-muted/30 p-3">
@@ -328,12 +368,6 @@ export function GroupReservationForm({
       current.map((item) => (item.key === key ? { ...item, ...patch } : item)),
     );
   }
-}
-
-function addDaysISO(date: string, days: number) {
-  const value = new Date(`${date}T12:00:00`);
-  value.setDate(value.getDate() + days);
-  return value.toISOString().slice(0, 10);
 }
 
 function roundMoney(value: number) {
