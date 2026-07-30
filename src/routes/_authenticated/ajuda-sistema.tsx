@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   CircleHelp,
   KeyRound,
@@ -7,12 +8,34 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
-import { useRooms } from "@/lib/data";
-import type { RoomWithFeatures } from "@/components/RoomFeatures";
+import { supabase } from "@/integrations/supabase/client";
+import { useRole, useSession, type AppRole } from "@/hooks/use-auth";
+import { useCurrentCompany } from "@/lib/data";
+import { todayISO } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/ajuda-sistema")({
   component: AjudaSistema,
 });
+
+type SafeRoom = {
+  numero: number;
+  andar: number;
+  configuracao: string;
+  situacao: string | null;
+  frigobar: boolean;
+  tv_smart: boolean;
+  vista: string | null;
+  nivel_ruido: string | null;
+  ventilacao: string | null;
+  tamanho_banheiro: string | null;
+  prioridade_venda: number | null;
+  ocupacao_status: string;
+  pessoas: number;
+  checkin: string | null;
+  checkout: string | null;
+  ocorrencias_ativas: number;
+  principal_ocorrencia: string | null;
+};
 
 const SUGGESTIONS = [
   "Onde faço uma reserva?",
@@ -25,16 +48,35 @@ const SUGGESTIONS = [
 ];
 
 function AjudaSistema() {
-  const { data: rooms = [] } = useRooms();
+  const company = useCurrentCompany();
+  const { user } = useSession();
+  const { data: role } = useRole(user);
   const [question, setQuestion] = useState("");
   const [submitted, setSubmitted] = useState("");
 
+  const roomBoard = useQuery({
+    queryKey: ["help-operational-room-board", company.data?.id],
+    enabled: Boolean(company.data?.id && role),
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc(
+        "get_operational_room_board",
+        {
+          p_company_id: company.data!.id,
+          p_date: todayISO(),
+        },
+      );
+      if (error) throw error;
+      return (Array.isArray(data) ? data : []) as SafeRoom[];
+    },
+  });
+
   const answer = useMemo(
     () =>
-      submitted
-        ? answerSystemQuestion(submitted, rooms as RoomWithFeatures[])
+      submitted && role
+        ? answerSystemQuestion(submitted, roomBoard.data ?? [], role)
         : "",
-    [rooms, submitted],
+    [role, roomBoard.data, submitted],
   );
 
   function submit(value: string) {
@@ -48,24 +90,24 @@ function AjudaSistema() {
     <div className="space-y-3">
       <PageHeader
         title="Ajuda do sistema"
-        subtitle="Orientações operacionais sem acesso a relatórios financeiros, configurações da IA ou dados estratégicos."
+        subtitle="Orientações operacionais sem acesso a relatórios financeiros, configurações da IA, nomes de hóspedes ou valores."
       />
 
       <section className="grid gap-3 md:grid-cols-3">
         <InfoCard
           icon={<CircleHelp />}
           title="Ajuda local"
-          text="As respostas abaixo não dependem do Gemini e continuam disponíveis mesmo quando um provedor externo estiver fora do ar."
+          text="As respostas não dependem de Gemini ou outro provedor externo."
         />
         <InfoCard
           icon={<ShieldCheck />}
-          title="Acesso protegido"
-          text="Recepção, Governança e Café veem somente orientações operacionais compatíveis com sua função."
+          title="Acesso por função"
+          text="Recepção, Governança e Café recebem apenas instruções compatíveis com sua atividade."
         />
         <InfoCard
           icon={<KeyRound />}
           title="Análises restritas"
-          text="Relatórios, indicadores financeiros e treinamento do HotelAI permanecem exclusivos do dono."
+          text="Relatórios, indicadores financeiros e treinamento do HotelAI permanecem exclusivos do proprietário."
         />
       </section>
 
@@ -115,7 +157,9 @@ function AjudaSistema() {
             {submitted}
           </h2>
           <div className="mt-3 whitespace-pre-line rounded-lg bg-muted/40 p-3 text-sm leading-relaxed text-foreground">
-            {answer}
+            {roomBoard.isLoading
+              ? "Consultando o quadro operacional…"
+              : answer}
           </div>
         </section>
       )}
@@ -145,7 +189,8 @@ function InfoCard({
 
 function answerSystemQuestion(
   question: string,
-  rooms: RoomWithFeatures[],
+  rooms: SafeRoom[],
+  role: AppRole,
 ) {
   const value = normalize(question);
 
@@ -153,6 +198,7 @@ function answerSystemQuestion(
   if (roomAnswer) return roomAnswer;
 
   if (/\b(reserva|reservar|nova reserva)\b/.test(value)) {
+    if (role !== "recepcao") return receptionOnly("criar ou alterar reservas");
     return [
       "Abra Reservas no menu lateral e clique em Nova reserva.",
       "Informe hóspede, check-in, check-out, quantidade de pessoas, quarto, tarifa, canal e pagamento.",
@@ -161,6 +207,7 @@ function answerSystemQuestion(
   }
 
   if (/\b(ficha|fnrh|formulario|assinatura|check in online)\b/.test(value)) {
+    if (role !== "recepcao") return receptionOnly("conferir fichas e assinaturas");
     return [
       "As fichas preenchidas aparecem no alerta verde no alto da tela.",
       "Clique no alerta para abrir Fichas de check-in, conferir os dados e visualizar a assinatura.",
@@ -169,11 +216,13 @@ function answerSystemQuestion(
   }
 
   if (/\b(check in|entrada do hospede)\b/.test(value)) {
-    return "Abra Reservas, localize a reserva e use a ação Check-in. Confira antes a ficha do hóspede, o quarto e o pagamento.";
+    if (role !== "recepcao") return receptionOnly("realizar o check-in");
+    return "Abra Reservas, localize a reserva e use a ação Check-in. Confira antes a ficha, o quarto e o pagamento.";
   }
 
   if (/\b(check out|saida do hospede)\b/.test(value)) {
-    return "Abra Reservas, localize a hospedagem ativa e use Check-out. Confira diárias, consumos, pagamentos e saldo pendente antes de finalizar.";
+    if (role !== "recepcao") return receptionOnly("realizar o check-out");
+    return "Abra Reservas, localize a hospedagem ativa e use Check-out. Confira diárias, consumos, pagamentos e saldo antes de finalizar.";
   }
 
   if (/\b(disponibilidade|quarto livre|mapa|quadro de quartos)\b/.test(value)) {
@@ -181,32 +230,38 @@ function answerSystemQuestion(
   }
 
   if (/\b(venda|produto|consumo|servico|lavanderia)\b/.test(value)) {
+    if (role !== "recepcao") return receptionOnly("lançar vendas e consumos");
     return "Abra Vendas para lançar produtos, serviços e consumos. Quando estiver ligado a uma hospedagem, selecione a reserva ou o quarto correto.";
   }
 
   if (/\b(cliente|hospede|cadastro)\b/.test(value)) {
-    return "Abra Clientes para localizar ou cadastrar o hóspede. Dados obrigatórios e permissões são controlados pelo dono.";
+    if (role !== "recepcao") return receptionOnly("consultar o cadastro do hóspede");
+    return "Abra Clientes para localizar ou cadastrar o hóspede. Dados obrigatórios e permissões são controlados pelo proprietário.";
   }
 
   if (/\b(limpeza|governanca|camareira)\b/.test(value)) {
-    return "Abra Quadro de quartos. Os quartos em limpeza ou manutenção aparecem destacados; abra a UH para consultar características e ocorrências ativas.";
+    return role === "limpeza"
+      ? "Abra Quadro de quartos. Priorize quartos em limpeza, manutenção e com ocorrência ativa. Use os botões do card para marcar Em limpeza, Liberado ou Manutenção."
+      : "O acompanhamento e a liberação de limpeza ficam no perfil Camareira / Governança.";
   }
 
   if (/\b(cafe|alimentacao|hospedes por quarto)\b/.test(value)) {
-    return "Abra o Painel e o Quadro de quartos para consultar quartos ocupados e a operação do café da manhã. Valores financeiros e dados estratégicos ficam restritos ao dono.";
+    return role === "cafe"
+      ? "Abra Quadro de quartos. A tela do Café mostra somente quartos ocupados e a quantidade de hóspedes, sem nomes ou valores."
+      : "A contagem operacional do café fica no perfil Atendente de A&B — Café.";
   }
 
   return [
     "Não encontrei uma orientação específica para essa frase.",
-    "Tente perguntar usando o nome da tela ou da tarefa, por exemplo: reserva, check-in, ficha, quarto, venda, cliente, limpeza ou café.",
+    "Tente perguntar usando o nome da tela ou da tarefa: reserva, check-in, ficha, quarto, venda, cliente, limpeza ou café.",
   ].join("\n\n");
 }
 
-function answerRoomFeatures(value: string, rooms: RoomWithFeatures[]) {
+function answerRoomFeatures(value: string, rooms: SafeRoom[]) {
   const predicates: Array<{
     matches: RegExp;
     label: string;
-    test: (room: RoomWithFeatures) => boolean;
+    test: (room: SafeRoom) => boolean;
   }> = [
     {
       matches: /\b(frigobar|minibar)\b/,
@@ -255,21 +310,19 @@ function answerRoomFeatures(value: string, rooms: RoomWithFeatures[]) {
 
   const matches = rooms
     .filter(rule.test)
-    .sort(
-      (a, b) =>
-        Number(b.preco) - Number(a.preco) || a.numero - b.numero,
-    );
+    .sort((a, b) => a.andar - b.andar || a.numero - b.numero);
 
   if (!matches.length) {
-    return `Nenhum quarto está confirmado no cadastro como ${rule.label}. Abra Quadro de quartos e preencha as características reais de cada UH antes de prometer essa condição ao hóspede.`;
+    return `Nenhum quarto está confirmado no cadastro como ${rule.label}. Não prometa essa característica antes da conferência presencial e do preenchimento pelo responsável.`;
   }
 
   return `Quartos ${rule.label}: ${matches
-    .map(
-      (room) =>
-        `${room.numero} (${formatCurrency(Number(room.preco))})`,
-    )
+    .map((room) => room.numero)
     .join(", ")}.`;
+}
+
+function receptionOnly(action: string) {
+  return `A função de ${action} pertence à Recepção. Avise o recepcionista responsável; este perfil não recebe acesso aos dados do hóspede ou aos valores da reserva.`;
 }
 
 function normalize(value: string) {
@@ -280,11 +333,4 @@ function normalize(value: string) {
     .replace(/[?!.;,]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value || 0);
 }
