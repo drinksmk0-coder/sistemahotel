@@ -20,6 +20,7 @@ import {
   MessageSquare,
   MessagesSquare,
   Settings,
+  ShieldCheck,
   Sparkles,
   Star,
   Users,
@@ -34,11 +35,13 @@ import {
   useSession,
   type AppRole,
 } from "@/hooks/use-auth";
+import { usePlatformAdmin } from "@/hooks/use-platform-admin";
 import { setCurrentCompanyId, useCurrentCompany } from "@/lib/data";
 import {
   applySystemSettings,
   getSystemSettings,
 } from "@/lib/system-settings";
+import { BRAND } from "@/lib/brand";
 import { SystemMonitor } from "@/components/SystemMonitor";
 
 type NavigationItem = {
@@ -138,7 +141,7 @@ const SECONDARY_TABS: NavigationItem[] = [
   },
   {
     to: "/empresa",
-    label: "Aparência do sistema",
+    label: "Aparência do hotel",
     icon: Settings,
     roles: ["dono"],
   },
@@ -149,6 +152,13 @@ const SECONDARY_TABS: NavigationItem[] = [
     roles: ["dono"],
   },
 ];
+
+const PLATFORM_ADMIN_TAB: NavigationItem = {
+  to: "/admin-plataforma",
+  label: "Administração HospedaMais",
+  icon: ShieldCheck,
+  roles: ["dono"],
+};
 
 const MOBILE_PRIMARY_TABS = new Set([
   "/central-estrategica",
@@ -161,10 +171,10 @@ const MOBILE_PRIMARY_TABS = new Set([
 ]);
 
 const ROLE_LABELS: Record<AppRole, string> = {
-  dono: "Dono — acesso total",
+  dono: "Proprietário / Gestor",
   recepcao: "Recepcionista",
   limpeza: "Camareira / Governança",
-  cafe: "Atendente de A&B — Café da manhã",
+  cafe: "Atendente de A&B — Café",
 };
 
 const ROLE_SUBTITLES: Record<AppRole, string> = {
@@ -172,6 +182,23 @@ const ROLE_SUBTITLES: Record<AppRole, string> = {
   recepcao: "Recepção e reservas",
   limpeza: "Governança hoteleira",
   cafe: "Alimentos e bebidas",
+};
+
+const STAFF_ALLOWED_PATHS: Record<Exclude<AppRole, "dono">, string[]> = {
+  recepcao: [
+    "/painel",
+    "/mapa",
+    "/reservas",
+    "/clientes",
+    "/vendas",
+    "/reclamacoes",
+    "/mensagens",
+    "/avaliacoes",
+    "/fichas-checkin",
+    "/ajuda-sistema",
+  ],
+  limpeza: ["/painel", "/mapa", "/ajuda-sistema"],
+  cafe: ["/painel", "/mapa", "/ajuda-sistema"],
 };
 
 function Clock() {
@@ -200,6 +227,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { user } = useSession();
   const { data: role } = useRole(user);
   const { data: profile } = useProfile(user);
+  const platformAdmin = usePlatformAdmin();
   const currentCompany = useCurrentCompany();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -208,22 +236,29 @@ export function AppLayout({ children }: { children: ReactNode }) {
   });
   const [menuOpen, setMenuOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const visibleTabs = TABS.filter(
-    (tab) => !role || tab.roles.includes(role),
-  );
-  const secondaryTabs = SECONDARY_TABS.filter(
-    (tab) => !role || tab.roles.includes(role),
-  );
+  const visibleTabs = role
+    ? TABS.filter((tab) => tab.roles.includes(role))
+    : [];
+  const secondaryTabs = role
+    ? SECONDARY_TABS.filter((tab) => tab.roles.includes(role))
+    : [];
+  if (role === "dono" && platformAdmin.data) {
+    secondaryTabs.unshift(PLATFORM_ADMIN_TAB);
+  }
   const mobileTabs = visibleTabs
     .concat(secondaryTabs)
     .filter((tab) => MOBILE_PRIMARY_TABS.has(tab.to))
     .slice(0, 4);
   const showCompanySelector =
     role === "dono" && currentCompany.companies.length > 1;
-  const companyName = currentCompany.data?.nome ?? "Hotel Real";
+  const companyName = currentCompany.data?.nome ?? "Empresa não selecionada";
   const [systemSettings, setSystemSettings] = useState(() =>
     getSystemSettings(currentCompany.data?.id),
   );
+  const hotelLogo =
+    systemSettings.logo && systemSettings.logo !== "/hotel-real-logo.png"
+      ? systemSettings.logo
+      : BRAND.icon;
 
   useEffect(() => {
     const settings = getSystemSettings(currentCompany.data?.id);
@@ -237,26 +272,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
       applySystemSettings(next);
     };
     window.addEventListener("hotelreal:settings", handleSettings);
-    return () =>
+    window.addEventListener("hospedamais:settings", handleSettings);
+    return () => {
       window.removeEventListener("hotelreal:settings", handleSettings);
+      window.removeEventListener("hospedamais:settings", handleSettings);
+    };
   }, [currentCompany.data?.id]);
 
   useEffect(() => {
-    if (!role) return;
-    if (role !== "dono" && path.startsWith("/assistente")) {
-      void navigate({ to: "/ajuda-sistema", replace: true });
-    }
-    if (
-      (role === "limpeza" || role === "cafe") &&
-      (path.startsWith("/reservas") ||
-        path.startsWith("/clientes") ||
-        path.startsWith("/vendas") ||
-        path.startsWith("/reclamacoes") ||
-        path.startsWith("/mensagens"))
-    ) {
-      void navigate({ to: "/mapa", replace: true });
-    }
-  }, [navigate, path, role]);
+    if (!role || platformAdmin.isLoading) return;
+    if (isAllowedPath(role, path, platformAdmin.data === true)) return;
+    void navigate({ to: defaultPath(role), replace: true });
+  }, [navigate, path, platformAdmin.data, platformAdmin.isLoading, role]);
 
   async function signOut() {
     await queryClient.cancelQueries();
@@ -275,16 +302,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
       <div className="border-b border-white/10 px-4 py-3.5">
         <div className="flex items-center gap-2.5">
           <img
-            src={systemSettings.logo}
-            alt={companyName}
-            className="h-8 w-8 rounded-lg bg-primary object-contain p-1 shadow-lg"
+            src={BRAND.icon}
+            alt={BRAND.name}
+            className="h-9 w-9 rounded-xl shadow-lg"
           />
           <div className="min-w-0">
-            <h1 className="truncate text-sm font-extrabold text-white">
-              {companyName}
+            <h1 className="truncate text-base font-extrabold text-white">
+              {BRAND.name}
             </h1>
             <p className="text-[8px] uppercase tracking-[0.13em] text-white/50">
-              {role ? ROLE_SUBTITLES[role] : "Aguardando acesso"}
+              {platformAdmin.data
+                ? "Administração da plataforma"
+                : BRAND.tagline}
             </p>
           </div>
         </div>
@@ -292,7 +321,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         {showCompanySelector ? (
           <label className="mt-3 block">
             <span className="mb-1 block text-[11px] font-semibold uppercase text-white/70">
-              Empresa
+              Hotel em atendimento
             </span>
             <select
               className="field border-white/20 bg-white/95 text-sm text-foreground"
@@ -309,13 +338,20 @@ export function AppLayout({ children }: { children: ReactNode }) {
             </select>
           </label>
         ) : (
-          <div className="mt-3 rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-1.5">
-            <span className="block text-[11px] font-semibold uppercase text-white/65">
-              Empresa
-            </span>
-            <span className="block truncate text-sm font-semibold text-white">
-              {companyName}
-            </span>
+          <div className="mt-3 flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-2">
+            <img
+              src={hotelLogo}
+              alt="Logo do hotel"
+              className="h-7 w-7 rounded-md bg-white/90 object-contain p-0.5"
+            />
+            <div className="min-w-0">
+              <span className="block text-[9px] font-semibold uppercase text-white/55">
+                Hotel
+              </span>
+              <span className="block truncate text-xs font-semibold text-white">
+                {companyName}
+              </span>
+            </div>
           </div>
         )}
       </div>
@@ -350,8 +386,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
             {profile?.nome ?? user?.email}
           </div>
           <div className="text-[11px] text-white/65">
-            {role ? ROLE_LABELS[role] : "Aguardando liberação"}
+            {platformAdmin.data
+              ? "Administrador HospedaMais"
+              : role
+                ? ROLE_LABELS[role]
+                : "Aguardando liberação"}
           </div>
+          {role && (
+            <div className="mt-0.5 text-[9px] text-white/45">
+              {ROLE_SUBTITLES[role]}
+            </div>
+          )}
         </div>
         <button
           type="button"
@@ -420,7 +465,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     <div>
                       <strong className="block text-sm">HotelAI</strong>
                       <span className="text-[10px] opacity-80">
-                        Análises exclusivas do dono
+                        Análises exclusivas do proprietário
                       </span>
                     </div>
                   </div>
@@ -495,6 +540,18 @@ export function AppLayout({ children }: { children: ReactNode }) {
   );
 }
 
+function isAllowedPath(role: AppRole, path: string, platformAdmin: boolean) {
+  if (path.startsWith("/admin-plataforma")) return platformAdmin;
+  if (role === "dono") return true;
+  return STAFF_ALLOWED_PATHS[role].some(
+    (allowed) => path === allowed || path.startsWith(`${allowed}/`),
+  );
+}
+
+function defaultPath(role: AppRole) {
+  return role === "dono" ? "/central-estrategica" : "/mapa";
+}
+
 function NavigationLink({
   item,
   active,
@@ -516,9 +573,7 @@ function NavigationLink({
       }`}
     >
       <Icon
-        className={`h-4 w-4 ${
-          active ? "text-white" : "text-white/55"
-        }`}
+        className={`h-4 w-4 ${active ? "text-white" : "text-white/55"}`}
       />
       {item.label}
     </Link>
