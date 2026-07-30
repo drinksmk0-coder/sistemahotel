@@ -466,10 +466,7 @@ function Painel() {
             </h3>
             <PerformanceLegend />
           </div>
-          <ChartHtmlLegend
-            align="start"
-            items={[{ label: "Receita", color: "var(--pine)" }]}
-          />
+          <ChartHtmlLegend align="start" items={[{ label: "Receita", color: "var(--pine)" }]} />
           <ResponsiveContainer width="100%" height={176}>
             <BarChart data={decisionSeries} margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
@@ -655,18 +652,18 @@ function Painel() {
               items={[{ label: "Receita do quarto", color: "var(--pine)" }]}
             />
             <ResponsiveContainer width="100%" height={210}>
-            <BarChart data={receitaPorQuarto} margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="quarto" tick={{ fontSize: 11 }} />
-              <YAxis
-                tick={{ fontSize: 10 }}
-                width={62}
-                tickFormatter={(value) => formatChartValue(Number(value), true)}
-              />
-              <Tooltip formatter={(v: number) => fmtBRL(v)} />
-              <Bar dataKey="receita" name="Receita" fill="var(--pine)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+              <BarChart data={receitaPorQuarto} margin={{ left: 8, right: 12, top: 8, bottom: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="quarto" tick={{ fontSize: 11 }} />
+                <YAxis
+                  tick={{ fontSize: 10 }}
+                  width={62}
+                  tickFormatter={(value) => formatChartValue(Number(value), true)}
+                />
+                <Tooltip formatter={(v: number) => fmtBRL(v)} />
+                <Bar dataKey="receita" name="Receita" fill="var(--pine)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </>
         )}
       </div>
@@ -794,8 +791,7 @@ function OwnerCompactDashboard({
     lucro: item.receita - item.despesas,
   }));
   const activeReservations = reservations.filter(
-    (reservation) =>
-      reservation.status !== "cancelado" && reservation.status !== "manutencao",
+    (reservation) => reservation.status !== "cancelado" && reservation.status !== "manutencao",
   );
   const pending = activeReservations.reduce(
     (sum, reservation) => sum + buildGuestAccount(reservation, sales).balance,
@@ -815,10 +811,7 @@ function OwnerCompactDashboard({
     .filter((reservation) => reservation.checkout <= today)
     .map((reservation) => buildGuestAccount(reservation, sales))
     .filter((account) => account.balance > 0);
-  const checkoutDebt = checkoutDebtAccounts.reduce(
-    (sum, account) => sum + account.balance,
-    0,
-  );
+  const checkoutDebt = checkoutDebtAccounts.reduce((sum, account) => sum + account.balance, 0);
   const cleaningRooms = rooms.filter((room) => room.situacao === "limpeza").length;
   const maintenanceRooms = rooms.filter((room) => room.situacao === "manutencao").length;
 
@@ -859,10 +852,7 @@ function OwnerCompactDashboard({
       kind: "kpi",
       defaultHeight: 86,
       render: (settings) => (
-        <CompactKpi
-          label={settings.title}
-          value={`${occupancy.toFixed(1)}%`}
-        />
+        <CompactKpi label={settings.title} value={`${occupancy.toFixed(1)}%`} />
       ),
     },
     {
@@ -870,9 +860,7 @@ function OwnerCompactDashboard({
       title: "Entradas hoje",
       kind: "kpi",
       defaultHeight: 86,
-      render: (settings) => (
-        <CompactKpi label={settings.title} value={String(arrivalsToday)} />
-      ),
+      render: (settings) => <CompactKpi label={settings.title} value={String(arrivalsToday)} />,
     },
     {
       id: "departures-today",
@@ -880,9 +868,7 @@ function OwnerCompactDashboard({
       kind: "kpi",
       defaultHeight: 86,
       defaultColor: "var(--chart-3)",
-      render: (settings) => (
-        <CompactKpi label={settings.title} value={String(departuresToday)} />
-      ),
+      render: (settings) => <CompactKpi label={settings.title} value={String(departuresToday)} />,
     },
     {
       id: "free-rooms",
@@ -1123,6 +1109,7 @@ function OwnerCompactDashboard({
         widgets={orderedDashboardWidgets}
         title="Organizar painel"
         description="Mover, redimensionar ou ocultar itens."
+        hideControls
       />
     </div>
   );
@@ -1156,10 +1143,7 @@ function EditableSingleSeriesChart({
             <LabelList dataKey="value" position="outside" formatter={labelFormatter} />
           )}
           {rows.map((row, index) => (
-            <Cell
-              key={row.name}
-              fill={semanticChartColor(row.name, index, settings.color)}
-            />
+            <Cell key={row.name} fill={semanticChartColor(row.name, index, settings.color)} />
           ))}
         </Pie>
         <Tooltip formatter={tooltipFormatter} />
@@ -1188,13 +1172,7 @@ function EditableSingleSeriesChart({
         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
         <YAxis tick={{ fontSize: 9 }} tickFormatter={(value) => formatChartValue(Number(value))} />
         <Tooltip formatter={tooltipFormatter} />
-        <Line
-          type="monotone"
-          dataKey="value"
-          name="Valor"
-          stroke={settings.color}
-          strokeWidth={3}
-        >
+        <Line type="monotone" dataKey="value" name="Valor" stroke={settings.color} strokeWidth={3}>
           {settings.showLabels && (
             <LabelList dataKey="value" position="top" formatter={labelFormatter} />
           )}
@@ -1266,11 +1244,7 @@ function EditableSingleSeriesChart({
           </>
         ) : (
           <>
-            <XAxis
-              dataKey="name"
-              interval={0}
-              tick={{ fontSize: 10, fill: "var(--foreground)" }}
-            />
+            <XAxis dataKey="name" interval={0} tick={{ fontSize: 10, fill: "var(--foreground)" }} />
             <YAxis
               tick={{ fontSize: 9 }}
               tickFormatter={(value) => formatChartValue(Number(value))}
@@ -1333,7 +1307,10 @@ function EditableSingleSeriesChart({
             aria-label={`Legenda de ${settings.title}`}
           >
             {rows.map((row, index) => (
-              <div key={`${row.name}-${index}`} className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
+              <div
+                key={`${row.name}-${index}`}
+                className="flex min-w-0 items-center justify-between gap-2 text-[10px]"
+              >
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-sm"
@@ -1344,7 +1321,9 @@ function EditableSingleSeriesChart({
                   </span>
                 </span>
                 <strong className="whitespace-nowrap tabular-nums text-foreground">
-                  {total > 0 ? `${((row.value / total) * 100).toFixed(1).replace(".", ",")}%` : "0%"}
+                  {total > 0
+                    ? `${((row.value / total) * 100).toFixed(1).replace(".", ",")}%`
+                    : "0%"}
                   {currency ? ` · ${labelFormatter(row.value)}` : ""}
                 </strong>
               </div>
@@ -1391,11 +1370,7 @@ function FinancialEvolutionChart({
       <ResponsiveContainer width="100%" height={height}>
         <ComposedChart data={rows} margin={{ top: 8, right: 20, bottom: 4, left: 14 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis
-            dataKey="label"
-            interval={0}
-            tick={{ fontSize: 10, fill: "var(--foreground)" }}
-          />
+          <XAxis dataKey="label" interval={0} tick={{ fontSize: 10, fill: "var(--foreground)" }} />
           <YAxis
             width={68}
             tick={{ fontSize: 9, fill: "var(--foreground)" }}
@@ -3388,11 +3363,7 @@ function ChannelStrategy({ reservations, sales }: { reservations: Reservation[];
                         <span
                           className="h-2 w-2 rounded-full"
                           style={{
-                            backgroundColor: semanticChartColor(
-                              row.canal,
-                              index,
-                              "var(--pine)",
-                            ),
+                            backgroundColor: semanticChartColor(row.canal, index, "var(--pine)"),
                           }}
                         />
                         {row.canal}
