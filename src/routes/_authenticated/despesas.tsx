@@ -101,7 +101,10 @@ function Despesas() {
           <section className="card-surface p-3">
             <h3 className="text-sm font-extrabold text-pine-dark">Despesas por categoria</h3>
             <p className="text-[9px] text-muted-foreground">Principais centros de custo.</p>
-            <ChartHtmlLegend items={[{ label: "Despesa", color: "var(--chart-4)" }]} />
+            <ChartHtmlLegend
+              align="start"
+              items={[{ label: "Despesa por categoria", color: "var(--chart-4)" }]}
+            />
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -110,7 +113,12 @@ function Despesas() {
                   margin={{ top: 12, right: 72, left: 8, bottom: 12 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={formatCompactCurrency} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 9 }}
+                    tickFormatter={formatCompactCurrency}
+                    height={34}
+                  />
                   <YAxis
                     type="category"
                     dataKey="categoria"
@@ -139,13 +147,20 @@ function Despesas() {
           <section className="card-surface p-3">
             <h3 className="text-sm font-extrabold text-pine-dark">Evolução das despesas</h3>
             <p className="text-[9px] text-muted-foreground">Comparação mensal do histórico.</p>
-            <ChartHtmlLegend items={[{ label: "Despesa mensal", color: "var(--chart-4)" }]} />
+            <ChartHtmlLegend
+              align="start"
+              items={[{ label: "Despesa mensal", color: "var(--chart-4)" }]}
+            />
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyChart} margin={{ top: 18, right: 18, left: 0 }}>
+                <LineChart data={monthlyChart} margin={{ top: 18, right: 18, left: 12, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="mes" />
-                  <YAxis tick={{ fontSize: 9 }} tickFormatter={formatCompactCurrency} />
+                  <YAxis
+                    tick={{ fontSize: 9 }}
+                    tickFormatter={formatCompactCurrency}
+                    width={68}
+                  />
                   <Tooltip formatter={(value) => fmtBRL(Number(value))} />
                   <Line
                     type="monotone"
