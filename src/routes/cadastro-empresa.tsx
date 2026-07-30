@@ -3,8 +3,9 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getValidAuth } from "@/lib/auth";
+import { BRAND, BRAND_STORAGE_PREFIX } from "@/lib/brand";
 
-const PENDING_COMPANY_KEY = "hotel-real:pending-company";
+const PENDING_COMPANY_KEY = `${BRAND_STORAGE_PREFIX}:pending-company`;
 
 type PendingCompany = {
   empresa: string;
@@ -42,7 +43,9 @@ function CadastroEmpresa() {
       if (!mounted || !auth) return;
       setSignedIn(true);
       setEmail(auth.user.email ?? pending?.email ?? "");
-      setNome((current) => current || String(auth.user.user_metadata?.nome ?? ""));
+      setNome(
+        (current) => current || String(auth.user.user_metadata?.nome ?? ""),
+      );
     });
 
     return () => {
@@ -61,14 +64,21 @@ function CadastroEmpresa() {
           password: senha,
           options: {
             emailRedirectTo: `${window.location.origin}/cadastro-empresa?finalizar=1`,
-            data: { nome, empresa },
+            data: { nome, empresa, app: BRAND.name },
           },
         });
         if (error) throw error;
 
         if (!data.session || !data.user) {
-          savePendingCompany({ empresa, nome, email: email.trim().toLowerCase(), quartos });
-          toast.success("Conta criada. Confirme o e-mail e entre para finalizar a empresa.");
+          savePendingCompany({
+            empresa,
+            nome,
+            email: email.trim().toLowerCase(),
+            quartos,
+          });
+          toast.success(
+            "Conta criada. Confirme o e-mail e entre para finalizar a empresa.",
+          );
           await navigate({ to: "/auth" });
           return;
         }
@@ -93,7 +103,11 @@ function CadastroEmpresa() {
       const companyId = (company as unknown as { id: string }).id;
       const { error: memberError } = await supabase
         .from("company_members" as never)
-        .insert({ company_id: companyId, user_id: auth.user.id, role: "dono" } as never);
+        .insert({
+          company_id: companyId,
+          user_id: auth.user.id,
+          role: "dono",
+        } as never);
       if (memberError) throw memberError;
 
       const parsedRooms = quartos
@@ -101,24 +115,28 @@ function CadastroEmpresa() {
         .map((item) => Number(item.trim()))
         .filter((item) => Number.isFinite(item) && item > 0);
       if (parsedRooms.length) {
-        const { error: roomError } = await supabase.from("rooms" as never).insert(
-          parsedRooms.map((numero) => ({
-            company_id: companyId,
-            numero,
-            andar: Math.floor(numero / 100) || 1,
-            configuracao: "Casal",
-            preco: 0,
-            banheiro: true,
-          })) as never,
-        );
+        const { error: roomError } = await supabase
+          .from("rooms" as never)
+          .insert(
+            parsedRooms.map((numero) => ({
+              company_id: companyId,
+              numero,
+              andar: Math.floor(numero / 100) || 1,
+              configuracao: "Casal",
+              preco: 0,
+              banheiro: true,
+            })) as never,
+          );
         if (roomError) throw roomError;
       }
 
       localStorage.removeItem(PENDING_COMPANY_KEY);
-      toast.success("Empresa criada");
+      toast.success("Empresa criada na HospedaMais");
       await navigate({ to: "/mapa" });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erro ao cadastrar empresa");
+      toast.error(
+        error instanceof Error ? error.message : "Erro ao cadastrar empresa",
+      );
     } finally {
       setBusy(false);
     }
@@ -128,25 +146,46 @@ function CadastroEmpresa() {
     <div className="min-h-screen bg-gradient-to-br from-pine to-pine-dark px-4 py-10">
       <div className="mx-auto max-w-2xl">
         <div className="mb-6 text-center text-white">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-brass font-serif text-2xl font-bold text-pine-dark">
-            HR
-          </div>
-          <h1 className="font-serif text-3xl font-bold">Criar empresa</h1>
-          <p className="text-sm text-[#CFE0D5]">Comece uma conta isolada para seu hotel, pousada ou hospedagem.</p>
+          <img
+            src={BRAND.icon}
+            alt={BRAND.name}
+            className="mx-auto mb-3 h-16 w-16 rounded-2xl shadow-xl"
+          />
+          <h1 className="font-serif text-3xl font-bold">
+            Cadastrar hotel na {BRAND.name}
+          </h1>
+          <p className="text-sm text-[#CFE0D5]">
+            Crie um ambiente isolado para um hotel, pousada ou hospedagem.
+          </p>
         </div>
 
         <form onSubmit={submit} className="card-surface space-y-3 p-6">
           <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Nome da empresa">
-              <input className="field" value={empresa} onChange={(e) => setEmpresa(e.target.value)} required />
+            <Field label="Nome do hotel ou pousada">
+              <input
+                className="field"
+                value={empresa}
+                onChange={(e) => setEmpresa(e.target.value)}
+                required
+              />
             </Field>
-            <Field label="Seu nome">
-              <input className="field" value={nome} onChange={(e) => setNome(e.target.value)} required />
+            <Field label="Nome do responsável">
+              <input
+                className="field"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                required
+              />
             </Field>
           </div>
           {signedIn ? (
             <Field label="E-mail de login">
-              <input className="field bg-muted" type="email" value={email} readOnly />
+              <input
+                className="field bg-muted"
+                type="email"
+                value={email}
+                readOnly
+              />
             </Field>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
@@ -163,7 +202,7 @@ function CadastroEmpresa() {
                 <input
                   className="field"
                   type="password"
-                  minLength={6}
+                  minLength={8}
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}
                   required
@@ -171,12 +210,23 @@ function CadastroEmpresa() {
               </Field>
             </div>
           )}
-          <Field label="Numeros dos quartos iniciais">
-            <input className="field" value={quartos} onChange={(e) => setQuartos(e.target.value)} placeholder="Ex.: 101,102,103,201" />
+          <Field label="Números dos quartos iniciais">
+            <input
+              className="field"
+              value={quartos}
+              onChange={(e) => setQuartos(e.target.value)}
+              placeholder="Ex.: 101,102,103,201"
+            />
           </Field>
+          <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+            Cada hotel possui dados, equipe, reservas e configurações separados.
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <Link to="/auth" className="text-sm font-semibold text-pine hover:underline">
-              Ja tenho login
+            <Link
+              to="/auth"
+              className="text-sm font-semibold text-pine hover:underline"
+            >
+              Já tenho login
             </Link>
             <button disabled={busy} className="btn-primary" type="submit">
               {busy ? "Criando..." : "Criar empresa"}
@@ -204,7 +254,9 @@ function savePendingCompany(value: PendingCompany) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold text-muted-foreground">{label}</span>
+      <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+        {label}
+      </span>
       {children}
     </label>
   );
