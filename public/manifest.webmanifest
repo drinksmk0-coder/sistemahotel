@@ -1,39 +1,45 @@
 {
-  "name": "Hotel Real SaaS",
-  "short_name": "Hotel Real",
-  "description": "Gestao de reservas, quartos, equipe e operacao do Hotel Real.",
-  "start_url": "/painel",
+  "name": "HospedaMais — Gestão hoteleira inteligente",
+  "short_name": "HospedaMais",
+  "description": "Plataforma de gestão hoteleira para reservas, quartos, equipe, finanças e decisões estratégicas.",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f2ecdf",
-  "theme_color": "#234d38",
+  "background_color": "#f4f7fa",
+  "theme_color": "#2878e8",
   "orientation": "any",
   "icons": [
     {
-      "src": "/hotel-real-logo.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/hotel-real-logo.png",
-      "sizes": "512x512",
-      "type": "image/png",
+      "src": "/hospedamais-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ],
   "shortcuts": [
     {
-      "name": "Mapa de quartos",
-      "short_name": "Mapa",
+      "name": "Quadro de quartos",
+      "short_name": "Quartos",
       "url": "/mapa",
-      "icons": [{ "src": "/hotel-real-logo.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/hospedamais-icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
     },
     {
       "name": "Reservas",
       "short_name": "Reservas",
       "url": "/reservas",
-      "icons": [{ "src": "/hotel-real-logo.png", "sizes": "192x192" }]
+      "icons": [
+        {
+          "src": "/hospedamais-icon.svg",
+          "sizes": "any",
+          "type": "image/svg+xml"
+        }
+      ]
     }
   ]
 }
