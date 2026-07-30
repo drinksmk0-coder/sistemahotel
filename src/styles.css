@@ -388,6 +388,19 @@ html[data-dashboard-mode="tv"] .dashboard-designer-widget {
   stroke: #334155;
 }
 
+.hotel-command-dark .recharts-cartesian-axis-tick-value,
+.hotel-command-dark .recharts-polar-angle-axis-tick-value,
+.hotel-command-dark .recharts-polar-radius-axis-tick-value,
+.hotel-command-dark .recharts-label,
+.hotel-command-dark .recharts-text {
+  fill: #f8fafc !important;
+}
+
+.hotel-command-dark .recharts-cartesian-axis-line,
+.hotel-command-dark .recharts-cartesian-axis-tick-line {
+  stroke: #64748b !important;
+}
+
 .hotel-command-dark .recharts-default-tooltip {
   background: #111827 !important;
   border-color: #52647f !important;
