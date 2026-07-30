@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Upload } from "lucide-react";
 import { readSheet } from "read-excel-file/browser";
 import { Modal } from "@/components/ui-kit";
-import { nightsBetween } from "@/lib/format";
+import { hotelOperationalDateISO, nightsBetween } from "@/lib/format";
 import type { Room } from "@/lib/data";
 import type { ReservaRow } from "@/components/ReservaForm";
 
@@ -108,6 +108,7 @@ function parseRows(sheet: Cell[][], rooms: Room[]) {
   }
   const get = (source: Cell[], key: string) => source[column(headers, key)];
   const errors: string[] = [];
+  const dataReserva = hotelOperationalDateISO();
   const rows = sheet.slice(1).flatMap((source, index) => {
     const quarto = numeric(get(source, "quarto"));
     const nome = text(get(source, "nome"));
@@ -152,6 +153,7 @@ function parseRows(sheet: Cell[][], rooms: Room[]) {
         cliente_estado_civil: text(get(source, "estadoCivil")) || null,
         cliente_tem_filhos: null,
         cliente_quantidade_filhos: null,
+        data_reserva: dataReserva,
         checkin,
         checkout,
         horario_reserva: null,
