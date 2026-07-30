@@ -1,16 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import {
-  BedDouble,
-  CalendarDays,
-  CheckCircle2,
-  LayoutGrid,
-  MessageCircle,
-  Plus,
-  Rows3,
-  UsersRound,
-} from "lucide-react";
+import { CalendarDays, LayoutGrid, MessageCircle, Plus, Rows3 } from "lucide-react";
 import {
   useRooms,
   useClients,
@@ -32,7 +23,6 @@ import {
 import { fmtBRL, fmtDate, fmtTime, todayISO } from "@/lib/format";
 import { complaintLabel } from "@/lib/constants";
 import { buildGuestAccount } from "@/lib/guest-account";
-import { PageHeader } from "@/components/AppLayout";
 import { Modal, Badge } from "@/components/ui-kit";
 import { ReservaForm, type ReservaRow } from "@/components/ReservaForm";
 import { RoomTimeline } from "@/components/RoomTimeline";
@@ -232,127 +222,114 @@ function Mapa() {
 
   return (
     <div>
-      <PageHeader
-        title="Mapa de quartos"
-        subtitle="Visualize ocupação, disponibilidade e pagamentos em uma linha do tempo. Clique em um dia livre para criar uma reserva."
-        action={
-          <div className="flex rounded-xl border border-border bg-card p-1 shadow-sm">
-            <button
-              type="button"
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition ${
-                viewMode === "timeline"
-                  ? "bg-pine text-white shadow"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-              onClick={() => setViewMode("timeline")}
-            >
-              <Rows3 className="h-4 w-4" />
-              Linha do tempo
-            </button>
-            <button
-              type="button"
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold transition ${
-                viewMode === "cards"
-                  ? "bg-pine text-white shadow"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-              onClick={() => setViewMode("cards")}
-            >
-              <LayoutGrid className="h-4 w-4" />
-              Cards
-            </button>
-          </div>
-        }
-      />
+      <section className="mb-1.5 rounded-lg border border-border bg-card px-2 py-1.5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <h1 className="mr-auto text-base font-bold text-pine-dark">Mapa de quartos</h1>
+          <button
+            type="button"
+            className={`inline-flex items-center gap-1 text-[10px] font-bold ${
+              viewMode === "timeline" ? "text-primary" : "text-muted-foreground"
+            }`}
+            onClick={() => setViewMode("timeline")}
+          >
+            <Rows3 className="h-3.5 w-3.5" /> Linha do tempo
+          </button>
+          <span className="text-border">|</span>
+          <button
+            type="button"
+            className={`inline-flex items-center gap-1 text-[10px] font-bold ${
+              viewMode === "cards" ? "text-primary" : "text-muted-foreground"
+            }`}
+            onClick={() => setViewMode("cards")}
+          >
+            <LayoutGrid className="h-3.5 w-3.5" /> Cards
+          </button>
+        </div>
 
-      <section className="mb-2 rounded-xl border border-border bg-card p-2 shadow-sm">
-        <div className="flex flex-col gap-2 xl:flex-row xl:items-end">
-          <label className="text-[10px] font-semibold text-muted-foreground">
-            Data consultada
-            <div className="relative mt-1">
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 border-t border-border/60 pt-1.5">
+          <label className="relative">
+            <span className="sr-only">Data consultada</span>
+            <div className="relative">
               <CalendarDays className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-primary" />
               <input
                 type="date"
                 value={viewDate}
                 onChange={(event) => setViewDate(event.target.value || today)}
-                className="field h-9 min-w-[180px] bg-white py-1 pl-8 text-xs text-pine-dark"
+                className="field h-8 w-[148px] bg-white py-1 pl-8 text-[10px] text-pine-dark"
               />
             </div>
           </label>
-          <div className="grid flex-1 grid-cols-3 gap-1 text-[10px] sm:grid-cols-6">
-            <AvailabilityCount
-              icon={<CheckCircle2 />}
-              label="Disponíveis"
-              value={dateSummary.available}
-              emphasis
-            />
-            <AvailabilityCount icon={<BedDouble />} label="Ocupados" value={dateSummary.occupied} />
-            <AvailabilityCount
-              icon={<CalendarDays />}
-              label="Reservados"
-              value={dateSummary.reserved}
-            />
-            <AvailabilityCount
-              icon={<UsersRound />}
-              label="Entradas"
-              value={dateSummary.arrivals}
-            />
-            <AvailabilityCount
-              icon={<UsersRound />}
-              label="Saídas"
-              value={dateSummary.departures}
-            />
-            <AvailabilityCount icon={<BedDouble />} label="Limpeza" value={dateSummary.cleaning} />
-          </div>
-          <label className="text-[10px] font-semibold text-muted-foreground">
-            Buscar UH
+          {[
+            ["Disponíveis", dateSummary.available, "text-sage"],
+            ["Ocupados", dateSummary.occupied, "text-pine"],
+            ["Reservados", dateSummary.reserved, "text-primary"],
+            ["Entradas", dateSummary.arrivals, "text-foreground"],
+            ["Saídas", dateSummary.departures, "text-foreground"],
+            ["Limpeza", dateSummary.cleaning, "text-brass"],
+          ].map(([label, value, color]) => (
+            <button
+              key={String(label)}
+              type="button"
+              className="whitespace-nowrap rounded px-1.5 py-1 text-[9px] text-muted-foreground hover:bg-muted"
+              onClick={() => label === "Disponíveis" && setStatusFilter("livre")}
+            >
+              {label} <strong className={String(color)}>{String(value)}</strong>
+            </button>
+          ))}
+
+          <label className="relative ml-auto">
+            <span className="sr-only">Buscar UH</span>
             <input
-              className="field mt-1 h-9 w-28 py-1 text-xs"
+              className="field h-8 w-24 py-1 text-[10px]"
               inputMode="numeric"
-              placeholder="Ex.: 102"
+              placeholder="Buscar UH"
               value={roomSearch}
               onChange={(event) => setRoomSearch(event.target.value.replace(/\D/g, ""))}
             />
           </label>
-          <div className="flex gap-1">
+          {roomSearch && searchedRoom && (
             <button
               type="button"
-              className="btn-primary h-9 px-2.5 text-[10px]"
-              disabled={!searchedRoom}
-              onClick={() => searchedRoom && setSelected(searchedRoom)}
+              className="text-[10px] font-bold text-primary"
+              onClick={() => setSelected(searchedRoom)}
             >
-              Abrir
-            </button>
-            {roomSearch && (
-              <button
-                type="button"
-                className="btn-ghost h-9 px-2 text-[10px]"
-                onClick={() => setRoomSearch("")}
-              >
-                Limpar busca
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-2 border-t border-border/70 pt-1.5 text-[10px]">
-          {dateSummary.available === 0 ? (
-            <strong className="rounded-md bg-brick-bg px-2 py-1 text-brick">
-              Lotação completa em {fmtDate(viewDate)}
-            </strong>
-          ) : (
-            <button
-              type="button"
-              className="rounded-md bg-sage-bg px-2 py-1 font-bold text-pine-dark"
-              onClick={() => setStatusFilter("livre")}
-            >
-              {dateSummary.available}/{rooms.length} disponíveis · mostrar livres
+              Abrir {searchedRoom.numero}
             </button>
           )}
-          {viewDate !== today && (
-            <span className="text-muted-foreground">
-              Saídas aparecem como limpeza prevista antes de nova venda.
-            </span>
-          )}
+
+          <select
+            className="field h-8 w-auto py-1 text-[10px] font-semibold"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            aria-label="Filtrar quartos por situação"
+          >
+            {[
+              ["todos", "Todos"],
+              ["livre", "Livres"],
+              ["hospedado_pago", "Quitados"],
+              ["hospedado_debito", "Em débito"],
+              ["sinal_pago", "Sinal pago"],
+              ["reservado", "Reservados"],
+              ["limpeza", "Limpeza"],
+            ].map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <details className="group relative">
+            <summary className="cursor-pointer list-none text-[10px] font-semibold text-primary">
+              Legenda
+            </summary>
+            <div className="absolute right-0 top-6 z-30 grid w-[min(320px,85vw)] gap-1.5 rounded-lg border border-border bg-card p-2 text-[10px] shadow-2xl">
+              {Object.entries(STATUS_STYLE).map(([key, style]) => (
+                <span key={key} className="flex items-center gap-2">
+                  <span className={`inline-block h-2.5 w-2.5 rounded ${style.bg.split(" ")[0]}`} />
+                  {style.label}
+                </span>
+              ))}
+            </div>
+          </details>
         </div>
         {roomSearch && searchedRoom && (
           <RoomSearchSummary
@@ -373,46 +350,6 @@ function Mapa() {
           </p>
         )}
       </section>
-
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <select
-          className="field h-9 w-auto min-w-[180px] py-1 text-xs font-semibold"
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
-          aria-label="Filtrar quartos por situação"
-        >
-          {[
-          ["todos", "Todos"],
-          ["livre", "Só livres"],
-          ["hospedado_pago", "Hospedado quitado"],
-          ["hospedado_debito", "Hospedado em débito"],
-          ["sinal_pago", "Sinal pago"],
-          ["reservado", "Reservados"],
-          ["limpeza", "Limpeza"],
-          ].map(([value, label]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <details className="group relative">
-          <summary className="cursor-pointer list-none rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-pine-dark shadow-sm">
-            Legenda e cores
-          </summary>
-          <div className="absolute left-0 top-11 z-30 grid w-[min(360px,85vw)] gap-2 rounded-xl border border-border bg-card p-3 text-xs shadow-2xl">
-            {Object.entries(STATUS_STYLE).map(([key, style]) => (
-              <span key={key} className="flex items-center gap-2">
-                <span className={`inline-block h-3 w-3 rounded ${style.bg.split(" ")[0]}`} />
-                {style.label}
-              </span>
-            ))}
-            <span className="flex items-center gap-2 border-t border-border pt-2">
-              <span className="inline-block h-3 w-3 rounded bg-brick" />
-              Cor mais intensa = reclamações abertas
-            </span>
-          </div>
-        </details>
-      </div>
 
       {viewMode === "timeline" ? (
         <RoomTimeline
@@ -811,34 +748,6 @@ function MiniCount({ label, value }: { label: string; value: number }) {
     <div className="rounded-md border border-border bg-background px-3 py-2">
       <p className="text-[10px] font-semibold uppercase text-muted-foreground">{label}</p>
       <p className="font-serif text-lg font-bold leading-tight text-pine-dark">{value}</p>
-    </div>
-  );
-}
-
-function AvailabilityCount({
-  icon,
-  label,
-  value,
-  emphasis = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  emphasis?: boolean;
-}) {
-  return (
-    <div
-      className={`min-w-[78px] rounded-lg border px-2 py-1.5 ${
-        emphasis
-          ? "border-primary/25 bg-primary/10 text-pine-dark"
-          : "border-border bg-muted text-pine-dark"
-      }`}
-    >
-      <div className="flex items-center gap-1 opacity-80">
-        <span className="[&>svg]:h-3 [&>svg]:w-3">{icon}</span>
-        <span className="text-[8px] font-bold uppercase tracking-wide">{label}</span>
-      </div>
-      <p className="mt-0.5 font-serif text-base font-bold leading-none">{value}</p>
     </div>
   );
 }
