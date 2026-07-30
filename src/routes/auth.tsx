@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { getValidAuth } from "@/lib/auth";
+import { BRAND } from "@/lib/brand";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -22,14 +23,16 @@ function AuthPage() {
 
   useEffect(() => {
     let mounted = true;
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!mounted) return;
-      if (event === "PASSWORD_RECOVERY" && session) {
-        setTrocaSenha(true);
-        setRecuperarSenha(false);
-        setCheckingSession(false);
-      }
-    });
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (!mounted) return;
+        if (event === "PASSWORD_RECOVERY" && session) {
+          setTrocaSenha(true);
+          setRecuperarSenha(false);
+          setCheckingSession(false);
+        }
+      },
+    );
 
     void getValidAuth().then(async (auth) => {
       if (!mounted) return;
@@ -62,7 +65,9 @@ function AuthPage() {
         password: senha,
       });
       if (error) throw error;
-      if (!data.session || !data.user) throw new Error("Não foi possível iniciar sua sessão.");
+      if (!data.session || !data.user) {
+        throw new Error("Não foi possível iniciar sua sessão.");
+      }
       await navigate({ to: "/mapa", replace: true });
     } catch (err) {
       toast.error(authErrorMessage(err));
@@ -76,9 +81,12 @@ function AuthPage() {
     setBusy(true);
     try {
       const normalizedEmail = email.trim().toLowerCase();
-      const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: `${window.location.origin}/auth?redefinir=1`,
-      });
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        normalizedEmail,
+        {
+          redirectTo: `${window.location.origin}/auth?redefinir=1`,
+        },
+      );
       if (error) throw error;
       toast.success(
         "Se o e-mail estiver cadastrado, enviaremos um link para criar uma nova senha.",
@@ -86,19 +94,13 @@ function AuthPage() {
       setRecuperarSenha(false);
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Não foi possível enviar o link de recuperação.",
+        err instanceof Error
+          ? err.message
+          : "Não foi possível enviar o link de recuperação.",
       );
     } finally {
       setBusy(false);
     }
-  }
-
-  if (checkingSession) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-pine to-pine-dark px-4">
-        <p className="text-sm font-semibold text-white">Verificando sua sessão…</p>
-      </div>
-    );
   }
 
   async function finishInvite(e: React.FormEvent) {
@@ -114,27 +116,43 @@ function AuthPage() {
       toast.success("Nova senha salva. Acesso liberado.");
       navigate({ to: "/mapa", replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro ao confirmar convite");
+      toast.error(
+        err instanceof Error ? err.message : "Erro ao confirmar convite",
+      );
     } finally {
       setBusy(false);
     }
+  }
+
+  if (checkingSession) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-pine to-pine-dark px-4">
+        <p className="text-sm font-semibold text-white">
+          Verificando sua sessão…
+        </p>
+      </div>
+    );
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-pine to-pine-dark px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-6 text-center text-white">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-brass font-serif text-2xl font-bold text-pine-dark">
-            PR
-          </div>
-          <h1 className="font-serif text-2xl font-bold">Pousada Real Cruzília</h1>
-          <p className="text-sm text-[#CFE0D5]">Painel de operação da equipe</p>
+          <img
+            src={BRAND.icon}
+            alt={BRAND.name}
+            className="mx-auto mb-3 h-16 w-16 rounded-2xl shadow-xl"
+          />
+          <h1 className="font-serif text-3xl font-bold">{BRAND.name}</h1>
+          <p className="text-sm text-[#CFE0D5]">{BRAND.tagline}</p>
         </div>
         <div className="card-surface p-6">
           {trocaSenha ? (
             <form onSubmit={finishInvite} className="space-y-3">
               <div>
-                <h2 className="font-serif text-xl font-bold text-pine-dark">Criar nova senha</h2>
+                <h2 className="font-serif text-xl font-bold text-pine-dark">
+                  Criar nova senha
+                </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Use pelo menos 8 caracteres e não reutilize a senha do e-mail.
                 </p>
@@ -172,10 +190,12 @@ function AuthPage() {
           ) : recuperarSenha ? (
             <form onSubmit={requestPasswordReset} className="space-y-3">
               <div>
-                <h2 className="font-serif text-xl font-bold text-pine-dark">Recuperar senha</h2>
+                <h2 className="font-serif text-xl font-bold text-pine-dark">
+                  Recuperar senha
+                </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Informe o e-mail usado no cadastro. Você receberá um link seguro para criar outra
-                  senha.
+                  Informe o e-mail usado no cadastro. Você receberá um link
+                  seguro para criar outra senha.
                 </p>
               </div>
               <Field label="E-mail">
@@ -206,6 +226,14 @@ function AuthPage() {
             </form>
           ) : (
             <form onSubmit={submit} className="space-y-3">
+              <div>
+                <h2 className="font-serif text-xl font-bold text-pine-dark">
+                  Entrar na plataforma
+                </h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Use o e-mail cadastrado ou o convite recebido pela sua equipe.
+                </p>
+              </div>
               <Field label="E-mail">
                 <input
                   type="email"
@@ -244,19 +272,10 @@ function AuthPage() {
               </button>
             </form>
           )}
-          {!trocaSenha && (
-            <>
-              <div className="mt-4 text-center">
-                <a
-                  href="/cadastro-empresa"
-                  className="text-sm font-semibold text-pine hover:underline"
-                >
-                  Criar conta para minha empresa
-                </a>
-              </div>
-            </>
-          )}
         </div>
+        <p className="mt-4 text-center text-[11px] text-white/65">
+          Acesso individual e protegido por função.
+        </p>
       </div>
     </div>
   );
@@ -265,7 +284,9 @@ function AuthPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-semibold text-muted-foreground">{label}</span>
+      <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+        {label}
+      </span>
       {children}
     </label>
   );
