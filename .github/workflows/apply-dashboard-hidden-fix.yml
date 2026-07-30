@@ -1,0 +1,75 @@
+name: Apply dashboard hidden-widget fix
+
+on:
+  pull_request:
+    branches:
+      - agent/reforma-dashboards-integracoes
+    types: [reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.head_ref == 'agent/corrigir-layout-oculto-painel'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout correction branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/corrigir-layout-oculto-painel
+          path: head
+
+      - name: Apply correction
+        working-directory: head
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/components/DashboardDesigner.tsx')
+          text = path.read_text(encoding='utf-8')
+          old = '''          const settings = fixed
+            ? {
+                ...defaultSettings(widget),
+                showLegend: widget.kind === "chart",
+                showLabels: false,
+              }
+            : (layout.widgets[widget.id] ?? defaultSettings(widget));
+          if (settings.hidden && !editing) return null;
+'''
+          new = '''          const storedSettings = fixed
+            ? {
+                ...defaultSettings(widget),
+                showLegend: widget.kind === "chart",
+                showLabels: false,
+              }
+            : (layout.widgets[widget.id] ?? defaultSettings(widget));
+          const settings = hideControls
+            ? { ...storedSettings, hidden: false }
+            : storedSettings;
+          if (settings.hidden && !editing) return null;
+'''
+          if old not in text:
+              raise SystemExit('Expected DashboardDesigner block was not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/DashboardDesigner.tsx
+          git commit -m "corrigir widgets ocultos no painel operacional"
+          git push origin HEAD:agent/corrigir-layout-oculto-painel
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/reforma-dashboards-integracoes
+          path: base
+
+      - name: Remove temporary workflow
+        working-directory: base
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/apply-dashboard-hidden-fix.yml
+          git commit -m "remover automação temporária de correção"
+          git push origin HEAD:agent/reforma-dashboards-integracoes
