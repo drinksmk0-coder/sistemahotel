@@ -82,14 +82,24 @@ Deno.serve(async (request) => {
         ? configuredModel
         : "gemini-3.5-flash";
     if (body.mode === "design") {
-      const design = await generateVisualDesign(
-        geminiKey,
-        model,
-        body.current_settings ?? {},
-      );
+      const currentSettings = body.current_settings ?? {};
+      let design: ReturnType<typeof fallbackVisualDesign>;
+      let degraded = false;
+      let warning = "";
+      try {
+        design = await generateVisualDesign(geminiKey, model, currentSettings);
+      } catch (error) {
+        degraded = true;
+        warning =
+          error instanceof Error ? error.message : "O Gemini não retornou uma proposta válida.";
+        console.error("Gemini Designer fallback", { model, warning });
+        design = fallbackVisualDesign(currentSettings, warning);
+      }
       return json({
         design,
         model,
+        degraded,
+        warning: degraded ? warning : undefined,
         generated_at: new Date().toISOString(),
         privacy: "Somente metadados visuais; nenhum dado de hóspede foi enviado.",
       });
@@ -284,8 +294,65 @@ Retorne exatamente este formato:
     );
   }
   const rawText = extractGeminiText(payload);
-  const parsed = JSON.parse(rawText) as RecordRow;
+  if (!rawText) throw new Error("O Gemini não retornou conteúdo para o designer.");
+  const jsonText = rawText
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  let parsed: RecordRow;
+  try {
+    parsed = JSON.parse(jsonText) as RecordRow;
+  } catch {
+    throw new Error("O Gemini retornou uma proposta visual incompleta.");
+  }
   return normalizeVisualDesign(parsed, currentSettings);
+}
+
+function fallbackVisualDesign(current: RecordRow, reason = "") {
+  const theme = oneOf(current.theme, ["light", "soft", "dark"], "soft");
+  const dark = theme === "dark";
+  return normalizeVisualDesign(
+    {
+      system: {
+        primaryColor: current.primaryColor,
+        accentColor: current.accentColor,
+        backgroundColor: current.backgroundColor,
+        surfaceColor: current.surfaceColor,
+        textColor: current.textColor,
+        theme,
+        backgroundStyle: current.backgroundStyle,
+        surfaceOpacity: current.surfaceOpacity,
+        chartSurfaceOpacity: current.chartSurfaceOpacity,
+        borderRadius: current.borderRadius,
+        uiScale: current.uiScale,
+        glassEffect: current.glassEffect,
+        shadows: current.shadows,
+        chartPalette: current.chartPalette,
+      },
+      profile: {
+        density: "compacta",
+        kpi: { columns: 2, height: 104, fontSize: 88, contentScale: 100 },
+        chart: { columns: 6, height: 284, fontSize: 92, contentScale: 100 },
+        content: { columns: 6, height: 280, fontSize: 92, contentScale: 100 },
+        chartTypes: {
+          trend: "line",
+          comparison: "composed",
+          composition: "doughnut",
+          ranking: "horizontalBar",
+        },
+        showLegend: true,
+        showLabels: true,
+        autoFit: true,
+        diagnostics: reason
+          ? [`Gemini indisponível: ${reason.slice(0, 220)}`]
+          : ["Configuração visual segura aplicada."],
+        explanation: dark
+          ? "Tema escuro preservado com contraste e legibilidade."
+          : "Tema claro preservado com contraste e legibilidade.",
+      },
+    },
+    current,
+  );
 }
 
 function normalizeVisualDesign(value: RecordRow, current: RecordRow) {

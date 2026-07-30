@@ -219,7 +219,17 @@ function SystemCustomization({ companyId }: { companyId: string }) {
           },
         },
       });
-      if (error) throw error;
+      if (error) {
+        let message = error.message;
+        const context = "context" in error ? error.context : null;
+        if (context instanceof Response) {
+          const payload = (await context.clone().json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          message = payload?.error || message;
+        }
+        throw new Error(message);
+      }
       if (!data?.design?.system || !data?.design?.profile) {
         throw new Error("O Gemini não retornou uma proposta visual válida.");
       }
@@ -227,7 +237,11 @@ function SystemCustomization({ companyId }: { companyId: string }) {
         system: data.design.system as Partial<SystemSettings>,
         profile: normalizeAiDesignProfile(data.design.profile),
       });
-      toast.success("Análise visual concluída. Confira a prévia antes de aplicar.");
+      toast.success(
+        data.degraded
+          ? "Proposta segura preparada. O Gemini estava indisponível; confira antes de aplicar."
+          : "Análise visual concluída. Confira a prévia antes de aplicar.",
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Falha ao consultar o designer Gemini.");
     } finally {

@@ -183,9 +183,12 @@ export function saveSystemSettings(companyId: string | null | undefined, setting
 export function applySystemSettings(settings: SystemSettings) {
   const root = document.documentElement;
   const dark = settings.theme === "dark";
-  const background = dark ? "#171b19" : settings.backgroundColor;
-  const surface = dark ? "#212723" : settings.surfaceColor;
-  const text = dark ? "#f2f4f2" : settings.textColor;
+  // The selected/Gemini colors are the source of truth in every theme.
+  // Previously dark mode replaced these values with fixed colors, so changing
+  // background, cards and text appeared to do nothing.
+  const background = settings.backgroundColor;
+  const surface = settings.surfaceColor;
+  const text = settings.textColor;
   const surfaceOpacity = clamp(settings.surfaceOpacity ?? 96, 35, 100);
   const chartSurfaceOpacity = clamp(settings.chartSurfaceOpacity ?? 100, 35, 100);
   const radius = clamp(settings.borderRadius ?? 12, 0, 28);
