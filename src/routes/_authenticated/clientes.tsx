@@ -110,7 +110,7 @@ function Clientes() {
   async function deactivateSelected() {
     if (
       !window.confirm(
-        `Desativar ${selectedIds.length} cliente(s)? O histórico de reservas será mantido.`,
+        `Desativar ${selectedActiveCount} cliente(s)? O histórico de reservas será mantido.`,
       )
     )
       return;
@@ -136,7 +136,10 @@ function Clientes() {
       await Promise.all(
         selectedClients.map((client) =>
           isClientDisabled(client)
-            ? update.mutateAsync({ id: client.id, patch: { ativo: true } })
+            ? update.mutateAsync({
+                id: client.id,
+                patch: { ativo: true, tipo: activeClientType(client.tipo) },
+              })
             : Promise.resolve(),
         ),
       );
@@ -415,7 +418,12 @@ function Clientes() {
                         if (!window.confirm(`${disabling ? "Desativar" : "Reativar"} ${c.nome}?`))
                           return;
                         update.mutate(
-                          { id: c.id, patch: { ativo: !disabling } },
+                          {
+                            id: c.id,
+                            patch: disabling
+                              ? { ativo: false }
+                              : { ativo: true, tipo: activeClientType(c.tipo) },
+                          },
                           {
                             onSuccess: () =>
                               toast.success(disabling ? "Cliente desativado" : "Cliente reativado"),
@@ -588,6 +596,11 @@ function printGuestVoucher(client: Client, reservation?: Reservation) {
 
 function isClientDisabled(client: Client) {
   return client.ativo === false || client.tipo.startsWith("desativado:");
+}
+
+function activeClientType(type: string) {
+  const restored = type.replace(/^desativado:/, "").trim();
+  return restored || CLIENT_TYPES[0];
 }
 
 function ClientForm({
