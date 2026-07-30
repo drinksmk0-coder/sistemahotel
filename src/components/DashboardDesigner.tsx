@@ -29,12 +29,7 @@ import {
 export type DashboardChartType =
   "bar" | "horizontalBar" | "line" | "area" | "pie" | "doughnut" | "radar" | "composed";
 
-export type DashboardDataRole =
-  | "temporal"
-  | "ranking"
-  | "weekday"
-  | "distribution"
-  | "comparison";
+export type DashboardDataRole = "temporal" | "ranking" | "weekday" | "distribution" | "comparison";
 
 export type DashboardWidgetSettings = {
   id: string;
@@ -102,9 +97,15 @@ function dashboardDataRole(widget: DashboardWidget): DashboardDataRole {
     return "distribution";
   }
   if (
-    ["ranking", "maiores", "categoria", "reclamacao", "profissao", "por quarto", "por cliente"].some(
-      (term) => title.includes(term),
-    )
+    [
+      "ranking",
+      "maiores",
+      "categoria",
+      "reclamacao",
+      "profissao",
+      "por quarto",
+      "por cliente",
+    ].some((term) => title.includes(term))
   ) {
     return "ranking";
   }
@@ -154,16 +155,15 @@ function constrainWidgetSettings(
   const isExpenseRanking = title.includes("despesas por categoria");
   return {
     ...settings,
-    columns:
-      isFinancialHero
-        ? 12
-        : isWeeklyOccupancy || isExpenseRanking
-          ? 6
-          : role === "temporal"
-        ? Math.max(8, settings.columns)
-        : role === "distribution"
-          ? Math.min(4, settings.columns)
-          : settings.columns,
+    columns: isFinancialHero
+      ? 12
+      : isWeeklyOccupancy || isExpenseRanking
+        ? 6
+        : role === "temporal"
+          ? Math.max(8, settings.columns)
+          : role === "distribution"
+            ? Math.min(4, settings.columns)
+            : settings.columns,
     height: Math.max(minimumWidgetHeight(widget), settings.height),
     chartType:
       allowed.length && !allowed.includes(settings.chartType) ? allowed[0] : settings.chartType,
@@ -187,12 +187,12 @@ function defaultSettings(widget: DashboardWidget): DashboardWidgetSettings {
   const allowedTypes = allowedChartTypes(widget);
   const defaultColumns =
     widget.kind !== "chart"
-      ? widget.defaultColumns ?? (widget.kind === "kpi" ? 2 : 6)
+      ? (widget.defaultColumns ?? (widget.kind === "kpi" ? 2 : 6))
       : role === "temporal"
         ? Math.max(8, widget.defaultColumns ?? 8)
         : role === "distribution"
           ? Math.min(4, widget.defaultColumns ?? 4)
-          : widget.defaultColumns ?? 6;
+          : (widget.defaultColumns ?? 6);
   return constrainWidgetSettings(widget, {
     id: widget.id,
     title: widget.title,
@@ -281,14 +281,14 @@ function applyAiDesignProfile(
         );
         const columns =
           widget.kind === "kpi"
-            ? widget.defaultColumns ?? preset.columns
+            ? (widget.defaultColumns ?? preset.columns)
             : needsWideView
               ? 12
-              : widget.defaultColumns ?? preset.columns;
+              : (widget.defaultColumns ?? preset.columns);
         const height =
           title.includes("mapa") || title.includes("perfil dos hospedes")
             ? Math.max(400, widget.defaultHeight ?? preset.height)
-            : widget.defaultHeight ?? preset.height;
+            : (widget.defaultHeight ?? preset.height);
         return [
           widget.id,
           constrainWidgetSettings(widget, {
@@ -304,9 +304,7 @@ function applyAiDesignProfile(
             showLabels: widget.kind === "chart" ? profile.showLabels : settings.showLabels,
             showAccentBorder: false,
             chartType:
-              widget.kind === "chart"
-                ? recommendedChartType(widget, profile)
-                : settings.chartType,
+              widget.kind === "chart" ? recommendedChartType(widget, profile) : settings.chartType,
           }),
         ];
       }),
@@ -321,6 +319,7 @@ export function DashboardDesigner({
   title = "Dashboard personalizável",
   description = "Arraste, redimensione e monte sua própria visão",
   fixed = false,
+  hideControls = false,
 }: {
   companyId?: string | null;
   dashboardId: string;
@@ -328,6 +327,7 @@ export function DashboardDesigner({
   title?: string;
   description?: string;
   fixed?: boolean;
+  hideControls?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -631,46 +631,48 @@ export function DashboardDesigner({
 
   return (
     <section className="space-y-3">
-      {!fixed && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
-        <div className="flex items-center gap-2">
-          <LayoutDashboard className="h-4 w-4 text-brass" />
-          <div>
-            <p className="text-xs font-bold text-pine-dark">{title}</p>
-            <p className="text-[10px] text-muted-foreground">{description}</p>
+      {!fixed && !hideControls && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 shadow-sm">
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="h-4 w-4 text-brass" />
+            <div>
+              <p className="text-xs font-bold text-pine-dark">{title}</p>
+              <p className="text-[10px] text-muted-foreground">{description}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {editing && (
+              <>
+                <button
+                  type="button"
+                  className="btn-ghost flex items-center gap-1 text-xs"
+                  onClick={reset}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Restaurar
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary flex items-center gap-1 text-xs"
+                  onClick={save}
+                >
+                  <Save className="h-3.5 w-3.5" /> Salvar layout
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              className="btn-ghost flex items-center gap-1 text-xs"
+              onClick={() => {
+                setEditing((value) => !value);
+                setSelectedId(null);
+              }}
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+              {editing ? "Fechar edição" : "Personalizar"}
+            </button>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {editing && (
-            <>
-              <button
-                type="button"
-                className="btn-ghost flex items-center gap-1 text-xs"
-                onClick={reset}
-              >
-                <RotateCcw className="h-3.5 w-3.5" /> Restaurar
-              </button>
-              <button
-                type="button"
-                className="btn-primary flex items-center gap-1 text-xs"
-                onClick={save}
-              >
-                <Save className="h-3.5 w-3.5" /> Salvar layout
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            className="btn-ghost flex items-center gap-1 text-xs"
-            onClick={() => {
-              setEditing((value) => !value);
-              setSelectedId(null);
-            }}
-          >
-            <Settings2 className="h-3.5 w-3.5" />
-            {editing ? "Fechar edição" : "Personalizar"}
-          </button>
-        </div>
-      </div>}
+      )}
 
       {!fixed && editing && (
         <EditorPanel
@@ -690,7 +692,7 @@ export function DashboardDesigner({
                 showLegend: widget.kind === "chart",
                 showLabels: false,
               }
-            : layout.widgets[widget.id] ?? defaultSettings(widget);
+            : (layout.widgets[widget.id] ?? defaultSettings(widget));
           if (settings.hidden && !editing) return null;
           const defaultHeight = widget.defaultHeight ?? (widget.kind === "kpi" ? 110 : 290);
           const defaultColumns = widget.defaultColumns ?? (widget.kind === "kpi" ? 2 : 6);
@@ -745,17 +747,17 @@ export function DashboardDesigner({
               style={wrapperStyle}
             >
               {editing && (
-                  <button
-                    type="button"
-                    onPointerDown={(event) => startDragging(event, widget.id)}
-                    onClick={() => setSelectedId(widget.id)}
-                    className="absolute left-1 top-1 z-30 flex touch-none cursor-grab items-center gap-1 rounded-md border border-border bg-card/95 px-1.5 py-1 text-[9px] font-bold text-pine-dark shadow active:cursor-grabbing"
-                    aria-label={`Selecionar e mover ${settings.title}`}
-                    title="Segure e arraste com o mouse"
-                  >
-                    <GripVertical className="h-3.5 w-3.5" />
-                    <span className="max-w-24 truncate">{settings.title}</span>
-                  </button>
+                <button
+                  type="button"
+                  onPointerDown={(event) => startDragging(event, widget.id)}
+                  onClick={() => setSelectedId(widget.id)}
+                  className="absolute left-1 top-1 z-30 flex touch-none cursor-grab items-center gap-1 rounded-md border border-border bg-card/95 px-1.5 py-1 text-[9px] font-bold text-pine-dark shadow active:cursor-grabbing"
+                  aria-label={`Selecionar e mover ${settings.title}`}
+                  title="Segure e arraste com o mouse"
+                >
+                  <GripVertical className="h-3.5 w-3.5" />
+                  <span className="max-w-24 truncate">{settings.title}</span>
+                </button>
               )}
               <div className="h-full overflow-hidden rounded-[inherit]">
                 <div className="dashboard-designer-content h-full min-w-0" style={contentStyle}>
@@ -812,8 +814,14 @@ function EditorPanel({
           value={settings?.id ?? ""}
           onChange={(event) => onSelect(event.target.value)}
         >
-          <option value="" disabled>Selecione um card ou gráfico</option>
-          {widgets.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+          <option value="" disabled>
+            Selecione um card ou gráfico
+          </option>
+          {widgets.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.title}
+            </option>
+          ))}
         </select>
         <span className="text-[10px] text-muted-foreground">
           Os controles ficam aqui para não cobrir os dados. Arraste pela alça do item.
@@ -823,9 +831,19 @@ function EditorPanel({
       {widget && settings ? (
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
           <EditorField label="Título" wide>
-            <input className="field h-8 py-1 text-xs" value={settings.title} onChange={(event) => onChange({ title: event.target.value })} />
+            <input
+              className="field h-8 py-1 text-xs"
+              value={settings.title}
+              onChange={(event) => onChange({ title: event.target.value })}
+            />
           </EditorField>
-          <NumberEditor label="Largura (1–12)" min={1} max={12} value={settings.columns} onValue={(columns) => onChange({ columns })} />
+          <NumberEditor
+            label="Largura (1–12)"
+            min={1}
+            max={12}
+            value={settings.columns}
+            onValue={(columns) => onChange({ columns })}
+          />
           <NumberEditor
             label={`Altura segura (mín. ${minimumWidgetHeight(widget)} px)`}
             min={minimumWidgetHeight(widget)}
@@ -833,27 +851,89 @@ function EditorPanel({
             value={settings.height}
             onValue={(height) => onChange({ height })}
           />
-          <NumberEditor label="Conteúdo (%)" min={5} max={200} value={settings.contentScale} onValue={(contentScale) => onChange({ contentScale })} />
-          <NumberEditor label="Letras/números (%)" min={25} max={200} value={settings.fontSize} onValue={(fontSize) => onChange({ fontSize })} />
+          <NumberEditor
+            label="Conteúdo (%)"
+            min={5}
+            max={200}
+            value={settings.contentScale}
+            onValue={(contentScale) => onChange({ contentScale })}
+          />
+          <NumberEditor
+            label="Letras/números (%)"
+            min={25}
+            max={200}
+            value={settings.fontSize}
+            onValue={(fontSize) => onChange({ fontSize })}
+          />
           {widget.chartTypes?.length ? (
             <EditorField label="Tipo de gráfico">
-              <select className="field h-8 py-1 text-xs" value={settings.chartType} onChange={(event) => onChange({ chartType: event.target.value as DashboardChartType })}>
-                {allowedChartTypes(widget).map((type) => <option key={type} value={type}>{chartTypeLabel(type)}</option>)}
+              <select
+                className="field h-8 py-1 text-xs"
+                value={settings.chartType}
+                onChange={(event) =>
+                  onChange({ chartType: event.target.value as DashboardChartType })
+                }
+              >
+                {allowedChartTypes(widget).map((type) => (
+                  <option key={type} value={type}>
+                    {chartTypeLabel(type)}
+                  </option>
+                ))}
               </select>
             </EditorField>
-          ) : <span />}
+          ) : (
+            <span />
+          )}
           <EditorField label="Cor principal">
-            <input type="color" className="h-8 w-full cursor-pointer rounded border border-border bg-card" value={settings.color.startsWith("#") ? settings.color : "#234d38"} onChange={(event) => onChange({ color: event.target.value })} />
+            <input
+              type="color"
+              className="h-8 w-full cursor-pointer rounded border border-border bg-card"
+              value={settings.color.startsWith("#") ? settings.color : "#234d38"}
+              onChange={(event) => onChange({ color: event.target.value })}
+            />
           </EditorField>
           <EditorField label="Cor do fundo">
-            <input type="color" className="h-8 w-full cursor-pointer rounded border border-border bg-card" value={settings.backgroundColor.startsWith("#") ? settings.backgroundColor : "#fffdf8"} onChange={(event) => onChange({ backgroundColor: event.target.value })} />
+            <input
+              type="color"
+              className="h-8 w-full cursor-pointer rounded border border-border bg-card"
+              value={
+                settings.backgroundColor.startsWith("#") ? settings.backgroundColor : "#fffdf8"
+              }
+              onChange={(event) => onChange({ backgroundColor: event.target.value })}
+            />
           </EditorField>
-          <NumberEditor label="Opacidade (%)" min={0} max={100} value={settings.backgroundOpacity} onValue={(backgroundOpacity) => onChange({ backgroundOpacity })} />
-          <Toggle label="Autoajustar conteúdo" value={settings.autoFit} onChange={(autoFit) => onChange({ autoFit })} />
-          <Toggle label="Mostrar legenda" value={settings.showLegend} onChange={(showLegend) => onChange({ showLegend })} />
-          <Toggle label="Mostrar rótulos" value={settings.showLabels} onChange={(showLabels) => onChange({ showLabels })} />
-          <Toggle label="Borda superior" value={settings.showAccentBorder} onChange={(showAccentBorder) => onChange({ showAccentBorder })} />
-          <button type="button" className="flex h-8 items-center justify-center gap-1 self-end rounded-md border border-border bg-card px-2 text-xs font-semibold text-muted-foreground" onClick={() => onChange({ hidden: !settings.hidden })}>
+          <NumberEditor
+            label="Opacidade (%)"
+            min={0}
+            max={100}
+            value={settings.backgroundOpacity}
+            onValue={(backgroundOpacity) => onChange({ backgroundOpacity })}
+          />
+          <Toggle
+            label="Autoajustar conteúdo"
+            value={settings.autoFit}
+            onChange={(autoFit) => onChange({ autoFit })}
+          />
+          <Toggle
+            label="Mostrar legenda"
+            value={settings.showLegend}
+            onChange={(showLegend) => onChange({ showLegend })}
+          />
+          <Toggle
+            label="Mostrar rótulos"
+            value={settings.showLabels}
+            onChange={(showLabels) => onChange({ showLabels })}
+          />
+          <Toggle
+            label="Borda superior"
+            value={settings.showAccentBorder}
+            onChange={(showAccentBorder) => onChange({ showAccentBorder })}
+          />
+          <button
+            type="button"
+            className="flex h-8 items-center justify-center gap-1 self-end rounded-md border border-border bg-card px-2 text-xs font-semibold text-muted-foreground"
+            onClick={() => onChange({ hidden: !settings.hidden })}
+          >
             {settings.hidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
             {settings.hidden ? "Exibir" : "Ocultar"}
           </button>
@@ -867,19 +947,63 @@ function EditorPanel({
   );
 }
 
-function EditorField({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) {
-  return <label className={`text-[10px] font-semibold text-muted-foreground ${wide ? "sm:col-span-2" : ""}`}>{label}{children}</label>;
+function EditorField({
+  label,
+  children,
+  wide = false,
+}: {
+  label: string;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <label
+      className={`text-[10px] font-semibold text-muted-foreground ${wide ? "sm:col-span-2" : ""}`}
+    >
+      {label}
+      {children}
+    </label>
+  );
 }
 
-function NumberEditor({ label, min, max, value, onValue }: { label: string; min: number; max: number; value: number; onValue: (value: number) => void }) {
+function NumberEditor({
+  label,
+  min,
+  max,
+  value,
+  onValue,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  value: number;
+  onValue: (value: number) => void;
+}) {
   return (
     <EditorField label={label}>
-      <input className="field h-8 py-1 text-xs" type="number" min={min} max={max} value={value} onChange={(event) => onValue(Math.min(max, Math.max(min, Number(event.target.value) || min)))} />
+      <input
+        className="field h-8 py-1 text-xs"
+        type="number"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(event) =>
+          onValue(Math.min(max, Math.max(min, Number(event.target.value) || min)))
+        }
+      />
     </EditorField>
   );
 }
 
-function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
+function Toggle({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (value: boolean) => void;
+}) {
   return (
     <label className="flex h-8 items-center gap-2 self-end rounded-md border border-border bg-card px-2 text-[10px] font-semibold text-muted-foreground">
       <input type="checkbox" checked={value} onChange={(event) => onChange(event.target.checked)} />
@@ -889,5 +1013,14 @@ function Toggle({ label, value, onChange }: { label: string; value: boolean; onC
 }
 
 function chartTypeLabel(type: DashboardChartType) {
-  return { bar: "Colunas", horizontalBar: "Barras horizontais", line: "Linhas", area: "Área", pie: "Pizza", doughnut: "Rosca", radar: "Radar", composed: "Composto" }[type];
+  return {
+    bar: "Colunas",
+    horizontalBar: "Barras horizontais",
+    line: "Linhas",
+    area: "Área",
+    pie: "Pizza",
+    doughnut: "Rosca",
+    radar: "Radar",
+    composed: "Composto",
+  }[type];
 }
