@@ -11,10 +11,14 @@ import {
   Plus,
   Power,
   Search,
+  Trash2,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 import {
   useClients,
   useCurrentCompany,
+  useDeleteClientsWithHistory,
   useInsert,
   useReservations,
   useSales,
@@ -51,6 +55,7 @@ function Clientes() {
   const requiredGuestFields = getSystemSettings(currentCompany.data?.id).requiredGuestFields;
   const insert = useInsert("clients", ["clients"]);
   const update = useUpdate("clients", ["clients", "reservations"]);
+  const deleteWithHistory = useDeleteClientsWithHistory();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Client | null>(null);
   const [q, setQ] = useState("");
@@ -98,6 +103,9 @@ function Clientes() {
   const filteredIds = filtered.map((client) => client.id);
   const allFilteredSelected =
     filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
+  const selectedClients = clients.filter((client) => selectedIds.includes(client.id));
+  const selectedActiveCount = selectedClients.filter((client) => !isClientDisabled(client)).length;
+  const selectedDisabledCount = selectedClients.length - selectedActiveCount;
 
   async function deactivateSelected() {
     if (
@@ -119,6 +127,49 @@ function Clientes() {
       setSelectedIds([]);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao desativar clientes");
+    }
+  }
+
+  async function activateSelected() {
+    if (!window.confirm(`Ativar ${selectedDisabledCount} cliente(s) desativado(s)?`)) return;
+    try {
+      await Promise.all(
+        selectedClients.map((client) =>
+          isClientDisabled(client)
+            ? update.mutateAsync({ id: client.id, patch: { ativo: true } })
+            : Promise.resolve(),
+        ),
+      );
+      toast.success("Clientes reativados");
+      setSelectedIds([]);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao reativar clientes");
+    }
+  }
+
+  async function deleteSelectedPermanently() {
+    const count = selectedIds.length;
+    if (
+      !window.confirm(
+        `Excluir definitivamente ${count} cliente(s)? Reservas, pagamentos, check-ins e consumos vinculados também serão apagados. Esta ação não pode ser desfeita.`,
+      )
+    )
+      return;
+    const confirmation = window.prompt(
+      `Para confirmar a exclusão definitiva de ${count} cliente(s) e todo o histórico, digite EXCLUIR.`,
+    );
+    if (confirmation?.trim().toUpperCase() !== "EXCLUIR") {
+      toast.info("Exclusão cancelada");
+      return;
+    }
+    try {
+      const result = await deleteWithHistory.mutateAsync(selectedIds);
+      toast.success(
+        `${result.clients_deleted} cliente(s) e ${result.reservations_deleted} reserva(s) excluídos definitivamente`,
+      );
+      setSelectedIds([]);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Falha ao excluir clientes");
     }
   }
 
@@ -262,17 +313,40 @@ function Clientes() {
       </div>
 
       {selectedIds.length > 0 && (
-        <div className="fixed bottom-24 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-border bg-card/95 px-3 py-2 shadow-2xl backdrop-blur xl:bottom-6 xl:left-[calc(50%+6.75rem)]">
+        <div className="fixed bottom-24 left-1/2 z-40 flex max-w-[calc(100vw-1rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-border bg-card/95 px-3 py-2 shadow-2xl backdrop-blur xl:bottom-6 xl:left-[calc(50%+6.75rem)]">
           <span className="whitespace-nowrap text-xs font-semibold text-pine-dark">
             {selectedIds.length} selecionado(s)
           </span>
+          {selectedDisabledCount > 0 && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full bg-sage px-3 py-1.5 text-xs font-bold text-white"
+              disabled={update.isPending || deleteWithHistory.isPending}
+              onClick={activateSelected}
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              Ativar ({selectedDisabledCount})
+            </button>
+          )}
+          {selectedActiveCount > 0 && (
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full bg-amber-600 px-3 py-1.5 text-xs font-bold text-white"
+              disabled={update.isPending || deleteWithHistory.isPending}
+              onClick={deactivateSelected}
+            >
+              <UserX className="h-3.5 w-3.5" />
+              Desativar ({selectedActiveCount})
+            </button>
+          )}
           <button
             type="button"
-            className="rounded-full bg-brick px-3 py-1.5 text-xs font-bold text-white"
-            disabled={update.isPending}
-            onClick={deactivateSelected}
+            className="inline-flex items-center gap-1 rounded-full bg-brick px-3 py-1.5 text-xs font-bold text-white"
+            disabled={update.isPending || deleteWithHistory.isPending}
+            onClick={deleteSelectedPermanently}
           >
-            Desativar
+            <Trash2 className="h-3.5 w-3.5" />
+            Excluir definitivamente
           </button>
           <button
             type="button"
@@ -370,8 +444,7 @@ function Clientes() {
                   )}
                   <span className="flex items-center gap-1.5">
                     <CalendarDays className="h-3.5 w-3.5" />
-                    {insight?.visits ?? c.visitas} estadia(s) ·{" "}
-                    {fmtBRL(insight?.totalCharged ?? 0)}
+                    {insight?.visits ?? c.visitas} estadia(s) · {fmtBRL(insight?.totalCharged ?? 0)}
                   </span>
                 </div>
 
@@ -500,10 +573,7 @@ function printGuestForm(client: Client, reservation?: Reservation) {
   window.open(`/imprimir?${params.toString()}`, "_blank", "noopener,noreferrer");
 }
 
-function printGuestVoucher(
-  client: Client,
-  reservation?: Reservation,
-) {
+function printGuestVoucher(client: Client, reservation?: Reservation) {
   const params = new URLSearchParams({
     tipo: "voucher",
     nome: client.nome,
