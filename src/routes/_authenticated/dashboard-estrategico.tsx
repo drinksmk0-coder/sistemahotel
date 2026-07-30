@@ -1830,7 +1830,7 @@ function EditableStrategicChart({
   series: StrategicSeries[];
   settings: DashboardWidgetSettings;
 }) {
-  const height = Math.max(56, settings.height - 78);
+  const height = Math.max(180, settings.height - 78);
   const normalizedTitle = normalizeText(settings.title);
   const isMonthlyHero =
     normalizedTitle.includes("receita, despesas e lucro") ||
@@ -2145,11 +2145,16 @@ function EditableStrategicChart({
       </div>
       {rows.length ? (
         isCircular ? (
-          <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_minmax(150px,0.72fr)] items-center gap-2">
-            <ResponsiveContainer width="100%" height={height}>
-              {chart}
-            </ResponsiveContainer>
-            <div className="max-h-[190px] space-y-1.5 overflow-auto pr-1 text-[9px]">
+          <div className="grid min-h-0 grid-cols-1 items-center gap-2 sm:grid-cols-[minmax(180px,0.9fr)_minmax(170px,1.1fr)]">
+            <div className="min-w-0">
+              <ResponsiveContainer width="100%" height={Math.max(180, Math.min(height, 250))}>
+                {chart}
+              </ResponsiveContainer>
+            </div>
+            <div
+              className="max-h-[220px] space-y-1.5 overflow-auto rounded-md bg-muted/35 p-2 pr-1 text-[10px]"
+              aria-label={`Legenda de ${settings.title}`}
+            >
               {rows.map((row, index) => {
                 const rawValue = Number(row[series[0].key] ?? 0);
                 const percentage = circularTotal > 0 ? (rawValue / circularTotal) * 100 : 0;
@@ -2188,10 +2193,19 @@ function EditableStrategicChart({
               })}
             </div>
           </div>
+        ) : settings.chartType === "horizontalBar" ? (
+          <StrategicHorizontalBars
+            rows={rows}
+            categoryKey={categoryKey}
+            series={series}
+            height={height}
+          />
         ) : (
-          <ResponsiveContainer width="100%" height={height}>
-            {chart}
-          </ResponsiveContainer>
+          <div className="min-w-0 overflow-hidden">
+            <ResponsiveContainer width="100%" height={height}>
+              {chart}
+            </ResponsiveContainer>
+          </div>
         )
       ) : (
         <div className="flex h-[150px] items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">
@@ -2199,6 +2213,62 @@ function EditableStrategicChart({
         </div>
       )}
     </section>
+  );
+}
+
+function StrategicHorizontalBars({
+  rows,
+  categoryKey,
+  series,
+  height,
+}: {
+  rows: Record<string, unknown>[];
+  categoryKey: string;
+  series: StrategicSeries[];
+  height: number;
+}) {
+  const maximumBySeries = new Map(
+    series.map((item) => [
+      item.key,
+      Math.max(1, ...rows.map((row) => Math.abs(Number(row[item.key] ?? 0)))),
+    ]),
+  );
+
+  return (
+    <div
+      className="space-y-3 overflow-auto rounded-md bg-muted/20 p-2"
+      style={{ maxHeight: Math.max(180, height) }}
+    >
+      {rows.map((row, rowIndex) => (
+        <div key={`${String(row[categoryKey])}-${rowIndex}`} className="min-w-0">
+          <div className="mb-1 truncate text-[10px] font-bold text-foreground" title={String(row[categoryKey])}>
+            {String(row[categoryKey])}
+          </div>
+          <div className="space-y-1.5">
+            {series.map((item) => {
+              const value = Number(row[item.key] ?? 0);
+              const maximum = maximumBySeries.get(item.key) ?? 1;
+              return (
+                <div key={item.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                  <div className="h-2.5 overflow-hidden rounded-full bg-border/45">
+                    <div
+                      className="h-full min-w-0 rounded-full"
+                      style={{
+                        width: `${Math.max(value > 0 ? 2 : 0, (Math.abs(value) / maximum) * 100)}%`,
+                        backgroundColor: item.color,
+                      }}
+                    />
+                  </div>
+                  <span className="min-w-16 whitespace-nowrap text-right text-[10px] font-semibold tabular-nums text-foreground">
+                    {formatStrategicValue(value, item.currency)}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
