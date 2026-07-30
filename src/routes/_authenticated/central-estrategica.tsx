@@ -1,12 +1,11 @@
 import Brazil from "@svg-maps/brazil";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   AlertTriangle,
   BadgeDollarSign,
   BedDouble,
-  Building2,
   CalendarDays,
   CircleDollarSign,
   Globe2,
@@ -147,10 +146,7 @@ function PulsoHotel() {
   const data = query.data;
   const summary = data.summary;
   const topProductRevenue = data.productRows[0];
-  const topProductQuantity = useMemo(
-    () => [...data.productRows].sort((a, b) => b.quantity - a.quantity)[0],
-    [data.productRows],
-  );
+  const topProductQuantity = [...data.productRows].sort((a, b) => b.quantity - a.quantity)[0];
   const directShare = data.channelRows.find((row) => row.name.toLowerCase().includes("diret"))?.share ?? 0;
   const actions = buildRecommendedActions({
     occupancy: summary.occupancyRate,
@@ -341,10 +337,7 @@ function PulsoHotel() {
             <InsightCard icon={<Megaphone />} title="Perguntas de marketing e preço">
               <DecisionGrid
                 rows={[
-                  {
-                    question: "Vale aumentar a diária?",
-                    answer: priceDecision(summary),
-                  },
+                  { question: "Vale aumentar a diária?", answer: priceDecision(summary) },
                   {
                     question: "Onde anunciar?",
                     answer: data.stateRows[0]
