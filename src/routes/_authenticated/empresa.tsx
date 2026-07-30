@@ -1,18 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ImagePlus, Palette, Plus, Save } from "lucide-react";
+import { BarChart3, ImagePlus, Palette, Plus, RotateCcw, Save, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Field, Modal } from "@/components/ui-kit";
 import { useCurrentCompany, useInsert, useRooms, useUpdate, type Company, type Room } from "@/lib/data";
 import { fmtBRL } from "@/lib/format";
 import {
   GUEST_FIELD_KEYS,
+  applySystemSettings,
+  buildHarmonicPalette,
   getSystemSettings,
   saveSystemSettings,
   type GuestFieldKey,
   type SystemSettings,
 } from "@/lib/system-settings";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  normalizeAiDesignProfile,
+  saveAiDesignProfile,
+  type AiDesignProfile,
+} from "@/lib/ai-designer";
 
 export const Route = createFileRoute("/_authenticated/empresa")({
   component: Empresa,
@@ -150,6 +158,16 @@ const GUEST_FIELD_LABELS: Record<GuestFieldKey, string> = {
 
 function SystemCustomization({ companyId }: { companyId: string }) {
   const [settings, setSettings] = useState<SystemSettings>(() => getSystemSettings(companyId));
+  const [designerBusy, setDesignerBusy] = useState(false);
+  const [designerSuggestion, setDesignerSuggestion] = useState<{
+    system: Partial<SystemSettings>;
+    profile: AiDesignProfile;
+  } | null>(null);
+  const [previousSettings, setPreviousSettings] = useState<SystemSettings | null>(null);
+
+  useEffect(() => {
+    applySystemSettings(settings);
+  }, [settings]);
 
   function updateRequired(field: GuestFieldKey, value: boolean) {
     setSettings((current) => ({
@@ -167,8 +185,97 @@ function SystemCustomization({ companyId }: { companyId: string }) {
     reader.readAsDataURL(file);
   }
 
+  function applyDesignerPalette(primaryColor: string, theme = settings.theme) {
+    setSettings((current) => ({
+      ...current,
+      ...buildHarmonicPalette(primaryColor, theme),
+      theme,
+      autoPalette: true,
+    }));
+  }
+
+  async function analyzeDesign() {
+    setDesignerBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("hotel-analyst", {
+        body: {
+          mode: "design",
+          company_id: companyId,
+          current_settings: {
+            primaryColor: settings.primaryColor,
+            accentColor: settings.accentColor,
+            backgroundColor: settings.backgroundColor,
+            surfaceColor: settings.surfaceColor,
+            textColor: settings.textColor,
+            theme: settings.theme,
+            backgroundStyle: settings.backgroundStyle,
+            surfaceOpacity: settings.surfaceOpacity,
+            chartSurfaceOpacity: settings.chartSurfaceOpacity,
+            borderRadius: settings.borderRadius,
+            uiScale: settings.uiScale,
+            glassEffect: settings.glassEffect,
+            shadows: settings.shadows,
+            chartPalette: settings.chartPalette,
+          },
+        },
+      });
+      if (error) {
+        let message = error.message;
+        const context = "context" in error ? error.context : null;
+        if (context instanceof Response) {
+          const payload = (await context.clone().json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          message = payload?.error || message;
+        }
+        throw new Error(message);
+      }
+      if (!data?.design?.system || !data?.design?.profile) {
+        throw new Error("O Gemini não retornou uma proposta visual válida.");
+      }
+      setDesignerSuggestion({
+        system: data.design.system as Partial<SystemSettings>,
+        profile: normalizeAiDesignProfile(data.design.profile),
+      });
+      toast.success(
+        data.degraded
+          ? "Proposta segura preparada. O Gemini estava indisponível; confira antes de aplicar."
+          : "Análise visual concluída. Confira a prévia antes de aplicar.",
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao consultar o designer Gemini.");
+    } finally {
+      setDesignerBusy(false);
+    }
+  }
+
+  function applyAiSuggestion() {
+    if (!designerSuggestion) return;
+    const next: SystemSettings = {
+      ...settings,
+      ...designerSuggestion.system,
+      autoPalette: true,
+      aiDesignerEnabled: true,
+      requiredGuestFields: settings.requiredGuestFields,
+    };
+    setPreviousSettings(settings);
+    setSettings(next);
+    saveSystemSettings(companyId, next);
+    saveAiDesignProfile(companyId, designerSuggestion.profile);
+    setDesignerSuggestion(null);
+    toast.success("Designer Gemini aplicado em todo o sistema e nos dashboards.");
+  }
+
+  function undoAiDesign() {
+    if (!previousSettings) return;
+    setSettings(previousSettings);
+    saveSystemSettings(companyId, previousSettings);
+    setPreviousSettings(null);
+    toast.success("Visual anterior restaurado.");
+  }
+
   return (
-    <section className="mt-5 card-surface p-4">
+    <section id="configuracoes-sistema" className="mt-5 scroll-mt-6 card-surface p-4">
       <div className="mb-4 flex items-center gap-2">
         <Palette className="h-5 w-5 text-brass" />
         <div>
@@ -190,28 +297,343 @@ function SystemCustomization({ companyId }: { companyId: string }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Cor principal">
-              <input className="h-10 w-full cursor-pointer rounded border" type="color" value={settings.primaryColor} onChange={(event) => setSettings((current) => ({ ...current, primaryColor: event.target.value }))} />
+              <input
+                className="h-10 w-full cursor-pointer rounded border"
+                type="color"
+                value={settings.primaryColor}
+                onChange={(event) => {
+                  const primaryColor = event.target.value;
+                  if (settings.autoPalette) applyDesignerPalette(primaryColor);
+                  else setSettings((current) => ({ ...current, primaryColor }));
+                }}
+              />
             </Field>
             <Field label="Cor de destaque">
               <input className="h-10 w-full cursor-pointer rounded border" type="color" value={settings.accentColor} onChange={(event) => setSettings((current) => ({ ...current, accentColor: event.target.value }))} />
             </Field>
           </div>
+          <Field label="Tema da página inteira">
+            <select
+              className="field"
+              value={settings.theme}
+              onChange={(event) =>
+                settings.autoPalette
+                  ? applyDesignerPalette(
+                      settings.primaryColor,
+                      event.target.value as SystemSettings["theme"],
+                    )
+                  : setSettings((current) => ({
+                      ...current,
+                      theme: event.target.value as SystemSettings["theme"],
+                    }))
+              }
+            >
+              <option value="light">Claro</option>
+              <option value="soft">Suave</option>
+              <option value="dark">Escuro</option>
+            </select>
+          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Estilo do fundo">
+              <select
+                className="field"
+                value={settings.backgroundStyle}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    backgroundStyle: event.target.value as SystemSettings["backgroundStyle"],
+                  }))
+                }
+              >
+                <option value="clean">Limpo</option>
+                <option value="soft">Luzes suaves</option>
+                <option value="gradient">Degradê da marca</option>
+              </select>
+            </Field>
+            <Field label="Sombras dos blocos">
+              <select
+                className="field"
+                value={settings.shadows}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    shadows: event.target.value as SystemSettings["shadows"],
+                  }))
+                }
+              >
+                <option value="none">Sem sombra</option>
+                <option value="soft">Suave</option>
+                <option value="strong">Destacada</option>
+              </select>
+            </Field>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Fundo">
+              <input
+                className="h-10 w-full cursor-pointer rounded border"
+                type="color"
+                value={settings.backgroundColor}
+                onChange={(event) =>
+                  setSettings((current) => ({ ...current, backgroundColor: event.target.value }))
+                }
+              />
+            </Field>
+            <Field label="Cards">
+              <input
+                className="h-10 w-full cursor-pointer rounded border"
+                type="color"
+                value={settings.surfaceColor}
+                onChange={(event) =>
+                  setSettings((current) => ({ ...current, surfaceColor: event.target.value }))
+                }
+              />
+            </Field>
+            <Field label="Texto">
+              <input
+                className="h-10 w-full cursor-pointer rounded border"
+                type="color"
+                value={settings.textColor}
+                onChange={(event) =>
+                  setSettings((current) => ({ ...current, textColor: event.target.value }))
+                }
+              />
+            </Field>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={`Transparência dos cards: ${settings.surfaceOpacity}%`}>
+              <input
+                className="w-full accent-[var(--pine)]"
+                type="range"
+                min={35}
+                max={100}
+                value={settings.surfaceOpacity}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    surfaceOpacity: Number(event.target.value),
+                  }))
+                }
+              />
+            </Field>
+            <Field label={`Fundo dos gráficos: ${settings.chartSurfaceOpacity}%`}>
+              <input
+                className="w-full accent-[var(--pine)]"
+                type="range"
+                min={35}
+                max={100}
+                value={settings.chartSurfaceOpacity}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    chartSurfaceOpacity: Number(event.target.value),
+                  }))
+                }
+              />
+            </Field>
+            <Field label={`Arredondamento: ${settings.borderRadius}px`}>
+              <input
+                className="w-full accent-[var(--pine)]"
+                type="range"
+                min={0}
+                max={28}
+                value={settings.borderRadius}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    borderRadius: Number(event.target.value),
+                  }))
+                }
+              />
+            </Field>
+            <Field label={`Tamanho geral: ${Math.round(settings.uiScale * 100)}%`}>
+              <input
+                className="w-full accent-[var(--pine)]"
+                type="range"
+                min={85}
+                max={115}
+                value={Math.round(settings.uiScale * 100)}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    uiScale: Number(event.target.value) / 100,
+                  }))
+                }
+              />
+            </Field>
+          </div>
+          <label className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/45 p-3">
+            <span>
+              <span className="block text-sm font-bold text-pine-dark">Efeito de vidro</span>
+              <span className="block text-[11px] text-muted-foreground">
+                Aplica desfoque atrás de cards transparentes.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.glassEffect}
+              onChange={(event) =>
+                setSettings((current) => ({ ...current, glassEffect: event.target.checked }))
+              }
+            />
+          </label>
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            A cor principal e a de destaque passam a valer em menus, botões, cabeçalhos,
+            seleções, cards, tabelas e gráficos de todas as páginas.
+          </p>
+          <label className="flex items-start justify-between gap-3 rounded-lg border border-brass/35 bg-brass/10 p-3">
+            <span>
+              <span className="block text-sm font-bold text-pine-dark">Designer automático</span>
+              <span className="block text-[11px] leading-relaxed text-muted-foreground">
+                Ao escolher a cor principal, o sistema calcula destaque, fundos, contraste e seis
+                cores harmônicas para os gráficos.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={settings.autoPalette}
+              onChange={(event) => {
+                if (event.target.checked) applyDesignerPalette(settings.primaryColor);
+                else setSettings((current) => ({ ...current, autoPalette: false }));
+              }}
+            />
+          </label>
+          <div className="rounded-lg border border-primary/25 bg-primary/5 p-3">
+            <div className="flex items-start justify-between gap-3">
+              <span>
+                <span className="flex items-center gap-1.5 text-sm font-bold text-pine-dark">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Designer Gemini automático
+                </span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">
+                  Analisa contraste, densidade, tamanhos, legendas e tipos de gráfico. A proposta
+                  aparece antes de ser aplicada e pode ser desfeita.
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={settings.aiDesignerEnabled}
+                onChange={(event) =>
+                  setSettings((current) => ({
+                    ...current,
+                    aiDesignerEnabled: event.target.checked,
+                  }))
+                }
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-primary flex items-center gap-1.5 text-xs"
+                disabled={designerBusy || !settings.aiDesignerEnabled}
+                onClick={analyzeDesign}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                {designerBusy ? "Analisando…" : "Analisar visual agora"}
+              </button>
+              {previousSettings && (
+                <button
+                  type="button"
+                  className="btn-ghost flex items-center gap-1.5 text-xs"
+                  onClick={undoAiDesign}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" /> Desfazer IA
+                </button>
+              )}
+            </div>
+          </div>
+          {designerSuggestion && (
+            <div className="rounded-lg border border-sage/40 bg-sage-bg/55 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-pine-dark">Prévia sugerida pelo Gemini</p>
+                  <p className="max-w-2xl text-[11px] text-muted-foreground">
+                    {designerSuggestion.profile.explanation}
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  {(designerSuggestion.system.chartPalette ?? settings.chartPalette).map(
+                    (color, index) => (
+                      <span
+                        key={`${color}-${index}`}
+                        className="h-6 w-6 rounded-full border border-white shadow"
+                        style={{ backgroundColor: color }}
+                        title={`Cor ${index + 1}: ${color}`}
+                      />
+                    ),
+                  )}
+                </div>
+              </div>
+              {designerSuggestion.profile.diagnostics.length > 0 && (
+                <ul className="mt-2 grid gap-1 text-[11px] text-muted-foreground sm:grid-cols-2">
+                  {designerSuggestion.profile.diagnostics.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-3 flex gap-2">
+                <button type="button" className="btn-primary text-xs" onClick={applyAiSuggestion}>
+                  Aplicar em todo o sistema
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost text-xs"
+                  onClick={() => setDesignerSuggestion(null)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="rounded-lg border border-border p-3">
-          <h4 className="text-sm font-bold text-pine-dark">Campos obrigatórios do hóspede</h4>
-          <p className="mb-3 text-xs text-muted-foreground">Desative o que não precisa ser exigido em uma nova reserva.</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {GUEST_FIELD_KEYS.map((field) => (
-              <label key={field} className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2 text-sm">
-                <span>{GUEST_FIELD_LABELS[field]}</span>
-                <input
-                  type="checkbox"
-                  checked={settings.requiredGuestFields[field]}
-                  onChange={(event) => updateRequired(field, event.target.checked)}
-                />
-              </label>
-            ))}
+        <div className="space-y-5">
+          <div className="rounded-lg border border-border p-3">
+            <div className="mb-3 flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-brass" />
+              <div>
+                <h4 className="text-sm font-bold text-pine-dark">Paleta dos gráficos</h4>
+                <p className="text-xs text-muted-foreground">
+                  Defina as seis cores usadas nas séries e comparações.
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+              {settings.chartPalette.map((color, index) => (
+                <label key={`${index}-${color}`} className="text-center text-[10px] font-semibold text-muted-foreground">
+                  Cor {index + 1}
+                  <input
+                    className="mt-1 h-10 w-full cursor-pointer rounded border"
+                    type="color"
+                    value={color}
+                    onChange={(event) =>
+                      setSettings((current) => ({
+                        ...current,
+                        chartPalette: current.chartPalette.map((item, itemIndex) =>
+                          itemIndex === index ? event.target.value : item,
+                        ),
+                      }))
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border p-3">
+            <h4 className="text-sm font-bold text-pine-dark">Campos obrigatórios do hóspede</h4>
+            <p className="mb-3 text-xs text-muted-foreground">Desative o que não precisa ser exigido em uma nova reserva.</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {GUEST_FIELD_KEYS.map((field) => (
+                <label key={field} className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2 text-sm">
+                  <span>{GUEST_FIELD_LABELS[field]}</span>
+                  <input
+                    type="checkbox"
+                    checked={settings.requiredGuestFields[field]}
+                    onChange={(event) => updateRequired(field, event.target.checked)}
+                  />
+                </label>
+              ))}
+            </div>
           </div>
         </div>
       </div>

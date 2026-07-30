@@ -1,18 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Download } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useRooms, useComplaints, useInsert, useUpdate } from "@/lib/data";
 import { fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { COMPLAINT_CATEGORIES, COMPLAINT_SEVERITY, COMPLAINT_STATUS, WIFI_DEVICES, complaintLabel, complaintStatusLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
+import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
 
 export const Route = createFileRoute("/_authenticated/reclamacoes")({
   component: Reclamacoes,
 });
 
 const sevTone: Record<string, string> = { baixa: "sage", media: "brass", alta: "brick" };
+const STOP_WORDS = new Set([
+  "para", "com", "uma", "que", "não", "nao", "dos", "das", "por", "sem", "está",
+  "esta", "muito", "mais", "foi", "tem", "de", "da", "do", "no", "na", "em",
+  "solicitado", "solicitada", "relatado", "relatada", "avaliacao", "hospede",
+  "quarto", "problema", "cliente", "informou", "pedido", "reclamacao",
+]);
 
 function Reclamacoes() {
   const { data: rooms = [] } = useRooms();
@@ -33,11 +40,42 @@ function Reclamacoes() {
       }),
     [complaints, cat, statusFilter],
   );
+  const frequentWords = useMemo(() => {
+    const counts = new Map<string, number>();
+    filtered.forEach((complaint) => {
+      normalizeWords(complaint.descricao ?? "").forEach((word) =>
+        counts.set(word, (counts.get(word) ?? 0) + 1),
+      );
+    });
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([palavra, ocorrencias]) => ({ palavra, ocorrencias }));
+  }, [filtered]);
+  const categoryHeat = useMemo(
+    () =>
+      COMPLAINT_CATEGORIES.map((category) => ({
+        label: category.label,
+        values: ["baixa", "media", "alta"].map(
+          (severity) =>
+            filtered.filter(
+              (complaint) =>
+                complaint.categoria === category.value && complaint.gravidade === severity,
+            ).length,
+        ),
+      })).filter((row) => row.values.some(Boolean)),
+    [filtered],
+  );
 
-  function exportCSV() {
-    downloadExcel(`reclamacoes-${todayISO()}.xls`, [
+  function exportCSV(scope: ExportScope) {
+    const exportedComplaints =
+      scope.mode === "date"
+        ? complaints.filter((complaint) => complaint.created_at.slice(0, 10) === scope.date)
+        : complaints;
+    const suffix = scope.mode === "date" ? scope.date : "historico-completo";
+    downloadExcel(`reclamacoes-${suffix}.xls`, [
       ["Data", "Quarto", "Categoria", "Gravidade", "Origem", "Aparelho", "Hóspede", "Status", "Descrição"],
-      ...complaints.map((c) => [
+      ...exportedComplaints.map((c) => [
         c.created_at.slice(0, 10),
         c.quarto,
         complaintLabel(c.categoria),
@@ -58,9 +96,7 @@ function Reclamacoes() {
         subtitle="Registre e acompanhe problemas por quarto. Para Wi-Fi, guarde o aparelho para saber se é do quarto ou do hóspede."
         action={
           <div className="flex gap-2">
-            <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Excel
-            </button>
+            <ExportPeriodButton onExport={exportCSV} />
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Nova reclamação
             </button>
@@ -87,6 +123,27 @@ function Reclamacoes() {
           <option value="todas">Todos os status</option>
         </select>
       </div>
+
+      {filtered.length > 0 && frequentWords.length > 0 && (
+        <section className="card-surface mb-4 p-3">
+          <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <div>
+              <h3 className="text-sm font-extrabold text-pine-dark">Assuntos recorrentes</h3>
+              <p className="text-[10px] text-muted-foreground">
+                Tamanho e intensidade mostram as causas mais repetidas.
+              </p>
+              <ComplaintWordHeatmap rows={frequentWords} />
+            </div>
+            <div>
+              <h3 className="text-sm font-extrabold text-pine-dark">Mapa de risco</h3>
+              <p className="text-[10px] text-muted-foreground">
+                Concentração das reclamações por assunto e nível de urgência.
+              </p>
+              <ComplaintSeverityHeatmap rows={categoryHeat} />
+            </div>
+          </div>
+        </section>
+      )}
 
       {filtered.length === 0 ? (
         <EmptyState text="Nenhuma reclamação neste filtro." />
@@ -161,6 +218,102 @@ function Reclamacoes() {
         />
       )}
     </div>
+  );
+}
+
+function ComplaintWordHeatmap({
+  rows,
+}: {
+  rows: { palavra: string; ocorrencias: number }[];
+}) {
+  const max = Math.max(1, ...rows.map((row) => row.ocorrencias));
+  return (
+    <div className="mt-2 grid auto-rows-[58px] grid-cols-2 gap-1.5 sm:grid-cols-6">
+      {rows.map((row, index) => {
+        const intensity = row.ocorrencias / max;
+        return (
+          <div
+            key={row.palavra}
+            className={`flex min-w-0 flex-col justify-between rounded-lg border p-2 transition hover:-translate-y-0.5 hover:shadow-md ${
+              index === 0
+                ? "sm:col-span-3 sm:row-span-2"
+                : intensity >= 0.55
+                  ? "sm:col-span-2"
+                  : "sm:col-span-1"
+            }`}
+            style={{
+              background: `color-mix(in srgb, var(--primary) ${30 + intensity * 70}%, var(--card))`,
+              borderColor: `color-mix(in srgb, var(--primary) ${50 + intensity * 45}%, var(--border))`,
+              color: intensity >= 0.42 ? "white" : "var(--pine-dark)",
+            }}
+            title={`${row.palavra}: ${row.ocorrencias} ocorrência(s)`}
+          >
+            <strong className="truncate text-xs capitalize sm:text-sm">{row.palavra}</strong>
+            <span className="text-[10px] font-bold opacity-85">
+              {row.ocorrencias} ocorrência(s)
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ComplaintSeverityHeatmap({
+  rows,
+}: {
+  rows: { label: string; values: number[] }[];
+}) {
+  const max = Math.max(1, ...rows.flatMap((row) => row.values));
+  return (
+    <div className="mt-3 overflow-x-auto">
+      <div className="grid min-w-[390px] grid-cols-[minmax(130px,1fr)_repeat(3,72px)] gap-1.5 text-[10px]">
+        <span />
+        {["Baixa", "Média", "Alta"].map((label) => (
+          <strong key={label} className="py-1 text-center text-muted-foreground">
+            {label}
+          </strong>
+        ))}
+        {rows.map((row) => (
+          <div key={row.label} className="contents">
+            <strong className="truncate py-3 text-pine-dark" title={row.label}>
+              {row.label}
+            </strong>
+            {row.values.map((value, index) => {
+              const intensity = value / max;
+              const color =
+                index === 2 ? "var(--brick)" : index === 1 ? "var(--brass)" : "var(--sage)";
+              return (
+                <div
+                  key={`${row.label}-${index}`}
+                  className="grid min-h-10 place-items-center rounded-md border font-extrabold"
+                  style={{
+                    background: value
+                      ? `color-mix(in srgb, ${color} ${35 + intensity * 65}%, var(--card))`
+                      : "var(--muted)",
+                    color: value && intensity >= 0.45 ? "white" : "var(--pine-dark)",
+                  }}
+                  title={`${row.label} · ${["baixa", "média", "alta"][index]}: ${value}`}
+                >
+                  {value}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function normalizeWords(value: string) {
+  return (
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .match(/[a-z]{3,}/g)
+      ?.filter((word) => !STOP_WORDS.has(word)) ?? []
   );
 }
 

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { KeyRound, Loader2, Mail, Plus, Trash2, UserX } from "lucide-react";
+import { KeyRound, Loader2, Mail, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge, Field, Modal } from "@/components/ui-kit";
 import { useCompanyInvites, useCompanyMembers, useCurrentCompany, useDelete } from "@/lib/data";
@@ -73,11 +73,17 @@ function Equipe() {
 
   async function manageMember(
     member: { id: string; user_id: string; role: string },
-    action: "remove_access" | "reset_password",
+    action: "remove_access" | "delete_employee" | "reset_password",
   ) {
     if (!company.data?.id) return;
     if (action === "remove_access" && member.role === "dono" && !window.confirm("Remover acesso de um dono?")) return;
     if (action === "remove_access" && !window.confirm("Remover o acesso deste usuario?")) return;
+    if (
+      action === "delete_employee" &&
+      !window.confirm(
+        "Excluir este funcionario definitivamente?\n\nO acesso, o perfil e o login serao removidos. Reservas, vendas e demais historicos serao preservados.",
+      )
+    ) return;
 
     setMemberAction(`${action}:${member.id}`);
     try {
@@ -92,7 +98,14 @@ function Equipe() {
 
       if (error) throw new Error(await getFunctionErrorMessage(error));
       if (data && typeof data === "object" && "error" in data) throw new Error(String(data.error));
-      toast.success(action === "remove_access" ? "Acesso removido" : "E-mail de redefinicao enviado");
+      const response = data as { message?: string } | null;
+      toast.success(
+        action === "delete_employee"
+          ? response?.message ?? "Funcionario excluido"
+          : action === "remove_access"
+            ? "Acesso removido"
+            : "E-mail de redefinicao enviado",
+      );
       await queryClient.invalidateQueries({ queryKey: ["company_members"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Nao foi possivel concluir a acao");
@@ -167,16 +180,23 @@ function Equipe() {
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 rounded-md border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:opacity-60"
-                        onClick={() => manageMember(member, "remove_access")}
-                        disabled={!member.ativo || memberAction === `remove_access:${member.id}`}
-                        title="Remover acesso"
+                        onClick={() => manageMember(member, "delete_employee")}
+                        disabled={
+                          member.role === "dono" ||
+                          memberAction === `delete_employee:${member.id}`
+                        }
+                        title={
+                          member.role === "dono"
+                            ? "A conta do dono nao pode ser excluida"
+                            : "Excluir funcionario, perfil e login"
+                        }
                       >
-                        {memberAction === `remove_access:${member.id}` ? (
+                        {memberAction === `delete_employee:${member.id}` ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
-                          <UserX className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         )}
-                        Remover
+                        Excluir
                       </button>
                     </div>
                   </td>

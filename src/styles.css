@@ -5,8 +5,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Pousada Real Cruzília — design system.
- * Warm "paper + pine + brass" hotel-ledger aesthetic. All colors are oklch.
+ * HotelAI Command V6 — compact SaaS design system.
  */
 
 @theme inline {
@@ -16,7 +15,9 @@
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
 
-  --font-serif: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  --font-serif:
+    "Segoe UI Variable Display", "Aptos Display", Inter, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
   --font-sans:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -57,41 +58,48 @@
 :root {
   --radius: 0.6rem;
 
-  --paper: oklch(0.945 0.014 85);
-  --paper-2: oklch(0.905 0.02 85);
+  --paper: #f4f7fa;
+  --paper-2: #eaf0f6;
   --background: var(--paper);
-  --foreground: oklch(0.26 0.02 70);
+  --foreground: #071a38;
 
-  --card: oklch(0.985 0.006 85);
-  --card-foreground: oklch(0.26 0.02 70);
-  --popover: oklch(0.985 0.006 85);
-  --popover-foreground: oklch(0.26 0.02 70);
+  --card: #ffffff;
+  --card-foreground: #071a38;
+  --popover: #ffffff;
+  --popover-foreground: #071a38;
 
-  --pine: oklch(0.42 0.045 162);
-  --pine-dark: oklch(0.33 0.038 162);
-  --brass: oklch(0.68 0.11 74);
-  --brass-bg: oklch(0.93 0.045 82);
-  --brick: oklch(0.56 0.14 28);
-  --brick-bg: oklch(0.9 0.05 30);
-  --sage: oklch(0.56 0.08 155);
-  --sage-bg: oklch(0.91 0.03 150);
-  --slate: oklch(0.5 0.014 70);
-  --slate-bg: oklch(0.9 0.01 80);
+  --pine: #2878e8;
+  --pine-dark: #071a38;
+  --brass: #168aad;
+  --brass-bg: #e7f4f8;
+  --brick: #c62828;
+  --brick-bg: #fff0f3;
+  --sage: #2878e8;
+  --sage-bg: #e8f1fd;
+  --slate: #64748b;
+  --slate-bg: #eef2f6;
 
   --primary: var(--pine);
   --primary-foreground: oklch(0.97 0.01 85);
   --secondary: var(--paper-2);
   --secondary-foreground: oklch(0.3 0.03 162);
-  --muted: oklch(0.92 0.012 85);
-  --muted-foreground: oklch(0.44 0.02 70);
+  --muted: #eef3f8;
+  --muted-foreground: #5f718a;
   --accent: var(--brass);
   --accent-foreground: oklch(0.28 0.03 74);
   --destructive: var(--brick);
   --destructive-foreground: oklch(0.97 0.01 85);
 
-  --border: oklch(0.84 0.025 85);
-  --input: oklch(0.84 0.025 85);
-  --ring: oklch(0.68 0.11 74);
+  --border: #d8e1eb;
+  --input: #d8e1eb;
+  --ring: #2878e8;
+  --chart-1: #1859a9;
+  --chart-2: #2878e8;
+  --chart-3: #168aad;
+  --chart-4: #0f6f8f;
+  --chart-5: #4c91e8;
+  --chart-6: #336ca8;
+  --warning: #b45309;
 }
 
 @layer base {
@@ -106,6 +114,48 @@
     min-width: 320px;
     overflow-x: hidden;
   }
+  .app-main {
+    min-height: 100vh;
+  }
+  .app-sidebar {
+    background:
+      linear-gradient(
+        155deg,
+        color-mix(in srgb, var(--sidebar-primary) 82%, #071426),
+        color-mix(in srgb, var(--sidebar-primary) 48%, #071426) 52%,
+        color-mix(in srgb, var(--sidebar-primary) 24%, #071426)
+      );
+  }
+  .app-sidebar-nav {
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+    scrollbar-width: thin;
+  }
+  .app-sidebar-nav::-webkit-scrollbar {
+    width: 4px;
+  }
+  .app-sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .app-sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+  }
+  html[data-background-style="soft"] body {
+    background-image:
+      radial-gradient(circle at 8% 8%, color-mix(in srgb, var(--pine) 9%, transparent), transparent 24rem),
+      radial-gradient(circle at 92% 86%, color-mix(in srgb, var(--brass) 8%, transparent), transparent 28rem);
+    background-attachment: fixed;
+  }
+  html[data-background-style="gradient"] body {
+    background-image:
+      linear-gradient(145deg, color-mix(in srgb, var(--background) 88%, var(--pine)), var(--background) 46%, color-mix(in srgb, var(--background) 90%, var(--brass)));
+    background-attachment: fixed;
+  }
+  html[data-system-theme="dark"] body {
+    background-image:
+      radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--pine) 18%, transparent), transparent 28rem),
+      radial-gradient(circle at 85% 90%, color-mix(in srgb, var(--brass) 10%, transparent), transparent 24rem);
+  }
   h1, h2, h3, .font-serif {
     font-family: var(--font-serif);
   }
@@ -119,8 +169,86 @@
     background-color: var(--color-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    box-shadow: 0 1px 2px rgba(42, 33, 24, 0.05), 0 4px 14px rgba(42, 33, 24, 0.045);
+    box-shadow: 0 1px 2px rgba(15, 35, 60, 0.035), 0 5px 18px rgba(15, 35, 60, 0.045);
     min-width: 0;
+  }
+  .chart-surface {
+    background-color: var(--chart-surface, var(--color-card));
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    min-width: 0;
+  }
+  .chart-surface .recharts-wrapper,
+  .card-surface .recharts-wrapper,
+  .dashboard-designer-widget .recharts-wrapper {
+    max-width: 100%;
+  }
+  .chart-surface .recharts-text,
+  .card-surface .recharts-text,
+  .dashboard-designer-widget .recharts-text {
+    fill: var(--color-foreground);
+  }
+  .chart-surface .recharts-cartesian-axis-tick-value,
+  .card-surface .recharts-cartesian-axis-tick-value,
+  .dashboard-designer-widget .recharts-cartesian-axis-tick-value {
+    font-size: 10px;
+  }
+  .chart-surface .recharts-legend-wrapper,
+  .card-surface .recharts-legend-wrapper,
+  .dashboard-designer-widget .recharts-legend-wrapper {
+    max-width: 100%;
+    overflow: visible;
+  }
+  .chart-surface .recharts-default-legend,
+  .card-surface .recharts-default-legend,
+  .dashboard-designer-widget .recharts-default-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.25rem 0.75rem;
+    line-height: 1.25;
+  }
+  .chart-surface .recharts-legend-item,
+  .card-surface .recharts-legend-item,
+  .dashboard-designer-widget .recharts-legend-item {
+    margin-right: 0 !important;
+    white-space: nowrap;
+  }
+  .dashboard-widget > article,
+  .dashboard-widget > section,
+  .dashboard-widget > .card-surface,
+  .dashboard-widget > .chart-surface {
+    background-color: transparent;
+  }
+  .dashboard-designer-widget {
+    font-size: var(--widget-font-size, 100%);
+  }
+  .dashboard-designer-content > article,
+  .dashboard-designer-content > section,
+  .dashboard-designer-content > .card-surface,
+  .dashboard-designer-content > .chart-surface,
+  .dashboard-designer-content > .stat-card {
+    background-color: transparent !important;
+    border: 0 !important;
+    border-radius: inherit;
+    box-shadow: none !important;
+    height: 100%;
+  }
+  html[data-glass-effect="on"] .card-surface,
+  html[data-glass-effect="on"] .chart-surface,
+  html[data-glass-effect="on"] .stat-card {
+    -webkit-backdrop-filter: blur(14px) saturate(1.12);
+    backdrop-filter: blur(14px) saturate(1.12);
+  }
+  html[data-system-shadows="none"] .card-surface,
+  html[data-system-shadows="none"] .chart-surface,
+  html[data-system-shadows="none"] .stat-card {
+    box-shadow: none;
+  }
+  html[data-system-shadows="strong"] .card-surface,
+  html[data-system-shadows="strong"] .chart-surface,
+  html[data-system-shadows="strong"] .stat-card {
+    box-shadow: 0 16px 42px color-mix(in srgb, var(--pine-dark) 18%, transparent);
   }
   .section-title {
     font-family: var(--font-serif);
@@ -145,8 +273,9 @@
     border-radius: var(--radius-md);
     background-color: var(--color-pine);
     color: var(--color-primary-foreground);
-    font-weight: 600;
-    padding: 0.5rem 0.9rem;
+    font-weight: 700;
+    padding: 0.58rem 1rem;
+    box-shadow: 0 5px 12px color-mix(in srgb, var(--pine) 22%, transparent);
     transition: background-color 0.15s;
   }
   .btn-primary:hover {
@@ -156,8 +285,8 @@
     border-radius: var(--radius-md);
     border: 1px solid var(--color-border);
     background-color: var(--color-card);
-    font-weight: 600;
-    padding: 0.5rem 0.9rem;
+    font-weight: 700;
+    padding: 0.58rem 1rem;
     transition: background-color 0.15s;
   }
   .btn-ghost:hover {
@@ -167,11 +296,92 @@
     background-color: var(--color-card);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    padding: 0.45rem 0.55rem;
-    box-shadow: 0 1px 2px rgba(42, 33, 24, 0.05);
+    padding: 0.5rem 0.65rem;
+    box-shadow: 0 1px 2px rgba(15, 35, 60, 0.04);
     min-width: 0;
     overflow: hidden;
   }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-designer-widget {
+    grid-column: span var(--widget-columns) / span var(--widget-columns);
+  }
+}
+
+html[data-dashboard-mode="tv"] .app-sidebar {
+  display: none !important;
+}
+
+html[data-dashboard-mode="tv"] .app-main {
+  margin-left: 0 !important;
+  padding: 0.75rem !important;
+}
+
+html[data-dashboard-mode="tv"] .dashboard-designer-widget {
+  box-shadow: none;
+}
+
+.hotel-command-dark {
+  background:
+    radial-gradient(
+      circle at 84% 4%,
+      color-mix(in srgb, var(--accent) 12%, transparent),
+      transparent 28rem
+    ),
+    var(--background);
+  color: var(--foreground);
+  min-height: calc(100vh - 1.5rem);
+}
+
+.hotel-command-dark .dashboard-designer-widget,
+.hotel-command-dark .executive-filter-panel {
+  background: color-mix(in srgb, var(--card) 92%, transparent) !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.24);
+}
+
+.hotel-command-dark .dashboard-designer-widget {
+  border-radius: 8px;
+}
+
+.hotel-command-dark .field {
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border-color: var(--input);
+}
+
+.hotel-command-dark .field option {
+  background: var(--popover);
+  color: var(--popover-foreground);
+}
+
+.hotel-command-dark .recharts-cartesian-grid line,
+.hotel-command-dark .recharts-polar-grid-concentric-polygon {
+  stroke: var(--border);
+}
+
+.hotel-command-dark .recharts-cartesian-axis-tick-value,
+.hotel-command-dark .recharts-polar-angle-axis-tick-value,
+.hotel-command-dark .recharts-polar-radius-axis-tick-value,
+.hotel-command-dark .recharts-label,
+.hotel-command-dark .recharts-text {
+  fill: var(--foreground) !important;
+}
+
+.hotel-command-dark .recharts-cartesian-axis-line,
+.hotel-command-dark .recharts-cartesian-axis-tick-line {
+  stroke: var(--muted-foreground) !important;
+}
+
+.hotel-command-dark .recharts-default-tooltip {
+  background: var(--popover) !important;
+  border-color: var(--input) !important;
+  color: var(--popover-foreground) !important;
+}
+
+.hotel-command-dark .recharts-legend-item-text {
+  color: var(--foreground) !important;
 }
 
 @media (max-width: 640px) {
@@ -186,6 +396,24 @@
 
   table {
     min-width: 640px;
+  }
+}
+
+@media (max-width: 1279px) {
+  .dashboard-designer-widget[data-dashboard-widget-id$="perfil-hospedes"] {
+    height: auto !important;
+  }
+
+  .dashboard-designer-widget[data-dashboard-widget-id$="perfil-hospedes"] > div,
+  .dashboard-designer-widget[data-dashboard-widget-id$="perfil-hospedes"] .dashboard-designer-content,
+  .dashboard-designer-widget[data-dashboard-widget-id$="perfil-hospedes"] .guest-profile-overview {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .dashboard-designer-widget[data-dashboard-widget-id$="perfil-hospedes"] .dashboard-designer-content {
+    width: 100% !important;
+    transform: none !important;
   }
 }
 

@@ -11,24 +11,33 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ImprimirRouteImport } from './routes/imprimir'
+import { Route as CheckinOnlineRouteImport } from './routes/checkin-online'
 import { Route as CadastroEmpresaRouteImport } from './routes/cadastro-empresa'
 import { Route as AvaliarRouteImport } from './routes/avaliar'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as AuthenticatedVendasProdutosRouteImport } from './routes/_authenticated/vendas-produtos'
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
+import { Route as AuthenticatedTarifarioRouteImport } from './routes/_authenticated/tarifario'
 import { Route as AuthenticatedReservasRouteImport } from './routes/_authenticated/reservas'
 import { Route as AuthenticatedReclamacoesRouteImport } from './routes/_authenticated/reclamacoes'
 import { Route as AuthenticatedQrcodesRouteImport } from './routes/_authenticated/qrcodes'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
+import { Route as AuthenticatedMensagensRouteImport } from './routes/_authenticated/mensagens'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
 import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenticated/integracoes'
+import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
 import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticated/empresa'
 import { Route as AuthenticatedDespesasRouteImport } from './routes/_authenticated/despesas'
+import { Route as AuthenticatedDecisoesRouteImport } from './routes/_authenticated/decisoes'
+import { Route as AuthenticatedDashboardQuartosRouteImport } from './routes/_authenticated/dashboard-quartos'
 import { Route as AuthenticatedDashboardEstrategicoRouteImport } from './routes/_authenticated/dashboard-estrategico'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedAvaliacoesRouteImport } from './routes/_authenticated/avaliacoes'
+import { Route as AuthenticatedAssistenteRouteImport } from './routes/_authenticated/assistente'
 
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
@@ -38,6 +47,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const ImprimirRoute = ImprimirRouteImport.update({
   id: '/imprimir',
   path: '/imprimir',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckinOnlineRoute = CheckinOnlineRouteImport.update({
+  id: '/checkin-online',
+  path: '/checkin-online',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CadastroEmpresaRoute = CadastroEmpresaRouteImport.update({
@@ -64,9 +78,25 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedVendasProdutosRoute =
+  AuthenticatedVendasProdutosRouteImport.update({
+    id: '/vendas-produtos',
+    path: '/vendas-produtos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedVendasRoute = AuthenticatedVendasRouteImport.update({
   id: '/vendas',
   path: '/vendas',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedTarifarioRoute = AuthenticatedTarifarioRouteImport.update({
+  id: '/tarifario',
+  path: '/tarifario',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedReservasRoute = AuthenticatedReservasRouteImport.update({
@@ -90,6 +120,11 @@ const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   path: '/painel',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMensagensRoute = AuthenticatedMensagensRouteImport.update({
+  id: '/mensagens',
+  path: '/mensagens',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedMapaRoute = AuthenticatedMapaRouteImport.update({
   id: '/mapa',
   path: '/mapa',
@@ -101,6 +136,11 @@ const AuthenticatedIntegracoesRoute =
     path: '/integracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFinanceiroRoute = AuthenticatedFinanceiroRouteImport.update({
+  id: '/financeiro',
+  path: '/financeiro',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedEquipeRoute = AuthenticatedEquipeRouteImport.update({
   id: '/equipe',
   path: '/equipe',
@@ -116,6 +156,17 @@ const AuthenticatedDespesasRoute = AuthenticatedDespesasRouteImport.update({
   path: '/despesas',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDecisoesRoute = AuthenticatedDecisoesRouteImport.update({
+  id: '/decisoes',
+  path: '/decisoes',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDashboardQuartosRoute =
+  AuthenticatedDashboardQuartosRouteImport.update({
+    id: '/dashboard-quartos',
+    path: '/dashboard-quartos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDashboardEstrategicoRoute =
   AuthenticatedDashboardEstrategicoRouteImport.update({
     id: '/dashboard-estrategico',
@@ -132,48 +183,71 @@ const AuthenticatedAvaliacoesRoute = AuthenticatedAvaliacoesRouteImport.update({
   path: '/avaliacoes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAssistenteRoute = AuthenticatedAssistenteRouteImport.update({
+  id: '/assistente',
+  path: '/assistente',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/avaliar': typeof AvaliarRoute
   '/cadastro-empresa': typeof CadastroEmpresaRoute
+  '/checkin-online': typeof CheckinOnlineRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/assistente': typeof AuthenticatedAssistenteRoute
   '/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
+  '/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
+  '/decisoes': typeof AuthenticatedDecisoesRoute
   '/despesas': typeof AuthenticatedDespesasRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/equipe': typeof AuthenticatedEquipeRoute
+  '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/mapa': typeof AuthenticatedMapaRoute
+  '/mensagens': typeof AuthenticatedMensagensRoute
   '/painel': typeof AuthenticatedPainelRoute
   '/qrcodes': typeof AuthenticatedQrcodesRoute
   '/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/reservas': typeof AuthenticatedReservasRoute
+  '/tarifario': typeof AuthenticatedTarifarioRoute
   '/vendas': typeof AuthenticatedVendasRoute
+  '/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
+  '/api/chat': typeof ApiChatRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/avaliar': typeof AvaliarRoute
   '/cadastro-empresa': typeof CadastroEmpresaRoute
+  '/checkin-online': typeof CheckinOnlineRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/assistente': typeof AuthenticatedAssistenteRoute
   '/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/clientes': typeof AuthenticatedClientesRoute
   '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
+  '/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
+  '/decisoes': typeof AuthenticatedDecisoesRoute
   '/despesas': typeof AuthenticatedDespesasRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/equipe': typeof AuthenticatedEquipeRoute
+  '/financeiro': typeof AuthenticatedFinanceiroRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/mapa': typeof AuthenticatedMapaRoute
+  '/mensagens': typeof AuthenticatedMensagensRoute
   '/painel': typeof AuthenticatedPainelRoute
   '/qrcodes': typeof AuthenticatedQrcodesRoute
   '/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/reservas': typeof AuthenticatedReservasRoute
+  '/tarifario': typeof AuthenticatedTarifarioRoute
   '/vendas': typeof AuthenticatedVendasRoute
+  '/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
+  '/api/chat': typeof ApiChatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -182,21 +256,30 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/avaliar': typeof AvaliarRoute
   '/cadastro-empresa': typeof CadastroEmpresaRoute
+  '/checkin-online': typeof CheckinOnlineRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/_authenticated/assistente': typeof AuthenticatedAssistenteRoute
   '/_authenticated/avaliacoes': typeof AuthenticatedAvaliacoesRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
   '/_authenticated/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
+  '/_authenticated/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
+  '/_authenticated/decisoes': typeof AuthenticatedDecisoesRoute
   '/_authenticated/despesas': typeof AuthenticatedDespesasRoute
   '/_authenticated/empresa': typeof AuthenticatedEmpresaRoute
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
+  '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
   '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
+  '/_authenticated/mensagens': typeof AuthenticatedMensagensRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
   '/_authenticated/qrcodes': typeof AuthenticatedQrcodesRoute
   '/_authenticated/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/_authenticated/reservas': typeof AuthenticatedReservasRoute
+  '/_authenticated/tarifario': typeof AuthenticatedTarifarioRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
+  '/_authenticated/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
+  '/api/chat': typeof ApiChatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -205,42 +288,60 @@ export interface FileRouteTypes {
     | '/auth'
     | '/avaliar'
     | '/cadastro-empresa'
+    | '/checkin-online'
     | '/imprimir'
     | '/sitemap.xml'
+    | '/assistente'
     | '/avaliacoes'
     | '/clientes'
     | '/dashboard-estrategico'
+    | '/dashboard-quartos'
+    | '/decisoes'
     | '/despesas'
     | '/empresa'
     | '/equipe'
+    | '/financeiro'
     | '/integracoes'
     | '/mapa'
+    | '/mensagens'
     | '/painel'
     | '/qrcodes'
     | '/reclamacoes'
     | '/reservas'
+    | '/tarifario'
     | '/vendas'
+    | '/vendas-produtos'
+    | '/api/chat'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/avaliar'
     | '/cadastro-empresa'
+    | '/checkin-online'
     | '/imprimir'
     | '/sitemap.xml'
+    | '/assistente'
     | '/avaliacoes'
     | '/clientes'
     | '/dashboard-estrategico'
+    | '/dashboard-quartos'
+    | '/decisoes'
     | '/despesas'
     | '/empresa'
     | '/equipe'
+    | '/financeiro'
     | '/integracoes'
     | '/mapa'
+    | '/mensagens'
     | '/painel'
     | '/qrcodes'
     | '/reclamacoes'
     | '/reservas'
+    | '/tarifario'
     | '/vendas'
+    | '/vendas-produtos'
+    | '/api/chat'
   id:
     | '__root__'
     | '/'
@@ -248,21 +349,30 @@ export interface FileRouteTypes {
     | '/auth'
     | '/avaliar'
     | '/cadastro-empresa'
+    | '/checkin-online'
     | '/imprimir'
     | '/sitemap.xml'
+    | '/_authenticated/assistente'
     | '/_authenticated/avaliacoes'
     | '/_authenticated/clientes'
     | '/_authenticated/dashboard-estrategico'
+    | '/_authenticated/dashboard-quartos'
+    | '/_authenticated/decisoes'
     | '/_authenticated/despesas'
     | '/_authenticated/empresa'
     | '/_authenticated/equipe'
+    | '/_authenticated/financeiro'
     | '/_authenticated/integracoes'
     | '/_authenticated/mapa'
+    | '/_authenticated/mensagens'
     | '/_authenticated/painel'
     | '/_authenticated/qrcodes'
     | '/_authenticated/reclamacoes'
     | '/_authenticated/reservas'
+    | '/_authenticated/tarifario'
     | '/_authenticated/vendas'
+    | '/_authenticated/vendas-produtos'
+    | '/api/chat'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -271,8 +381,10 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   AvaliarRoute: typeof AvaliarRoute
   CadastroEmpresaRoute: typeof CadastroEmpresaRoute
+  CheckinOnlineRoute: typeof CheckinOnlineRoute
   ImprimirRoute: typeof ImprimirRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiChatRoute: typeof ApiChatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -289,6 +401,13 @@ declare module '@tanstack/react-router' {
       path: '/imprimir'
       fullPath: '/imprimir'
       preLoaderRoute: typeof ImprimirRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkin-online': {
+      id: '/checkin-online'
+      path: '/checkin-online'
+      fullPath: '/checkin-online'
+      preLoaderRoute: typeof CheckinOnlineRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cadastro-empresa': {
@@ -326,11 +445,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/vendas-produtos': {
+      id: '/_authenticated/vendas-produtos'
+      path: '/vendas-produtos'
+      fullPath: '/vendas-produtos'
+      preLoaderRoute: typeof AuthenticatedVendasProdutosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/vendas': {
       id: '/_authenticated/vendas'
       path: '/vendas'
       fullPath: '/vendas'
       preLoaderRoute: typeof AuthenticatedVendasRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/tarifario': {
+      id: '/_authenticated/tarifario'
+      path: '/tarifario'
+      fullPath: '/tarifario'
+      preLoaderRoute: typeof AuthenticatedTarifarioRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/reservas': {
@@ -361,6 +501,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPainelRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/mensagens': {
+      id: '/_authenticated/mensagens'
+      path: '/mensagens'
+      fullPath: '/mensagens'
+      preLoaderRoute: typeof AuthenticatedMensagensRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/mapa': {
       id: '/_authenticated/mapa'
       path: '/mapa'
@@ -373,6 +520,13 @@ declare module '@tanstack/react-router' {
       path: '/integracoes'
       fullPath: '/integracoes'
       preLoaderRoute: typeof AuthenticatedIntegracoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/financeiro': {
+      id: '/_authenticated/financeiro'
+      path: '/financeiro'
+      fullPath: '/financeiro'
+      preLoaderRoute: typeof AuthenticatedFinanceiroRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/equipe': {
@@ -396,6 +550,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDespesasRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/decisoes': {
+      id: '/_authenticated/decisoes'
+      path: '/decisoes'
+      fullPath: '/decisoes'
+      preLoaderRoute: typeof AuthenticatedDecisoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dashboard-quartos': {
+      id: '/_authenticated/dashboard-quartos'
+      path: '/dashboard-quartos'
+      fullPath: '/dashboard-quartos'
+      preLoaderRoute: typeof AuthenticatedDashboardQuartosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/dashboard-estrategico': {
       id: '/_authenticated/dashboard-estrategico'
       path: '/dashboard-estrategico'
@@ -417,40 +585,61 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAvaliacoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/assistente': {
+      id: '/_authenticated/assistente'
+      path: '/assistente'
+      fullPath: '/assistente'
+      preLoaderRoute: typeof AuthenticatedAssistenteRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAssistenteRoute: typeof AuthenticatedAssistenteRoute
   AuthenticatedAvaliacoesRoute: typeof AuthenticatedAvaliacoesRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
   AuthenticatedDashboardEstrategicoRoute: typeof AuthenticatedDashboardEstrategicoRoute
+  AuthenticatedDashboardQuartosRoute: typeof AuthenticatedDashboardQuartosRoute
+  AuthenticatedDecisoesRoute: typeof AuthenticatedDecisoesRoute
   AuthenticatedDespesasRoute: typeof AuthenticatedDespesasRoute
   AuthenticatedEmpresaRoute: typeof AuthenticatedEmpresaRoute
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
+  AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
   AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
+  AuthenticatedMensagensRoute: typeof AuthenticatedMensagensRoute
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
   AuthenticatedQrcodesRoute: typeof AuthenticatedQrcodesRoute
   AuthenticatedReclamacoesRoute: typeof AuthenticatedReclamacoesRoute
   AuthenticatedReservasRoute: typeof AuthenticatedReservasRoute
+  AuthenticatedTarifarioRoute: typeof AuthenticatedTarifarioRoute
   AuthenticatedVendasRoute: typeof AuthenticatedVendasRoute
+  AuthenticatedVendasProdutosRoute: typeof AuthenticatedVendasProdutosRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAssistenteRoute: AuthenticatedAssistenteRoute,
   AuthenticatedAvaliacoesRoute: AuthenticatedAvaliacoesRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
   AuthenticatedDashboardEstrategicoRoute:
     AuthenticatedDashboardEstrategicoRoute,
+  AuthenticatedDashboardQuartosRoute: AuthenticatedDashboardQuartosRoute,
+  AuthenticatedDecisoesRoute: AuthenticatedDecisoesRoute,
   AuthenticatedDespesasRoute: AuthenticatedDespesasRoute,
   AuthenticatedEmpresaRoute: AuthenticatedEmpresaRoute,
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
+  AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
   AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
+  AuthenticatedMensagensRoute: AuthenticatedMensagensRoute,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
   AuthenticatedQrcodesRoute: AuthenticatedQrcodesRoute,
   AuthenticatedReclamacoesRoute: AuthenticatedReclamacoesRoute,
   AuthenticatedReservasRoute: AuthenticatedReservasRoute,
+  AuthenticatedTarifarioRoute: AuthenticatedTarifarioRoute,
   AuthenticatedVendasRoute: AuthenticatedVendasRoute,
+  AuthenticatedVendasProdutosRoute: AuthenticatedVendasProdutosRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -462,8 +651,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   AvaliarRoute: AvaliarRoute,
   CadastroEmpresaRoute: CadastroEmpresaRoute,
+  CheckinOnlineRoute: CheckinOnlineRoute,
   ImprimirRoute: ImprimirRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiChatRoute: ApiChatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

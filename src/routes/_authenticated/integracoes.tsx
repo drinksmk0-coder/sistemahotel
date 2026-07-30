@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CalendarClock, FileText, MessageCircle, Plus, Webhook } from "lucide-react";
+import { Building2, CalendarClock, FileText, Instagram, MapPinned, Megaphone, MessageCircle, Plus, ShieldCheck, Webhook } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge, EmptyState, Field, Modal } from "@/components/ui-kit";
 import {
@@ -25,8 +25,12 @@ const TYPES = [
   { value: "booking", label: "Booking" },
   { value: "airbnb", label: "Airbnb" },
   { value: "google", label: "Google Hotel" },
+  { value: "google_business", label: "Google Meu Negócio" },
+  { value: "meta_ads", label: "Meta Ads" },
+  { value: "instagram", label: "Instagram Business" },
   { value: "channel_manager", label: "Channel Manager" },
   { value: "nota_fiscal", label: "Nota fiscal / NFS-e" },
+  { value: "fnrh_mtur", label: "FNRH Digital / MTur" },
 ];
 
 function Integracoes() {
@@ -38,6 +42,7 @@ function Integracoes() {
   const update = useUpdate("company_integrations", ["company_integrations"]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CompanyIntegration | null>(null);
+  const [initialType, setInitialType] = useState("whatsapp_business");
 
   const webhookUrl = useMemo(() => {
     const base = "https://xjdqjjfnpcnywrkxentv.supabase.co/functions/v1/integracao-reservas";
@@ -50,11 +55,56 @@ function Integracoes() {
         title="Integracoes"
         subtitle="Cadastre canais externos por empresa: WhatsApp Business, Booking, Airbnb, Google e channel managers."
         action={
-          <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
+          <button onClick={() => { setInitialType("whatsapp_business"); setOpen(true); }} className="btn-primary flex items-center gap-1.5">
             <Plus className="h-4 w-4" /> Canal
           </button>
         }
       />
+
+      <section className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        <IntegrationQuickStart
+          icon={<MessageCircle />}
+          title="WhatsApp Business"
+          description="Recebe mensagens e cria reservas após confirmação dos dados."
+          status={integrationStatus(integrations, "whatsapp_business")}
+          onClick={() => openProvider("whatsapp_business", integrations, setEditing, setInitialType, setOpen)}
+        />
+        <IntegrationQuickStart
+          icon={<CalendarClock />}
+          title="Booking"
+          description="Recebe reservas pelo webhook oficial ou channel manager."
+          status={integrationStatus(integrations, "booking")}
+          onClick={() => openProvider("booking", integrations, setEditing, setInitialType, setOpen)}
+        />
+        <IntegrationQuickStart
+          icon={<MapPinned />}
+          title="Google Meu Negócio"
+          description="Estrutura pronta para perfil, avaliações e desempenho."
+          status={integrationStatus(integrations, "google_business", true)}
+          onClick={() => openProvider("google_business", integrations, setEditing, setInitialType, setOpen)}
+        />
+        <IntegrationQuickStart
+          icon={<Megaphone />}
+          title="Meta Ads"
+          description="Preparado para conta de anúncios, pixel e campanhas."
+          status={integrationStatus(integrations, "meta_ads", true)}
+          onClick={() => openProvider("meta_ads", integrations, setEditing, setInitialType, setOpen)}
+        />
+        <IntegrationQuickStart
+          icon={<Instagram />}
+          title="Instagram"
+          description="Preparado para conta profissional e mensagens."
+          status={integrationStatus(integrations, "instagram", true)}
+          onClick={() => openProvider("instagram", integrations, setEditing, setInitialType, setOpen)}
+        />
+        <IntegrationQuickStart
+          icon={<Building2 />}
+          title="FNRH Digital / MTur"
+          description="Pré-check-in, conferência e envio pela API oficial 2.4."
+          status={integrationStatus(integrations, "fnrh_mtur")}
+          onClick={() => openProvider("fnrh_mtur", integrations, setEditing, setInitialType, setOpen)}
+        />
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="card-surface p-4">
@@ -63,8 +113,7 @@ function Integracoes() {
             <h3 className="font-serif text-lg font-bold">WhatsApp Business</h3>
           </div>
           <p className="text-sm text-muted-foreground">
-            Use este webhook na Meta Cloud API. Os secrets ficam no Supabase: INTEGRATION_WEBHOOK_TOKEN, WHATSAPP_VERIFY_TOKEN,
-            WHATSAPP_BUSINESS_TOKEN e WHATSAPP_PHONE_NUMBER_ID.
+            Preencha os IDs no formulário. Tokens secretos continuam protegidos no ambiente da função e nunca aparecem no navegador.
           </p>
           <code className="mt-3 block break-all rounded-md bg-muted p-3 text-xs">{webhookUrl}</code>
           <div className="mt-3 rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
@@ -99,6 +148,41 @@ function Integracoes() {
             <p className="mt-1 text-sm text-muted-foreground">
               Cadastre um provedor de NFS-e em “Canal” usando a URL de webhook/API fornecida por ele. A emissão automática exige
               credenciais fiscais da empresa e não deve ser ativada sem certificado ou token do provedor.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-5 rounded-xl border border-primary/30 bg-primary/5 p-4">
+        <div className="flex items-start gap-3">
+          <Building2 className="mt-0.5 h-5 w-5 text-primary" />
+          <div>
+            <h3 className="font-serif text-lg font-bold text-pine-dark">FNRH Digital e check-in online</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A reserva gera um link individual para o hóspede preencher e assinar pelo celular.
+              Depois da conferência, a integração usa a chave própria do hotel para transmitir à
+              plataforma oficial.
+            </p>
+            <a
+              href="https://fnrh.turismo.serpro.gov.br/FNRH_SRH/Login"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex text-xs font-bold text-primary underline"
+            >
+              Gerar a chave no módulo oficial do MTur
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section className="mt-5 rounded-xl border border-pine/30 bg-sage-bg/50 p-4">
+        <div className="flex items-start gap-3">
+          <ShieldCheck className="mt-0.5 h-5 w-5 text-pine" />
+          <div>
+            <h3 className="font-serif text-lg font-bold text-pine-dark">Credenciais protegidas</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              IDs de conta e propriedade podem ser salvos aqui. Tokens de acesso do WhatsApp, Booking, Google e Meta não são gravados
+              no código nem enviados ao navegador; a ativação final deve usar secrets da função no servidor.
             </p>
           </div>
         </div>
@@ -192,6 +276,7 @@ function Integracoes() {
       {open && (
         <IntegrationForm
           editing={editing}
+          initialType={initialType}
           onClose={() => {
             setOpen(false);
             setEditing(null);
@@ -225,6 +310,59 @@ function Integracoes() {
   );
 }
 
+function IntegrationQuickStart({
+  icon,
+  title,
+  description,
+  status,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  status: "Ativo" | "Configurar" | "Em breve" | "Dados salvos";
+  onClick: () => void;
+}) {
+  const tone = status === "Ativo" ? "sage" : status === "Configurar" ? "brass" : "slate";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-lg border border-border bg-card p-3 text-left shadow-sm transition hover:border-brass"
+    >
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-pine [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
+        <Badge tone={tone}>{status}</Badge>
+      </div>
+      <strong className="block text-sm text-pine-dark">{title}</strong>
+      <span className="mt-1 block text-[11px] leading-relaxed text-muted-foreground">{description}</span>
+    </button>
+  );
+}
+
+function integrationStatus(
+  integrations: CompanyIntegration[],
+  type: string,
+  future = false,
+): "Ativo" | "Configurar" | "Em breve" | "Dados salvos" {
+  const integration = integrations.find((item) => item.tipo === type);
+  if (integration?.ativo && !future) return "Ativo";
+  if (integration && future) return "Dados salvos";
+  return future ? "Em breve" : "Configurar";
+}
+
+function openProvider(
+  type: string,
+  integrations: CompanyIntegration[],
+  setEditing: (integration: CompanyIntegration | null) => void,
+  setInitialType: (type: string) => void,
+  setOpen: (open: boolean) => void,
+) {
+  setEditing(integrations.find((item) => item.tipo === type) ?? null);
+  setInitialType(type);
+  setOpen(true);
+}
+
 function labelType(type: string) {
   return TYPES.find((item) => item.value === type)?.label ?? type;
 }
@@ -256,19 +394,33 @@ function text(value: unknown) {
 
 function IntegrationForm({
   editing,
+  initialType,
   onClose,
   onSave,
 }: {
   editing: CompanyIntegration | null;
+  initialType: string;
   onClose: () => void;
   onSave: (row: Record<string, unknown>) => void;
 }) {
-  const [tipo, setTipo] = useState(editing?.tipo ?? "whatsapp_business");
+  const storedConfig = (editing?.configuracao ?? {}) as Record<string, unknown>;
+  const [tipo, setTipo] = useState(editing?.tipo ?? initialType);
   const [nome, setNome] = useState(editing?.nome ?? "");
   const [identificador, setIdentificador] = useState(editing?.identificador ?? "");
   const [webhookUrl, setWebhookUrl] = useState(editing?.webhook_url ?? "");
   const [observacoes, setObservacoes] = useState(editing?.observacoes ?? "");
   const [ativo, setAtivo] = useState(editing?.ativo ?? true);
+  const [businessAccountId, setBusinessAccountId] = useState(String(storedConfig.business_account_id ?? ""));
+  const [phoneNumberId, setPhoneNumberId] = useState(String(storedConfig.phone_number_id ?? ""));
+  const [hotelId, setHotelId] = useState(String(storedConfig.hotel_id ?? ""));
+  const [partnerId, setPartnerId] = useState(String(storedConfig.partner_id ?? ""));
+  const [propertyId, setPropertyId] = useState(String(storedConfig.property_id ?? ""));
+  const [adAccountId, setAdAccountId] = useState(String(storedConfig.ad_account_id ?? ""));
+  const [pixelId, setPixelId] = useState(String(storedConfig.pixel_id ?? ""));
+  const [instagramAccountId, setInstagramAccountId] = useState(String(storedConfig.instagram_account_id ?? ""));
+  const [pageId, setPageId] = useState(String(storedConfig.page_id ?? ""));
+  const [fnrhApiVersion, setFnrhApiVersion] = useState(String(storedConfig.api_version ?? "2.4"));
+  const [fnrhUserId, setFnrhUserId] = useState(String(storedConfig.fnrh_user_id ?? ""));
 
   return (
     <Modal open onClose={onClose} title={editing ? "Editar canal" : "Novo canal"}>
@@ -283,7 +435,20 @@ function IntegrationForm({
             webhook_url: webhookUrl || null,
             observacoes: observacoes || null,
             ativo,
-            configuracao: {},
+            configuracao: {
+              ...storedConfig,
+              business_account_id: businessAccountId || null,
+              phone_number_id: phoneNumberId || null,
+              hotel_id: hotelId || null,
+              partner_id: partnerId || null,
+              property_id: propertyId || null,
+              ad_account_id: adAccountId || null,
+              pixel_id: pixelId || null,
+              instagram_account_id: instagramAccountId || null,
+              page_id: pageId || null,
+              api_version: fnrhApiVersion || "2.4",
+              fnrh_user_id: fnrhUserId || null,
+            },
           });
         }}
       >
@@ -300,6 +465,73 @@ function IntegrationForm({
         <Field label="ID / conta / propriedade">
           <input className="field" value={identificador} onChange={(e) => setIdentificador(e.target.value)} />
         </Field>
+        {tipo === "whatsapp_business" && (
+          <div className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+            <Field label="WhatsApp Business Account ID">
+              <input className="field" value={businessAccountId} onChange={(e) => setBusinessAccountId(e.target.value)} required />
+            </Field>
+            <Field label="Phone Number ID">
+              <input className="field" value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} required />
+            </Field>
+            <p className="col-span-2 text-xs text-muted-foreground">
+              O token de acesso e o token de verificação permanecem protegidos no servidor.
+            </p>
+          </div>
+        )}
+        {tipo === "booking" && (
+          <div className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+            <Field label="Hotel ID no Booking">
+              <input className="field" value={hotelId} onChange={(e) => setHotelId(e.target.value)} required />
+            </Field>
+            <Field label="Partner / Connectivity ID">
+              <input className="field" value={partnerId} onChange={(e) => setPartnerId(e.target.value)} />
+            </Field>
+            <p className="col-span-2 text-xs text-muted-foreground">
+              O Booking precisa liberar a conexão ou enviar os eventos por um channel manager homologado.
+            </p>
+          </div>
+        )}
+        {tipo === "google_business" && (
+          <Field label="ID da propriedade / localização">
+            <input className="field" value={propertyId} onChange={(e) => setPropertyId(e.target.value)} />
+          </Field>
+        )}
+        {tipo === "meta_ads" && (
+          <div className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+            <Field label="Conta de anúncios">
+              <input className="field" value={adAccountId} onChange={(e) => setAdAccountId(e.target.value)} />
+            </Field>
+            <Field label="Pixel / Dataset ID">
+              <input className="field" value={pixelId} onChange={(e) => setPixelId(e.target.value)} />
+            </Field>
+          </div>
+        )}
+        {tipo === "instagram" && (
+          <div className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+            <Field label="Instagram Business Account ID">
+              <input className="field" value={instagramAccountId} onChange={(e) => setInstagramAccountId(e.target.value)} />
+            </Field>
+            <Field label="Página do Facebook vinculada">
+              <input className="field" value={pageId} onChange={(e) => setPageId(e.target.value)} />
+            </Field>
+          </div>
+        )}
+        {tipo === "fnrh_mtur" && (
+          <div className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
+            <Field label="Versão da API">
+              <select className="field" value={fnrhApiVersion} onChange={(e) => setFnrhApiVersion(e.target.value)}>
+                <option value="2.4">2.4 (atual)</option>
+                <option value="2.3">2.3</option>
+              </select>
+            </Field>
+            <Field label="Identificador do usuário FNRH">
+              <input className="field" value={fnrhUserId} onChange={(e) => setFnrhUserId(e.target.value)} required />
+            </Field>
+            <p className="col-span-2 text-xs text-muted-foreground">
+              A chave secreta da API deve ser configurada como secret no servidor e nunca salva no navegador.
+            </p>
+          </div>
+        )}
         <Field label="Webhook / URL do provedor">
           <input className="field" value={webhookUrl} onChange={(e) => setWebhookUrl(e.target.value)} />
         </Field>

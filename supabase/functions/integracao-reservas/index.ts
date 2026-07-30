@@ -31,6 +31,9 @@ const wahaSession = Deno.env.get("WAHA_SESSION") ?? "default";
 const whatsappBusinessToken = Deno.env.get("WHATSAPP_BUSINESS_TOKEN") ?? "";
 const whatsappPhoneNumberId = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID") ?? "";
 const whatsappVerifyToken = Deno.env.get("WHATSAPP_VERIFY_TOKEN") ?? webhookToken;
+const geminiApiKey =
+  Deno.env.get("GEMINI_API_KEY") ?? Deno.env.get("GOOGLE_GENERATIVE_AI_API_KEY") ?? "";
+const geminiModel = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.5-flash";
 
 const supabase = createClient(supabaseUrl, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -98,6 +101,15 @@ async function handleWhatsAppBusiness(body: Record<string, unknown>, companyId: 
   if (!inbound?.phone || !inbound.text) return { created: false, reply: "Mensagem ignorada." };
 
   const current = await getSession(inbound.phone, companyId);
+  if (
+    current?.last_message &&
+    current?.last_response &&
+    normalizeText(String(current.last_message)) === normalizeText(inbound.text)
+  ) {
+    const repeatedReply = String(current.last_response);
+    await sendWhatsAppBusinessText(inbound.phone, repeatedReply, companyId);
+    return { created: false, repeated: true, reply: repeatedReply };
+  }
   const draft = mergeDraft(current?.draft as Draft | null, parseMessage(inbound.text, current?.stage, current?.draft as Draft | null));
   draft.nome = draft.nome ?? inbound.name;
   draft.telefone = inbound.phone;
@@ -107,16 +119,34 @@ async function handleWhatsAppBusiness(body: Record<string, unknown>, companyId: 
 
   const missing = firstMissingField(draft, { requireCpf: false, requireDailyConfirmation: true });
   if (missing) {
-    const reply = questionFor(missing);
+    const operationalReply = await questionForReservation(missing, draft, companyId);
+    const reply = personalizeReply(
+      await receptionReply(companyId, operationalReply, draft, Boolean(current)),
+      draft.nome,
+      !current,
+    );
     await upsertSession(inbound.phone, inbound.phone, companyId, missing, draft, inbound.text, reply);
-    await sendWhatsAppBusinessText(inbound.phone, reply);
+    await sendWhatsAppBusinessText(inbound.phone, reply, companyId);
     return { created: false, reply };
   }
 
   const created = await createReservation(draft);
-  const reply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}. Nome: ${created.nome}.`;
-  await upsertSession(inbound.phone, inbound.phone, companyId, "done", {}, inbound.text, reply);
-  await sendWhatsAppBusinessText(inbound.phone, reply);
+  const operationalReply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}.`;
+  const reply = personalizeReply(
+    await receptionReply(companyId, operationalReply, draft, true),
+    draft.nome,
+    false,
+  );
+  await upsertSession(
+    inbound.phone,
+    inbound.phone,
+    companyId,
+    "done",
+    { nome: draft.nome, telefone: draft.telefone, source: draft.source },
+    inbound.text,
+    reply,
+  );
+  await sendWhatsAppBusinessText(inbound.phone, reply, companyId);
   return { created: true, reservationId: created.reservationId, reply };
 }
 
@@ -128,6 +158,15 @@ async function handleWaha(body: Record<string, unknown>, companyId: string) {
 
   const phone = chatId.replace(/\D/g, "");
   const current = await getSession(phone, companyId);
+  if (
+    current?.last_message &&
+    current?.last_response &&
+    normalizeText(String(current.last_message)) === normalizeText(text)
+  ) {
+    const repeatedReply = String(current.last_response);
+    await sendWahaText(chatId, repeatedReply);
+    return { created: false, repeated: true, reply: repeatedReply };
+  }
   const draft = mergeDraft(current?.draft as Draft | null, parseMessage(text, current?.stage, current?.draft as Draft | null));
   draft.telefone = phone;
   draft.source = "WhatsApp";
@@ -136,15 +175,33 @@ async function handleWaha(body: Record<string, unknown>, companyId: string) {
 
   const missing = firstMissingField(draft, { requireCpf: false, requireDailyConfirmation: true });
   if (missing) {
-    const reply = questionFor(missing);
+    const operationalReply = await questionForReservation(missing, draft, companyId);
+    const reply = personalizeReply(
+      await receptionReply(companyId, operationalReply, draft, Boolean(current)),
+      draft.nome,
+      !current,
+    );
     await upsertSession(phone, chatId, companyId, missing, draft, text, reply);
     await sendWahaText(chatId, reply);
     return { created: false, reply };
   }
 
   const created = await createReservation(draft);
-  const reply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}. Nome: ${created.nome}.`;
-  await upsertSession(phone, chatId, companyId, "done", {}, text, reply);
+  const operationalReply = `Reserva criada no quarto ${created.quarto}, de ${formatDateBR(created.checkin)} ate ${formatDateBR(created.checkout)}.`;
+  const reply = personalizeReply(
+    await receptionReply(companyId, operationalReply, draft, true),
+    draft.nome,
+    false,
+  );
+  await upsertSession(
+    phone,
+    chatId,
+    companyId,
+    "done",
+    { nome: draft.nome, telefone: draft.telefone, source: draft.source },
+    text,
+    reply,
+  );
   await sendWahaText(chatId, reply);
   return { created: true, reservationId: created.reservationId, reply };
 }
@@ -309,9 +366,114 @@ async function upsertSession(phone: string, chatId: string, companyId: string, s
   if (error) throw error;
 }
 
-async function sendWhatsAppBusinessText(to: string, text: string) {
-  if (!whatsappBusinessToken || !whatsappPhoneNumberId) return;
-  await fetch(`https://graph.facebook.com/v20.0/${whatsappPhoneNumberId}/messages`, {
+async function receptionReply(
+  companyId: string,
+  operationalReply: string,
+  draft: Draft,
+  conversationStarted = false,
+) {
+  if (!geminiApiKey) return operationalReply;
+  const { data } = await supabase
+    .from("company_integrations")
+    .select("configuracao")
+    .eq("company_id", companyId)
+    .eq("tipo", "recepcao_virtual_ia")
+    .eq("ativo", true)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const configuration = objectValue(data?.configuracao);
+  const instructions = String(configuration?.instructions ?? "").trim().slice(0, 12_000);
+  if (!instructions) return operationalReply;
+
+  const safeContext = {
+    quarto: draft.quarto,
+    checkin: draft.checkin,
+    checkout: draft.checkout,
+    pessoas: draft.pessoas,
+    valor_diaria: draft.valorDiaria,
+    valor_total: draft.valorTotal,
+    diaria_confirmada: draft.diariaConfirmada,
+    conversa_ja_iniciada: conversationStarted,
+  };
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(geminiModel)}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiApiKey,
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [
+            {
+              text: `${instructions}
+
+REGRAS FIXAS:
+- Preserve datas, preços, quarto e disponibilidade da resposta operacional.
+- Não invente Pix, pagamento, link, nota fiscal ou confirmação.
+- Não inclua nome, CPF, telefone ou qualquer dado pessoal.
+- Se conversa_ja_iniciada for true, não repita Olá, bom dia, boa tarde, boa noite nem apresentação.
+- Faça somente a próxima pergunta necessária e nunca peça novamente um dado já presente no contexto.
+- Responda somente com a mensagem final para o hóspede, em português do Brasil.`,
+            },
+          ],
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `RESPOSTA OPERACIONAL OBRIGATÓRIA:\n${operationalReply}\n\nCONTEXTO SEM DADOS PESSOAIS:\n${JSON.stringify(safeContext)}`,
+              },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0.15, maxOutputTokens: 500 },
+      }),
+    },
+  ).catch(() => null);
+  if (!response?.ok) return operationalReply;
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
+  const text = candidates
+    .flatMap((candidate) => {
+      const content = objectValue((candidate as Record<string, unknown>).content);
+      return Array.isArray(content?.parts) ? content.parts : [];
+    })
+    .map((part) => String(objectValue(part)?.text ?? ""))
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  return text || operationalReply;
+}
+
+function personalizeReply(reply: string, guestName?: string, shouldGreet = false) {
+  const firstName = String(guestName ?? "")
+    .trim()
+    .split(/\s+/)[0]
+    ?.replace(/[^\p{L}'-]/gu, "")
+    .slice(0, 40);
+  if (!shouldGreet || !firstName || normalizeText(reply).includes(normalizeText(firstName))) {
+    return reply;
+  }
+  return `Olá, ${firstName}! ${reply}`;
+}
+
+async function sendWhatsAppBusinessText(to: string, text: string, companyId: string) {
+  if (!whatsappBusinessToken) return;
+  const { data: integration } = await supabase
+    .from("company_integrations")
+    .select("configuracao")
+    .eq("company_id", companyId)
+    .eq("tipo", "whatsapp_business")
+    .eq("ativo", true)
+    .maybeSingle();
+  const configuration = (integration?.configuracao ?? {}) as Record<string, unknown>;
+  const configuredPhoneNumberId = String(configuration.phone_number_id ?? whatsappPhoneNumberId).trim();
+  if (!configuredPhoneNumberId) return;
+  await fetch(`https://graph.facebook.com/v20.0/${configuredPhoneNumberId}/messages`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${whatsappBusinessToken}`,
@@ -395,13 +557,17 @@ function parseMessage(text: string, stage?: string | null, previous?: Draft | nu
   parsed.valorTotal = moneyValue(stringFromRegex(normalized, /\b(?:total)\s*[:#-]?\s*(?:r\$\s*)?([\d.,]+)/i));
   parsed.diariaConfirmada = /\b(confirmo|confirmado|fechado|ok|pode reservar|reserva|reservar|aceito)\b/i.test(normalized) && Boolean(parsed.valorDiaria ?? parsed.valorTotal ?? previous?.valorDiaria ?? previous?.valorTotal);
 
+  const relativeStay = relativeStayDates(normalized);
+  parsed.checkin = parsed.checkin ?? relativeStay.checkin;
+  parsed.checkout = parsed.checkout ?? relativeStay.checkout;
+
   if (stage && !text.includes(":")) {
     if (stage === "nome") parsed.nome = cleanName(text);
     if (stage === "cpf") parsed.cpf = onlyDigits(text);
     if (stage === "quarto") parsed.quarto = Number(onlyDigits(text));
-    if (stage === "checkin") parsed.checkin = normalizeDate(text);
-    if (stage === "checkout") parsed.checkout = normalizeDate(text);
-    if (stage === "pessoas") parsed.pessoas = Number(onlyDigits(text));
+    if (stage === "checkin") parsed.checkin = normalizeDate(text) ?? relativeDate(text);
+    if (stage === "checkout") parsed.checkout = normalizeDate(text) ?? relativeDate(text);
+    if (stage === "pessoas") parsed.pessoas = parsePeopleCount(text);
     if (stage === "valorDiaria") parsed.valorDiaria = moneyValue(text);
     if (stage === "diariaConfirmada") parsed.diariaConfirmada = /\b(sim|confirmo|confirmado|fechado|ok|aceito|pode)\b/i.test(normalized);
   }
@@ -420,15 +586,46 @@ function mergeDraft(previous: Draft | null | undefined, next: Draft) {
 }
 
 function firstMissingField(draft: Draft, options: { requireCpf?: boolean; requireDailyConfirmation?: boolean } = {}) {
-  if (!draft.nome) return "nome";
-  if (options.requireCpf && !draft.cpf) return "cpf";
-  if (!draft.quarto) return "quarto";
   if (!draft.checkin) return "checkin";
   if (!draft.checkout) return "checkout";
   if (!draft.pessoas) return "pessoas";
+  if (!draft.nome) return "nome";
+  if (options.requireCpf && !draft.cpf) return "cpf";
+  if (!draft.quarto) return "quarto";
   if (options.requireDailyConfirmation && !draft.valorDiaria && !draft.valorTotal) return "valorDiaria";
   if (options.requireDailyConfirmation && !draft.diariaConfirmada) return "diariaConfirmada";
   return null;
+}
+
+async function questionForReservation(field: string, draft: Draft, companyId: string) {
+  if (field !== "quarto" || !draft.checkin || !draft.checkout) return questionFor(field);
+  const [{ data: rooms }, { data: reservations }] = await Promise.all([
+    supabase
+      .from("rooms")
+      .select("numero, configuracao, preco")
+      .eq("company_id", companyId)
+      .order("numero"),
+    supabase
+      .from("reservations")
+      .select("quarto")
+      .eq("company_id", companyId)
+      .lt("checkin", draft.checkout)
+      .gt("checkout", draft.checkin)
+      .not("status", "in", "(cancelado,finalizado)"),
+  ]);
+  const occupied = new Set((reservations ?? []).map((row) => Number(row.quarto)));
+  const available = (rooms ?? []).filter((room) => !occupied.has(Number(room.numero)));
+  if (!available.length) {
+    return `Não encontrei quarto disponível de ${formatDateBR(draft.checkin)} a ${formatDateBR(draft.checkout)}. Deseja tentar outras datas?`;
+  }
+  const options = available
+    .slice(0, 8)
+    .map(
+      (room) =>
+        `${room.numero} — ${room.configuracao || "Quarto"} — ${formatMoney(Number(room.preco ?? 0))}`,
+    )
+    .join("\n");
+  return `Encontrei estas opções disponíveis:\n${options}\nQual quarto deseja reservar?`;
 }
 
 function questionFor(field: string) {
@@ -443,6 +640,10 @@ function questionFor(field: string) {
     diariaConfirmada: "O cliente confirmou a diaria? Responda com confirmado, fechado ou ok para eu reservar.",
   };
   return questions[field] ?? "Pode me enviar os dados da reserva?";
+}
+
+function formatMoney(value: number) {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function normalizeDate(value?: string | null) {
@@ -461,6 +662,80 @@ function normalizeDate(value?: string | null) {
     isoDate = `${Number(year) + 1}-${month}-${day}`;
   }
   return isoDate;
+}
+
+function relativeStayDates(value: string) {
+  if (!/\b(fim de semana|final de semana|fds|sabado|domingo)\b/i.test(value)) {
+    return {} as Pick<Draft, "checkin" | "checkout">;
+  }
+  const saturday = nextWeekdayIso(6);
+  if (/\b(domingo)\b/i.test(value) && !/\b(sabado|fim de semana|final de semana|fds)\b/i.test(value)) {
+    const sunday = nextWeekdayIso(0);
+    return { checkin: sunday, checkout: addDaysIso(sunday, 1) };
+  }
+  return { checkin: saturday, checkout: addDaysIso(saturday, 1) };
+}
+
+function relativeDate(value: string) {
+  const normalized = normalizeText(value);
+  if (/\bhoje\b/.test(normalized)) return localIsoDate();
+  if (/\bamanha\b/.test(normalized)) return addDaysIso(localIsoDate(), 1);
+  const weekdays: Array<[RegExp, number]> = [
+    [/\bdomingo\b/, 0],
+    [/\bsegunda(?:-feira)?\b/, 1],
+    [/\bterca(?:-feira)?\b/, 2],
+    [/\bquarta(?:-feira)?\b/, 3],
+    [/\bquinta(?:-feira)?\b/, 4],
+    [/\bsexta(?:-feira)?\b/, 5],
+    [/\bsabado\b/, 6],
+  ];
+  const match = weekdays.find(([pattern]) => pattern.test(normalized));
+  return match ? nextWeekdayIso(match[1]) : undefined;
+}
+
+function nextWeekdayIso(targetDay: number) {
+  const today = new Date(`${localIsoDate()}T12:00:00-03:00`);
+  let distance = (targetDay - today.getDay() + 7) % 7;
+  if (distance === 0) distance = 7;
+  today.setDate(today.getDate() + distance);
+  return localIsoDate(today);
+}
+
+function localIsoDate(value = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
+}
+
+function addDaysIso(value: string, amount: number) {
+  const date = new Date(`${value}T12:00:00-03:00`);
+  date.setDate(date.getDate() + amount);
+  return localIsoDate(date);
+}
+
+function parsePeopleCount(value: string) {
+  const digits = Number(onlyDigits(value));
+  if (digits > 0) return digits;
+  const words: Record<string, number> = {
+    um: 1,
+    uma: 1,
+    dois: 2,
+    duas: 2,
+    tres: 3,
+    quatro: 4,
+    cinco: 5,
+    seis: 6,
+    sete: 7,
+    oito: 8,
+    nove: 9,
+    dez: 10,
+  };
+  const normalized = normalizeText(value);
+  const found = Object.entries(words).find(([word]) => new RegExp(`\\b${word}\\b`).test(normalized));
+  return found?.[1];
 }
 
 function daysBetween(checkin: string, checkout: string) {

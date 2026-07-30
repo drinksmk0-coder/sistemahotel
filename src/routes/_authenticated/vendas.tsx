@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Download, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import {
   useRooms,
   useReservations,
+  useClients,
   useSales,
   useProducts,
   useInsert,
@@ -18,6 +19,7 @@ import { fmtBRL, fmtDate, todayISO, downloadExcel } from "@/lib/format";
 import { PAYMENT_METHODS } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, EmptyState } from "@/components/ui-kit";
+import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
 
 export const Route = createFileRoute("/_authenticated/vendas")({
   component: Vendas,
@@ -26,6 +28,7 @@ export const Route = createFileRoute("/_authenticated/vendas")({
 function Vendas() {
   const { data: rooms = [] } = useRooms();
   const { data: reservations = [] } = useReservations();
+  const { data: clients = [] } = useClients();
   const { data: sales = [] } = useSales();
   const { data: products = [] } = useProducts();
   const insert = useInsert("sales", ["sales", "products"]);
@@ -44,24 +47,36 @@ function Vendas() {
   const totalMes = sales
     .filter((s) => (s.data || "").slice(0, 7) === today.slice(0, 7))
     .reduce((a, s) => a + Number(s.total), 0);
-  const categoryTotals = useMemo(() => {
-    const m = new Map<string, number>();
-    sales.forEach((s) => {
-      const key = s.categoria || "Geral";
-      m.set(key, (m.get(key) ?? 0) + Number(s.total));
-    });
-    return [...m.entries()].sort((a, b) => b[1] - a[1]);
-  }, [sales]);
   const lowStock = products.filter((p) => p.ativo && p.estoque_atual <= p.estoque_minimo);
-  const totalPendente = sales.reduce((a, s) => a + Math.max(0, Number(s.total) - Number(s.valor_pago ?? s.total)), 0);
-  const cafeStock = products.filter((p) => p.ativo && p.categoria.toLowerCase().includes("café"));
+  const totalPendente = sales.reduce(
+    (a, s) => a + Math.max(0, Number(s.total) - Number(s.valor_pago ?? s.total)),
+    0,
+  );
+  const clientsById = new Map(clients.map((client) => [client.id, client]));
 
-  function exportCSV() {
-    downloadExcel(`vendas-${today}.xls`, [
-      ["Data", "Quarto", "Categoria", "Item", "Qtd", "Unitário", "Total", "Pago", "Pendente", "Status", "Pagamento"],
-      ...sales.map((s) => [
+  function exportCSV(scope: ExportScope) {
+    const exportedSales =
+      scope.mode === "date" ? sales.filter((sale) => sale.data === scope.date) : sales;
+    const suffix = scope.mode === "date" ? scope.date : "historico-completo";
+    downloadExcel(`vendas-${suffix}.xls`, [
+      [
+        "Data",
+        "Quarto",
+        "Cliente",
+        "Categoria",
+        "Item",
+        "Qtd",
+        "Unitário",
+        "Total",
+        "Pago",
+        "Pendente",
+        "Status",
+        "Pagamento",
+      ],
+      ...exportedSales.map((s) => [
         s.data,
         s.quarto,
+        s.cliente_id ? (clientsById.get(s.cliente_id)?.nome ?? "") : "",
         s.categoria ?? "Geral",
         s.item,
         s.qtd,
@@ -76,7 +91,9 @@ function Vendas() {
   }
 
   const lowStockText = lowStock
-    .map((p) => `- ${p.nome} (${p.categoria}): estoque ${p.estoque_atual}, mínimo ${p.estoque_minimo}`)
+    .map(
+      (p) => `- ${p.nome} (${p.categoria}): estoque ${p.estoque_atual}, mínimo ${p.estoque_minimo}`,
+    )
     .join("\n");
 
   return (
@@ -86,10 +103,11 @@ function Vendas() {
         subtitle="Bebidas, lavanderia e outros consumos. Cada venda é vinculada à hospedagem ativa do quarto."
         action={
           <div className="flex gap-2">
-            <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Excel
-            </button>
-            <button onClick={() => setProductOpen(true)} className="btn-ghost flex items-center gap-1.5">
+            <ExportPeriodButton onExport={exportCSV} />
+            <button
+              onClick={() => setProductOpen(true)}
+              className="btn-ghost flex items-center gap-1.5"
+            >
               <Plus className="h-4 w-4" /> Produto
             </button>
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
@@ -99,26 +117,26 @@ function Vendas() {
         }
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-5">
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Hoje</p>
-          <p className="font-serif text-xl font-bold">{fmtBRL(totalHoje)}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Hoje</p>
+          <p className="text-base font-extrabold text-pine-dark">{fmtBRL(totalHoje)}</p>
         </div>
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Este mês</p>
-          <p className="font-serif text-xl font-bold">{fmtBRL(totalMes)}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Este mês</p>
+          <p className="text-base font-extrabold text-pine-dark">{fmtBRL(totalMes)}</p>
         </div>
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Produtos</p>
-          <p className="font-serif text-xl font-bold">{products.filter((p) => p.ativo).length}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Produtos</p>
+          <p className="text-base font-extrabold text-pine-dark">{products.filter((p) => p.ativo).length}</p>
         </div>
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Estoque baixo</p>
-          <p className="font-serif text-xl font-bold">{lowStock.length}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Estoque baixo</p>
+          <p className="text-base font-extrabold text-pine-dark">{lowStock.length}</p>
         </div>
         <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">A receber</p>
-          <p className="font-serif text-xl font-bold">{fmtBRL(totalPendente)}</p>
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">A receber</p>
+          <p className="text-base font-extrabold text-pine-dark">{fmtBRL(totalPendente)}</p>
         </div>
       </div>
 
@@ -139,13 +157,15 @@ function Vendas() {
         </div>
       )}
 
-      <div className="mb-4 grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+      <div className="mb-3">
         <div className="card-surface overflow-x-auto">
           <div className="border-b border-border px-3 py-2">
             <h3 className="font-semibold">Estoque de produtos</h3>
           </div>
           {products.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground">Cadastre produtos para vender com baixa automática.</div>
+            <div className="p-4 text-sm text-muted-foreground">
+              Cadastre produtos para vender com baixa automática.
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead>
@@ -163,7 +183,9 @@ function Vendas() {
                     <td className="p-3 font-semibold">{p.nome}</td>
                     <td className="p-3 text-muted-foreground">{p.categoria}</td>
                     <td className="p-3">{fmtBRL(p.preco)}</td>
-                    <td className={`p-3 font-semibold ${p.estoque_atual <= p.estoque_minimo ? "text-brick" : ""}`}>
+                    <td
+                      className={`p-3 font-semibold ${p.estoque_atual <= p.estoque_minimo ? "text-brick" : ""}`}
+                    >
                       {p.estoque_atual}
                     </td>
                     <td className="p-3 text-right">
@@ -198,41 +220,6 @@ function Vendas() {
           )}
         </div>
 
-        <div className="card-surface">
-          <div className="border-b border-border px-3 py-2">
-            <h3 className="font-semibold">Vendas por categoria</h3>
-          </div>
-          {categoryTotals.length === 0 ? (
-            <div className="p-4 text-sm text-muted-foreground">Sem vendas segmentadas ainda.</div>
-          ) : (
-            <ul className="divide-y divide-border/60 text-sm">
-              {categoryTotals.map(([categoria, total]) => (
-                <li key={categoria} className="flex justify-between px-3 py-2">
-                  <span>{categoria}</span>
-                  <strong>{fmtBRL(total)}</strong>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      <div className="mb-4 card-surface p-4">
-        <h3 className="font-semibold">Estoque do café</h3>
-        {cafeStock.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">Cadastre produtos com categoria “Café” para acompanhar consumo e compra.</p>
-        ) : (
-          <div className="mt-3 grid gap-2 md:grid-cols-3">
-            {cafeStock.map((p) => (
-              <div key={p.id} className="rounded-md border border-border p-3 text-sm">
-                <strong>{p.nome}</strong>
-                <p className={p.estoque_atual <= p.estoque_minimo ? "text-brick" : "text-muted-foreground"}>
-                  Estoque {p.estoque_atual} · mínimo {p.estoque_minimo}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {sales.length === 0 ? (
@@ -244,6 +231,7 @@ function Vendas() {
               <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                 <th className="p-3">Data</th>
                 <th className="p-3">Quarto</th>
+                <th className="p-3">Cliente</th>
                 <th className="p-3">Categoria</th>
                 <th className="p-3">Item</th>
                 <th className="p-3">Qtd</th>
@@ -259,12 +247,19 @@ function Vendas() {
                 <tr key={s.id} className="border-b border-border/50">
                   <td className="p-3 text-muted-foreground">{fmtDate(s.data)}</td>
                   <td className="p-3 font-semibold">{s.quarto}</td>
+                  <td className="p-3">
+                    {s.cliente_id
+                      ? (clientsById.get(s.cliente_id)?.nome ?? "Cliente vinculado")
+                      : "Sem vínculo"}
+                  </td>
                   <td className="p-3 text-muted-foreground">{s.categoria ?? "Geral"}</td>
                   <td className="p-3">{s.item}</td>
                   <td className="p-3">{s.qtd}</td>
                   <td className="p-3">{fmtBRL(s.total)}</td>
                   <td className="p-3">{fmtBRL(s.valor_pago ?? s.total)}</td>
-                  <td className={`p-3 font-semibold ${Number(s.total) > Number(s.valor_pago ?? s.total) ? "text-brick" : "text-muted-foreground"}`}>
+                  <td
+                    className={`p-3 font-semibold ${Number(s.total) > Number(s.valor_pago ?? s.total) ? "text-brick" : "text-muted-foreground"}`}
+                  >
                     {fmtBRL(Math.max(0, Number(s.total) - Number(s.valor_pago ?? s.total)))}
                   </td>
                   <td className="p-3 text-muted-foreground">{s.pagamento}</td>
@@ -304,6 +299,7 @@ function Vendas() {
       {(open || editingSale) && (
         <SaleForm
           rooms={rooms}
+          reservations={reservations}
           products={products.filter((p) => p.ativo)}
           editing={editingSale}
           onClose={() => {
@@ -312,9 +308,23 @@ function Vendas() {
           }}
           onSave={(quarto, row) => {
             const active = activeReservationForRoom(reservations, quarto);
+            if (!active && !editingSale) {
+              toast.error(
+                "Este quarto não possui hospedagem ativa. Faça o check-in ou selecione o quarto correto antes de lançar o consumo.",
+              );
+              return;
+            }
             if (editingSale) {
               updateSale.mutate(
-                { id: editingSale.id, patch: { ...row, quarto, reserva_id: active?.id ?? editingSale.reserva_id ?? null } },
+                {
+                  id: editingSale.id,
+                  patch: {
+                    ...row,
+                    quarto,
+                    reserva_id: active?.id ?? editingSale.reserva_id ?? null,
+                    cliente_id: active?.cliente_id ?? editingSale.cliente_id ?? null,
+                  },
+                },
                 {
                   onSuccess: () => {
                     toast.success("Venda atualizada");
@@ -326,7 +336,12 @@ function Vendas() {
               return;
             }
             insert.mutate(
-              { ...row, quarto, reserva_id: active?.id ?? null },
+              {
+                ...row,
+                quarto,
+                reserva_id: active?.id ?? null,
+                cliente_id: active?.cliente_id ?? null,
+              },
               {
                 onSuccess: () => {
                   toast.success("Venda registrada");
@@ -377,12 +392,14 @@ function Vendas() {
 
 function SaleForm({
   rooms,
+  reservations,
   products,
   editing,
   onClose,
   onSave,
 }: {
   rooms: ReturnType<typeof useRooms>["data"];
+  reservations: ReturnType<typeof useReservations>["data"];
   products: Product[];
   editing: Sale | null;
   onClose: () => void;
@@ -404,16 +421,19 @@ function SaleForm({
 }) {
   const [quarto, setQuarto] = useState<number>(editing?.quarto ?? rooms?.[0]?.numero ?? 0);
   const [produtoId, setProdutoId] = useState(editing?.produto_id ?? "");
-  const [item, setItem] = useState(editing?.produto_id ? "" : editing?.item ?? "");
+  const [item, setItem] = useState(editing?.produto_id ? "" : (editing?.item ?? ""));
   const [categoria, setCategoria] = useState(editing?.categoria ?? "Geral");
   const [qtd, setQtd] = useState(Number(editing?.qtd ?? 1));
   const [valor, setValor] = useState(Number(editing?.valor_unit ?? 0));
-  const [valorPago, setValorPago] = useState<number | "">(editing ? Number(editing.valor_pago ?? editing.total) : "");
+  const [valorPago, setValorPago] = useState<number | "">(
+    editing ? Number(editing.valor_pago ?? editing.total) : "",
+  );
   const [pagamento, setPagamento] = useState<string>(editing?.pagamento ?? PAYMENT_METHODS[0]);
   const selectedProduct = products.find((p) => p.id === produtoId);
   const total = qtd * valor;
   const paid = valorPago === "" ? total : Math.min(total, Math.max(0, Number(valorPago) || 0));
   const saleStatus = paid >= total ? "pago" : paid > 0 ? "parcial" : "pendente";
+  const activeGuest = activeReservationForRoom(reservations ?? [], quarto);
 
   return (
     <Modal open onClose={onClose} title={editing ? "Editar venda" : "Nova venda"}>
@@ -423,7 +443,8 @@ function SaleForm({
           const saleItem = selectedProduct?.nome ?? item.trim();
           const saleCategory = selectedProduct?.categoria ?? (categoria.trim() || "Geral");
           if (!saleItem) return toast.error("Informe o item");
-          if (selectedProduct && qtd > selectedProduct.estoque_atual) return toast.error("Estoque insuficiente");
+          if (selectedProduct && qtd > selectedProduct.estoque_atual)
+            return toast.error("Estoque insuficiente");
           onSave(quarto, {
             item: saleItem,
             categoria: saleCategory,
@@ -440,7 +461,11 @@ function SaleForm({
         className="space-y-3"
       >
         <Field label="Quarto">
-          <select className="field" value={quarto} onChange={(e) => setQuarto(Number(e.target.value))}>
+          <select
+            className="field"
+            value={quarto}
+            onChange={(e) => setQuarto(Number(e.target.value))}
+          >
             {rooms?.map((r) => (
               <option key={r.numero} value={r.numero}>
                 {r.numero}
@@ -448,6 +473,15 @@ function SaleForm({
             ))}
           </select>
         </Field>
+        <div
+          className={`rounded-lg px-3 py-2 text-sm ${
+            activeGuest ? "bg-sage-bg text-pine-dark" : "bg-brick-bg text-brick"
+          }`}
+        >
+          {activeGuest
+            ? `Conta vinculada a ${activeGuest.cliente_nome} · reserva ${activeGuest.id.slice(0, 8)}`
+            : "Nenhum hóspede ativo neste quarto. O consumo não poderá ser lançado."}
+        </div>
         <Field label="Produto cadastrado">
           <select
             className="field"
@@ -496,23 +530,43 @@ function SaleForm({
           </div>
         )}
         {selectedProduct && selectedProduct.estoque_atual <= selectedProduct.estoque_minimo && (
-          <p className="rounded-lg bg-brick-bg px-3 py-2 text-sm text-brick">Atenção: estoque baixo para este produto.</p>
+          <p className="rounded-lg bg-brick-bg px-3 py-2 text-sm text-brick">
+            Atenção: estoque baixo para este produto.
+          </p>
         )}
         {selectedProduct && (
           <p className="text-xs text-muted-foreground">
-            Categoria {selectedProduct.categoria} · estoque disponível {selectedProduct.estoque_atual}
+            Categoria {selectedProduct.categoria} · estoque disponível{" "}
+            {selectedProduct.estoque_atual}
           </p>
         )}
         <div className="grid grid-cols-2 gap-3">
           <Field label="Quantidade">
-            <input type="number" min={1} className="field" value={qtd} onChange={(e) => setQtd(Number(e.target.value))} />
+            <input
+              type="number"
+              min={1}
+              className="field"
+              value={qtd}
+              onChange={(e) => setQtd(Number(e.target.value))}
+            />
           </Field>
           <Field label="Valor unitário">
-            <input type="number" min={0} step="0.01" className="field" value={valor} onChange={(e) => setValor(Number(e.target.value))} />
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              className="field"
+              value={valor}
+              onChange={(e) => setValor(Number(e.target.value))}
+            />
           </Field>
         </div>
         <Field label="Pagamento">
-          <select className="field" value={pagamento} onChange={(e) => setPagamento(e.target.value)}>
+          <select
+            className="field"
+            value={pagamento}
+            onChange={(e) => setPagamento(e.target.value)}
+          >
             {PAYMENT_METHODS.map((m) => (
               <option key={m} value={m}>
                 {m}
@@ -591,20 +645,51 @@ function ProductForm({
         className="space-y-3"
       >
         <Field label="Produto">
-          <input className="field" value={nome} onChange={(e) => setNome(e.target.value)} required maxLength={80} />
+          <input
+            className="field"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            required
+            maxLength={80}
+          />
         </Field>
         <Field label="Categoria">
-          <input className="field" value={categoria} onChange={(e) => setCategoria(e.target.value)} required maxLength={40} />
+          <input
+            className="field"
+            value={categoria}
+            onChange={(e) => setCategoria(e.target.value)}
+            required
+            maxLength={40}
+          />
         </Field>
         <div className="grid grid-cols-3 gap-3">
           <Field label="Preço">
-            <input type="number" min={0} step="0.01" className="field" value={preco} onChange={(e) => setPreco(Number(e.target.value))} />
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              className="field"
+              value={preco}
+              onChange={(e) => setPreco(Number(e.target.value))}
+            />
           </Field>
           <Field label="Estoque atual">
-            <input type="number" min={0} className="field" value={estoque} onChange={(e) => setEstoque(Number(e.target.value))} />
+            <input
+              type="number"
+              min={0}
+              className="field"
+              value={estoque}
+              onChange={(e) => setEstoque(Number(e.target.value))}
+            />
           </Field>
           <Field label="Estoque mínimo">
-            <input type="number" min={0} className="field" value={minimo} onChange={(e) => setMinimo(Number(e.target.value))} />
+            <input
+              type="number"
+              min={0}
+              className="field"
+              value={minimo}
+              onChange={(e) => setMinimo(Number(e.target.value))}
+            />
           </Field>
         </div>
         <label className="flex items-center gap-2 text-sm">

@@ -1,11 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Download, Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { EmptyState, Field, Modal } from "@/components/ui-kit";
 import { useDelete, useExpenses, useInsert, useUpdate, type Expense } from "@/lib/data";
 import { downloadExcel, fmtBRL, fmtDate, todayISO } from "@/lib/format";
+import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 export const Route = createFileRoute("/_authenticated/despesas")({
   component: Despesas,
@@ -18,6 +31,10 @@ function Despesas() {
   const remove = useDelete("expenses", ["expenses"]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
+  const currentMonthLabel = new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${todayISO().slice(0, 7)}-01T12:00:00`));
   const totalMes = expenses
     .filter((e) => (e.data || "").slice(0, 7) === todayISO().slice(0, 7))
     .reduce((sum, e) => sum + Number(e.valor), 0);
@@ -26,11 +43,29 @@ function Despesas() {
     expenses.forEach((expense) => map.set(expense.categoria, (map.get(expense.categoria) ?? 0) + Number(expense.valor)));
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   }, [expenses]);
+  const categoryChart = useMemo(
+    () => byCategory.slice(0, 10).map(([categoria, valor]) => ({ categoria, valor })),
+    [byCategory],
+  );
+  const monthlyChart = useMemo(() => {
+    const totals = new Map<string, number>();
+    expenses.forEach((expense) => {
+      const month = (expense.data || "").slice(0, 7);
+      if (month) totals.set(month, (totals.get(month) ?? 0) + Number(expense.valor));
+    });
+    return [...totals.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-12)
+      .map(([mes, valor]) => ({ mes: `${mes.slice(5)}/${mes.slice(2, 4)}`, valor }));
+  }, [expenses]);
 
-  function exportCSV() {
-    downloadExcel(`despesas-${todayISO()}.xls`, [
+  function exportCSV(scope: ExportScope) {
+    const exportedExpenses =
+      scope.mode === "date" ? expenses.filter((expense) => expense.data === scope.date) : expenses;
+    const suffix = scope.mode === "date" ? scope.date : "historico-completo";
+    downloadExcel(`despesas-${suffix}.xls`, [
       ["Data", "Categoria", "Descricao", "Fornecedor", "Pagamento", "Valor", "Observacoes"],
-      ...expenses.map((e) => [e.data, e.categoria, e.descricao, e.fornecedor ?? "", e.pagamento ?? "", e.valor, e.observacoes ?? ""]),
+      ...exportedExpenses.map((e) => [e.data, e.categoria, e.descricao, e.fornecedor ?? "", e.pagamento ?? "", e.valor, e.observacoes ?? ""]),
     ]);
   }
 
@@ -41,9 +76,7 @@ function Despesas() {
         subtitle="Controle de gastos por categoria para comparar receita, custos e margem."
         action={
           <div className="flex gap-2">
-            <button onClick={exportCSV} className="btn-ghost flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Excel
-            </button>
+            <ExportPeriodButton onExport={exportCSV} />
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Nova despesa
             </button>
@@ -51,36 +84,95 @@ function Despesas() {
         }
       />
 
-      <div className="mb-4 grid gap-3 md:grid-cols-3">
-        <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Despesas do mes</p>
-          <p className="font-serif text-2xl font-bold">{fmtBRL(totalMes)}</p>
+      <div className="mb-3 flex flex-wrap gap-2">
+        <div className="stat-card w-full max-w-[230px] flex-1 basis-[170px]">
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">
+            Despesas · {currentMonthLabel}
+          </p>
+          <p className="text-base font-extrabold text-pine-dark">{fmtBRL(totalMes)}</p>
         </div>
-        <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Lancamentos</p>
-          <p className="font-serif text-2xl font-bold">{expenses.length}</p>
+        <div className="stat-card w-full max-w-[230px] flex-1 basis-[170px]">
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Lançamentos</p>
+          <p className="text-base font-extrabold text-pine-dark">{expenses.length}</p>
         </div>
-        <div className="stat-card">
-          <p className="text-xs uppercase text-muted-foreground">Categorias</p>
-          <p className="font-serif text-2xl font-bold">{byCategory.length}</p>
+        <div className="stat-card w-full max-w-[230px] flex-1 basis-[170px]">
+          <p className="text-[9px] font-bold uppercase text-muted-foreground">Categorias</p>
+          <p className="text-base font-extrabold text-pine-dark">{byCategory.length}</p>
         </div>
       </div>
 
-      <div className="mb-4 card-surface p-4">
-        <h3 className="mb-2 font-serif text-lg font-bold">Por categoria</h3>
-        {byCategory.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Sem despesas ainda.</p>
-        ) : (
-          <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-4">
-            {byCategory.map(([category, total]) => (
-              <div key={category} className="rounded-md border border-border p-3">
-                <p className="text-xs uppercase text-muted-foreground">{category}</p>
-                <p className="font-serif text-lg font-bold">{fmtBRL(total)}</p>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {(categoryChart.length > 0 || monthlyChart.length > 0) && (
+        <div className="mb-3 grid gap-3 lg:grid-cols-2">
+          <section className="card-surface p-3">
+            <h3 className="text-sm font-extrabold text-pine-dark">Despesas por categoria</h3>
+            <p className="text-[9px] text-muted-foreground">Principais centros de custo.</p>
+            <div className="mt-2 h-60">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={categoryChart}
+                  layout="vertical"
+                  margin={{ top: 8, right: 78, left: 14, bottom: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 9 }}
+                    tickFormatter={formatCompactCurrency}
+                    height={34}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="categoria"
+                    interval={0}
+                    width={156}
+                    tick={{ fontSize: 9, fill: "var(--foreground)" }}
+                  />
+                  <Tooltip formatter={(value) => fmtBRL(Number(value))} />
+                  <Bar
+                    dataKey="valor"
+                    name="Despesa"
+                    fill="var(--chart-4)"
+                    radius={[0, 5, 5, 0]}
+                  >
+                    <LabelList
+                      dataKey="valor"
+                      position="right"
+                      fontSize={9}
+                      formatter={(value: number) => formatCompactCurrency(value).replace(" ", "\u00a0")}
+                    />
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+          <section className="card-surface p-3">
+            <h3 className="text-sm font-extrabold text-pine-dark">Evolução das despesas</h3>
+            <p className="text-[9px] text-muted-foreground">Comparação mensal do histórico.</p>
+            <div className="mt-2 h-60">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyChart} margin={{ top: 12, right: 18, left: 26, bottom: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="mes" />
+                  <YAxis
+                    tick={{ fontSize: 9 }}
+                    tickFormatter={formatCompactCurrency}
+                    width={84}
+                  />
+                  <Tooltip formatter={(value) => fmtBRL(Number(value))} />
+                  <Line
+                    type="monotone"
+                    dataKey="valor"
+                    name="Despesa mensal"
+                    stroke="var(--chart-4)"
+                    strokeWidth={3}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </section>
+        </div>
+      )}
 
       {expenses.length === 0 ? (
         <EmptyState text="Nenhuma despesa cadastrada." />
@@ -173,6 +265,23 @@ function Despesas() {
       )}
     </div>
   );
+}
+
+function formatCompactCurrency(value: number) {
+  const absolute = Math.abs(Number(value));
+  if (absolute >= 1_000_000) {
+    return `R$ ${(Number(value) / 1_000_000).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} mi`;
+  }
+  if (absolute >= 1_000) {
+    return `R$ ${(Number(value) / 1_000).toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} mil`;
+  }
+  return fmtBRL(Number(value));
 }
 
 function ExpenseForm({
