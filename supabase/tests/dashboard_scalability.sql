@@ -21,6 +21,27 @@ begin
   if jsonb_array_length(payload->'financialSeries') <> 31 then
     raise exception 'Série diária incompleta';
   end if;
+  if jsonb_typeof(payload->'productRows') <> 'array' then
+    raise exception 'Ranking de produtos inválido';
+  end if;
+  if jsonb_typeof(payload->'expenseRows') <> 'array' then
+    raise exception 'Categorias de despesas inválidas';
+  end if;
+  if jsonb_typeof(payload->'stateRows') <> 'array' then
+    raise exception 'Mapa por estado inválido';
+  end if;
+  if jsonb_typeof(payload->'ageRows') <> 'array' then
+    raise exception 'Perfil etário inválido';
+  end if;
+  if jsonb_typeof(payload->'reasonRows') <> 'array' then
+    raise exception 'Motivos de viagem inválidos';
+  end if;
+  if payload->'summary'->'retentionRate' is null then
+    raise exception 'Taxa de retenção ausente';
+  end if;
+  if payload->'summary'->'productTicket' is null then
+    raise exception 'Ticket de produtos ausente';
+  end if;
 end $$;
 
 -- Períodos excessivos devem ser rejeitados para evitar consultas abusivas.
