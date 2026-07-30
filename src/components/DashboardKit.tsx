@@ -79,21 +79,30 @@ export function DashboardTvButton() {
 
 export function ChartHtmlLegend({
   items,
+  align = "end",
 }: {
   items: { label: string; color: string }[];
+  align?: "start" | "center" | "end";
 }) {
+  const alignment =
+    align === "start" ? "justify-start" : align === "center" ? "justify-center" : "justify-end";
+
   return (
     <div
-      className="flex min-h-6 flex-wrap items-center justify-end gap-x-3 gap-y-1 py-1 text-[9px] font-semibold text-pine-dark"
+      className={`chart-html-legend flex min-h-6 flex-wrap items-center ${alignment} gap-x-3 gap-y-1 py-1 text-[10px] font-semibold text-foreground`}
       aria-label="Legenda do gráfico"
     >
       {items.map((item) => (
-        <span key={`${item.label}-${item.color}`} className="inline-flex items-center gap-1.5">
+        <span
+          key={`${item.label}-${item.color}`}
+          className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap"
+          title={item.label}
+        >
           <span
-            className="h-2.5 w-2.5 rounded-sm border border-black/10"
+            className="h-2.5 w-2.5 shrink-0 rounded-sm border border-black/10"
             style={{ backgroundColor: item.color }}
           />
-          {item.label}
+          <span className="max-w-40 truncate">{item.label}</span>
         </span>
       ))}
     </div>
