@@ -19,20 +19,38 @@ Deno.serve(async (request) => {
   }
 
   const bodyText = await request.text();
-  let mode = "analysis";
+  let body: Record<string, unknown>;
   try {
-    const body = JSON.parse(bodyText) as { mode?: string };
-    mode =
-      body.mode === "design"
-        ? "design"
-        : body.mode === "reception"
-          ? "reception"
-          : "analysis";
+    body = JSON.parse(bodyText) as Record<string, unknown>;
   } catch {
     return Response.json({ error: "Requisição inválida." }, { status: 400 });
   }
 
+  const mode =
+    body.mode === "design"
+      ? "design"
+      : body.mode === "reception"
+        ? "reception"
+        : "analysis";
   const target = mode === "design" ? "hotel-designer" : "hotel-assistant";
+
+  if (target === "hotel-assistant" && body.reception_context) {
+    const context =
+      typeof body.reception_context === "object" && body.reception_context
+        ? (body.reception_context as Record<string, unknown>)
+        : {};
+    const extra = [
+      context.checkin ? `check-in: ${String(context.checkin)}` : "",
+      context.checkout ? `check-out: ${String(context.checkout)}` : "",
+      context.pessoas ? `${String(context.pessoas)} hóspedes` : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    if (extra) {
+      body.question = `${String(body.question ?? "")}\n${extra}`.trim();
+    }
+  }
+
   const response = await fetch(`${supabaseUrl}/functions/v1/${target}`, {
     method: "POST",
     headers: {
@@ -40,7 +58,7 @@ Deno.serve(async (request) => {
       authorization: request.headers.get("authorization") ?? "",
       "Content-Type": "application/json",
     },
-    body: bodyText,
+    body: JSON.stringify(body),
   });
 
   return new Response(response.body, {
