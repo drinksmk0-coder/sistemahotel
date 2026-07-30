@@ -131,7 +131,7 @@ function minimumWidgetHeight(widget: DashboardWidget) {
   if (widget.kind !== "chart") return widget.kind === "kpi" ? 72 : 120;
   const role = dashboardDataRole(widget);
   const title = normalizeTitle(widget.title);
-  if (title.includes("receita, despesas e lucro")) return 400;
+  if (title.includes("receita, despesas e lucro")) return 310;
   if (role === "weekday" || title.includes("despesas por categoria")) return 250;
   if (role === "temporal") return 300;
   if (role === "ranking") return 260;
