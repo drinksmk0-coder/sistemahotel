@@ -38,7 +38,7 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         const response = await fetch(
-          `${supabaseUrl}/functions/v1/hotel-assistant`,
+          `${supabaseUrl}/functions/v1/hotel-assistant-v2`,
           {
             method: "POST",
             headers: {
