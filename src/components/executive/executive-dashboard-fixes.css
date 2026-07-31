@@ -5,6 +5,17 @@ aside.app-sidebar img[title][alt] {
   display: none !important;
 }
 
+/* O resumo do gráfico já aparece no cabeçalho, no canto superior direito. */
+article > .grid.border-t.border-border.pt-1\.5 {
+  display: none !important;
+}
+
+/* Remove repetições abaixo das roscas: os rótulos externos já informam nome e percentual. */
+article > div > .flex.flex-wrap.justify-center.text-muted-foreground,
+article > div > .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
+  display: none !important;
+}
+
 /* Mantém o HotelAI no canto inferior direito, sem cobrir gráficos ou ações. */
 @media (min-width: 640px) {
   body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
