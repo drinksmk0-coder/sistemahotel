@@ -1,0 +1,59 @@
+name: Apply sales import UI
+
+on:
+  push:
+    branches:
+      - agent/importar-hospedin-relatorio-agua
+    paths:
+      - scripts/apply-sales-import-ui.mjs
+      - .github/workflows/apply-sales-import-ui.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sales-import-ui
+  cancel-in-progress: true
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/importar-hospedin-relatorio-agua
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply sales import integration
+        run: node scripts/apply-sales-import-ui.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Commit integration
+        run: |
+          git add src/routes/_authenticated/vendas.tsx
+          if [ -f src/routeTree.gen.ts ]; then
+            git add -f src/routeTree.gen.ts
+          fi
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "integrar importação de vendas extras"
+          git fetch origin agent/importar-hospedin-relatorio-agua
+          git rebase origin/agent/importar-hospedin-relatorio-agua
+          git push origin HEAD:agent/importar-hospedin-relatorio-agua
