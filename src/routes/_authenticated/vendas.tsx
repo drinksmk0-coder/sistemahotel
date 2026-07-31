@@ -1,13 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Upload } from "lucide-react";
 import {
   useRooms,
   useReservations,
   useClients,
   useSales,
   useProducts,
+  useCurrentCompany,
   useInsert,
   useUpdate,
   useDelete,
@@ -20,6 +22,12 @@ import { PAYMENT_METHODS } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, EmptyState } from "@/components/ui-kit";
 import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  SaleImportModal,
+  type ImportedSaleRow,
+  type SaleImportResult,
+} from "@/components/SaleImportModal";
 
 export const Route = createFileRoute("/_authenticated/vendas")({
   component: Vendas,
@@ -31,6 +39,8 @@ function Vendas() {
   const { data: clients = [] } = useClients();
   const { data: sales = [] } = useSales();
   const { data: products = [] } = useProducts();
+  const currentCompany = useCurrentCompany();
+  const queryClient = useQueryClient();
   const insert = useInsert("sales", ["sales", "products"]);
   const updateSale = useUpdate("sales", ["sales", "products"]);
   const removeSale = useDelete("sales", ["sales", "products"]);
@@ -41,6 +51,7 @@ function Vendas() {
   const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [productOpen, setProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const today = todayISO();
   const totalHoje = sales.filter((s) => s.data === today).reduce((a, s) => a + Number(s.total), 0);
@@ -90,6 +101,77 @@ function Vendas() {
     ]);
   }
 
+  async function importSales(rows: ImportedSaleRow[]): Promise<SaleImportResult> {
+    const companyId = currentCompany.data?.id;
+    if (!companyId) return { imported: 0, duplicates: 0, errors: ["Empresa não encontrada."] };
+
+    const { data: knownRows, error: knownError } = await (supabase as any)
+      .from("sales")
+      .select("import_source,external_code")
+      .eq("company_id", companyId)
+      .not("import_source", "is", null)
+      .not("external_code", "is", null);
+    if (knownError) {
+      return { imported: 0, duplicates: 0, errors: [knownError.message] };
+    }
+
+    const keyOf = (row: { import_source?: string | null; external_code?: string | null }) =>
+      String(row.import_source ?? "").trim().toLowerCase() +
+      "|" +
+      String(row.external_code ?? "").trim().toLowerCase();
+    const existing = new Set((knownRows ?? []).map(keyOf));
+    const uniqueRows: ImportedSaleRow[] = [];
+    let duplicates = 0;
+    for (const row of rows) {
+      const key = keyOf(row);
+      if (existing.has(key)) {
+        duplicates += 1;
+      } else {
+        existing.add(key);
+        uniqueRows.push(row);
+      }
+    }
+
+    const errors: string[] = [];
+    let imported = 0;
+    const chunkSize = 100;
+    for (let index = 0; index < uniqueRows.length; index += chunkSize) {
+      const chunk = uniqueRows.slice(index, index + chunkSize);
+      const payload = chunk.map((row) => ({ ...row, company_id: companyId }));
+      const { error } = await (supabase as any).from("sales").insert(payload);
+      if (!error) {
+        imported += chunk.length;
+        continue;
+      }
+
+      // Isola uma linha inválida ou uma duplicidade concorrente sem perder o restante do lote.
+      for (const row of payload) {
+        const { error: rowError } = await (supabase as any).from("sales").insert(row);
+        if (!rowError) {
+          imported += 1;
+        } else if (rowError.code === "23505") {
+          duplicates += 1;
+        } else {
+          errors.push(
+            String(row.data) +
+              " · UH " +
+              String(row.quarto) +
+              " · " +
+              String(row.item) +
+              ": " +
+              rowError.message,
+          );
+        }
+      }
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ["sales"] });
+    await queryClient.invalidateQueries({ queryKey: ["products"] });
+    if (imported > 0) toast.success(imported + " venda(s) extra(s) importada(s).");
+    if (duplicates > 0) toast.info(duplicates + " linha(s) duplicada(s) foram ignoradas.");
+    return { imported, duplicates, errors };
+  }
+
   const lowStockText = lowStock
     .map(
       (p) => `- ${p.nome} (${p.categoria}): estoque ${p.estoque_atual}, mínimo ${p.estoque_minimo}`,
@@ -102,8 +184,15 @@ function Vendas() {
         title="Vendas extras"
         subtitle="Bebidas, lavanderia e outros consumos. Cada venda é vinculada à hospedagem ativa do quarto."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <ExportPeriodButton onExport={exportCSV} />
+            <button
+              type="button"
+              onClick={() => setImportOpen(true)}
+              className="btn-ghost flex items-center gap-1.5"
+            >
+              <Upload className="h-4 w-4" /> Importar
+            </button>
             <button
               onClick={() => setProductOpen(true)}
               className="btn-ghost flex items-center gap-1.5"
@@ -351,6 +440,15 @@ function Vendas() {
               },
             );
           }}
+        />
+      )}
+
+      {importOpen && (
+        <SaleImportModal
+          rooms={rooms}
+          reservations={reservations}
+          onClose={() => setImportOpen(false)}
+          onImport={importSales}
         />
       )}
 
