@@ -110,6 +110,7 @@ declare
   v_holder_client_id uuid;
   v_guest jsonb;
   v_count integer := 0;
+  v_holder_name text;
   v_name text;
   v_cpf text;
   v_phone text;
@@ -131,12 +132,12 @@ begin
     raise exception using errcode = '42501', message = 'Sem permissão para alterar os hóspedes desta reserva.';
   end if;
 
-  v_name := nullif(trim(p_holder ->> 'nome'), '');
+  v_holder_name := nullif(trim(p_holder ->> 'nome'), '');
   v_cpf := nullif(trim(p_holder ->> 'cpf'), '');
   v_phone := nullif(trim(p_holder ->> 'telefone'), '');
   v_email := nullif(trim(p_holder ->> 'email'), '');
 
-  if v_name is null then
+  if v_holder_name is null then
     raise exception using errcode = '22023', message = 'Informe o nome do hóspede titular.';
   end if;
 
@@ -144,7 +145,7 @@ begin
 
   if v_holder_client_id is not null then
     update public.clients
-       set nome = coalesce(v_name, nome),
+       set nome = coalesce(v_holder_name, nome),
            cpf = coalesce(v_cpf, cpf),
            telefone = coalesce(v_phone, telefone),
            email = coalesce(v_email, email),
@@ -171,7 +172,7 @@ begin
     v_reservation.company_id,
     p_reservation_id,
     v_holder_client_id,
-    v_name,
+    v_holder_name,
     v_cpf,
     v_phone,
     v_email,
@@ -213,7 +214,7 @@ begin
 
   update public.reservations
      set pessoas = greatest(1, v_count),
-         cliente_nome = v_name,
+         cliente_nome = v_holder_name,
          guest_signature = case
            when nullif(trim(coalesce(p_signature, '')), '') is not null then p_signature
            else guest_signature
