@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2, Upload } from "lucide-react";
+import { CalendarDays, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import {
   useRooms,
   useReservations,
@@ -52,6 +52,9 @@ function Vendas() {
   const [productOpen, setProductOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [filterDate, setFilterDate] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const today = todayISO();
   const totalHoje = sales.filter((s) => s.data === today).reduce((a, s) => a + Number(s.total), 0);
@@ -64,6 +67,9 @@ function Vendas() {
     0,
   );
   const clientsById = new Map(clients.map((client) => [client.id, client]));
+  const visibleSales = filterDate ? sales.filter((sale) => sale.data === filterDate) : sales;
+  const allVisibleSelected =
+    visibleSales.length > 0 && visibleSales.every((sale) => selectedIds.has(sale.id));
 
   function exportCSV(scope: ExportScope) {
     const exportedSales =
@@ -144,7 +150,6 @@ function Vendas() {
         continue;
       }
 
-      // Isola uma linha inválida ou uma duplicidade concorrente sem perder o restante do lote.
       for (const row of payload) {
         const { error: rowError } = await (supabase as any).from("sales").insert(row);
         if (!rowError) {
@@ -170,6 +175,53 @@ function Vendas() {
     if (imported > 0) toast.success(imported + " venda(s) extra(s) importada(s).");
     if (duplicates > 0) toast.info(duplicates + " linha(s) duplicada(s) foram ignoradas.");
     return { imported, duplicates, errors };
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) visibleSales.forEach((sale) => next.delete(sale.id));
+      else visibleSales.forEach((sale) => next.add(sale.id));
+      return next;
+    });
+  }
+
+  async function deleteSelectedSales() {
+    const ids = [...selectedIds];
+    const companyId = currentCompany.data?.id;
+    if (!ids.length || !companyId) return;
+    if (!window.confirm(`Excluir ${ids.length} venda(s) selecionada(s)? O estoque dos produtos será devolvido automaticamente.`)) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    try {
+      const { error } = await (supabase as any)
+        .from("sales")
+        .delete()
+        .eq("company_id", companyId)
+        .in("id", ids);
+      if (error) throw error;
+      setSelectedIds(new Set());
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["sales"] }),
+        queryClient.invalidateQueries({ queryKey: ["products"] }),
+      ]);
+      toast.success(`${ids.length} venda(s) excluída(s)`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir as vendas.");
+    } finally {
+      setBulkDeleting(false);
+    }
   }
 
   const lowStockText = lowStock
@@ -308,16 +360,64 @@ function Vendas() {
             </table>
           )}
         </div>
-
       </div>
 
-      {sales.length === 0 ? (
-        <EmptyState text="Nenhuma venda registrada." />
+      <section className="mb-3 flex flex-wrap items-end gap-2 rounded-lg border border-border bg-card p-3 shadow-sm">
+        <label className="min-w-[190px] text-[10px] font-bold uppercase text-muted-foreground">
+          <span className="mb-1 flex items-center gap-1.5">
+            <CalendarDays className="h-3.5 w-3.5 text-primary" /> Filtrar pelo calendário
+          </span>
+          <input
+            type="date"
+            className="field h-9 text-xs"
+            value={filterDate}
+            onChange={(event) => {
+              setFilterDate(event.target.value);
+              setSelectedIds(new Set());
+            }}
+          />
+        </label>
+        {filterDate && (
+          <button
+            type="button"
+            className="btn-ghost h-9 text-xs"
+            onClick={() => {
+              setFilterDate("");
+              setSelectedIds(new Set());
+            }}
+          >
+            Mostrar todo o histórico
+          </button>
+        )}
+        <span className="text-xs text-muted-foreground">{visibleSales.length} venda(s) exibida(s)</span>
+        {selectedIds.size > 0 && (
+          <button
+            type="button"
+            className="ml-auto flex h-9 items-center gap-1.5 rounded-md bg-brick px-3 text-xs font-bold text-white disabled:opacity-50"
+            disabled={bulkDeleting}
+            onClick={() => void deleteSelectedSales()}
+          >
+            <Trash2 className="h-4 w-4" />
+            {bulkDeleting ? "Excluindo…" : `Excluir selecionadas (${selectedIds.size})`}
+          </button>
+        )}
+      </section>
+
+      {visibleSales.length === 0 ? (
+        <EmptyState text={filterDate ? "Nenhuma venda nesta data." : "Nenhuma venda registrada."} />
       ) : (
         <div className="card-surface overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                <th className="w-10 p-3 text-center">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    aria-label="Selecionar todas as vendas exibidas"
+                  />
+                </th>
                 <th className="p-3">Data</th>
                 <th className="p-3">Quarto</th>
                 <th className="p-3">Cliente</th>
@@ -332,8 +432,19 @@ function Vendas() {
               </tr>
             </thead>
             <tbody>
-              {sales.map((s) => (
-                <tr key={s.id} className="border-b border-border/50">
+              {visibleSales.map((s) => (
+                <tr
+                  key={s.id}
+                  className={`border-b border-border/50 ${selectedIds.has(s.id) ? "bg-brick-bg/35" : ""}`}
+                >
+                  <td className="p-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(s.id)}
+                      onChange={() => toggleSelected(s.id)}
+                      aria-label={`Selecionar venda ${s.item}`}
+                    />
+                  </td>
                   <td className="p-3 text-muted-foreground">{fmtDate(s.data)}</td>
                   <td className="p-3 font-semibold">{s.quarto}</td>
                   <td className="p-3">
@@ -366,9 +477,16 @@ function Vendas() {
                         type="button"
                         className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
                         onClick={() => {
-                          if (!window.confirm(`Excluir venda "${s.item}"?`)) return;
+                          if (!window.confirm(`Excluir venda "${s.item}"? O estoque será devolvido se houver produto vinculado.`)) return;
                           removeSale.mutate(s.id, {
-                            onSuccess: () => toast.success("Venda excluída"),
+                            onSuccess: () => {
+                              setSelectedIds((current) => {
+                                const next = new Set(current);
+                                next.delete(s.id);
+                                return next;
+                              });
+                              toast.success("Venda excluída");
+                            },
                             onError: (e) => toast.error(e.message),
                           });
                         }}
@@ -634,8 +752,7 @@ function SaleForm({
         )}
         {selectedProduct && (
           <p className="text-xs text-muted-foreground">
-            Categoria {selectedProduct.categoria} · estoque disponível{" "}
-            {selectedProduct.estoque_atual}
+            Categoria {selectedProduct.categoria} · estoque disponível {selectedProduct.estoque_atual}
           </p>
         )}
         <div className="grid grid-cols-2 gap-3">
