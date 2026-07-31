@@ -37,6 +37,7 @@ export const Route = createFileRoute("/api/chat")({
           );
         }
 
+        const clarifiedQuestion = clarifyIntent(question, assistantMode);
         const response = await fetch(
           `${supabaseUrl}/functions/v1/hotel-assistant-v2`,
           {
@@ -47,7 +48,7 @@ export const Route = createFileRoute("/api/chat")({
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              question,
+              question: clarifiedQuestion,
               company_id: companyId,
               mode: assistantMode,
               conversation: extractConversation(messages),
@@ -73,6 +74,29 @@ export const Route = createFileRoute("/api/chat")({
     },
   },
 });
+
+function clarifyIntent(question: string, mode: "analysis" | "reception") {
+  const normalized = question
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (mode === "analysis" && /relatorio financeiro|relatorio de receitas|dre|resultado financeiro/.test(normalized)) {
+    return [
+      question,
+      "INSTRUÇÃO OBRIGATÓRIA: produza o relatório financeiro solicitado diretamente na resposta usando os dados do contexto do hotel. Organize em receita, despesas, GOP, margem, ocupação, ADR, RevPAR, TRevPAR, GOPPAR, contas pendentes, riscos e ações. Não mande o usuário para check-in, checkout ou outra página sem relação com o relatório. Quando algum dado não estiver disponível, declare claramente a ausência em vez de inventar.",
+    ].join("\n\n");
+  }
+
+  if (mode === "reception") {
+    return [
+      question,
+      "INSTRUÇÃO OBRIGATÓRIA: identifique se o pedido é uma explicação, uma mensagem pronta para o hóspede ou um passo a passo no sistema. Só ensine onde clicar quando isso for pedido explicitamente. Em reserva para duas pessoas no mesmo quarto, explique: uma reserva, um quarto, dois hóspedes; um titular e um acompanhante. Não crie duas reservas salvo se forem dois quartos.",
+    ].join("\n\n");
+  }
+
+  return question;
+}
 
 function streamAnswer(messages: UIMessage[], answer: string) {
   const textId = crypto.randomUUID();
