@@ -1,5 +1,6 @@
 import fs from "node:fs";
 
+// Codemod temporário e idempotente para integrar o modal já versionado.
 const path = "src/routes/_authenticated/vendas.tsx";
 let source = fs.readFileSync(path, "utf8");
 
