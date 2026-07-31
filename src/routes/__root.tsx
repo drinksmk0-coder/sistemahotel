@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
+import { HotelAiReportReaderEnhancer } from "@/components/HotelAiReportReaderEnhancer";
 import { useInspectorGuard } from "@/hooks/use-inspector-guard";
 import { BRAND, brandedPageTitle } from "@/lib/brand";
 
@@ -156,6 +157,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <HotelAiReportReaderEnhancer />
       <Toaster richColors position="top-center" />
     </QueryClientProvider>
   );
