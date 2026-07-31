@@ -1,0 +1,2 @@
+Commit técnico para solicitar um novo Preview da versão final do PR #25.
+Não altera o funcionamento do sistema.
