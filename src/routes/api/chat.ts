@@ -11,6 +11,10 @@ export const Route = createFileRoute("/api/chat")({
       POST: async ({ request }) => {
         const authorization = request.headers.get("authorization");
         const companyId = request.headers.get("x-company-id");
+        const assistantMode =
+          request.headers.get("x-assistant-mode") === "reception"
+            ? "reception"
+            : "analysis";
         const supabaseUrl =
           process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
         const publishableKey =
@@ -34,7 +38,7 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         const response = await fetch(
-          `${supabaseUrl}/functions/v1/hotel-assistant`,
+          `${supabaseUrl}/functions/v1/hotel-assistant-v2`,
           {
             method: "POST",
             headers: {
@@ -45,7 +49,7 @@ export const Route = createFileRoute("/api/chat")({
             body: JSON.stringify({
               question,
               company_id: companyId,
-              mode: "analysis",
+              mode: assistantMode,
               conversation: extractConversation(messages),
             }),
           },

@@ -778,7 +778,7 @@ export function ReservaForm({
             className="btn-ghost text-xs"
             onClick={() => setPaymentShortcut(total, "Pagamento total aplicado")}
           >
-            Pagar total (ocupado)
+            Registrar pagamento total
           </button>
         </div>
 

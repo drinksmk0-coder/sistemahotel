@@ -8,11 +8,15 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BedDouble,
   Bot,
+  Brain,
   CalendarRange,
   ChartNoAxesCombined,
+  ChevronLeft,
+  ChevronRight,
   CircleHelp,
   CreditCard,
   DollarSign,
+  Droplets,
   FileWarning,
   LayoutDashboard,
   LogOut,
@@ -122,6 +126,18 @@ const SECONDARY_TABS: NavigationItem[] = [
     roles: ["dono"],
   },
   {
+    to: "/memoria-ia",
+    label: "Memória do HotelAI",
+    icon: Brain,
+    roles: ["dono"],
+  },
+  {
+    to: "/relatorio-consumo-agua",
+    label: "Relatório de água",
+    icon: Droplets,
+    roles: ["dono"],
+  },
+  {
     to: "/ajuda-sistema",
     label: "Ajuda do sistema",
     icon: CircleHelp,
@@ -201,6 +217,8 @@ const STAFF_ALLOWED_PATHS: Record<Exclude<AppRole, "dono">, string[]> = {
   cafe: ["/painel", "/mapa", "/ajuda-sistema"],
 };
 
+const SIDEBAR_COLLAPSED_KEY = "hospedamais.sidebar.collapsed";
+
 function Clock() {
   const [now, setNow] = useState(() => new Date());
 
@@ -236,6 +254,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
   });
   const [menuOpen, setMenuOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
+    typeof window !== "undefined"
+      ? window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true"
+      : false,
+  );
   const visibleTabs = role
     ? TABS.filter((tab) => tab.roles.includes(role))
     : [];
@@ -259,6 +282,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
     systemSettings.logo && systemSettings.logo !== "/hotel-real-logo.png"
       ? systemSettings.logo
       : BRAND.icon;
+
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(sidebarCollapsed));
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     const settings = getSystemSettings(currentCompany.data?.id);
@@ -292,123 +319,167 @@ export function AppLayout({ children }: { children: ReactNode }) {
     navigate({ to: "/auth", replace: true });
   }
 
-  const sidebar = (
-    <aside
-      className="app-sidebar flex h-full w-[min(13.5rem,86vw)] flex-col border-r border-white/8 text-primary-foreground shadow-2xl xl:w-[13.5rem]"
-      style={
-        { "--sidebar-primary": systemSettings.primaryColor } as CSSProperties
-      }
-    >
-      <div className="border-b border-white/10 px-4 py-3.5">
-        <div className="flex items-center gap-2.5">
-          <img
-            src={BRAND.icon}
-            alt={BRAND.name}
-            className="h-9 w-9 rounded-xl shadow-lg"
-          />
-          <div className="min-w-0">
-            <h1 className="truncate text-base font-extrabold text-white">
-              {BRAND.name}
-            </h1>
-            <p className="text-[8px] uppercase tracking-[0.13em] text-white/50">
-              {platformAdmin.data
-                ? "Administração da plataforma"
-                : BRAND.tagline}
-            </p>
-          </div>
-        </div>
+  function renderSidebar(collapsed: boolean, desktop: boolean) {
+    return (
+      <aside
+        className={`app-sidebar relative flex h-full flex-col border-r border-white/8 text-primary-foreground shadow-2xl transition-[width] duration-200 ${
+          desktop
+            ? collapsed
+              ? "w-[4.5rem]"
+              : "w-[13.5rem]"
+            : "w-[min(13.5rem,86vw)]"
+        }`}
+        style={
+          { "--sidebar-primary": systemSettings.primaryColor } as CSSProperties
+        }
+      >
+        {desktop && (
+          <button
+            type="button"
+            className="absolute -right-3 top-4 z-50 grid h-7 w-7 place-items-center rounded-full border border-white/15 bg-pine text-white shadow-lg transition hover:scale-105"
+            onClick={() => setSidebarCollapsed((value) => !value)}
+            aria-label={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+            title={collapsed ? "Expandir menu lateral" : "Recolher menu lateral"}
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        )}
 
-        {showCompanySelector ? (
-          <label className="mt-3 block">
-            <span className="mb-1 block text-[11px] font-semibold uppercase text-white/70">
-              Hotel em atendimento
-            </span>
-            <select
-              className="field border-white/20 bg-white/95 text-sm text-foreground"
-              value={currentCompany.data?.id ?? ""}
-              onChange={(event) =>
-                setCurrentCompanyId(user?.id, event.target.value)
-              }
-            >
-              {currentCompany.companies.map((company) => (
-                <option key={company.id} value={company.id}>
-                  {company.nome}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <div className="mt-3 flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-2">
+        <div className={`border-b border-white/10 ${collapsed ? "px-2 py-3" : "px-4 py-3.5"}`}>
+          <button
+            type="button"
+            className={`flex w-full items-center rounded-xl text-left ${collapsed ? "justify-center" : "gap-2.5"}`}
+            onClick={() => desktop && setSidebarCollapsed((value) => !value)}
+            title={desktop ? (collapsed ? "Abrir menu lateral" : "Recolher menu lateral") : undefined}
+          >
+            <img
+              src={BRAND.icon}
+              alt={BRAND.name}
+              className="h-9 w-9 shrink-0 rounded-xl shadow-lg"
+            />
+            {!collapsed && (
+              <div className="min-w-0">
+                <h1 className="truncate text-base font-extrabold text-white">
+                  {BRAND.name}
+                </h1>
+                <p className="text-[8px] uppercase tracking-[0.13em] text-white/50">
+                  {platformAdmin.data
+                    ? "Administração da plataforma"
+                    : BRAND.tagline}
+                </p>
+              </div>
+            )}
+          </button>
+
+          {!collapsed && (showCompanySelector ? (
+            <label className="mt-3 block">
+              <span className="mb-1 block text-[11px] font-semibold uppercase text-white/70">
+                Hotel em atendimento
+              </span>
+              <select
+                className="field border-white/20 bg-white/95 text-sm text-foreground"
+                value={currentCompany.data?.id ?? ""}
+                onChange={(event) =>
+                  setCurrentCompanyId(user?.id, event.target.value)
+                }
+              >
+                {currentCompany.companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <div className="mt-3 flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-2">
+              <img
+                src={hotelLogo}
+                alt="Logo do hotel"
+                className="h-7 w-7 rounded-md bg-white/90 object-contain p-0.5"
+              />
+              <div className="min-w-0">
+                <span className="block text-[9px] font-semibold uppercase text-white/55">
+                  Hotel
+                </span>
+                <span className="block truncate text-xs font-semibold text-white">
+                  {companyName}
+                </span>
+              </div>
+            </div>
+          ))}
+
+          {collapsed && (
             <img
               src={hotelLogo}
-              alt="Logo do hotel"
-              className="h-7 w-7 rounded-md bg-white/90 object-contain p-0.5"
+              alt={companyName}
+              title={companyName}
+              className="mx-auto mt-2 h-7 w-7 rounded-md bg-white/90 object-contain p-0.5"
             />
-            <div className="min-w-0">
-              <span className="block text-[9px] font-semibold uppercase text-white/55">
-                Hotel
-              </span>
-              <span className="block truncate text-xs font-semibold text-white">
-                {companyName}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <nav className="app-sidebar-nav flex-1 space-y-0.5 overflow-y-auto px-2.5 py-2">
-        {visibleTabs.map((tab) => (
-          <NavigationLink
-            key={tab.to}
-            item={tab}
-            active={path.startsWith(tab.to)}
-            onNavigate={() => setMenuOpen(false)}
-          />
-        ))}
-        {secondaryTabs.length > 0 && (
-          <div className="mt-1 space-y-0.5 border-t border-white/10 pt-1">
-            {secondaryTabs.map((tab) => (
-              <NavigationLink
-                key={tab.to}
-                item={tab}
-                active={path.startsWith(tab.to)}
-                onNavigate={() => setMenuOpen(false)}
-              />
-            ))}
-          </div>
-        )}
-      </nav>
-
-      <div className="border-t border-white/10 p-3">
-        <Clock />
-        <div className="mt-2">
-          <div className="truncate text-xs font-semibold text-white">
-            {profile?.nome ?? user?.email}
-          </div>
-          <div className="text-[11px] text-white/65">
-            {platformAdmin.data
-              ? "Administrador HospedaMais"
-              : role
-                ? ROLE_LABELS[role]
-                : "Aguardando liberação"}
-          </div>
-          {role && (
-            <div className="mt-0.5 text-[9px] text-white/45">
-              {ROLE_SUBTITLES[role]}
-            </div>
           )}
         </div>
-        <button
-          type="button"
-          onClick={signOut}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-md border border-white/20 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/10"
-        >
-          <LogOut className="h-4 w-4" />
-          Sair
-        </button>
-      </div>
-    </aside>
-  );
+
+        <nav className={`app-sidebar-nav flex-1 space-y-0.5 px-2 py-2 ${collapsed ? "overflow-visible" : "overflow-y-auto"}`}>
+          {visibleTabs.map((tab) => (
+            <NavigationLink
+              key={tab.to}
+              item={tab}
+              active={path.startsWith(tab.to)}
+              collapsed={collapsed}
+              onNavigate={() => setMenuOpen(false)}
+            />
+          ))}
+          {secondaryTabs.length > 0 && (
+            <div className="mt-1 space-y-0.5 border-t border-white/10 pt-1">
+              {secondaryTabs.map((tab) => (
+                <NavigationLink
+                  key={tab.to}
+                  item={tab}
+                  active={path.startsWith(tab.to)}
+                  collapsed={collapsed}
+                  onNavigate={() => setMenuOpen(false)}
+                />
+              ))}
+            </div>
+          )}
+        </nav>
+
+        <div className={`border-t border-white/10 ${collapsed ? "p-2" : "p-3"}`}>
+          {!collapsed && (
+            <>
+              <Clock />
+              <div className="mt-2">
+                <div className="truncate text-xs font-semibold text-white">
+                  {profile?.nome ?? user?.email}
+                </div>
+                <div className="text-[11px] text-white/65">
+                  {platformAdmin.data
+                    ? "Administrador HospedaMais"
+                    : role
+                      ? ROLE_LABELS[role]
+                      : "Aguardando liberação"}
+                </div>
+                {role && (
+                  <div className="mt-0.5 text-[9px] text-white/45">
+                    {ROLE_SUBTITLES[role]}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={signOut}
+            className={`group relative mt-2 flex w-full items-center rounded-md border border-white/20 py-1.5 text-xs font-semibold text-white hover:bg-white/10 ${collapsed ? "justify-center px-2" : "justify-center gap-2 px-3"}`}
+            title={collapsed ? "Sair" : undefined}
+          >
+            <LogOut className="h-4 w-4" />
+            {!collapsed && "Sair"}
+            {collapsed && <SidebarTooltip label="Sair" />}
+          </button>
+        </div>
+      </aside>
+    );
+  }
 
   return (
     <div className="min-h-screen">
@@ -423,7 +494,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </button>
 
       <div className="fixed inset-y-0 left-0 z-40 hidden xl:block">
-        {sidebar}
+        {renderSidebar(sidebarCollapsed, true)}
       </div>
 
       {menuOpen && (
@@ -443,13 +514,17 @@ export function AppLayout({ children }: { children: ReactNode }) {
             >
               <X className="h-5 w-5" />
             </button>
-            {sidebar}
+            {renderSidebar(false, false)}
           </div>
         </div>
       )}
 
-      <main className="app-main min-w-0 px-3 pb-24 pt-16 sm:px-5 md:px-7 xl:ml-[13.5rem] xl:px-6 xl:pb-8 xl:pt-5">
-        <div className="mx-auto w-full max-w-[1880px]">{children}</div>
+      <main
+        className={`app-main min-w-0 px-3 pb-24 pt-16 transition-[margin] duration-200 sm:px-5 md:px-7 xl:px-4 xl:pb-8 xl:pt-2 ${
+          sidebarCollapsed ? "xl:ml-[4.5rem]" : "xl:ml-[13.5rem]"
+        }`}
+      >
+        <div className="mx-auto w-full max-w-[1920px]">{children}</div>
       </main>
 
       {role === "dono" && !path.startsWith("/assistente") && (
@@ -540,6 +615,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
   );
 }
 
+function SidebarTooltip({ label }: { label: string }) {
+  return (
+    <span className="pointer-events-none absolute left-[calc(100%+0.65rem)] top-1/2 z-[70] hidden -translate-y-1/2 whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 text-xs font-bold text-foreground opacity-0 shadow-xl transition group-hover:opacity-100 xl:block">
+      {label}
+    </span>
+  );
+}
+
 function isAllowedPath(role: AppRole, path: string, platformAdmin: boolean) {
   if (path.startsWith("/admin-plataforma")) return platformAdmin;
   if (role === "dono") return true;
@@ -555,10 +638,12 @@ function defaultPath(role: AppRole) {
 function NavigationLink({
   item,
   active,
+  collapsed,
   onNavigate,
 }: {
   item: NavigationItem;
   active: boolean;
+  collapsed: boolean;
   onNavigate: () => void;
 }) {
   const Icon = item.icon;
@@ -566,16 +651,20 @@ function NavigationLink({
     <Link
       to={item.to}
       onClick={onNavigate}
-      className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${
+      title={collapsed ? item.label : undefined}
+      className={`group relative flex items-center rounded-md py-1.5 text-xs font-semibold transition ${
+        collapsed ? "justify-center px-2" : "gap-2.5 px-2.5"
+      } ${
         active
           ? "bg-white/12 text-white shadow-sm"
           : "text-white/65 hover:bg-white/[0.07] hover:text-white"
       }`}
     >
       <Icon
-        className={`h-4 w-4 ${active ? "text-white" : "text-white/55"}`}
+        className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-white/55"}`}
       />
-      {item.label}
+      {!collapsed && <span className="truncate">{item.label}</span>}
+      {collapsed && <SidebarTooltip label={item.label} />}
     </Link>
   );
 }
@@ -590,7 +679,7 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
       <div className="min-w-0">
         <h2 className="section-title text-base font-extrabold tracking-tight text-pine-dark sm:text-lg">
           {title}

@@ -707,7 +707,7 @@ function RoomDetailModal({
                 </p>
                 <p>Total da reserva: {fmtBRL(stay.valor_total)}</p>
                 <p>Pago: {fmtBRL(stay.valor_pago)}</p>
-                <p>Consumo: {fmtBRL(account?.salesTotal ?? 0)}</p>
+                <p>Consumo: {fmtBRL(account?.extrasTotal ?? 0)}</p>
                 <p className="font-bold text-pine-dark">
                   Saldo: {fmtBRL(account?.balance ?? 0)}
                 </p>

@@ -51,6 +51,10 @@ import {
   type ReservationImportResult,
 } from "@/components/ReservationImportModal";
 import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
+import {
+  CompanyBillingCheckoutModal,
+  type CompanyBillingCheckout,
+} from "@/components/CompanyBillingCheckoutModal";
 
 export const Route = createFileRoute("/_authenticated/reservas")({
   component: Reservas,
@@ -59,6 +63,7 @@ export const Route = createFileRoute("/_authenticated/reservas")({
 const statusTone: Record<string, string> = {
   reservado: "brass",
   ocupado: "brick",
+  saida_pendente: "brass",
   finalizado: "slate",
   cancelado: "slate",
   manutencao: "slate",
@@ -88,6 +93,11 @@ function Reservas() {
   const [moving, setMoving] = useState<Reservation | null>(null);
   const [filter, setFilter] = useState("ativas");
   const [search, setSearch] = useState("");
+  const overdueDepartures = reservations.filter(
+    (reservation) =>
+      reservation.status === "saida_pendente" ||
+      (reservation.status === "ocupado" && reservation.checkout < todayISO()),
+  );
 
   const filtered = useMemo(() => {
     let filteredRows: Reservation[];
@@ -101,6 +111,12 @@ function Reservas() {
           reservation.checkout < todayISO() &&
           buildGuestAccount(reservation, sales).balance > 0,
       );
+    else if (filter === "saidas")
+      filteredRows = reservations.filter(
+        (reservation) =>
+          reservation.status === "saida_pendente" ||
+          (reservation.status === "ocupado" && reservation.checkout < todayISO()),
+      );
     else if (filter === "todas") filteredRows = reservations;
     else filteredRows = reservations.filter((r) => r.status === filter);
 
@@ -113,6 +129,7 @@ function Reservas() {
         reservation.quarto,
         reservation.canal,
         reservation.status,
+        reservation.billing_company_name,
       ].some((value) => String(value ?? "").toLocaleLowerCase("pt-BR").includes(term)),
     );
   }, [reservations, sales, filter, search]);
@@ -357,6 +374,22 @@ function Reservas() {
         }
       />
 
+      {overdueDepartures.length > 0 && (
+        <button
+          type="button"
+          className="mb-2 flex w-full items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left text-sm text-amber-950 shadow-sm"
+          onClick={() => setFilter("saidas")}
+        >
+          <span>
+            <strong>{overdueDepartures.length} saída(s) aguardando conferência.</strong> O quarto
+            deixa de ficar ocupado automaticamente, mas a conta continua pendente até a baixa.
+          </span>
+          <span className="shrink-0 rounded-full bg-amber-200 px-2.5 py-1 text-xs font-bold">
+            Ver saídas
+          </span>
+        </button>
+      )}
+
       <div className="mb-3 flex flex-col gap-2 rounded-xl border border-border bg-card p-2.5 shadow-sm lg:flex-row lg:items-center">
         <label className="relative min-w-0 flex-1">
           <span className="sr-only">Buscar reserva</span>
@@ -369,7 +402,7 @@ function Reservas() {
           />
         </label>
         <div className="flex flex-wrap gap-1 text-xs">
-          {["ativas", "pendencias", "reservado", "ocupado", "finalizado", "todas"].map((f) => (
+          {["ativas", "saidas", "pendencias", "reservado", "ocupado", "finalizado", "todas"].map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -404,11 +437,15 @@ function Reservas() {
                 const account = buildGuestAccount(r, sales);
                 const daysOverdue =
                   r.checkout < todayISO() ? calendarDayDifference(todayISO(), r.checkout) : 0;
+                const rowDeparturePending =
+                  r.status === "saida_pendente" ||
+                  (r.status === "ocupado" && daysOverdue > 0);
+                const companyBillingPending =
+                  r.billing_responsibility === "company" && account.balance > 0;
                 const needsAttention =
                   r.status !== "cancelado" &&
                   r.status !== "manutencao" &&
-                  daysOverdue > 0 &&
-                  account.balance > 0;
+                  (rowDeparturePending || (daysOverdue > 0 && account.balance > 0));
                 const room = rooms.find((item) => item.numero === r.quarto);
                 return (
                   <tr
@@ -459,19 +496,29 @@ function Reservas() {
                           ? `Falta ${fmtBRL(account.balance)}`
                           : "Conta quitada"}
                       </span>
+                      {companyBillingPending && (
+                        <span className="mt-0.5 block text-[9px] font-bold text-primary">
+                          Empresa: {r.billing_company_name || "não identificada"}
+                          {r.billing_due_date ? ` · vence ${fmtDate(r.billing_due_date)}` : ""}
+                        </span>
+                      )}
                       {needsAttention && (
                         <div className="mt-1 text-[9px] font-bold text-brick">
-                          {r.status === "finalizado"
-                            ? "Checkout com saldo"
-                            : r.status === "ocupado"
-                              ? "Estadia vencida"
-                              : "Reserva vencida"}
+                          {companyBillingPending
+                            ? "A receber da empresa"
+                            : rowDeparturePending
+                              ? "Saída pendente de conferência"
+                              : r.status === "finalizado"
+                                ? "Checkout com saldo"
+                                : "Reserva vencida"}
                           {daysOverdue > 0 ? ` · ${daysOverdue} dia(s)` : ""}
                         </div>
                       )}
                     </td>
                     <td className="p-2.5">
-                      <Badge tone={statusTone[r.status]}>{r.status}</Badge>
+                      <Badge tone={statusTone[r.status]}>
+                        {r.status === "saida_pendente" ? "saída pendente" : r.status}
+                      </Badge>
                     </td>
                     <td className="p-2.5 text-right">
                       <RowActions
@@ -612,11 +659,60 @@ function RowActions({
   onMove: () => void;
 }) {
   const done = ["finalizado", "cancelado"].includes(reservation.status);
+  const departureStage = ["ocupado", "saida_pendente"].includes(reservation.status);
   const total = Number(reservation.valor_total);
   const balance = account.balance;
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [companyBillingOpen, setCompanyBillingOpen] = useState(false);
+  const [companyBillingBusy, setCompanyBillingBusy] = useState(false);
   const receiptUrl = whatsappReceiptUrl(reservation, client);
   const reviewUrl = whatsappReviewUrl(reservation, client);
+
+  function finishCheckout(
+    extraPatch: Record<string, unknown> = {},
+    options?: { companyBilling?: boolean },
+  ) {
+    if (options?.companyBilling) setCompanyBillingBusy(true);
+    update.mutate(
+      {
+        id: reservation.id,
+        patch: {
+          status: "finalizado",
+          horario_checkout: reservation.horario_checkout ?? currentTime(),
+          checkout_at: new Date().toISOString(),
+          ...extraPatch,
+        },
+      },
+      {
+        onSuccess: () => {
+          updateRoom.mutate(
+            { id: reservation.quarto, patch: { situacao: "limpeza" } },
+            {
+              onSuccess: () => {
+                toast.success(
+                  options?.companyBilling
+                    ? "Check-out realizado; saldo enviado para contas a receber da empresa."
+                    : "Check-out realizado; quarto enviado para limpeza",
+                );
+                setCompanyBillingOpen(false);
+                setCompanyBillingBusy(false);
+              },
+              onError: (e: Error) => {
+                toast.error(`Check-out feito, mas falhou ao marcar limpeza: ${e.message}`);
+                setCompanyBillingOpen(false);
+                setCompanyBillingBusy(false);
+              },
+            },
+          );
+        },
+        onError: (e: Error) => {
+          toast.error(e.message);
+          setCompanyBillingBusy(false);
+        },
+      },
+    );
+  }
+
   return (
     <div className="flex flex-wrap justify-end gap-1.5">
       {!done && account.lodgingPaid <= 0 && (
@@ -656,14 +752,7 @@ function RowActions({
       {reservation.status === "reservado" && (
         <button
           className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
-          onClick={() => {
-            if (account.lodgingPaid < account.lodgingTotal) {
-              toast.error(
-                `Check-in bloqueado: receba ${fmtBRL(account.lodgingTotal - account.lodgingPaid)} das diárias primeiro.`,
-              );
-              setPaymentOpen(true);
-              return;
-            }
+          onClick={() =>
             update.mutate(
               {
                 id: reservation.id,
@@ -674,53 +763,51 @@ function RowActions({
                 },
               },
               {
-                onSuccess: () => toast.success("Check-in realizado"),
+                onSuccess: () =>
+                  toast.success(
+                    balance > 0
+                      ? `Check-in realizado com saldo pendente de ${fmtBRL(balance)}.`
+                      : "Check-in realizado",
+                  ),
                 onError: (e: Error) => toast.error(e.message),
               },
-            );
-          }}
+            )
+          }
+          title={balance > 0 ? "O pagamento será acompanhado na conta do hóspede." : undefined}
         >
-          {account.lodgingPaid < account.lodgingTotal ? "Receber antes do check-in" : "Check-in"}
+          Check-in
         </button>
       )}
-      {reservation.status === "ocupado" && (
+      {departureStage && (
         <button
           className="rounded-md bg-slate-bg px-2 py-1 text-xs font-semibold text-slate"
           onClick={() => {
             if (balance > 0) {
-              toast.error(`Check-out bloqueado: ainda faltam ${fmtBRL(balance)} na conta.`);
+              toast.error(
+                `Check-out bloqueado: faltam ${fmtBRL(balance)}. Receba a conta ou use “Faturar empresa”.`,
+              );
               setPaymentOpen(true);
               return;
             }
-            update.mutate(
-              {
-                id: reservation.id,
-                patch: {
-                  status: "finalizado",
-                  horario_checkout: reservation.horario_checkout ?? currentTime(),
-                },
-              },
-              {
-                onSuccess: () => {
-                  updateRoom.mutate(
-                    { id: reservation.quarto, patch: { situacao: "limpeza" } },
-                    {
-                      onSuccess: () =>
-                        toast.success("Check-out realizado; quarto enviado para limpeza"),
-                      onError: (e: Error) =>
-                        toast.error(`Check-out feito, mas falhou ao marcar limpeza: ${e.message}`),
-                    },
-                  );
-                },
-                onError: (e: Error) => toast.error(e.message),
-              },
-            );
+            finishCheckout({
+              billing_status:
+                reservation.billing_responsibility === "company" ? "paid" : "not_applicable",
+            });
           }}
         >
           {balance > 0 ? "Receber antes do check-out" : "Check-out"}
         </button>
       )}
-      {reservation.status === "ocupado" && (
+      {departureStage && balance > 0 && (
+        <button
+          className="rounded-md bg-primary/10 px-2 py-1 text-xs font-semibold text-primary"
+          onClick={() => setCompanyBillingOpen(true)}
+          title="Concluir a saída mantendo o saldo a receber da empresa"
+        >
+          Faturar empresa
+        </button>
+      )}
+      {departureStage && (
         <button
           className="rounded-md bg-brass-bg px-2 py-1 text-xs font-semibold text-[oklch(0.4_0.06_74)]"
           onClick={onEdit}
@@ -832,6 +919,17 @@ function RowActions({
         <Trash2 className="h-3.5 w-3.5" />
       </button>
       {paymentOpen && <GuestPaymentModal account={account} onClose={() => setPaymentOpen(false)} />}
+      {companyBillingOpen && (
+        <CompanyBillingCheckoutModal
+          reservation={reservation}
+          balance={balance}
+          busy={companyBillingBusy}
+          onClose={() => setCompanyBillingOpen(false)}
+          onConfirm={(billing: CompanyBillingCheckout) =>
+            finishCheckout(billing, { companyBilling: true })
+          }
+        />
+      )}
     </div>
   );
 }

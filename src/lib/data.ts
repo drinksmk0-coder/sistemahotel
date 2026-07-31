@@ -9,6 +9,15 @@ export type Client = Tables<"clients"> & TenantRow;
 export type Reservation = Tables<"reservations"> &
   TenantRow & {
     group_id?: string | null;
+    origem_importacao?: string | null;
+    observacoes_importacao?: string | null;
+    billing_responsibility?: "guest" | "company";
+    billing_company_name?: string | null;
+    billing_company_document?: string | null;
+    billing_company_email?: string | null;
+    billing_due_date?: string | null;
+    billing_status?: "not_applicable" | "pending" | "paid" | "overdue";
+    checkout_at?: string | null;
   };
 export type Sale = Tables<"sales"> &
   TenantRow & {
@@ -555,6 +564,7 @@ export function activeReservationForRoom(
         r.status !== "cancelado" &&
         r.status !== "finalizado" &&
         r.status !== "manutencao" &&
+        r.status !== "saida_pendente" &&
         r.checkin <= today &&
         (r.checkout >= today || r.status === "ocupado"),
     )
@@ -591,7 +601,10 @@ export function reservationFinancialSummary(
   let state: ReservationFinancialState;
   if (balance <= 0) state = "quitada";
   else if (reservation.status === "finalizado") state = "checkout_com_saldo";
-  else if (reservation.status === "ocupado" && reservation.checkout < today)
+  else if (
+    (reservation.status === "ocupado" || reservation.status === "saida_pendente") &&
+    reservation.checkout < today
+  )
     state = "estadia_vencida";
   else if (reservation.status === "reservado" && reservation.checkout < today)
     state = "reserva_vencida";
@@ -634,10 +647,9 @@ export function futureReservationsForRoom(
     .sort((a, b) => a.checkin.localeCompare(b.checkin));
 }
 
-// Derive the reservation status from how much was paid:
-// full payment -> ocupado, partial/none -> reservado.
-export function statusFromPayment(valorTotal: number, valorPago: number): "ocupado" | "reservado" {
-  return valorTotal > 0 && valorPago >= valorTotal ? "ocupado" : "reservado";
+// Pagamento e presença são estados diferentes. Uma reserva só vira ocupada no check-in manual.
+export function statusFromPayment(_valorTotal: number, _valorPago: number): "ocupado" | "reservado" {
+  return "reservado";
 }
 
 // An open, serious complaint blocks new guests from being placed in a room.
