@@ -1,0 +1,25 @@
+/* Correções visuais específicas do painel executivo. */
+
+/* No menu recolhido, mantém somente a marca principal e remove a segunda miniatura do hotel. */
+aside.app-sidebar img[title][alt] {
+  display: none !important;
+}
+
+/* Mantém o HotelAI no canto inferior direito, sem cobrir gráficos ou ações. */
+@media (min-width: 640px) {
+  body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
+  body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
+    top: auto !important;
+    right: 1rem !important;
+    bottom: 1rem !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 639px) {
+  body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
+  body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
+    right: 0.75rem !important;
+    bottom: 5.5rem !important;
+  }
+}
