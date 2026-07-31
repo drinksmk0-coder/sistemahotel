@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { CheckCircle2, Eraser, Loader2, Printer, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Eraser, Loader2, Plus, Printer, ShieldCheck, Trash2, UsersRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/checkin-online")({
@@ -43,6 +43,28 @@ type InviteData = {
   };
 };
 
+type Companion = {
+  nome: string;
+  tipo: "adulto" | "crianca";
+  parentesco: string;
+  cpf: string;
+  data_nascimento: string;
+  telefone: string;
+  email: string;
+  sexo: string;
+};
+
+const EMPTY_COMPANION: Companion = {
+  nome: "",
+  tipo: "adulto",
+  parentesco: "acompanhante",
+  cpf: "",
+  data_nascimento: "",
+  telefone: "",
+  email: "",
+  sexo: "",
+};
+
 const EMPTY_FORM = {
   nome_completo: "",
   email: "",
@@ -59,6 +81,7 @@ const EMPTY_FORM = {
   endereco: "",
   numero: "",
   complemento: "",
+  bairro: "",
   cep: "",
   cidade: "",
   estado: "",
@@ -67,14 +90,15 @@ const EMPTY_FORM = {
   proximo_destino: "",
   motivo_viagem: "Lazer",
   transporte: "Automóvel",
-  acompanhantes: "",
+  acompanhantes: "0",
+  acompanhantes_detalhes: "[]",
 };
 
 function CheckinOnline() {
-  const token =
-    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("token") : null;
+  const token = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("token") : null;
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [companions, setCompanions] = useState<Companion[]>([]);
   const [signature, setSignature] = useState("");
   const [consent, setConsent] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -95,8 +119,18 @@ function CheckinOnline() {
           setError("Este link é inválido ou não está mais disponível.");
           return;
         }
-        setInvite(data);
         const guest = data.guest ?? {};
+        const savedForm = data.form_data ?? {};
+        const expectedCompanions = Math.max(0, Number(data.adults ?? 1) + Number(data.children ?? 0) - 1);
+        const parsedCompanions = parseCompanions(savedForm.acompanhantes_detalhes);
+        const initialCompanions = parsedCompanions.length
+          ? parsedCompanions
+          : Array.from({ length: expectedCompanions }, (_, index) => ({
+              ...EMPTY_COMPANION,
+              tipo: index < Math.max(0, Number(data.adults ?? 1) - 1) ? "adulto" as const : "crianca" as const,
+            }));
+        setInvite(data);
+        setCompanions(initialCompanions);
         setForm({
           ...EMPTY_FORM,
           nome_completo: guest.name ?? "",
@@ -106,12 +140,14 @@ function CheckinOnline() {
           genero: guest.gender ?? "",
           nascimento: guest.birth_date ?? "",
           numero_documento: guest.document ?? "",
+          bairro: guest.district ?? "",
           cep: guest.postal_code ?? "",
           cidade: guest.city ?? "",
           estado: guest.state ?? "",
           pais: guest.country ?? "Brasil",
-          acompanhantes: String(Math.max(0, Number(data.adults ?? 1) + Number(data.children ?? 0) - 1)),
-          ...(data.form_data ?? {}),
+          ...savedForm,
+          acompanhantes: String(initialCompanions.length),
+          acompanhantes_detalhes: JSON.stringify(initialCompanions),
         });
         setSignature(data.signature_data_url ?? "");
         setConsent(data.status !== "enviado");
@@ -124,374 +160,119 @@ function CheckinOnline() {
     setForm((current) => ({ ...current, [name]: value }));
   }
 
+  function updateCompanion(index: number, patch: Partial<Companion>) {
+    setCompanions((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  }
+
+  function removeCompanion(index: number) {
+    setCompanions((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!token || !signature) {
-      setError("Assine no campo indicado antes de enviar.");
-      return;
-    }
+    if (!token || !signature) return setError("Assine no campo indicado antes de enviar.");
+    if (!consent) return setError("Aceite o tratamento dos dados para concluir.");
+    const invalidCompanion = companions.findIndex((item) => !item.nome.trim());
+    if (invalidCompanion >= 0) return setError(`Informe o nome do acompanhante ${invalidCompanion + 1}.`);
+
+    const payload = {
+      ...form,
+      acompanhantes: String(companions.length),
+      acompanhantes_detalhes: JSON.stringify(companions),
+    };
     setSaving(true);
     setError("");
     const { error: submitError } = await (supabase as any).rpc("submit_guest_checkin", {
       p_token: token,
-      p_form_data: form,
+      p_form_data: payload,
       p_signature_data_url: signature,
       p_guest_consent: consent,
     });
     setSaving(false);
-    if (submitError) {
-      setError(submitError.message);
-      return;
-    }
+    if (submitError) return setError(submitError.message);
+    setForm(payload);
     setSent(true);
-    setInvite((current) =>
-      current
-        ? {
-            ...current,
-            status: "preenchido",
-            submitted_at: new Date().toISOString(),
-            form_data: form,
-            signature_data_url: signature,
-          }
-        : current,
-    );
+    setInvite((current) => current ? { ...current, status: "preenchido", submitted_at: new Date().toISOString(), form_data: payload, signature_data_url: signature } : current);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  if (loading) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-muted">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </main>
-    );
-  }
-
-  if (error && !invite) {
-    return (
-      <main className="grid min-h-screen place-items-center bg-muted p-5">
-        <div className="max-w-md rounded-xl border bg-card p-6 text-center shadow">
-          <h1 className="text-xl font-extrabold">Check-in online</h1>
-          <p className="mt-2 text-sm text-destructive">{error}</p>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Peça à recepção um novo link pelo WhatsApp.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
+  if (loading) return <main className="grid min-h-screen place-items-center bg-muted"><Loader2 className="h-8 w-8 animate-spin text-primary" /></main>;
+  if (error && !invite) return <main className="grid min-h-screen place-items-center bg-muted p-5"><div className="max-w-md rounded-xl border bg-card p-6 text-center shadow"><h1 className="text-xl font-extrabold">Check-in online</h1><p className="mt-2 text-sm text-destructive">{error}</p></div></main>;
   if (!invite) return null;
 
   return (
     <main className="min-h-screen bg-muted px-3 py-5 print:bg-white print:p-0">
-      <form
-        onSubmit={submit}
-        className="mx-auto max-w-[210mm] rounded-2xl border bg-white p-4 shadow-xl sm:p-7 print:max-w-none print:border-0 print:p-0 print:shadow-none"
-      >
+      <form onSubmit={submit} className="mx-auto max-w-[210mm] rounded-2xl border bg-white p-4 shadow-xl sm:p-7 print:max-w-none print:border-0 print:p-0 print:shadow-none">
         <header className="mb-5">
-          <h1 className="text-center text-xl font-black uppercase tracking-tight text-[#243b5a] sm:text-2xl">
-            Ficha Nacional de Registro de Hóspedes
-          </h1>
+          <h1 className="text-center text-xl font-black uppercase tracking-tight text-[#243b5a] sm:text-2xl">Ficha Nacional de Registro de Hóspedes</h1>
           <div className="mt-4 grid gap-3 rounded-xl bg-[#e9eff7] p-3 text-[#243b5a] sm:grid-cols-[92px_1fr_1.15fr]">
-            <img
-              src="/hotel-real-logo.png"
-              alt={invite.company_name}
-              className="h-[78px] w-[92px] rounded-md bg-white object-contain p-1"
-            />
-            <div className="text-xs leading-5">
-              <p>
-                <strong className="text-base">{invite.company_name}</strong>
-                {invite.company_document ? ` · CNPJ: ${invite.company_document}` : ""}
-              </p>
-              <p>{invite.company_email || "hotelreal@gmail.com"}</p>
-              <p>{invite.company_phone || "+55 (35) 98800-1372"}</p>
-            </div>
-            <p className="text-xs sm:pt-6">
-              {[
-                invite.company_address || "Rua Capitão Pinto, 70, Centro",
-                invite.company_city || "Cruzília",
-                invite.company_state || "MG",
-              ]
-                .filter(Boolean)
-                .join(", ")}
-            </p>
+            <img src="/hotel-real-logo.png" alt={invite.company_name} className="h-[78px] w-[92px] rounded-md bg-white object-contain p-1" />
+            <div className="text-xs leading-5"><p><strong className="text-base">{invite.company_name}</strong>{invite.company_document ? ` · CNPJ: ${invite.company_document}` : ""}</p><p>{invite.company_email || "hotelreal@gmail.com"}</p><p>{invite.company_phone || "+55 (35) 98800-1372"}</p></div>
+            <p className="text-xs sm:pt-6">{[invite.company_address || "Rua Capitão Pinto, 70, Centro", invite.company_city || "Cruzília", invite.company_state || "MG"].filter(Boolean).join(", ")}</p>
           </div>
         </header>
 
-        {sent && (
-          <div className="mb-5 flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800">
-            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
-            <span>
-              Dados recebidos. A recepção fará a conferência no check-in e acompanhará o envio à
-              FNRH Digital do Ministério do Turismo.
-            </span>
-          </div>
-        )}
+        {sent && <div className="mb-5 flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><span>Dados, acompanhantes e assinatura recebidos. A recepção fará a conferência.</span></div>}
 
         <fieldset disabled={sent} className="space-y-5 disabled:opacity-90">
           <FormSection title="Informações da hospedagem">
-            <FormField label="UH Nº (Local)">
-              <input className="field" value={String(invite.room)} readOnly />
-            </FormField>
-            <FormField label="Nº acompanhantes">
-              <input
-                className="field"
-                inputMode="numeric"
-                value={form.acompanhantes}
-                onChange={(event) => set("acompanhantes", event.target.value)}
-              />
-            </FormField>
-            <FormField label="Data de entrada">
-              <input className="field" value={formatDate(invite.checkin)} readOnly />
-            </FormField>
-            <FormField label="Data de saída">
-              <input className="field" value={formatDate(invite.checkout)} readOnly />
-            </FormField>
+            <FormField label="UH Nº"><input className="field" value={String(invite.room)} readOnly /></FormField>
+            <FormField label="Total de hóspedes"><input className="field" value={String(1 + companions.length)} readOnly /></FormField>
+            <FormField label="Data de entrada"><input className="field" value={formatDate(invite.checkin)} readOnly /></FormField>
+            <FormField label="Data de saída"><input className="field" value={formatDate(invite.checkout)} readOnly /></FormField>
           </FormSection>
 
-          <FormSection title="Informações do hóspede">
-            <FormField className="sm:col-span-2" label="Nome completo">
-              <input
-                className="field"
-                value={form.nome_completo}
-                onChange={(event) => set("nome_completo", event.target.value)}
-                required
-              />
-            </FormField>
-            <FormField label="E-mail">
-              <input
-                className="field"
-                type="email"
-                value={form.email}
-                onChange={(event) => set("email", event.target.value)}
-              />
-            </FormField>
-            <FormField label="Telefone / WhatsApp">
-              <input
-                className="field"
-                inputMode="tel"
-                value={form.telefone}
-                onChange={(event) => set("telefone", event.target.value)}
-                required
-              />
-            </FormField>
-            <FormField label="Profissão">
-              <input
-                className="field"
-                value={form.profissao}
-                onChange={(event) => set("profissao", event.target.value)}
-              />
-            </FormField>
-            <FormField label="Nacionalidade">
-              <input
-                className="field"
-                value={form.nacionalidade}
-                onChange={(event) => set("nacionalidade", event.target.value)}
-              />
-            </FormField>
-            <FormField label="Gênero">
-              <select
-                className="field"
-                value={form.genero}
-                onChange={(event) => set("genero", event.target.value)}
-              >
-                <option value="">Selecione</option>
-                <option>Feminino</option>
-                <option>Masculino</option>
-                <option>Outro</option>
-                <option>Prefiro não informar</option>
-              </select>
-            </FormField>
-            <FormField label="Data de nascimento">
-              <input
-                className="field"
-                type="date"
-                value={form.nascimento}
-                onChange={(event) => set("nascimento", event.target.value)}
-                required
-              />
-            </FormField>
-            <FormField label="Raça / cor">
-              <input
-                className="field"
-                value={form.raca_cor}
-                onChange={(event) => set("raca_cor", event.target.value)}
-              />
-            </FormField>
-            <FormField label="Deficiência">
-              <select
-                className="field"
-                value={form.deficiencia}
-                onChange={(event) => set("deficiencia", event.target.value)}
-              >
-                <option value="nao">Não</option>
-                <option value="sim">Sim</option>
-                <option value="nao_informar">Não informar</option>
-              </select>
-            </FormField>
-            <FormField className="sm:col-span-2" label="Tipo de deficiência">
-              <input
-                className="field"
-                value={form.tipo_deficiencia}
-                onChange={(event) => set("tipo_deficiencia", event.target.value)}
-                disabled={form.deficiencia !== "sim"}
-              />
-            </FormField>
+          <FormSection title="Hóspede titular">
+            <FormField className="sm:col-span-2" label="Nome completo"><input className="field" value={form.nome_completo} onChange={(event) => set("nome_completo", event.target.value)} required /></FormField>
+            <FormField label="E-mail"><input className="field" type="email" value={form.email} onChange={(event) => set("email", event.target.value)} /></FormField>
+            <FormField label="Telefone / WhatsApp"><input className="field" value={form.telefone} onChange={(event) => set("telefone", event.target.value)} required /></FormField>
+            <FormField label="Profissão"><input className="field" value={form.profissao} onChange={(event) => set("profissao", event.target.value)} /></FormField>
+            <FormField label="Nacionalidade"><input className="field" value={form.nacionalidade} onChange={(event) => set("nacionalidade", event.target.value)} /></FormField>
+            <FormField label="Gênero"><select className="field" value={form.genero} onChange={(event) => set("genero", event.target.value)}><option value="">Selecione</option><option>Feminino</option><option>Masculino</option><option>Outro</option><option>Prefiro não informar</option></select></FormField>
+            <FormField label="Nascimento"><input className="field" type="date" value={form.nascimento} onChange={(event) => set("nascimento", event.target.value)} required /></FormField>
+            <FormField label="Tipo de documento"><select className="field" value={form.tipo_documento} onChange={(event) => set("tipo_documento", event.target.value)}><option>CPF</option><option>Passaporte</option><option>Documento estrangeiro</option></select></FormField>
+            <FormField label="Número do documento"><input className="field" value={form.numero_documento} onChange={(event) => set("numero_documento", event.target.value)} required /></FormField>
           </FormSection>
 
-          <FormSection title="Documento e endereço">
-            <FormField label="Tipo de documento">
-              <select
-                className="field"
-                value={form.tipo_documento}
-                onChange={(event) => set("tipo_documento", event.target.value)}
-              >
-                <option>CPF</option>
-                <option>Passaporte</option>
-                <option>Documento estrangeiro</option>
-              </select>
-            </FormField>
-            <FormField label="Número do documento">
-              <input
-                className="field"
-                value={form.numero_documento}
-                onChange={(event) => set("numero_documento", event.target.value)}
-                required
-              />
-            </FormField>
-            <FormField label="Endereço">
-              <input
-                className="field"
-                value={form.endereco}
-                onChange={(event) => set("endereco", event.target.value)}
-              />
-            </FormField>
-            <FormField label="Número">
-              <input
-                className="field"
-                value={form.numero}
-                onChange={(event) => set("numero", event.target.value)}
-              />
-            </FormField>
-            <FormField label="Complemento">
-              <input
-                className="field"
-                value={form.complemento}
-                onChange={(event) => set("complemento", event.target.value)}
-              />
-            </FormField>
-            <FormField label="CEP">
-              <input
-                className="field"
-                inputMode="numeric"
-                value={form.cep}
-                onChange={(event) => set("cep", event.target.value)}
-              />
-            </FormField>
-            <FormField label="Cidade">
-              <input
-                className="field"
-                value={form.cidade}
-                onChange={(event) => set("cidade", event.target.value)}
-                required
-              />
-            </FormField>
-            <FormField label="Estado">
-              <input
-                className="field"
-                value={form.estado}
-                onChange={(event) => set("estado", event.target.value)}
-              />
-            </FormField>
-            <FormField className="sm:col-span-2" label="País">
-              <input
-                className="field"
-                value={form.pais}
-                onChange={(event) => set("pais", event.target.value)}
-                required
-              />
-            </FormField>
+          <FormSection title="Endereço do titular">
+            <FormField label="Endereço"><input className="field" value={form.endereco} onChange={(event) => set("endereco", event.target.value)} /></FormField>
+            <FormField label="Número"><input className="field" value={form.numero} onChange={(event) => set("numero", event.target.value)} /></FormField>
+            <FormField label="Complemento"><input className="field" value={form.complemento} onChange={(event) => set("complemento", event.target.value)} /></FormField>
+            <FormField label="Bairro"><input className="field" value={form.bairro} onChange={(event) => set("bairro", event.target.value)} /></FormField>
+            <FormField label="CEP"><input className="field" value={form.cep} onChange={(event) => set("cep", event.target.value)} /></FormField>
+            <FormField label="Cidade"><input className="field" value={form.cidade} onChange={(event) => set("cidade", event.target.value)} required /></FormField>
+            <FormField label="Estado"><input className="field" value={form.estado} onChange={(event) => set("estado", event.target.value)} /></FormField>
+            <FormField label="País"><input className="field" value={form.pais} onChange={(event) => set("pais", event.target.value)} required /></FormField>
           </FormSection>
+
+          <section className="rounded-xl border border-border bg-muted/20 p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div><h2 className="flex items-center gap-2 text-sm font-extrabold text-pine-dark"><UsersRound className="h-4 w-4" /> Acompanhantes</h2><p className="text-xs text-muted-foreground">Cadastre cada pessoa da mesma reserva separadamente.</p></div>
+              <button type="button" className="btn-ghost flex items-center gap-1.5 text-xs" onClick={() => setCompanions((current) => [...current, { ...EMPTY_COMPANION }])}><Plus className="h-4 w-4" /> Adicionar acompanhante</button>
+            </div>
+            {companions.length === 0 ? <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">Reserva somente para o titular.</p> : <div className="space-y-3">{companions.map((companion, index) => <div key={index} className="rounded-lg border bg-white p-3"><div className="mb-2 flex items-center justify-between"><strong className="text-sm">Acompanhante {index + 1}</strong><button type="button" className="rounded-md bg-destructive/10 p-1.5 text-destructive" onClick={() => removeCompanion(index)} title="Remover acompanhante"><Trash2 className="h-4 w-4" /></button></div><div className="grid gap-3 sm:grid-cols-2">
+              <FormField className="sm:col-span-2" label="Nome completo"><input className="field" value={companion.nome} onChange={(event) => updateCompanion(index, { nome: event.target.value })} required /></FormField>
+              <FormField label="Tipo"><select className="field" value={companion.tipo} onChange={(event) => updateCompanion(index, { tipo: event.target.value as Companion["tipo"] })}><option value="adulto">Adulto</option><option value="crianca">Criança</option></select></FormField>
+              <FormField label="Parentesco"><input className="field" value={companion.parentesco} onChange={(event) => updateCompanion(index, { parentesco: event.target.value })} placeholder="Ex.: cônjuge, filho, amigo" /></FormField>
+              <FormField label="CPF / documento"><input className="field" value={companion.cpf} onChange={(event) => updateCompanion(index, { cpf: event.target.value })} /></FormField>
+              <FormField label="Nascimento"><input className="field" type="date" value={companion.data_nascimento} onChange={(event) => updateCompanion(index, { data_nascimento: event.target.value })} /></FormField>
+              <FormField label="Telefone"><input className="field" value={companion.telefone} onChange={(event) => updateCompanion(index, { telefone: event.target.value })} /></FormField>
+              <FormField label="E-mail"><input className="field" type="email" value={companion.email} onChange={(event) => updateCompanion(index, { email: event.target.value })} /></FormField>
+            </div></div>)}</div>}
+          </section>
 
           <FormSection title="Informações da viagem">
-            <FormField label="Último destino (cidade, país)">
-              <input
-                className="field"
-                value={form.ultimo_destino}
-                onChange={(event) => set("ultimo_destino", event.target.value)}
-              />
-            </FormField>
-            <FormField label="Próximo destino (cidade, país)">
-              <input
-                className="field"
-                value={form.proximo_destino}
-                onChange={(event) => set("proximo_destino", event.target.value)}
-              />
-            </FormField>
-            <FormField label="Motivo da viagem">
-              <select
-                className="field"
-                value={form.motivo_viagem}
-                onChange={(event) => set("motivo_viagem", event.target.value)}
-              >
-                {["Compras", "Evento", "Estudo", "Lazer", "Negócios", "Religião", "Saúde", "Parentes/Amigos"].map(
-                  (item) => <option key={item}>{item}</option>,
-                )}
-              </select>
-            </FormField>
-            <FormField label="Meio de transporte">
-              <select
-                className="field"
-                value={form.transporte}
-                onChange={(event) => set("transporte", event.target.value)}
-              >
-                {["Ônibus", "Automóvel", "Avião", "Moto", "A pé", "Trem", "Bicicleta", "Navio/Barco"].map(
-                  (item) => <option key={item}>{item}</option>,
-                )}
-              </select>
-            </FormField>
+            <FormField label="Último destino"><input className="field" value={form.ultimo_destino} onChange={(event) => set("ultimo_destino", event.target.value)} /></FormField>
+            <FormField label="Próximo destino"><input className="field" value={form.proximo_destino} onChange={(event) => set("proximo_destino", event.target.value)} /></FormField>
+            <FormField label="Motivo da viagem"><select className="field" value={form.motivo_viagem} onChange={(event) => set("motivo_viagem", event.target.value)}>{["Compras", "Evento", "Estudo", "Lazer", "Negócios", "Religião", "Saúde", "Parentes/Amigos"].map((item) => <option key={item}>{item}</option>)}</select></FormField>
+            <FormField label="Meio de transporte"><select className="field" value={form.transporte} onChange={(event) => set("transporte", event.target.value)}>{["Ônibus", "Automóvel", "Avião", "Moto", "A pé", "Trem", "Bicicleta", "Navio/Barco"].map((item) => <option key={item}>{item}</option>)}</select></FormField>
           </FormSection>
 
-          <section>
-            <h2 className="mb-2 text-sm font-extrabold text-pine-dark">Assinatura do hóspede</h2>
-            {sent && signature ? (
-              <img
-                src={signature}
-                alt="Assinatura do hóspede"
-                className="h-40 w-full rounded-lg border bg-white object-contain"
-              />
-            ) : (
-              <SignaturePad onChange={setSignature} />
-            )}
-            <label className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={consent}
-                onChange={(event) => setConsent(event.target.checked)}
-                required
-              />
-              Autorizo o tratamento destes dados para hospedagem, FNRH Digital e obrigações legais,
-              conforme a LGPD.
-            </label>
-          </section>
+          <section><h2 className="mb-2 text-sm font-extrabold text-pine-dark">Assinatura do hóspede titular</h2>{sent && signature ? <img src={signature} alt="Assinatura do hóspede" className="h-40 w-full rounded-lg border bg-white object-contain" /> : <SignaturePad onChange={setSignature} />}<label className="mt-3 flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" className="mt-0.5" checked={consent} onChange={(event) => setConsent(event.target.checked)} required />Autorizo o tratamento destes dados para hospedagem, FNRH Digital e obrigações legais, conforme a LGPD.</label></section>
         </fieldset>
 
         {error && invite && <p className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-
-        <footer className="mt-5 flex flex-wrap justify-end gap-2 no-print">
-          {sent && (
-            <button type="button" className="btn-ghost flex items-center gap-1.5" onClick={() => window.print()}>
-              <Printer className="h-4 w-4" /> Imprimir cópia
-            </button>
-          )}
-          {!sent && (
-            <button type="submit" className="btn-primary flex items-center gap-1.5" disabled={saving}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-              Assinar e enviar
-            </button>
-          )}
-        </footer>
+        <footer className="mt-5 flex flex-wrap justify-end gap-2 no-print">{sent && <button type="button" className="btn-ghost flex items-center gap-1.5" onClick={() => window.print()}><Printer className="h-4 w-4" /> Imprimir cópia</button>}{!sent && <button type="submit" className="btn-primary flex items-center gap-1.5" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Assinar e enviar</button>}</footer>
       </form>
     </main>
   );
@@ -500,111 +281,16 @@ function CheckinOnline() {
 function SignaturePad({ onChange }: { onChange: (value: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ratio = window.devicePixelRatio || 1;
-    const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    canvas.width = width * ratio;
-    canvas.height = height * ratio;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    context.scale(ratio, ratio);
-    context.lineCap = "round";
-    context.lineJoin = "round";
-    context.lineWidth = 2.2;
-    context.strokeStyle = "#132a3a";
-  }, []);
-
-  function point(event: ReactPointerEvent<HTMLCanvasElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
-  }
-
-  function start(event: ReactPointerEvent<HTMLCanvasElement>) {
-    drawing.current = true;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    const context = event.currentTarget.getContext("2d");
-    const position = point(event);
-    context?.beginPath();
-    context?.moveTo(position.x, position.y);
-  }
-
-  function move(event: ReactPointerEvent<HTMLCanvasElement>) {
-    if (!drawing.current) return;
-    const context = event.currentTarget.getContext("2d");
-    const position = point(event);
-    context?.lineTo(position.x, position.y);
-    context?.stroke();
-  }
-
-  function finish() {
-    drawing.current = false;
-    const canvas = canvasRef.current;
-    if (canvas) onChange(canvas.toDataURL("image/png"));
-  }
-
-  function clear() {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
-    onChange("");
-  }
-
-  return (
-    <div className="relative overflow-hidden rounded-lg border bg-white">
-      <canvas
-        ref={canvasRef}
-        className="h-40 w-full touch-none"
-        onPointerDown={start}
-        onPointerMove={move}
-        onPointerUp={finish}
-        onPointerCancel={finish}
-        aria-label="Campo para assinatura"
-      />
-      <button
-        type="button"
-        className="absolute right-2 top-2 flex items-center gap-1 rounded bg-white px-2 py-1 text-[10px] font-bold shadow"
-        onClick={clear}
-      >
-        <Eraser className="h-3 w-3" /> Limpar
-      </button>
-      <p className="pointer-events-none absolute bottom-2 left-0 right-0 text-center text-[10px] text-neutral-400">
-        Assine com o dedo ou mouse
-      </p>
-    </div>
-  );
+  useEffect(() => { const canvas = canvasRef.current; if (!canvas) return; const ratio = window.devicePixelRatio || 1; const width = canvas.clientWidth; const height = canvas.clientHeight; canvas.width = width * ratio; canvas.height = height * ratio; const context = canvas.getContext("2d"); if (!context) return; context.scale(ratio, ratio); context.lineCap = "round"; context.lineJoin = "round"; context.lineWidth = 2.2; context.strokeStyle = "#132a3a"; }, []);
+  function point(event: ReactPointerEvent<HTMLCanvasElement>) { const rect = event.currentTarget.getBoundingClientRect(); return { x: event.clientX - rect.left, y: event.clientY - rect.top }; }
+  function start(event: ReactPointerEvent<HTMLCanvasElement>) { drawing.current = true; event.currentTarget.setPointerCapture(event.pointerId); const context = event.currentTarget.getContext("2d"); const position = point(event); context?.beginPath(); context?.moveTo(position.x, position.y); }
+  function move(event: ReactPointerEvent<HTMLCanvasElement>) { if (!drawing.current) return; const context = event.currentTarget.getContext("2d"); const position = point(event); context?.lineTo(position.x, position.y); context?.stroke(); }
+  function finish() { drawing.current = false; const canvas = canvasRef.current; if (canvas) onChange(canvas.toDataURL("image/png")); }
+  function clear() { const canvas = canvasRef.current; if (!canvas) return; canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height); onChange(""); }
+  return <div className="relative overflow-hidden rounded-lg border bg-white"><canvas ref={canvasRef} className="h-40 w-full touch-none" onPointerDown={start} onPointerMove={move} onPointerUp={finish} onPointerCancel={finish} aria-label="Campo para assinatura" /><button type="button" className="absolute right-2 top-2 flex items-center gap-1 rounded bg-white px-2 py-1 text-[10px] font-bold shadow" onClick={clear}><Eraser className="h-3 w-3" /> Limpar</button><p className="pointer-events-none absolute bottom-2 left-0 right-0 text-center text-[10px] text-neutral-400">Assine com o dedo ou mouse</p></div>;
 }
 
-function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className="mb-2 border-b pb-1 text-sm font-extrabold text-pine-dark">{title}</h2>
-      <div className="grid gap-3 sm:grid-cols-2">{children}</div>
-    </section>
-  );
-}
-
-function FormField({
-  label,
-  className = "",
-  children,
-}: {
-  label: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className={className}>
-      <span className="mb-1 block text-[10px] font-bold uppercase text-muted-foreground">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function formatDate(value: string) {
-  const [year, month, day] = value.split("-");
-  return year && month && day ? `${day}/${month}/${year}` : value;
-}
+function FormSection({ title, children }: { title: string; children: React.ReactNode }) { return <section><h2 className="mb-2 border-b pb-1 text-sm font-extrabold text-pine-dark">{title}</h2><div className="grid gap-3 sm:grid-cols-2">{children}</div></section>; }
+function FormField({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) { return <label className={className}><span className="mb-1 block text-[10px] font-bold uppercase text-muted-foreground">{label}</span>{children}</label>; }
+function formatDate(value: string) { const [year, month, day] = value.split("-"); return year && month && day ? `${day}/${month}/${year}` : value; }
+function parseCompanions(value?: string | null): Companion[] { try { const parsed = JSON.parse(value || "[]"); return Array.isArray(parsed) ? parsed.map((item) => ({ ...EMPTY_COMPANION, ...item })) : []; } catch { return []; } }
