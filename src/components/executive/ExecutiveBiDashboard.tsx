@@ -12,8 +12,8 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  ComposedChart,
   Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -81,14 +81,22 @@ type VisualData = {
   averageTicket: number;
 };
 
-const COLORS = [
-  "var(--primary)",
-  "var(--accent)",
-  "var(--sage)",
-  "var(--brass)",
-  "var(--brick)",
-  "var(--muted-foreground)",
+const DONUT_COLORS = [
+  "#2563EB",
+  "#E11D48",
+  "#F59E0B",
+  "#059669",
+  "#7C3AED",
+  "#EA580C",
+  "#0891B2",
+  "#4B5563",
 ];
+
+const SERIES_COLORS = {
+  revenue: "#2563EB",
+  expenses: "#E11D48",
+  gop: "#059669",
+};
 
 export function ExecutiveBiDashboard() {
   const company = useCurrentCompany();
@@ -102,7 +110,7 @@ export function ExecutiveBiDashboard() {
   const previousRange = useMemo(() => previousSameLength(currentRange), [currentRange]);
 
   const query = useQuery({
-    queryKey: ["executive-bi-story", company.data?.id, currentRange.start, currentRange.end],
+    queryKey: ["executive-bi-readable", company.data?.id, currentRange.start, currentRange.end],
     enabled: Boolean(company.data?.id),
     staleTime: 60_000,
     queryFn: async () => {
@@ -180,16 +188,21 @@ export function ExecutiveBiDashboard() {
 
       <section className="grid grid-cols-1 gap-2 md:grid-cols-12">
         <Panel className="md:col-span-8" title="1. O resultado melhorou ou piorou?" insight={financialInsight(now, before)}>
-          <ResponsiveContainer width="100%" height={220}>
-            <ComposedChart data={financialRows} margin={{ left: 0, right: 10, top: 8, bottom: 0 }}>
+          <div className="mb-1 flex flex-wrap gap-3 px-1 text-[8px] font-semibold">
+            <LegendDot color={SERIES_COLORS.revenue} label="Receita" />
+            <LegendDot color={SERIES_COLORS.expenses} label="Despesas" />
+            <LegendDot color={SERIES_COLORS.gop} label="GOP" />
+          </div>
+          <ResponsiveContainer width="100%" height={210}>
+            <LineChart data={financialRows} margin={{ left: 0, right: 12, top: 14, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="period" tick={{ fontSize: 8 }} />
-              <YAxis width={58} tick={{ fontSize: 7 }} tickFormatter={compactCurrency} />
+              <XAxis dataKey="period" tick={{ fontSize: 9 }} />
+              <YAxis width={62} tick={{ fontSize: 8 }} tickFormatter={compactCurrency} />
               <Tooltip formatter={(value: number) => fmtBRL(value)} />
-              <Bar dataKey="receita" name="Receita" fill="var(--primary)" radius={[5, 5, 0, 0]} />
-              <Bar dataKey="despesas" name="Despesas" fill="var(--brick)" radius={[5, 5, 0, 0]} />
-              <Line type="monotone" dataKey="gop" name="GOP" stroke="var(--accent)" strokeWidth={3} dot={{ r: 4 }} />
-            </ComposedChart>
+              <Line type="monotone" dataKey="receita" name="Receita" stroke={SERIES_COLORS.revenue} strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
+              <Line type="monotone" dataKey="despesas" name="Despesas" stroke={SERIES_COLORS.expenses} strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
+              <Line type="monotone" dataKey="gop" name="GOP" stroke={SERIES_COLORS.gop} strokeWidth={3} strokeDasharray="7 4" dot={{ r: 5 }} activeDot={{ r: 7 }} />
+            </LineChart>
           </ResponsiveContainer>
           <StoryStrip now={now} before={before} topChannel={current.strategic.channelRows[0]?.name} />
         </Panel>
@@ -203,7 +216,7 @@ export function ExecutiveBiDashboard() {
         </Panel>
 
         <Panel className="md:col-span-4" title="4. Quem são os hóspedes?" insight={topInsight(current.genderRows, "Maior público")}>
-          <div className="grid grid-cols-[0.9fr_1.1fr] items-center gap-1">
+          <div className="grid grid-cols-1 items-center gap-1 min-[1100px]:grid-cols-[0.9fr_1.1fr]">
             <CalloutDonut rows={current.genderRows} compact />
             <VerticalBars rows={current.ageRows} />
           </div>
@@ -287,11 +300,15 @@ function Panel({ title, insight, className = "", children }: { title: string; in
     <article className={`min-w-0 overflow-hidden rounded-xl border border-border bg-card p-2.5 shadow-sm ${className}`}>
       <div className="mb-1 flex min-h-6 items-start justify-between gap-2">
         <h2 className="truncate text-[11px] font-extrabold text-foreground" title={title}>{title}</h2>
-        <span className="max-w-[48%] truncate rounded-full bg-primary/8 px-2 py-0.5 text-[7px] font-semibold text-primary" title={insight}>{insight}</span>
+        <span className="max-w-[45%] truncate rounded-full bg-primary/8 px-2 py-0.5 text-[7px] font-semibold text-primary" title={insight}>{insight}</span>
       </div>
       {children}
     </article>
   );
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />{label}</span>;
 }
 
 function CalloutDonut({ rows, currency = false, compact = false }: { rows: NamedValue[]; currency?: boolean; compact?: boolean }) {
@@ -299,39 +316,35 @@ function CalloutDonut({ rows, currency = false, compact = false }: { rows: Named
   if (!data.length) return <Empty />;
   const total = data.reduce((sum, row) => sum + row.value, 0);
   const renderLabel = ({ cx, cy, midAngle, outerRadius, name, value }: any) => {
-    const radius = outerRadius + (compact ? 17 : 25);
+    const radius = outerRadius + (compact ? 15 : 22);
     const radian = Math.PI / 180;
     const x = cx + radius * Math.cos(-midAngle * radian);
     const y = cy + radius * Math.sin(-midAngle * radian);
     const percent = total > 0 ? (Number(value) / total) * 100 : 0;
     return (
       <text x={x} y={y} fill="var(--foreground)" textAnchor={x > cx ? "start" : "end"} dominantBaseline="central" fontSize={compact ? 7 : 8} fontWeight={700}>
-        {`${shortLabel(String(name), compact ? 10 : 15)} ${percent.toFixed(1)}%`}
+        {`${shortLabel(String(name), compact ? 9 : 13)} ${percent.toFixed(1)}%`}
       </text>
     );
   };
   return (
     <div>
-      <ResponsiveContainer width="100%" height={compact ? 150 : 190}>
-        <PieChart margin={{ top: 18, right: 42, bottom: 18, left: 42 }}>
-          <Pie
-            data={data}
-            dataKey="value"
-            nameKey="name"
-            innerRadius={compact ? 31 : 43}
-            outerRadius={compact ? 52 : 70}
-            paddingAngle={data.length > 1 ? 2 : 0}
-            labelLine={{ stroke: "var(--muted-foreground)", strokeWidth: 1 }}
-            label={renderLabel}
-          >
-            {data.map((row, index) => <Cell key={row.name} fill={COLORS[index % COLORS.length]} />)}
+      <ResponsiveContainer width="100%" height={compact ? 145 : 180}>
+        <PieChart margin={{ top: 17, right: 38, bottom: 17, left: 38 }}>
+          <Pie data={data} dataKey="value" nameKey="name" innerRadius={compact ? 30 : 42} outerRadius={compact ? 51 : 68} paddingAngle={data.length > 1 ? 3 : 0} labelLine={{ stroke: "#64748B", strokeWidth: 1 }} label={renderLabel}>
+            {data.map((row, index) => <Cell key={row.name} fill={DONUT_COLORS[index % DONUT_COLORS.length]} stroke="var(--card)" strokeWidth={2} />)}
           </Pie>
           <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : value.toLocaleString("pt-BR")} />
         </PieChart>
       </ResponsiveContainer>
       {!compact && (
         <div className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-[7px] text-muted-foreground">
-          {data.map((row) => <span key={row.name}>{shortLabel(row.name, 16)}: {currency ? fmtBRL(row.value) : row.value}</span>)}
+          {data.map((row, index) => (
+            <span key={row.name} className="inline-flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-sm" style={{ backgroundColor: DONUT_COLORS[index % DONUT_COLORS.length] }} />
+              {shortLabel(row.name, 14)}: {currency ? fmtBRL(row.value) : row.value}
+            </span>
+          ))}
         </div>
       )}
     </div>
@@ -343,40 +356,27 @@ function PaymentDonut({ rows }: { rows: PaymentRow[] }) {
   if (!data.length) return <Empty />;
   const total = data.reduce((sum, row) => sum + row.revenue, 0);
   const renderLabel = ({ cx, cy, midAngle, outerRadius, name, revenue }: any) => {
-    const radius = outerRadius + 25;
+    const radius = outerRadius + 21;
     const radian = Math.PI / 180;
     const x = cx + radius * Math.cos(-midAngle * radian);
     const y = cy + radius * Math.sin(-midAngle * radian);
     const percent = total > 0 ? (Number(revenue) / total) * 100 : 0;
-    return (
-      <text x={x} y={y} fill="var(--foreground)" textAnchor={x > cx ? "start" : "end"} dominantBaseline="central" fontSize={8} fontWeight={700}>
-        {`${shortLabel(String(name), 13)} ${percent.toFixed(1)}%`}
-      </text>
-    );
+    return <text x={x} y={y} fill="var(--foreground)" textAnchor={x > cx ? "start" : "end"} dominantBaseline="central" fontSize={8} fontWeight={700}>{`${shortLabel(String(name), 11)} ${percent.toFixed(1)}%`}</text>;
   };
   return (
     <div>
-      <ResponsiveContainer width="100%" height={190}>
-        <PieChart margin={{ top: 18, right: 48, bottom: 18, left: 48 }}>
-          <Pie
-            data={data}
-            dataKey="revenue"
-            nameKey="name"
-            innerRadius={43}
-            outerRadius={70}
-            paddingAngle={2}
-            labelLine={{ stroke: "var(--muted-foreground)", strokeWidth: 1 }}
-            label={renderLabel}
-          >
-            {data.map((row, index) => <Cell key={row.name} fill={COLORS[index % COLORS.length]} />)}
+      <ResponsiveContainer width="100%" height={180}>
+        <PieChart margin={{ top: 17, right: 42, bottom: 17, left: 42 }}>
+          <Pie data={data} dataKey="revenue" nameKey="name" innerRadius={42} outerRadius={68} paddingAngle={3} labelLine={{ stroke: "#64748B", strokeWidth: 1 }} label={renderLabel}>
+            {data.map((row, index) => <Cell key={row.name} fill={DONUT_COLORS[index % DONUT_COLORS.length]} stroke="var(--card)" strokeWidth={2} />)}
           </Pie>
           <Tooltip formatter={(value: number) => fmtBRL(value)} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="grid grid-cols-1 gap-0.5 text-[7px] sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-0.5 text-[7px] min-[1100px]:grid-cols-2">
         {data.map((row, index) => (
           <div key={row.name} className="flex min-w-0 items-center gap-1">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-sm" style={{ background: COLORS[index % COLORS.length] }} />
+            <span className="h-1.5 w-1.5 shrink-0 rounded-sm" style={{ backgroundColor: DONUT_COLORS[index % DONUT_COLORS.length] }} />
             <span className="truncate font-semibold">{row.name}</span>
             <span className="ml-auto whitespace-nowrap text-muted-foreground">{fmtBRL(row.revenue)} · {row.count}x</span>
           </div>
@@ -391,7 +391,7 @@ function StoryStrip({ now, before, topChannel }: { now: Summary; before: Summary
   const expenseDelta = variation(now.expenses, before.expenses);
   const gopDelta = variation(now.gop, before.gop);
   return (
-    <div className="grid gap-1 border-t border-border pt-1.5 text-[7px] sm:grid-cols-4">
+    <div className="grid gap-1 border-t border-border pt-1.5 text-[7px] sm:grid-cols-2 min-[1100px]:grid-cols-4">
       <Story label="O que aconteceu" value={`Receita ${signed(revenueDelta)}%`} />
       <Story label="Possível causa" value={topChannel ? `Canal líder: ${topChannel}` : "Sem canal identificado"} />
       <Story label="Impacto" value={`GOP ${signed(gopDelta)}%`} />
@@ -408,13 +408,13 @@ function HorizontalBars({ rows, currency = false }: { rows: NamedValue[]; curren
   const data = rows.filter((row) => row.value > 0).slice(0, 7);
   if (!data.length) return <Empty />;
   return (
-    <ResponsiveContainer width="100%" height={175}>
+    <ResponsiveContainer width="100%" height={170}>
       <BarChart data={data} layout="vertical" margin={{ left: 0, right: 10, top: 3, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
         <XAxis type="number" tick={{ fontSize: 7 }} tickFormatter={currency ? compactCurrency : compactNumber} />
-        <YAxis type="category" dataKey="name" width={70} tick={{ fontSize: 7 }} />
+        <YAxis type="category" dataKey="name" width={76} tick={{ fontSize: 7 }} tickFormatter={(value) => shortLabel(String(value), 12)} />
         <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : value.toLocaleString("pt-BR")} />
-        <Bar dataKey="value" fill="var(--primary)" radius={[0, 4, 4, 0]} />
+        <Bar dataKey="value" fill="#2563EB" radius={[0, 4, 4, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -424,13 +424,13 @@ function VerticalBars({ rows }: { rows: NamedValue[] }) {
   const data = rows.filter((row) => row.value > 0);
   if (!data.length) return <Empty />;
   return (
-    <ResponsiveContainer width="100%" height={150}>
+    <ResponsiveContainer width="100%" height={145}>
       <BarChart data={data} margin={{ left: -12, right: 4, top: 4, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-        <XAxis dataKey="name" tick={{ fontSize: 6 }} interval={0} />
+        <XAxis dataKey="name" tick={{ fontSize: 6 }} interval={0} tickFormatter={(value) => shortLabel(String(value), 9)} />
         <YAxis tick={{ fontSize: 6 }} width={24} allowDecimals={false} />
         <Tooltip formatter={(value: number) => `${value} hóspedes`} />
-        <Bar dataKey="value" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="value" fill="#7C3AED" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );
@@ -441,24 +441,24 @@ function ProductCharts({ rows }: { rows: ProductRow[] }) {
   const quantity = [...rows].filter((row) => row.quantity > 0).sort((a, b) => b.quantity - a.quantity).slice(0, 5);
   if (!revenue.length && !quantity.length) return <Empty />;
   return (
-    <div className="grid gap-1 md:grid-cols-2">
-      <MiniBars title="Receita" rows={revenue.map((row) => ({ name: row.name, value: row.revenue }))} currency />
-      <MiniBars title="Quantidade" rows={quantity.map((row) => ({ name: row.name, value: row.quantity }))} />
+    <div className="grid gap-1 min-[1100px]:grid-cols-2">
+      <MiniBars title="Receita" rows={revenue.map((row) => ({ name: row.name, value: row.revenue }))} currency color="#2563EB" />
+      <MiniBars title="Quantidade" rows={quantity.map((row) => ({ name: row.name, value: row.quantity }))} color="#059669" />
     </div>
   );
 }
 
-function MiniBars({ title, rows, currency = false }: { title: string; rows: NamedValue[]; currency?: boolean }) {
+function MiniBars({ title, rows, currency = false, color }: { title: string; rows: NamedValue[]; currency?: boolean; color: string }) {
   return (
     <div>
       <p className="mb-0.5 text-[7px] font-bold uppercase text-muted-foreground">{title}</p>
-      <ResponsiveContainer width="100%" height={165}>
+      <ResponsiveContainer width="100%" height={160}>
         <BarChart data={rows} layout="vertical" margin={{ left: 0, right: 8, top: 2, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
           <XAxis type="number" tick={{ fontSize: 6 }} tickFormatter={currency ? compactCurrency : compactNumber} />
-          <YAxis type="category" dataKey="name" width={76} tick={{ fontSize: 6 }} />
+          <YAxis type="category" dataKey="name" width={82} tick={{ fontSize: 6 }} tickFormatter={(value) => shortLabel(String(value), 14)} />
           <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : `${value} unidades`} />
-          <Bar dataKey="value" fill="var(--primary)" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -484,7 +484,7 @@ function DateField({ label, value, onChange, icon = false }: { label: string; va
   return (
     <label className="text-[7px] font-bold uppercase text-muted-foreground">
       <span className="mb-0.5 flex items-center gap-1">{icon && <CalendarDays className="h-2.5 w-2.5" />}{label}</span>
-      <input type="date" className="field h-7 w-[116px] px-1.5 text-[9px]" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input type="date" className="field h-7 w-[112px] px-1.5 text-[9px]" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
@@ -493,7 +493,7 @@ function Quick({ onClick, children }: { onClick: () => void; children: ReactNode
   return <button type="button" className="btn-ghost h-7 px-1.5 text-[8px]" onClick={onClick}>{children}</button>;
 }
 
-function Empty() { return <div className="grid h-[150px] place-items-center text-[8px] text-muted-foreground">Sem dados no período.</div>; }
+function Empty() { return <div className="grid h-[145px] place-items-center text-[8px] text-muted-foreground">Sem dados no período.</div>; }
 function State({ text, danger = false }: { text: string; danger?: boolean }) { return <div className={`rounded-xl border p-6 text-sm ${danger ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"}`}>{text}</div>; }
 function aggregatePayments(rows: { name: string; revenue: number }[]) { const map = new Map<string, PaymentRow>(); rows.forEach((row) => { const current = map.get(row.name) ?? { name: row.name, revenue: 0, count: 0 }; current.revenue += row.revenue; current.count += 1; map.set(row.name, current); }); return [...map.values()].sort((a, b) => b.revenue - a.revenue); }
 function aggregateProducts(rows: SaleRow[]) { const map = new Map<string, ProductRow>(); rows.forEach((row) => { const name = normalizeLabel(row.item || row.categoria, "Não informado"); const current = map.get(name) ?? { name, quantity: 0, revenue: 0 }; current.quantity += Math.max(0, Number(row.qtd) || 0); current.revenue += Math.max(0, Number(row.total) || 0); map.set(name, current); }); return [...map.values()].sort((a, b) => b.revenue - a.revenue); }
