@@ -6,7 +6,6 @@ import {
   CalendarDays,
   CircleDollarSign,
   TrendingUp,
-  Users,
   WalletCards,
 } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
@@ -32,7 +31,8 @@ export const Route = createFileRoute("/_authenticated/painel-executivo")({
 });
 
 type Range = { start: string; end: string };
-type NamedValue = { name: string; value: number; revenue?: number; quantity?: number };
+type NamedValue = { name: string; value: number };
+type ProductRow = { name: string; quantity: number; revenue: number };
 type Summary = {
   soldRoomNights: number;
   availableRoomNights: number;
@@ -57,13 +57,12 @@ type StrategicData = {
   channelRows: NamedValue[];
   expenseRows: NamedValue[];
   roomTypeRows: NamedValue[];
-  productRows: { name: string; quantity: number; revenue: number }[];
+  productRows: ProductRow[];
 };
 type ReservationRow = {
   id: string;
   cliente_id: string | null;
   pagamento: string | null;
-  canal: string | null;
   motivo_estadia: string | null;
   valor_total: number | string | null;
   status: string | null;
@@ -73,6 +72,8 @@ type SaleRow = {
   total: number | string | null;
   qtd: number | string | null;
   cliente_id: string | null;
+  item: string | null;
+  categoria: string | null;
 };
 type ClientRow = {
   id: string;
@@ -111,12 +112,7 @@ function ExecutiveDashboard() {
   const previousRange = useMemo(() => previousSameLength(currentRange), [currentRange]);
 
   const query = useQuery({
-    queryKey: [
-      "executive-visual-dashboard",
-      company.data?.id,
-      currentRange.start,
-      currentRange.end,
-    ],
+    queryKey: ["executive-visual-dashboard", company.data?.id, currentRange.start, currentRange.end],
     enabled: Boolean(company.data?.id),
     staleTime: 60_000,
     queryFn: async () => {
@@ -143,7 +139,6 @@ function ExecutiveDashboard() {
   const previousTrevpar = ratio(before.revenue, before.availableRoomNights);
   const goppar = ratio(now.gop, now.availableRoomNights);
   const previousGoppar = ratio(before.gop, before.availableRoomNights);
-
   const resultRows = [
     { name: "Receita", atual: now.revenue, anterior: before.revenue },
     { name: "Despesas", atual: now.expenses, anterior: before.expenses },
@@ -151,28 +146,24 @@ function ExecutiveDashboard() {
   ];
 
   return (
-    <div className="space-y-4 pb-10">
-      <header className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div className="space-y-3 pb-10">
+      <header className="rounded-xl border border-border bg-card p-3 shadow-sm">
+        <div className="flex flex-col gap-2 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
-              Inteligência de gestão
-            </p>
-            <h1 className="mt-1 text-xl font-bold text-foreground">Painel Executivo</h1>
-            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-              Gráficos e informações do período escolhido. A comparação com o período anterior aparece nos próprios cards.
+            <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-primary">Inteligência de gestão</p>
+            <h1 className="mt-0.5 text-lg font-bold text-foreground">Painel Executivo</h1>
+            <p className="mt-0.5 max-w-3xl text-xs text-muted-foreground">
+              O período é escolhido no calendário e a comparação aparece nos próprios indicadores.
             </p>
           </div>
-          <div className="flex flex-wrap items-end gap-2">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground">
-              <span className="mb-1 flex items-center gap-1.5">
-                <CalendarDays className="h-3.5 w-3.5" /> De
-              </span>
-              <input type="date" className="field h-9" value={start} onChange={(event) => setStart(event.target.value)} />
+          <div className="flex flex-wrap items-end gap-1.5">
+            <label className="text-[9px] font-bold uppercase text-muted-foreground">
+              <span className="mb-0.5 flex items-center gap-1"><CalendarDays className="h-3 w-3" />De</span>
+              <input type="date" className="field h-8 w-[132px] px-2 text-xs" value={start} onChange={(event) => setStart(event.target.value)} />
             </label>
-            <label className="text-[10px] font-bold uppercase text-muted-foreground">
-              <span className="mb-1 block">Até</span>
-              <input type="date" className="field h-9" value={end} onChange={(event) => setEnd(event.target.value)} />
+            <label className="text-[9px] font-bold uppercase text-muted-foreground">
+              <span className="mb-0.5 block">Até</span>
+              <input type="date" className="field h-8 w-[132px] px-2 text-xs" value={end} onChange={(event) => setEnd(event.target.value)} />
             </label>
             <QuickButton onClick={() => setDates(today, today, setStart, setEnd)}>Hoje</QuickButton>
             <QuickButton onClick={() => setDates(addDays(today, -6), today, setStart, setEnd)}>7 dias</QuickButton>
@@ -195,71 +186,61 @@ function ExecutiveDashboard() {
 
       <section className="grid gap-3 xl:grid-cols-2">
         <ChartCard title="Resultado financeiro" insight={financialInsight(now, before)}>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={resultRows} margin={{ left: 8, right: 16, top: 12, bottom: 4 }}>
+          <ResponsiveContainer width="100%" height={290}>
+            <BarChart data={resultRows} margin={{ left: 4, right: 12, top: 10, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 10 }} width={72} tickFormatter={compactCurrency} />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 9 }} width={68} tickFormatter={compactCurrency} />
               <Tooltip formatter={(value: number) => fmtBRL(value)} />
-              <Legend />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
               <Bar dataKey="anterior" name="Período anterior" fill="var(--muted-foreground)" radius={[4, 4, 0, 0]} />
               <Bar dataKey="atual" name="Período atual" fill="var(--primary)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Meios de pagamento" insight={topInsight(current.paymentRows, "Maior receita")}> 
-          <HorizontalRevenueChart rows={current.paymentRows} />
+        <ChartCard title="Meios de pagamento" insight={topInsight(current.paymentRows, "Maior receita")}>
+          <DonutChart rows={current.paymentRows} currency />
         </ChartCard>
 
-        <ChartCard title="Volume e recorrência por pagamento" insight={topInsight(current.recurringByPayment, "Maior recorrência")}> 
-          <HorizontalRevenueChart rows={current.recurringByPayment} valueLabel="hóspedes recorrentes" currency={false} />
+        <ChartCard title="Recorrência por meio de pagamento" insight={topInsight(current.recurringByPayment, "Maior recorrência")}>
+          <HorizontalValueChart rows={current.recurringByPayment} valueLabel="hóspedes recorrentes" />
         </ChartCard>
 
-        <ChartCard title="Canais de venda" insight={topInsight(current.strategic.channelRows, "Canal líder")}> 
-          <HorizontalRevenueChart rows={current.strategic.channelRows} />
+        <ChartCard title="Canais de venda" insight={topInsight(current.strategic.channelRows, "Canal líder")}>
+          <HorizontalValueChart rows={current.strategic.channelRows} currency valueLabel="receita" />
         </ChartCard>
 
-        <ChartCard title="Quartos e tarifas" insight={topInsight(current.strategic.roomTypeRows, "Maior receita")}> 
-          <HorizontalRevenueChart rows={current.strategic.roomTypeRows} />
+        <ChartCard title="Quartos e tarifas" insight={topInsight(current.strategic.roomTypeRows, "Maior receita")}>
+          <DonutChart rows={current.strategic.roomTypeRows} currency />
         </ChartCard>
 
-        <ChartCard title="Produtos e serviços" insight={productInsight(current.strategic.productRows)}>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={current.strategic.productRows.slice(0, 8)} margin={{ left: 8, right: 16, top: 12, bottom: 40 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="name" angle={-25} textAnchor="end" height={70} tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} width={68} tickFormatter={compactCurrency} />
-              <Tooltip formatter={(value: number, name: string) => name === "revenue" ? fmtBRL(value) : value} />
-              <Legend />
-              <Bar dataKey="revenue" name="Receita" fill="var(--primary)" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="quantity" name="Quantidade" fill="var(--accent)" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        <ChartCard title="Produtos vendidos e serviços" insight={productInsight(current.strategic.productRows)}>
+          <ProductCharts rows={current.strategic.productRows} />
         </ChartCard>
 
-        <ChartCard title="Sexo dos hóspedes" insight={topInsight(current.genderRows, "Maior público")}> 
+        <ChartCard title="Sexo dos hóspedes" insight={topInsight(current.genderRows, "Maior público")}>
           <DonutChart rows={current.genderRows} />
         </ChartCard>
 
-        <ChartCard title="Faixa etária" insight={topInsight(current.ageRows, "Faixa principal")}> 
-          <HorizontalCountChart rows={current.ageRows} />
+        <ChartCard title="Faixa etária" insight={topInsight(current.ageRows, "Faixa principal")}>
+          <VerticalCountChart rows={current.ageRows} />
         </ChartCard>
 
-        <ChartCard title="Estado civil" insight={topInsight(current.civilRows, "Perfil predominante")}> 
+        <ChartCard title="Estado civil" insight={topInsight(current.civilRows, "Perfil predominante")}>
           <DonutChart rows={current.civilRows} />
         </ChartCard>
 
-        <ChartCard title="Motivo da estadia" insight={topInsight(current.motiveRows, "Principal motivo")}> 
-          <HorizontalCountChart rows={current.motiveRows} />
+        <ChartCard title="Motivo da estadia" insight={topInsight(current.motiveRows, "Principal motivo")}>
+          <DonutChart rows={current.motiveRows} />
         </ChartCard>
 
-        <ChartCard title="Origem dos hóspedes por estado" insight={topInsight(current.stateRows, "Maior origem")}> 
-          <HorizontalCountChart rows={current.stateRows} />
+        <ChartCard title="Origem dos hóspedes por estado" insight={topInsight(current.stateRows, "Maior origem")}>
+          <HorizontalValueChart rows={current.stateRows} valueLabel="hóspedes" />
         </ChartCard>
 
-        <ChartCard title="Despesas por categoria" insight={topInsight(current.strategic.expenseRows, "Maior custo")}> 
-          <HorizontalRevenueChart rows={current.strategic.expenseRows} />
+        <ChartCard title="Despesas por categoria" insight={topInsight(current.strategic.expenseRows, "Maior custo")}>
+          <HorizontalValueChart rows={current.strategic.expenseRows} currency valueLabel="despesas" />
         </ChartCard>
       </section>
     </div>
@@ -275,13 +256,13 @@ async function loadVisualData(companyId: string, range: Range): Promise<VisualDa
     }),
     (supabase as any)
       .from("reservations")
-      .select("id,cliente_id,pagamento,canal,motivo_estadia,valor_total,status")
+      .select("id,cliente_id,pagamento,motivo_estadia,valor_total,status")
       .eq("company_id", companyId)
       .gte("checkin", range.start)
       .lte("checkin", range.end),
     (supabase as any)
       .from("sales")
-      .select("pagamento,total,qtd,cliente_id")
+      .select("pagamento,total,qtd,cliente_id,item,categoria")
       .eq("company_id", companyId)
       .gte("data", range.start)
       .lte("data", range.end),
@@ -300,31 +281,31 @@ async function loadVisualData(companyId: string, range: Range): Promise<VisualDa
   const sales = (salesResult.data ?? []) as SaleRow[];
   const clients = (clientsResult.data ?? []) as ClientRow[];
   const clientsById = new Map(clients.map((client) => [client.id, client]));
-
   const validReservations = reservations.filter(
     (row) => !["cancelado", "manutencao"].includes(String(row.status ?? "")),
   );
-
   const paymentRows = aggregateRevenue([
     ...validReservations.map((row) => ({ name: row.pagamento || "Não informado", value: Number(row.valor_total) || 0 })),
     ...sales.map((row) => ({ name: row.pagamento || "Não informado", value: Number(row.total) || 0 })),
   ]);
-
   const guestClients = validReservations
     .map((row) => row.cliente_id && clientsById.get(row.cliente_id))
     .filter((client): client is ClientRow => Boolean(client));
-
   const recurringIds = new Set(
-    [...countBy(validReservations.map((row) => row.cliente_id).filter(Boolean) as string[])].filter(([, count]) => count > 1).map(([id]) => id),
+    [...countBy(validReservations.map((row) => row.cliente_id).filter(Boolean) as string[])]
+      .filter(([, count]) => count > 1)
+      .map(([id]) => id),
   );
   const recurringByPayment = aggregateCount(
     validReservations
       .filter((row) => row.cliente_id && recurringIds.has(row.cliente_id))
       .map((row) => row.pagamento || "Não informado"),
   );
+  const strategic = strategicResult.data as StrategicData;
+  strategic.productRows = aggregateProducts(sales);
 
   return {
-    strategic: strategicResult.data as StrategicData,
+    strategic,
     paymentRows,
     genderRows: aggregateCount(guestClients.map((client) => normalizeLabel(client.sexo, "Não informado"))),
     ageRows: aggregateCount(guestClients.map((client) => ageBand(client.data_nascimento))),
@@ -337,10 +318,10 @@ async function loadVisualData(companyId: string, range: Range): Promise<VisualDa
 
 function ChartCard({ title, insight, children }: { title: string; insight: string; children: ReactNode }) {
   return (
-    <article className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-        <h2 className="font-bold text-foreground">{title}</h2>
-        <span className="max-w-[70%] rounded-full bg-muted px-2.5 py-1 text-right text-[10px] font-semibold text-muted-foreground">
+    <article className="rounded-xl border border-border bg-card p-3 shadow-sm">
+      <div className="mb-1.5 flex min-h-7 flex-wrap items-start justify-between gap-1.5">
+        <h2 className="text-sm font-bold text-foreground">{title}</h2>
+        <span className="max-w-[64%] rounded-full bg-muted px-2 py-0.5 text-right text-[9px] font-semibold leading-4 text-muted-foreground">
           {insight}
         </span>
       </div>
@@ -349,31 +330,31 @@ function ChartCard({ title, insight, children }: { title: string; insight: strin
   );
 }
 
-function DonutChart({ rows }: { rows: NamedValue[] }) {
+function DonutChart({ rows, currency = false }: { rows: NamedValue[]; currency?: boolean }) {
   const data = rows.filter((row) => row.value > 0).slice(0, 6);
   if (!data.length) return <EmptyChart />;
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <PieChart>
-        <Pie data={data} dataKey="value" nameKey="name" innerRadius={58} outerRadius={100} paddingAngle={data.length > 1 ? 2 : 0}>
+    <ResponsiveContainer width="100%" height={290}>
+      <PieChart margin={{ top: 4, right: 8, bottom: 20, left: 8 }}>
+        <Pie data={data} dataKey="value" nameKey="name" innerRadius={56} outerRadius={92} paddingAngle={data.length > 1 ? 2 : 0}>
           {data.map((row, index) => <Cell key={row.name} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
         </Pie>
-        <Tooltip formatter={(value: number) => value.toLocaleString("pt-BR")} />
-        <Legend />
+        <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : value.toLocaleString("pt-BR")} />
+        <Legend wrapperStyle={{ fontSize: 9, lineHeight: "14px" }} />
       </PieChart>
     </ResponsiveContainer>
   );
 }
 
-function HorizontalRevenueChart({ rows, valueLabel = "receita", currency = true }: { rows: NamedValue[]; valueLabel?: string; currency?: boolean }) {
+function HorizontalValueChart({ rows, valueLabel, currency = false }: { rows: NamedValue[]; valueLabel: string; currency?: boolean }) {
   const data = rows.filter((row) => row.value > 0).slice(0, 8);
   if (!data.length) return <EmptyChart />;
   return (
-    <ResponsiveContainer width="100%" height={300}>
-      <BarChart data={data} layout="vertical" margin={{ left: 20, right: 24, top: 8, bottom: 8 }}>
+    <ResponsiveContainer width="100%" height={290}>
+      <BarChart data={data} layout="vertical" margin={{ left: 8, right: 20, top: 6, bottom: 6 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-        <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={currency ? compactCurrency : compactNumber} />
-        <YAxis type="category" dataKey="name" width={115} tick={{ fontSize: 10 }} />
+        <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={currency ? compactCurrency : compactNumber} />
+        <YAxis type="category" dataKey="name" width={94} tick={{ fontSize: 9 }} />
         <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : `${value.toLocaleString("pt-BR")} ${valueLabel}`} />
         <Bar dataKey="value" name={valueLabel} fill="var(--primary)" radius={[0, 5, 5, 0]} />
       </BarChart>
@@ -381,33 +362,74 @@ function HorizontalRevenueChart({ rows, valueLabel = "receita", currency = true 
   );
 }
 
-function HorizontalCountChart({ rows }: { rows: NamedValue[] }) {
-  return <HorizontalRevenueChart rows={rows} valueLabel="hóspedes" currency={false} />;
+function VerticalCountChart({ rows }: { rows: NamedValue[] }) {
+  const data = rows.filter((row) => row.value > 0);
+  if (!data.length) return <EmptyChart />;
+  return (
+    <ResponsiveContainer width="100%" height={290}>
+      <BarChart data={data} margin={{ left: 0, right: 8, top: 8, bottom: 8 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey="name" tick={{ fontSize: 9 }} interval={0} />
+        <YAxis tick={{ fontSize: 9 }} width={34} allowDecimals={false} />
+        <Tooltip formatter={(value: number) => `${value.toLocaleString("pt-BR")} hóspedes`} />
+        <Bar dataKey="value" name="Hóspedes" fill="var(--primary)" radius={[5, 5, 0, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+function ProductCharts({ rows }: { rows: ProductRow[] }) {
+  const byRevenue = [...rows].filter((row) => row.revenue > 0).sort((a, b) => b.revenue - a.revenue).slice(0, 6);
+  const byQuantity = [...rows].filter((row) => row.quantity > 0).sort((a, b) => b.quantity - a.quantity).slice(0, 6);
+  if (!byRevenue.length && !byQuantity.length) return <EmptyChart />;
+  return (
+    <div className="grid gap-1 lg:grid-cols-2">
+      <MiniProductChart title="Receita" rows={byRevenue.map((row) => ({ name: row.name, value: row.revenue }))} currency />
+      <MiniProductChart title="Quantidade" rows={byQuantity.map((row) => ({ name: row.name, value: row.quantity }))} />
+    </div>
+  );
+}
+
+function MiniProductChart({ title, rows, currency = false }: { title: string; rows: NamedValue[]; currency?: boolean }) {
+  return (
+    <div>
+      <p className="mb-1 text-[9px] font-bold uppercase text-muted-foreground">{title}</p>
+      <ResponsiveContainer width="100%" height={265}>
+        <BarChart data={rows} layout="vertical" margin={{ left: 4, right: 16, top: 4, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis type="number" tick={{ fontSize: 8 }} tickFormatter={currency ? compactCurrency : compactNumber} />
+          <YAxis type="category" dataKey="name" width={84} tick={{ fontSize: 8 }} />
+          <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : `${value.toLocaleString("pt-BR")} unidades`} />
+          <Bar dataKey="value" fill="var(--primary)" radius={[0, 4, 4, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
 
 function ComparativeKpi({ icon, label, value, current, previous, inverse = false, suffix }: { icon: ReactNode; label: string; value: string; current: number; previous: number; inverse?: boolean; suffix?: string }) {
   const delta = suffix ? current - previous : variation(current, previous);
   const good = inverse ? delta <= 0 : delta >= 0;
   return (
-    <article className="rounded-xl border border-border bg-card p-3 shadow-sm">
+    <article className="rounded-xl border border-border bg-card p-2.5 shadow-sm">
       <div className="flex items-center justify-between gap-2 text-muted-foreground">
-        <span className="text-[9px] font-bold uppercase">{label}</span>
-        <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
+        <span className="text-[8px] font-bold uppercase">{label}</span>
+        <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
       </div>
-      <strong className="mt-1 block text-base text-foreground">{value}</strong>
-      <span className={`mt-1 block text-[10px] font-bold ${good ? "text-emerald-700" : "text-brick"}`}>
-        {signed(delta)}{suffix ?? "%"} vs. período anterior
+      <strong className="mt-1 block text-sm text-foreground">{value}</strong>
+      <span className={`mt-1 block text-[9px] font-bold ${good ? "text-emerald-700" : "text-brick"}`}>
+        {signed(delta)}{suffix ?? "%"} vs. anterior
       </span>
     </article>
   );
 }
 
 function QuickButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
-  return <button type="button" className="btn-ghost h-9 text-xs" onClick={onClick}>{children}</button>;
+  return <button type="button" className="btn-ghost h-8 px-2 text-[10px]" onClick={onClick}>{children}</button>;
 }
 
 function EmptyChart() {
-  return <div className="grid h-[300px] place-items-center text-sm text-muted-foreground">Sem dados no período escolhido.</div>;
+  return <div className="grid h-[290px] place-items-center text-xs text-muted-foreground">Sem dados no período escolhido.</div>;
 }
 
 function StateCard({ title, text, danger = false }: { title: string; text: string; danger?: boolean }) {
@@ -423,6 +445,18 @@ function aggregateRevenue(rows: { name: string; value: number }[]) {
   const map = new Map<string, number>();
   rows.forEach((row) => map.set(row.name, (map.get(row.name) ?? 0) + row.value));
   return [...map.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+}
+
+function aggregateProducts(rows: SaleRow[]): ProductRow[] {
+  const map = new Map<string, ProductRow>();
+  rows.forEach((row) => {
+    const name = normalizeLabel(row.item || row.categoria, "Não informado");
+    const current = map.get(name) ?? { name, quantity: 0, revenue: 0 };
+    current.quantity += Math.max(0, Number(row.qtd) || 0);
+    current.revenue += Math.max(0, Number(row.total) || 0);
+    map.set(name, current);
+  });
+  return [...map.values()].sort((a, b) => b.revenue - a.revenue);
 }
 
 function aggregateCount(values: string[]) {
@@ -516,10 +550,10 @@ function topInsight(rows: NamedValue[], label: string) {
   return `${label}: ${top.name} (${top.value.toLocaleString("pt-BR")})`;
 }
 
-function productInsight(rows: { name: string; quantity: number; revenue: number }[]) {
+function productInsight(rows: ProductRow[]) {
   const topRevenue = [...rows].sort((a, b) => b.revenue - a.revenue)[0];
   const topVolume = [...rows].sort((a, b) => b.quantity - a.quantity)[0];
-  if (!topRevenue) return "Sem dados no período";
+  if (!topRevenue) return "Sem produtos vendidos no período";
   return `Receita: ${topRevenue.name} · Volume: ${topVolume?.name ?? topRevenue.name}`;
 }
 
