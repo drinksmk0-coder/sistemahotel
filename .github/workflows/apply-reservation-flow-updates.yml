@@ -4,16 +4,12 @@ on:
   push:
     branches:
       - agent/importar-hospedin-relatorio-agua
-  pull_request:
-    branches:
-      - agent/finalizar-fluxos-hospedamais
 
 permissions:
-  contents: read
-  pull-requests: read
+  contents: write
 
 concurrency:
-  group: reservation-flow-${{ github.head_ref || github.ref_name }}
+  group: reservation-flow-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -22,6 +18,9 @@ jobs:
     steps:
       - name: Checkout branch
         uses: actions/checkout@v4
+        with:
+          ref: agent/importar-hospedin-relatorio-agua
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -29,11 +28,29 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Apply idempotent build fixes
+        run: node scripts/fix-pr25-build.mjs
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Build and regenerate routes
+        run: npm run build
 
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Build
-        run: npm run build
+      - name: Commit generated corrections
+        run: |
+          git add src/components/MapaQuartos.tsx
+          if [ -f src/routeTree.gen.ts ]; then
+            git add -f src/routeTree.gen.ts
+          fi
+          if git diff --cached --quiet; then
+            echo "No generated changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "corrigir consumo no mapa e regenerar rotas"
+          git push origin HEAD:agent/importar-hospedin-relatorio-agua
