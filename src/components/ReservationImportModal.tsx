@@ -16,6 +16,7 @@ type ImportedReservationRow = ReservaRow & {
   codigo_externo?: string | null;
   origem_importacao?: string | null;
   observacoes_importacao?: string | null;
+  group_id?: string | null;
 };
 
 export type ReservationImportResult = { imported: number; errors: string[] };
@@ -181,7 +182,7 @@ function parseRows(sheet: Cell[][], rooms: Room[]) {
   };
   const errors: string[] = [];
   const warnings: string[] = [];
-  const seenExternalCodes = new Set<string>();
+  const seenExternalStays = new Set<string>();
   const dataReserva = hotelOperationalDateISO();
   const isHospedin = ["codigo da reserva", "situacao", "nome completo", "uh"].every((name) =>
     headers.some((header) => normalize(header) === name),
@@ -205,11 +206,16 @@ function parseRows(sheet: Cell[][], rooms: Room[]) {
     }
 
     const normalizedCode = normalize(externalCode);
-    if (normalizedCode && seenExternalCodes.has(normalizedCode)) {
-      errors.push(`Linha ${line}: código ${externalCode} está repetido dentro da própria planilha.`);
+    const externalStayKey = normalizedCode
+      ? `${normalizedCode}|${quarto}|${checkin}|${checkout}`
+      : "";
+    if (externalStayKey && seenExternalStays.has(externalStayKey)) {
+      errors.push(
+        `Linha ${line}: código ${externalCode}, UH ${quarto} e período estão repetidos dentro da própria planilha.`,
+      );
       return [];
     }
-    if (normalizedCode) seenExternalCodes.add(normalizedCode);
+    if (externalStayKey) seenExternalStays.add(externalStayKey);
 
     const diarias = Math.max(1, nightsBetween(checkin, checkout));
     const importedDailyRate = numeric(get(source, "diaria"));
@@ -272,10 +278,30 @@ function parseRows(sheet: Cell[][], rooms: Room[]) {
       codigo_externo: externalCode || null,
       origem_importacao: isHospedin ? "Hospedin" : "Planilha",
       observacoes_importacao: notes || null,
+      group_id: null,
     };
 
     return [row];
   });
+
+  const rowsByExternalCode = new Map<string, ImportedReservationRow[]>();
+  for (const row of rows) {
+    const code = normalize(row.codigo_externo);
+    if (!code || row.status === "cancelado" || row.status === "manutencao") continue;
+    const group = rowsByExternalCode.get(code) ?? [];
+    group.push(row);
+    rowsByExternalCode.set(code, group);
+  }
+
+  for (const [code, groupRows] of rowsByExternalCode) {
+    const roomsInGroup = new Set(groupRows.map((row) => row.quarto));
+    if (roomsInGroup.size < 2) continue;
+    const groupId = crypto.randomUUID();
+    for (const row of groupRows) row.group_id = groupId;
+    warnings.push(
+      `${groupRows.length} UHs do código ${groupRows[0].codigo_externo || code} foram reconhecidas como uma reserva em grupo.`,
+    );
+  }
 
   return { rows, errors, warnings, source: isHospedin ? "Hospedin" : "Planilha genérica" };
 }
@@ -429,8 +455,8 @@ export function ReservationImportModal({
             <strong>{result.imported} reserva(s) importada(s).</strong>
             {result.errors.map((error) => (
               <p key={error} className="mt-1 text-xs">
-                {error.includes("reservations_company_external_code_uidx")
-                  ? "Esta reserva já havia sido importada pelo mesmo código externo."
+                {error.includes("reservations_company_external_stay_normalized_uidx")
+                  ? "Esta estadia já havia sido importada para o mesmo quarto e período."
                   : error}
               </p>
             ))}
@@ -438,8 +464,8 @@ export function ReservationImportModal({
         )}
 
         <p className="rounded-lg bg-muted/50 p-3 text-[11px] leading-relaxed text-muted-foreground">
-          O código externo evita importar a mesma reserva duas vezes. Reservas individuais do mesmo
-          hóspede em períodos sobrepostos são bloqueadas; para vários quartos use “Reserva em grupo”.
+          O código externo evita repetir a mesma estadia. Quando o mesmo código do Hospedin aparece em
+          UHs diferentes, o sistema cria automaticamente uma reserva em grupo.
         </p>
 
         <div className="flex justify-end gap-2">
