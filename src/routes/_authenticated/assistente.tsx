@@ -78,7 +78,7 @@ function Assistente() {
       </section>
     );
   }
-  if (role !== "dono" && role !== "recepcao") {
+  if (role !== "dono") {
     return <Navigate to="/painel" />;
   }
   return <AssistenteWorkspace />;

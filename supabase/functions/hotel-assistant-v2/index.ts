@@ -54,8 +54,11 @@ Deno.serve(async (request) => {
     if (!membership) return json({ error: "Acesso negado a esta empresa." }, 403);
 
     const memberRole = String(membership.role ?? "");
-    if (!["dono", "recepcao"].includes(memberRole)) {
-      return json({ error: "O HotelAI está disponível para dono e recepção." }, 403);
+    if (memberRole !== "dono") {
+      return json(
+        { error: "O HotelAI analítico está disponível somente para o proprietário." },
+        403,
+      );
     }
     const mode: AssistantMode = body.mode === "reception" ? "reception" : "analysis";
     const context = await loadContext(admin, companyId, question, memberRole, mode);
