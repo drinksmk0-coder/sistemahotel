@@ -1,12 +1,15 @@
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import {
   Bot,
+  Brain,
   CheckCircle2,
   Copy,
+  Droplets,
   MessageSquareWarning,
+  Printer,
   Save,
   Send,
   Sparkles,
@@ -55,6 +58,7 @@ const SUGGESTIONS: Record<AssistantMode, string[]> = {
     "Quais canais trazem mais receita e quais devo priorizar?",
     "Analise ocupação, ADR, RevPAR, TRevPAR e GOPPAR.",
     "Quais despesas e reclamações exigem ação primeiro?",
+    "Gere o relatório de consumo de água deste mês.",
   ],
   reception: [
     "Consulte a disponibilidade para o próximo fim de semana.",
@@ -81,6 +85,8 @@ function Assistente() {
 }
 
 function AssistenteWorkspace() {
+  const { user } = useSession();
+  const { data: workspaceRole } = useRole(user);
   const currentCompany = useCurrentCompany();
   const { data: issues = [] } = useSystemIssues();
   const { data: integrations = [] } = useCompanyIntegrations();
@@ -148,7 +154,7 @@ function AssistenteWorkspace() {
     const callbacks = {
       onSuccess: () => {
         setPromptDirty(false);
-        toast.success("Treinamento da recepção virtual salvo para esta empresa.");
+        toast.success("Instruções da recepção virtual salvas para esta empresa.");
       },
       onError: (saveError: Error) => toast.error(saveError.message),
     };
@@ -178,7 +184,25 @@ function AssistenteWorkspace() {
     <div className="flex min-h-0 flex-col">
       <PageHeader
         title="Assistente 24h"
-        subtitle="Análises do hotel e recepção virtual."
+        subtitle="Análises do hotel, relatórios e recepção virtual."
+        action={
+          workspaceRole === "dono" ? (
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/memoria-ia"
+                className="btn-ghost inline-flex items-center gap-1.5 text-xs"
+              >
+                <Brain className="h-4 w-4" /> Memória
+              </Link>
+              <Link
+                to="/relatorio-consumo-agua"
+                className="btn-ghost inline-flex items-center gap-1.5 text-xs"
+              >
+                <Droplets className="h-4 w-4" /> Relatório de água
+              </Link>
+            </div>
+          ) : undefined
+        }
       />
 
       <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -242,8 +266,8 @@ function AssistenteWorkspace() {
             </div>
             <p className="text-xs text-muted-foreground">
               {assistantMode === "analysis"
-                ? "Usa dados agregados da empresa. Não envia nomes, CPF, telefone ou e-mail ao Gemini."
-                : "Mantém o contexto da conversa e o nome informado pelo hóspede, sem consultar nem expor dados pessoais de outras reservas."}
+                ? "Usa dados agregados e a memória ativa da empresa. Dados atuais sempre prevalecem."
+                : "Mantém o contexto da conversa sem consultar nem expor dados pessoais de outros hóspedes."}
             </p>
           </div>
 
@@ -255,7 +279,7 @@ function AssistenteWorkspace() {
                   title="Como posso ajudar?"
                   description={
                     assistantMode === "analysis"
-                      ? "Pergunte por que o hotel melhorou ou piorou e quais ações aumentam lucro, ocupação e satisfação."
+                      ? "Pergunte por resultados, pendências, consumo de água ou ações para melhorar o hotel."
                       : "Teste o atendimento antes de ativá-lo no WhatsApp e confira se as respostas seguem as regras do hotel."
                   }
                 />
@@ -283,6 +307,14 @@ function AssistenteWorkspace() {
                                   }}
                                 >
                                   <Copy className="h-3.5 w-3.5" />
+                                </MessageAction>
+                                <MessageAction
+                                  tooltip="Imprimir resposta como relatório"
+                                  label="Imprimir resposta"
+                                  className="h-8 w-8"
+                                  onClick={() => printHotelAiAnswer(part.text)}
+                                >
+                                  <Printer className="h-3.5 w-3.5" />
                                 </MessageAction>
                               </MessageActions>
                             )}
@@ -337,7 +369,7 @@ function AssistenteWorkspace() {
               onChange={(event) => setInput(event.target.value)}
               placeholder={
                 assistantMode === "analysis"
-                  ? "Ex.: por que a ocupação caiu e o que devo fazer?"
+                  ? "Ex.: gere o relatório de água deste mês…"
                   : "Ex.: quero reservar um quarto para duas pessoas…"
               }
               maxLength={2000}
@@ -353,11 +385,11 @@ function AssistenteWorkspace() {
           <section className="card-surface p-3">
             <div className="mb-2 flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-primary" />
-              <h2 className="font-bold text-pine-dark">Treinamento da recepção virtual</h2>
+              <h2 className="font-bold text-pine-dark">Instruções da recepção virtual</h2>
             </div>
             <p className="mb-3 text-xs leading-relaxed text-muted-foreground">
               Digite regras, preços, tom de voz, Pix, FNRH e procedimentos. Essas instruções ficam
-              salvas para esta empresa e orientam as respostas da IA.
+              salvas para esta empresa e orientam as respostas da recepção virtual.
             </p>
             <textarea
               className="field min-h-[12rem] resize-y font-mono text-xs leading-relaxed"
@@ -384,7 +416,7 @@ function AssistenteWorkspace() {
                 }
               >
                 <Save className="h-3.5 w-3.5" />
-                Salvar treinamento
+                Salvar instruções
               </button>
             </div>
           </section>
@@ -526,6 +558,47 @@ function AssistenteWorkspace() {
       </div>
     </div>
   );
+}
+
+function printHotelAiAnswer(text: string) {
+  const popup = window.open("", "_blank", "width=900,height=760");
+  if (!popup) {
+    toast.error("O navegador bloqueou a janela de impressão.");
+    return;
+  }
+  popup.opener = null;
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br />");
+  popup.document.write(`<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Relatório do HotelAI</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px; color: #1f2937; line-height: 1.55; }
+    header { border-bottom: 2px solid #24453a; margin-bottom: 22px; padding-bottom: 12px; }
+    h1 { font-size: 22px; margin: 0; }
+    .meta { color: #6b7280; font-size: 12px; margin-top: 5px; }
+    main { font-size: 14px; white-space: normal; }
+    footer { border-top: 1px solid #d1d5db; color: #6b7280; font-size: 10px; margin-top: 28px; padding-top: 10px; }
+    @media print { body { margin: 16mm; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Relatório do HotelAI</h1>
+    <div class="meta">Emitido em ${new Date().toLocaleString("pt-BR")}</div>
+  </header>
+  <main>${escaped}</main>
+  <footer>Relatório gerencial gerado pelo sistema. Confira os lançamentos originais antes de decisões financeiras.</footer>
+</body>
+</html>`);
+  popup.document.close();
+  popup.focus();
+  window.setTimeout(() => popup.print(), 250);
 }
 
 function StatusCard({
