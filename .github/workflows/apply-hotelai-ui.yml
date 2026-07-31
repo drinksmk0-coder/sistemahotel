@@ -1,28 +1,26 @@
-name: Apply HotelAI UI
+name: Validate PR 25 build
 
 on:
   push:
     branches:
       - agent/importar-hospedin-relatorio-agua
     paths:
-      - scripts/apply-reservation-flow-updates.mjs
+      - src/**
+      - supabase/functions/hotel-assistant-v2/**
       - .github/workflows/apply-hotelai-ui.yml
   pull_request:
     branches:
       - agent/finalizar-fluxos-hospedamais
-    paths:
-      - scripts/apply-reservation-flow-updates.mjs
-      - .github/workflows/apply-hotelai-ui.yml
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: hotelai-ui-${{ github.head_ref || github.ref_name }}
+  group: pr25-build-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
-  apply:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,9 +33,6 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Apply interface updates
-        run: node scripts/apply-reservation-flow-updates.mjs
-
       - name: Install dependencies
         run: npm ci
 
@@ -46,22 +41,3 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
-
-      - name: Commit interface
-        env:
-          TARGET_BRANCH: ${{ github.head_ref || github.ref_name }}
-        run: |
-          git add src/routes/_authenticated/assistente.tsx
-          if [ -f src/routeTree.gen.ts ]; then
-            git add -f src/routeTree.gen.ts
-          fi
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "adicionar impressão e atalhos ao HotelAI"
-          git fetch origin "$TARGET_BRANCH"
-          git rebase "origin/$TARGET_BRANCH"
-          git push origin "HEAD:$TARGET_BRANCH"
