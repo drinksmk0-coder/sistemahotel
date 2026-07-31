@@ -1,12 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { EmptyState, Field, Modal } from "@/components/ui-kit";
-import { useDelete, useExpenses, useInsert, useUpdate, type Expense } from "@/lib/data";
+import {
+  useCurrentCompany,
+  useDelete,
+  useExpenses,
+  useInsert,
+  useUpdate,
+  type Expense,
+} from "@/lib/data";
 import { downloadExcel, fmtBRL, fmtDate, todayISO } from "@/lib/format";
 import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Bar,
   BarChart,
@@ -26,11 +35,16 @@ export const Route = createFileRoute("/_authenticated/despesas")({
 
 function Despesas() {
   const { data: expenses = [] } = useExpenses();
+  const currentCompany = useCurrentCompany();
+  const queryClient = useQueryClient();
   const insert = useInsert("expenses", ["expenses"]);
   const update = useUpdate("expenses", ["expenses"]);
   const remove = useDelete("expenses", ["expenses"]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Expense | null>(null);
+  const [filterDate, setFilterDate] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const currentMonthLabel = new Intl.DateTimeFormat("pt-BR", {
     month: "long",
     year: "numeric",
@@ -40,7 +54,9 @@ function Despesas() {
     .reduce((sum, e) => sum + Number(e.valor), 0);
   const byCategory = useMemo(() => {
     const map = new Map<string, number>();
-    expenses.forEach((expense) => map.set(expense.categoria, (map.get(expense.categoria) ?? 0) + Number(expense.valor)));
+    expenses.forEach((expense) =>
+      map.set(expense.categoria, (map.get(expense.categoria) ?? 0) + Number(expense.valor)),
+    );
     return [...map.entries()].sort((a, b) => b[1] - a[1]);
   }, [expenses]);
   const categoryChart = useMemo(
@@ -58,6 +74,12 @@ function Despesas() {
       .slice(-12)
       .map(([mes, valor]) => ({ mes: `${mes.slice(5)}/${mes.slice(2, 4)}`, valor }));
   }, [expenses]);
+  const visibleExpenses = useMemo(
+    () => (filterDate ? expenses.filter((expense) => expense.data === filterDate) : expenses),
+    [expenses, filterDate],
+  );
+  const allVisibleSelected =
+    visibleExpenses.length > 0 && visibleExpenses.every((expense) => selectedIds.has(expense.id));
 
   function exportCSV(scope: ExportScope) {
     const exportedExpenses =
@@ -65,8 +87,60 @@ function Despesas() {
     const suffix = scope.mode === "date" ? scope.date : "historico-completo";
     downloadExcel(`despesas-${suffix}.xls`, [
       ["Data", "Categoria", "Descricao", "Fornecedor", "Pagamento", "Valor", "Observacoes"],
-      ...exportedExpenses.map((e) => [e.data, e.categoria, e.descricao, e.fornecedor ?? "", e.pagamento ?? "", e.valor, e.observacoes ?? ""]),
+      ...exportedExpenses.map((e) => [
+        e.data,
+        e.categoria,
+        e.descricao,
+        e.fornecedor ?? "",
+        e.pagamento ?? "",
+        e.valor,
+        e.observacoes ?? "",
+      ]),
     ]);
+  }
+
+  function toggleSelected(id: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) visibleExpenses.forEach((expense) => next.delete(expense.id));
+      else visibleExpenses.forEach((expense) => next.add(expense.id));
+      return next;
+    });
+  }
+
+  async function deleteSelected() {
+    const ids = [...selectedIds];
+    const companyId = currentCompany.data?.id;
+    if (!ids.length || !companyId) return;
+    if (!window.confirm(`Excluir ${ids.length} despesa(s) selecionada(s)? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    try {
+      const { error } = await (supabase as any)
+        .from("expenses")
+        .delete()
+        .eq("company_id", companyId)
+        .in("id", ids);
+      if (error) throw error;
+      setSelectedIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      toast.success(`${ids.length} despesa(s) excluída(s)`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível excluir as despesas.");
+    } finally {
+      setBulkDeleting(false);
+    }
   }
 
   return (
@@ -75,7 +149,7 @@ function Despesas() {
         title="Despesas"
         subtitle="Controle de gastos por categoria para comparar receita, custos e margem."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <ExportPeriodButton onExport={exportCSV} />
             <button onClick={() => setOpen(true)} className="btn-primary flex items-center gap-1.5">
               <Plus className="h-4 w-4" /> Nova despesa
@@ -128,12 +202,7 @@ function Despesas() {
                     tick={{ fontSize: 9, fill: "var(--foreground)" }}
                   />
                   <Tooltip formatter={(value) => fmtBRL(Number(value))} />
-                  <Bar
-                    dataKey="valor"
-                    name="Despesa"
-                    fill="var(--chart-4)"
-                    radius={[0, 5, 5, 0]}
-                  >
+                  <Bar dataKey="valor" name="Despesa" fill="var(--brick)" radius={[0, 5, 5, 0]}>
                     <LabelList
                       dataKey="valor"
                       position="right"
@@ -163,9 +232,10 @@ function Despesas() {
                     type="monotone"
                     dataKey="valor"
                     name="Despesa mensal"
-                    stroke="var(--chart-4)"
+                    stroke="var(--brick)"
                     strokeWidth={3}
-                    dot={false}
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -174,16 +244,67 @@ function Despesas() {
         </div>
       )}
 
-      {expenses.length === 0 ? (
-        <EmptyState text="Nenhuma despesa cadastrada." />
+      <section className="mb-3 flex flex-wrap items-end gap-2 rounded-lg border border-border bg-card p-3 shadow-sm">
+        <label className="min-w-[190px] text-[10px] font-bold uppercase text-muted-foreground">
+          <span className="mb-1 flex items-center gap-1.5">
+            <CalendarDays className="h-3.5 w-3.5 text-primary" /> Filtrar pelo calendário
+          </span>
+          <input
+            type="date"
+            className="field h-9 text-xs"
+            value={filterDate}
+            onChange={(event) => {
+              setFilterDate(event.target.value);
+              setSelectedIds(new Set());
+            }}
+          />
+        </label>
+        {filterDate && (
+          <button
+            type="button"
+            className="btn-ghost h-9 text-xs"
+            onClick={() => {
+              setFilterDate("");
+              setSelectedIds(new Set());
+            }}
+          >
+            Mostrar todo o histórico
+          </button>
+        )}
+        <span className="text-xs text-muted-foreground">
+          {visibleExpenses.length} lançamento(s) exibido(s)
+        </span>
+        {selectedIds.size > 0 && (
+          <button
+            type="button"
+            className="ml-auto flex h-9 items-center gap-1.5 rounded-md bg-brick px-3 text-xs font-bold text-white disabled:opacity-50"
+            disabled={bulkDeleting}
+            onClick={() => void deleteSelected()}
+          >
+            <Trash2 className="h-4 w-4" />
+            {bulkDeleting ? "Excluindo…" : `Excluir selecionadas (${selectedIds.size})`}
+          </button>
+        )}
+      </section>
+
+      {visibleExpenses.length === 0 ? (
+        <EmptyState text={filterDate ? "Nenhuma despesa nesta data." : "Nenhuma despesa cadastrada."} />
       ) : (
         <div className="card-surface overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                <th className="w-10 p-3 text-center">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleAllVisible}
+                    aria-label="Selecionar todas as despesas exibidas"
+                  />
+                </th>
                 <th className="p-3">Data</th>
                 <th className="p-3">Categoria</th>
-                <th className="p-3">Descricao</th>
+                <th className="p-3">Descrição</th>
                 <th className="p-3">Fornecedor</th>
                 <th className="p-3">Pagamento</th>
                 <th className="p-3">Valor</th>
@@ -191,14 +312,25 @@ function Despesas() {
               </tr>
             </thead>
             <tbody>
-              {expenses.map((expense) => (
-                <tr key={expense.id} className="border-b border-border/50">
+              {visibleExpenses.map((expense) => (
+                <tr
+                  key={expense.id}
+                  className={`border-b border-border/50 ${selectedIds.has(expense.id) ? "bg-brick-bg/40" : ""}`}
+                >
+                  <td className="p-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(expense.id)}
+                      onChange={() => toggleSelected(expense.id)}
+                      aria-label={`Selecionar despesa ${expense.descricao}`}
+                    />
+                  </td>
                   <td className="p-3">{fmtDate(expense.data)}</td>
                   <td className="p-3">{expense.categoria}</td>
                   <td className="p-3">{expense.descricao}</td>
                   <td className="p-3 text-muted-foreground">{expense.fornecedor ?? "-"}</td>
                   <td className="p-3 text-muted-foreground">{expense.pagamento ?? "-"}</td>
-                  <td className="p-3 font-semibold">{fmtBRL(expense.valor)}</td>
+                  <td className="p-3 font-semibold text-brick">{fmtBRL(expense.valor)}</td>
                   <td className="p-3 text-right">
                     <div className="flex justify-end gap-1.5">
                       <button
@@ -215,7 +347,14 @@ function Despesas() {
                         onClick={() => {
                           if (!window.confirm(`Excluir despesa "${expense.descricao}"?`)) return;
                           remove.mutate(expense.id, {
-                            onSuccess: () => toast.success("Despesa excluída"),
+                            onSuccess: () => {
+                              setSelectedIds((current) => {
+                                const next = new Set(current);
+                                next.delete(expense.id);
+                                return next;
+                              });
+                              toast.success("Despesa excluída");
+                            },
                             onError: (e) => toast.error(e.message),
                           });
                         }}
@@ -307,7 +446,15 @@ function ExpenseForm({
         className="space-y-3"
         onSubmit={(e) => {
           e.preventDefault();
-          onSave({ data, categoria, descricao, valor, pagamento: pagamento || null, fornecedor: fornecedor || null, observacoes: observacoes || null });
+          onSave({
+            data,
+            categoria,
+            descricao,
+            valor,
+            pagamento: pagamento || null,
+            fornecedor: fornecedor || null,
+            observacoes: observacoes || null,
+          });
         }}
       >
         <div className="grid grid-cols-2 gap-3">
@@ -318,7 +465,7 @@ function ExpenseForm({
             <input className="field" value={categoria} onChange={(e) => setCategoria(e.target.value)} required />
           </Field>
         </div>
-        <Field label="Descricao">
+        <Field label="Descrição">
           <input className="field" value={descricao} onChange={(e) => setDescricao(e.target.value)} required />
         </Field>
         <div className="grid grid-cols-2 gap-3">
@@ -332,7 +479,7 @@ function ExpenseForm({
         <Field label="Fornecedor">
           <input className="field" value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} />
         </Field>
-        <Field label="Observacoes">
+        <Field label="Observações">
           <input className="field" value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
         </Field>
         <div className="flex justify-end gap-2">
