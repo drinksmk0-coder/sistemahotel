@@ -11,11 +11,8 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -81,17 +78,6 @@ type VisualData = {
   averageTicket: number;
 };
 
-const DONUT_COLORS = [
-  "#2563EB",
-  "#E11D48",
-  "#F59E0B",
-  "#059669",
-  "#7C3AED",
-  "#EA580C",
-  "#0891B2",
-  "#4B5563",
-];
-
 const SERIES_COLORS = {
   revenue: "#2563EB",
   expenses: "#E11D48",
@@ -149,13 +135,13 @@ export function ExecutiveBiDashboard() {
   ];
 
   return (
-    <div ref={panelRef} className="space-y-2 bg-background pb-6 fullscreen:overflow-auto fullscreen:p-3">
-      <header className="rounded-xl border border-border bg-card px-3 py-2 shadow-sm">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+    <div ref={panelRef} className="executive-dashboard-grid h-full min-h-0 gap-1.5 bg-background fullscreen:p-2">
+      <header className="rounded-lg border border-border bg-card px-3 py-2.5 shadow-sm">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[8px] font-bold uppercase tracking-[0.18em] text-primary">Inteligência de gestão</p>
-            <h1 className="text-base font-extrabold text-foreground">Painel Executivo BI</h1>
-            <p className="text-[9px] text-muted-foreground">Resultado → origem → perfil → oportunidades.</p>
+            <p className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-primary">Inteligência de gestão</p>
+            <h1 className="text-lg font-black leading-tight text-pine-dark">Pulso do Hotel</h1>
+            <p className="text-[11px] font-medium text-muted-foreground">Resultado → origem → perfil → oportunidades.</p>
           </div>
           <div className="flex flex-wrap items-end gap-1">
             <DateField label="De" icon value={start} onChange={setStart} />
@@ -193,37 +179,39 @@ export function ExecutiveBiDashboard() {
             <LegendDot color={SERIES_COLORS.expenses} label="Despesas" />
             <LegendDot color={SERIES_COLORS.gop} label="GOP" />
           </div>
-          <ResponsiveContainer width="100%" height={210}>
-            <LineChart data={financialRows} margin={{ left: 0, right: 12, top: 14, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="period" tick={{ fontSize: 9 }} />
-              <YAxis width={62} tick={{ fontSize: 8 }} tickFormatter={compactCurrency} />
-              <Tooltip formatter={(value: number) => fmtBRL(value)} />
-              <Line type="monotone" dataKey="receita" name="Receita" stroke={SERIES_COLORS.revenue} strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
-              <Line type="monotone" dataKey="despesas" name="Despesas" stroke={SERIES_COLORS.expenses} strokeWidth={3} dot={{ r: 5 }} activeDot={{ r: 7 }} />
-              <Line type="monotone" dataKey="gop" name="GOP" stroke={SERIES_COLORS.gop} strokeWidth={3} strokeDasharray="7 4" dot={{ r: 5 }} activeDot={{ r: 7 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          <div className="executive-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={financialRows} margin={{ left: 0, right: 12, top: 8, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="period" tick={{ fontSize: 9 }} />
+                <YAxis width={62} tick={{ fontSize: 8 }} tickFormatter={compactCurrency} />
+                <Tooltip formatter={(value: number) => fmtBRL(value)} />
+                <Line type="monotone" dataKey="receita" name="Receita" stroke={SERIES_COLORS.revenue} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="despesas" name="Despesas" stroke={SERIES_COLORS.expenses} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="gop" name="GOP" stroke={SERIES_COLORS.gop} strokeWidth={3} strokeDasharray="7 4" dot={{ r: 4 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
           <StoryStrip now={now} before={before} topChannel={current.strategic.channelRows[0]?.name} />
         </Panel>
 
         <Panel className="md:col-span-4" title="2. Como o dinheiro entrou?" insight={paymentInsight(current.paymentRows)}>
-          <PaymentDonut rows={current.paymentRows} />
+          <HorizontalBars rows={current.paymentRows.map((row) => ({ name: row.name, value: row.revenue }))} currency />
         </Panel>
 
         <Panel className="md:col-span-4" title="3. Quais quartos geraram receita?" insight={topInsight(current.strategic.roomTypeRows, "Líder")}>
-          <CalloutDonut rows={current.strategic.roomTypeRows} currency />
+          <HorizontalBars rows={current.strategic.roomTypeRows} currency />
         </Panel>
 
         <Panel className="md:col-span-4" title="4. Quem são os hóspedes?" insight={topInsight(current.genderRows, "Maior público")}>
-          <div className="grid grid-cols-1 items-center gap-1 min-[1100px]:grid-cols-[0.9fr_1.1fr]">
-            <CalloutDonut rows={current.genderRows} compact />
-            <VerticalBars rows={current.ageRows} />
+          <div className="grid grid-cols-1 items-center gap-1 min-[1100px]:grid-cols-2">
+            <HorizontalBars rows={current.genderRows} />
+            <HorizontalBars rows={current.ageRows} />
           </div>
         </Panel>
 
         <Panel className="md:col-span-4" title="5. Por que se hospedaram?" insight={topInsight(current.motiveRows, "Principal motivo")}>
-          <CalloutDonut rows={current.motiveRows} />
+          <HorizontalBars rows={current.motiveRows} />
         </Panel>
 
         <Panel className="md:col-span-7" title="6. O que foi vendido além da hospedagem?" insight={productInsight(current.strategic.productRows)}>
@@ -235,7 +223,7 @@ export function ExecutiveBiDashboard() {
         </Panel>
 
         <Panel className="md:col-span-4" title="8. Qual o perfil familiar?" insight={topInsight(current.civilRows, "Predominante")}>
-          <CalloutDonut rows={current.civilRows} />
+          <HorizontalBars rows={current.civilRows} />
         </Panel>
 
         <Panel className="md:col-span-4" title="9. Qual canal traz receita?" insight={topInsight(current.strategic.channelRows, "Canal líder")}>
@@ -276,6 +264,7 @@ async function loadData(companyId: string, range: Range): Promise<VisualData> {
     .filter((row): row is ClientRow => Boolean(row));
   const strategic = strategicResult.data as StrategicData;
   strategic.productRows = aggregateProducts(sales);
+  strategic.channelRows = normalizeChannelRows(strategic.channelRows ?? []);
   const guestCount = validReservations.reduce((sum, row) => sum + Math.max(1, Number(row.pessoas) || 1), 0);
   const averageTicket = validReservations.length
     ? validReservations.reduce((sum, row) => sum + (Number(row.valor_total) || 0), 0) / validReservations.length
@@ -297,10 +286,10 @@ async function loadData(companyId: string, range: Range): Promise<VisualData> {
 
 function Panel({ title, insight, className = "", children }: { title: string; insight: string; className?: string; children: ReactNode }) {
   return (
-    <article className={`min-w-0 overflow-hidden rounded-xl border border-border bg-card p-2.5 shadow-sm ${className}`}>
-      <div className="mb-1 flex min-h-6 items-start justify-between gap-2">
-        <h2 className="truncate text-[11px] font-extrabold text-foreground" title={title}>{title}</h2>
-        <span className="max-w-[45%] truncate rounded-full bg-primary/8 px-2 py-0.5 text-[7px] font-semibold text-primary" title={insight}>{insight}</span>
+    <article className={`min-w-0 overflow-hidden rounded-lg border border-border bg-card p-2.5 shadow-sm ${className}`}>
+      <div className="mb-1.5 flex min-h-7 items-start justify-between gap-2 border-b border-border/70 pb-1.5">
+        <h2 className="min-w-0 text-sm font-extrabold leading-tight text-pine-dark" title={title}>{title}</h2>
+        <span className="max-w-[48%] shrink-0 truncate rounded-full border border-primary/15 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary" title={insight}>{insight}</span>
       </div>
       {children}
     </article>
@@ -309,81 +298,6 @@ function Panel({ title, insight, className = "", children }: { title: string; in
 
 function LegendDot({ color, label }: { color: string; label: string }) {
   return <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />{label}</span>;
-}
-
-function CalloutDonut({ rows, currency = false, compact = false }: { rows: NamedValue[]; currency?: boolean; compact?: boolean }) {
-  const data = rows.filter((row) => row.value > 0).slice(0, compact ? 4 : 5);
-  if (!data.length) return <Empty />;
-  const total = data.reduce((sum, row) => sum + row.value, 0);
-  const renderLabel = ({ cx, cy, midAngle, outerRadius, name, value }: any) => {
-    const radius = outerRadius + (compact ? 15 : 22);
-    const radian = Math.PI / 180;
-    const x = cx + radius * Math.cos(-midAngle * radian);
-    const y = cy + radius * Math.sin(-midAngle * radian);
-    const percent = total > 0 ? (Number(value) / total) * 100 : 0;
-    return (
-      <text x={x} y={y} fill="var(--foreground)" textAnchor={x > cx ? "start" : "end"} dominantBaseline="central" fontSize={compact ? 7 : 8} fontWeight={700}>
-        {`${shortLabel(String(name), compact ? 9 : 13)} ${percent.toFixed(1)}%`}
-      </text>
-    );
-  };
-  return (
-    <div>
-      <ResponsiveContainer width="100%" height={compact ? 145 : 180}>
-        <PieChart margin={{ top: 17, right: 38, bottom: 17, left: 38 }}>
-          <Pie data={data} dataKey="value" nameKey="name" innerRadius={compact ? 30 : 42} outerRadius={compact ? 51 : 68} paddingAngle={data.length > 1 ? 3 : 0} labelLine={{ stroke: "#64748B", strokeWidth: 1 }} label={renderLabel}>
-            {data.map((row, index) => <Cell key={row.name} fill={DONUT_COLORS[index % DONUT_COLORS.length]} stroke="var(--card)" strokeWidth={2} />)}
-          </Pie>
-          <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : value.toLocaleString("pt-BR")} />
-        </PieChart>
-      </ResponsiveContainer>
-      {!compact && (
-        <div className="flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-[7px] text-muted-foreground">
-          {data.map((row, index) => (
-            <span key={row.name} className="inline-flex items-center gap-1">
-              <span className="h-1.5 w-1.5 rounded-sm" style={{ backgroundColor: DONUT_COLORS[index % DONUT_COLORS.length] }} />
-              {shortLabel(row.name, 14)}: {currency ? fmtBRL(row.value) : row.value}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PaymentDonut({ rows }: { rows: PaymentRow[] }) {
-  const data = rows.filter((row) => row.revenue > 0).slice(0, 5);
-  if (!data.length) return <Empty />;
-  const total = data.reduce((sum, row) => sum + row.revenue, 0);
-  const renderLabel = ({ cx, cy, midAngle, outerRadius, name, revenue }: any) => {
-    const radius = outerRadius + 21;
-    const radian = Math.PI / 180;
-    const x = cx + radius * Math.cos(-midAngle * radian);
-    const y = cy + radius * Math.sin(-midAngle * radian);
-    const percent = total > 0 ? (Number(revenue) / total) * 100 : 0;
-    return <text x={x} y={y} fill="var(--foreground)" textAnchor={x > cx ? "start" : "end"} dominantBaseline="central" fontSize={8} fontWeight={700}>{`${shortLabel(String(name), 11)} ${percent.toFixed(1)}%`}</text>;
-  };
-  return (
-    <div>
-      <ResponsiveContainer width="100%" height={180}>
-        <PieChart margin={{ top: 17, right: 42, bottom: 17, left: 42 }}>
-          <Pie data={data} dataKey="revenue" nameKey="name" innerRadius={42} outerRadius={68} paddingAngle={3} labelLine={{ stroke: "#64748B", strokeWidth: 1 }} label={renderLabel}>
-            {data.map((row, index) => <Cell key={row.name} fill={DONUT_COLORS[index % DONUT_COLORS.length]} stroke="var(--card)" strokeWidth={2} />)}
-          </Pie>
-          <Tooltip formatter={(value: number) => fmtBRL(value)} />
-        </PieChart>
-      </ResponsiveContainer>
-      <div className="grid grid-cols-1 gap-0.5 text-[7px] min-[1100px]:grid-cols-2">
-        {data.map((row, index) => (
-          <div key={row.name} className="flex min-w-0 items-center gap-1">
-            <span className="h-1.5 w-1.5 shrink-0 rounded-sm" style={{ backgroundColor: DONUT_COLORS[index % DONUT_COLORS.length] }} />
-            <span className="truncate font-semibold">{row.name}</span>
-            <span className="ml-auto whitespace-nowrap text-muted-foreground">{fmtBRL(row.revenue)} · {row.count}x</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 function StoryStrip({ now, before, topChannel }: { now: Summary; before: Summary; topChannel?: string }) {
@@ -408,31 +322,17 @@ function HorizontalBars({ rows, currency = false }: { rows: NamedValue[]; curren
   const data = rows.filter((row) => row.value > 0).slice(0, 7);
   if (!data.length) return <Empty />;
   return (
-    <ResponsiveContainer width="100%" height={170}>
-      <BarChart data={data} layout="vertical" margin={{ left: 0, right: 10, top: 3, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-        <XAxis type="number" tick={{ fontSize: 7 }} tickFormatter={currency ? compactCurrency : compactNumber} />
-        <YAxis type="category" dataKey="name" width={76} tick={{ fontSize: 7 }} tickFormatter={(value) => shortLabel(String(value), 12)} />
-        <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : value.toLocaleString("pt-BR")} />
-        <Bar dataKey="value" fill="#2563EB" radius={[0, 4, 4, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-function VerticalBars({ rows }: { rows: NamedValue[] }) {
-  const data = rows.filter((row) => row.value > 0);
-  if (!data.length) return <Empty />;
-  return (
-    <ResponsiveContainer width="100%" height={145}>
-      <BarChart data={data} margin={{ left: -12, right: 4, top: 4, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-        <XAxis dataKey="name" tick={{ fontSize: 6 }} interval={0} tickFormatter={(value) => shortLabel(String(value), 9)} />
-        <YAxis tick={{ fontSize: 6 }} width={24} allowDecimals={false} />
-        <Tooltip formatter={(value: number) => `${value} hóspedes`} />
-        <Bar dataKey="value" fill="#7C3AED" radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
+    <div className="executive-chart">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ left: 0, right: 12, top: 2, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+          <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={currency ? compactCurrency : compactNumber} />
+          <YAxis type="category" dataKey="name" width={92} tick={{ fontSize: 9, fontWeight: 700 }} tickFormatter={(value) => shortLabel(String(value), 16)} />
+          <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : value.toLocaleString("pt-BR")} />
+          <Bar dataKey="value" fill="#2563EB" radius={[0, 4, 4, 0]} maxBarSize={16} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }
 
@@ -452,15 +352,17 @@ function MiniBars({ title, rows, currency = false, color }: { title: string; row
   return (
     <div>
       <p className="mb-0.5 text-[7px] font-bold uppercase text-muted-foreground">{title}</p>
-      <ResponsiveContainer width="100%" height={160}>
-        <BarChart data={rows} layout="vertical" margin={{ left: 0, right: 8, top: 2, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-          <XAxis type="number" tick={{ fontSize: 6 }} tickFormatter={currency ? compactCurrency : compactNumber} />
-          <YAxis type="category" dataKey="name" width={82} tick={{ fontSize: 6 }} tickFormatter={(value) => shortLabel(String(value), 14)} />
-          <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : `${value} unidades`} />
-          <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
+      <div className="executive-chart">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={rows} layout="vertical" margin={{ left: 0, right: 8, top: 2, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+            <XAxis type="number" tick={{ fontSize: 8 }} tickFormatter={currency ? compactCurrency : compactNumber} />
+            <YAxis type="category" dataKey="name" width={88} tick={{ fontSize: 8, fontWeight: 700 }} tickFormatter={(value) => shortLabel(String(value), 16)} />
+            <Tooltip formatter={(value: number) => currency ? fmtBRL(value) : `${value} unidades`} />
+            <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]} maxBarSize={14} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
@@ -469,35 +371,58 @@ function Kpi({ label, value, current, previous, inverse = false, points = false,
   const delta = points ? current - previous : variation(current, previous);
   const good = inverse ? delta <= 0 : delta >= 0;
   return (
-    <article className="min-w-0 rounded-lg border border-border bg-card px-2 py-1.5 shadow-sm">
+    <article className="min-w-0 rounded-lg border border-border bg-card px-2.5 py-2 shadow-sm">
       <div className="flex items-center justify-between gap-1 text-muted-foreground">
-        <span className="truncate text-[7px] font-bold uppercase" title={label}>{label}</span>
-        {icon && <span className="[&>svg]:h-3 [&>svg]:w-3">{icon}</span>}
+        <span className="truncate text-[9px] font-extrabold uppercase tracking-[0.04em]" title={label}>{label}</span>
+        {icon && <span className="text-primary [&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>}
       </div>
-      <strong className="block truncate text-[11px] text-foreground" title={value}>{value}</strong>
-      <span className={`block truncate text-[7px] font-bold ${good ? "text-emerald-700" : "text-brick"}`}>{signed(delta)}{points ? " p.p." : "%"} vs. anterior</span>
+      <strong className="block truncate text-sm font-black leading-tight text-pine-dark" title={value}>{value}</strong>
+      <span className={`block truncate text-[9px] font-bold ${good ? "text-emerald-700" : "text-brick"}`}>{signed(delta)}{points ? " p.p." : "%"} vs. anterior</span>
     </article>
   );
 }
 
 function DateField({ label, value, onChange, icon = false }: { label: string; value: string; onChange: (value: string) => void; icon?: boolean }) {
   return (
-    <label className="text-[7px] font-bold uppercase text-muted-foreground">
+    <label className="text-[9px] font-extrabold uppercase text-muted-foreground">
       <span className="mb-0.5 flex items-center gap-1">{icon && <CalendarDays className="h-2.5 w-2.5" />}{label}</span>
-      <input type="date" className="field h-7 w-[112px] px-1.5 text-[9px]" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input type="date" className="field h-8 w-[124px] px-2 text-[11px] font-semibold" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   );
 }
 
 function Quick({ onClick, children }: { onClick: () => void; children: ReactNode }) {
-  return <button type="button" className="btn-ghost h-7 px-1.5 text-[8px]" onClick={onClick}>{children}</button>;
+  return <button type="button" className="btn-ghost h-8 rounded-md px-2 text-[10px] font-bold" onClick={onClick}>{children}</button>;
 }
 
-function Empty() { return <div className="grid h-[145px] place-items-center text-[8px] text-muted-foreground">Sem dados no período.</div>; }
+function Empty() { return <div className="grid h-[145px] place-items-center text-xs font-semibold text-muted-foreground">Sem dados no período.</div>; }
 function State({ text, danger = false }: { text: string; danger?: boolean }) { return <div className={`rounded-xl border p-6 text-sm ${danger ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"}`}>{text}</div>; }
 function aggregatePayments(rows: { name: string; revenue: number }[]) { const map = new Map<string, PaymentRow>(); rows.forEach((row) => { const current = map.get(row.name) ?? { name: row.name, revenue: 0, count: 0 }; current.revenue += row.revenue; current.count += 1; map.set(row.name, current); }); return [...map.values()].sort((a, b) => b.revenue - a.revenue); }
 function aggregateProducts(rows: SaleRow[]) { const map = new Map<string, ProductRow>(); rows.forEach((row) => { const name = normalizeLabel(row.item || row.categoria, "Não informado"); const current = map.get(name) ?? { name, quantity: 0, revenue: 0 }; current.quantity += Math.max(0, Number(row.qtd) || 0); current.revenue += Math.max(0, Number(row.total) || 0); map.set(name, current); }); return [...map.values()].sort((a, b) => b.revenue - a.revenue); }
 function aggregateCount(values: string[]) { const map = new Map<string, number>(); values.forEach((value) => map.set(value, (map.get(value) ?? 0) + 1)); return [...map.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }
+function normalizeChannelRows(rows: NamedValue[]) {
+  const totals = new Map<string, number>([
+    ["Hotel Direto", 0],
+    ["WhatsApp", 0],
+    ["Booking", 0],
+    ["Formulário", 0],
+  ]);
+  rows.forEach((row) => {
+    const raw = String(row.name ?? "").trim().toLocaleLowerCase("pt-BR");
+    const channel = raw.includes("whats") || raw.includes("wpp") || raw.includes("zap")
+      ? "WhatsApp"
+      : raw.includes("booking")
+        ? "Booking"
+        : raw.includes("form") || raw.includes("site") || raw.includes("motor")
+          ? "Formulário"
+          : "Hotel Direto";
+    totals.set(channel, (totals.get(channel) ?? 0) + (Number(row.value) || 0));
+  });
+  return [...totals.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .filter((row) => row.value > 0)
+    .sort((left, right) => right.value - left.value);
+}
 function normalizeLabel(value: string | null | undefined, fallback: string) { const clean = String(value ?? "").trim(); if (!clean) return fallback; return clean.replaceAll("_", " ").replace(/(^|\s)\S/g, (letter) => letter.toUpperCase()); }
 function ageBand(value: string | null) { if (!value) return "Não informado"; const birth = new Date(`${value}T00:00:00Z`); if (Number.isNaN(birth.getTime())) return "Não informado"; const age = Math.floor((Date.now() - birth.getTime()) / 31_557_600_000); if (age < 18) return "Até 17"; if (age <= 24) return "18–24"; if (age <= 34) return "25–34"; if (age <= 44) return "35–44"; if (age <= 54) return "45–54"; if (age <= 64) return "55–64"; return "65+"; }
 function normalizeRange(start: string, end: string): Range { return start <= end ? { start, end } : { start: end, end: start }; }
