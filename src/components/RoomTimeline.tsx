@@ -303,20 +303,25 @@ export function RoomTimeline({
                     <button
                       type="button"
                       onClick={() => onRoomClick(room)}
-                      className={`sticky left-0 z-20 flex items-center justify-between gap-3 border-r px-3 text-left shadow-sm transition hover:brightness-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${roomPanelClass(
+                      className={`sticky left-0 z-20 flex items-center justify-between gap-3 border-r border-border bg-card px-3 text-left transition hover:bg-sage-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${tariffAccentClass(
                         Number(room.preco),
                       )}`}
                       title={
                         featureTitle || "Características ainda não cadastradas"
                       }
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-baseline gap-2">
-                          <span className="sr-only">Quarto</span>
-                          <strong className="text-2xl font-black">
-                            {room.numero}
-                          </strong>
-                          <span className="text-base font-black">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <div className="flex items-baseline gap-2">
+                            <span className="sr-only">Quarto</span>
+                            <strong className="text-xl font-black text-pine-dark">
+                              {room.numero}
+                            </strong>
+                            <span className="text-[10px] font-semibold text-muted-foreground">
+                              {group.floor}º andar
+                            </span>
+                          </div>
+                          <span className="shrink-0 text-xs font-black text-primary">
                             {fmtBRL(room.preco)}
                           </span>
                         </div>
@@ -416,17 +421,11 @@ function Legend({ color, label }: { color: string; label: string }) {
   );
 }
 
-function roomPanelClass(price: number) {
-  if (price === 110) {
-    return "border-orange-600 bg-orange-500 text-white";
-  }
-  if (price === 90) {
-    return "border-blue-700 bg-blue-600 text-white";
-  }
-  if (price === 80) {
-    return "border-slate-300 bg-white text-slate-950";
-  }
-  return "border-slate-400 bg-slate-100 text-slate-950";
+function tariffAccentClass(price: number) {
+  if (price === 110) return "border-l-4 border-l-orange-300";
+  if (price === 90) return "border-l-4 border-l-blue-300";
+  if (price === 80) return "border-l-4 border-l-slate-300";
+  return "border-l-4 border-l-border";
 }
 
 function reservationVisual(reservation: Reservation, today: string) {
