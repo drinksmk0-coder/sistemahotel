@@ -59,17 +59,21 @@ article > div > .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
   line-height: 1.125rem !important;
 }
 
-/* Rótulos externos das roscas, eixos e textos dos gráficos. */
-.executive-readable-root .recharts-cartesian-axis-tick-value,
-.executive-readable-root .recharts-pie-label-text,
-.executive-readable-root .recharts-text {
+/* Mantém os eixos legíveis sem alterar os gráficos. */
+.executive-readable-root .recharts-cartesian-axis-tick-value {
   font-size: 12px !important;
   font-weight: 700;
 }
 
-/* Linhas de ligação das roscas um pouco mais visíveis. */
+/* Aumenta somente os rótulos externos das roscas. */
+.executive-readable-root .recharts-pie-label-text,
+.executive-readable-root .recharts-pie-labels text {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
+
 .executive-readable-root .recharts-pie-label-line {
-  stroke-width: 1.25px !important;
+  stroke-width: 1.4px !important;
 }
 
 /* Tooltips maiores, sem alterar o gráfico. */
