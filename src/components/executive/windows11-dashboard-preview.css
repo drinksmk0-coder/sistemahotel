@@ -1,71 +1,146 @@
-/* Prévia isolada do Painel Executivo inspirada no Windows 11.
+/* Prévia isolada do Painel Executivo inspirada no Fluent Design do Windows 11.
    Nenhuma regra deste arquivo afeta o painel oficial fora de .windows11-dashboard-preview. */
 .windows11-dashboard-preview {
-  --win11-blue: #2563eb;
-  --win11-surface: rgba(255, 255, 255, 0.82);
-  --win11-border: rgba(15, 23, 42, 0.10);
-  --win11-shadow: 0 8px 24px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.06);
+  --win11-blue: #0067c0;
+  --win11-blue-hover: #1975c5;
+  --win11-text: #1b1b1b;
+  --win11-muted: #5f6368;
+  --win11-surface: rgba(255, 255, 255, 0.78);
+  --win11-surface-strong: rgba(255, 255, 255, 0.92);
+  --win11-border: rgba(0, 0, 0, 0.08);
+  --win11-shadow: 0 8px 24px rgba(45, 55, 72, 0.10), 0 1px 2px rgba(0, 0, 0, 0.06);
   min-height: 100%;
-  padding: 14px;
-  border-radius: 24px;
+  padding: 10px;
   background:
-    radial-gradient(circle at 12% 8%, rgba(59, 130, 246, 0.16), transparent 28%),
-    radial-gradient(circle at 88% 4%, rgba(147, 197, 253, 0.18), transparent 24%),
-    linear-gradient(145deg, #f7fbff 0%, #eef5fc 48%, #f8fafc 100%);
+    radial-gradient(circle at 8% 4%, rgba(0, 103, 192, 0.16), transparent 28%),
+    radial-gradient(circle at 92% 6%, rgba(90, 160, 220, 0.17), transparent 26%),
+    linear-gradient(145deg, #edf6fc 0%, #eaf2f8 50%, #f7f9fb 100%);
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
-  color: #0f172a;
+  color: var(--win11-text);
 }
 
-.windows11-dashboard-preview .executive-readable-root {
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  border-radius: 20px;
-  background: rgba(248, 250, 252, 0.56);
-  box-shadow: 0 18px 48px rgba(30, 64, 175, 0.10);
-  backdrop-filter: blur(24px) saturate(140%);
+.win11-window-shell {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 18px;
+  background: rgba(244, 248, 252, 0.72);
+  box-shadow: 0 22px 60px rgba(32, 58, 85, 0.18), 0 2px 8px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(28px) saturate(135%);
 }
 
-.windows11-dashboard-preview article,
-.windows11-dashboard-preview .card-surface {
-  border: 1px solid var(--win11-border) !important;
-  border-radius: 16px !important;
-  background: var(--win11-surface) !important;
-  box-shadow: var(--win11-shadow) !important;
-  backdrop-filter: blur(20px) saturate(135%);
+.win11-titlebar {
+  display: flex;
+  height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  background: rgba(252, 253, 255, 0.68);
+  backdrop-filter: blur(24px) saturate(150%);
 }
 
-.windows11-dashboard-preview button,
-.windows11-dashboard-preview input,
-.windows11-dashboard-preview select {
-  border-radius: 10px !important;
-  font-family: inherit;
+.win11-titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 14px;
 }
 
-.windows11-dashboard-preview button:not([class*="rounded-full"]) {
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+.win11-app-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 7px;
+  background: linear-gradient(145deg, #1686e6, #0067c0);
+  color: white;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34), 0 2px 5px rgba(0, 103, 192, 0.25);
 }
 
-.windows11-dashboard-preview article h2,
-.windows11-dashboard-preview h1 {
-  color: #172554 !important;
-  letter-spacing: -0.012em;
+.win11-app-icon svg { width: 17px; height: 17px; }
+.win11-titlebar-brand div { display: grid; gap: 1px; }
+.win11-titlebar-brand strong { font-size: 12px; font-weight: 650; }
+.win11-titlebar-brand span { font-size: 10px; color: var(--win11-muted); }
+
+.win11-window-controls {
+  display: flex;
+  align-self: stretch;
 }
 
-.windows11-dashboard-preview .recharts-cartesian-grid line {
-  stroke: rgba(100, 116, 139, 0.20);
+.win11-window-controls span {
+  display: grid;
+  width: 46px;
+  place-items: center;
+  color: #2c2c2c;
 }
 
-.windows11-dashboard-preview .recharts-tooltip-wrapper > div {
-  border: 1px solid rgba(255, 255, 255, 0.92) !important;
-  border-radius: 12px !important;
-  background: rgba(255, 255, 255, 0.92) !important;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14) !important;
-  backdrop-filter: blur(18px);
+.win11-window-controls span:hover { background: rgba(0, 0, 0, 0.06); }
+.win11-window-controls .win11-close:hover { background: #c42b1c; color: white; }
+.win11-window-controls svg { width: 13px; height: 13px; stroke-width: 1.6; }
+
+.win11-workspace {
+  display: grid;
+  height: calc(100% - 48px);
+  min-height: 0;
+  grid-template-columns: 86px minmax(0, 1fr);
 }
 
-.windows11-dashboard-preview .recharts-pie-sector path,
-.windows11-dashboard-preview .recharts-line-curve,
-.windows11-dashboard-preview .recharts-bar-rectangle path {
-  filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.10));
+.win11-nav {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  border-right: 1px solid rgba(0, 0, 0, 0.07);
+  background: rgba(247, 250, 253, 0.68);
+  padding: 12px 8px;
+  backdrop-filter: blur(24px);
+}
+
+.win11-nav-brand {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--win11-blue);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), inset 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+
+.win11-nav-brand svg { width: 23px; height: 23px; }
+.win11-nav nav { display: grid; width: 100%; gap: 4px; }
+.win11-nav button {
+  display: grid;
+  width: 100%;
+  min-height: 52px;
+  place-items: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 9px !important;
+  background: transparent;
+  color: #3b3b3b;
+  box-shadow: none !important;
+  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
+}
+
+.win11-nav button:hover { background: rgba(0, 0, 0, 0.045); }
+.win11-nav button:active { transform: scale(0.98); }
+.win11-nav button.is-active {
+  background: rgba(0, 103, 192, 0.10);
+  color: var(--win11-blue);
+  box-shadow: inset 3px 0 0 var(--win11-blue) !important;
+}
+
+.win11-nav button svg { width: 19px; height: 19px; stroke-width: 1.8; }
+.win11-nav button span { font-size: 9px; font-weight: 550; }
+
+.win11-content {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 10px;
 }
 
 .windows11-preview-banner {
@@ -73,21 +148,105 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
-  padding: 10px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  margin-bottom: 8px;
+  padding: 9px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: 0 3px 12px rgba(34, 68, 100, 0.07);
+  backdrop-filter: blur(18px);
+}
+
+.windows11-preview-banner > div { display: flex; align-items: baseline; gap: 8px; }
+.windows11-preview-banner strong { color: #1c1c1c; font-size: 12px; font-weight: 650; }
+.windows11-preview-banner span { color: var(--win11-muted); font-size: 10px; }
+.win11-preview-chip {
+  border: 1px solid rgba(0, 103, 192, 0.16);
+  border-radius: 999px;
+  background: rgba(0, 103, 192, 0.08);
+  color: var(--win11-blue) !important;
+  padding: 4px 8px;
+  font-weight: 600;
+}
+
+.windows11-dashboard-preview .executive-readable-root {
+  height: calc(100% - 46px);
+  border: 1px solid rgba(255, 255, 255, 0.78);
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 6px 20px rgba(30, 64, 175, 0.08);
-  backdrop-filter: blur(20px);
+  background: rgba(243, 247, 251, 0.52);
+  box-shadow: 0 10px 30px rgba(40, 74, 105, 0.08);
+  backdrop-filter: blur(22px) saturate(130%);
 }
 
-.windows11-preview-banner strong {
-  color: #1e3a8a;
-  font-size: 0.875rem;
+.windows11-dashboard-preview article,
+.windows11-dashboard-preview .card-surface {
+  border: 1px solid var(--win11-border) !important;
+  border-radius: 12px !important;
+  background: var(--win11-surface) !important;
+  box-shadow: var(--win11-shadow) !important;
+  backdrop-filter: blur(18px) saturate(132%);
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
 }
 
-.windows11-preview-banner span {
-  color: #64748b;
-  font-size: 0.75rem;
+.windows11-dashboard-preview article:hover,
+.windows11-dashboard-preview .card-surface:hover {
+  border-color: rgba(0, 103, 192, 0.16) !important;
+  box-shadow: 0 10px 28px rgba(33, 74, 112, 0.12), 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.windows11-dashboard-preview button,
+.windows11-dashboard-preview input,
+.windows11-dashboard-preview select {
+  border-radius: 7px !important;
+  font-family: inherit;
+}
+
+.windows11-dashboard-preview button:not([class*="rounded-full"]):not(.win11-nav button) {
+  border-color: rgba(0, 0, 0, 0.10) !important;
+  background-image: linear-gradient(rgba(255,255,255,0.16), rgba(255,255,255,0));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.windows11-dashboard-preview button:focus-visible,
+.windows11-dashboard-preview input:focus-visible,
+.windows11-dashboard-preview select:focus-visible {
+  outline: 2px solid rgba(0, 103, 192, 0.85) !important;
+  outline-offset: 1px;
+}
+
+.windows11-dashboard-preview article h2,
+.windows11-dashboard-preview h1 {
+  color: #202020 !important;
+  letter-spacing: -0.01em;
+}
+
+.windows11-dashboard-preview .recharts-cartesian-grid line {
+  stroke: rgba(86, 99, 112, 0.18);
+}
+
+.windows11-dashboard-preview .recharts-tooltip-wrapper > div {
+  border: 1px solid rgba(255, 255, 255, 0.92) !important;
+  border-radius: 9px !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: 0 14px 34px rgba(24, 49, 72, 0.16) !important;
+  backdrop-filter: blur(18px);
+}
+
+.windows11-dashboard-preview .recharts-pie-sector path,
+.windows11-dashboard-preview .recharts-line-curve,
+.windows11-dashboard-preview .recharts-bar-rectangle path {
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.08));
+}
+
+.windows11-dashboard-preview .recharts-pie-label-text,
+.windows11-dashboard-preview .recharts-pie-labels text {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+
+@media (max-width: 900px) {
+  .win11-workspace { grid-template-columns: 64px minmax(0, 1fr); }
+  .win11-nav button span { display: none; }
+  .win11-nav button { min-height: 42px; }
+  .windows11-preview-banner > div { display: grid; gap: 1px; }
 }
