@@ -22,13 +22,18 @@ export type RoomFeaturePatch = {
 export type RoomWithFeatures = Room & Partial<RoomFeaturePatch>;
 
 export const ROOM_FEATURE_FILTERS = [
-  ["todos", "Todas as características"],
-  ["silencioso", "Preferência: menos barulho"],
-  ["arejada", "Preferência: mais arejado"],
-  ["abafada", "Evitar: mais abafado"],
-  ["espacoso", "Preferência: quarto espaçoso"],
-  ["sem_escadas", "Acesso sem escadas"],
-  ["descer_escadas", "Acesso descendo escadas"],
+  ["todos", "Todos os quartos"],
+  ["pacote_conforto", "Pacote: conforto completo"],
+  ["pacote_silencio", "Pacote: silêncio e descanso"],
+  ["pacote_equipado", "Pacote: bem equipado"],
+  ["pacote_familia", "Pacote: família / mais espaço"],
+  ["pacote_acesso", "Pacote: fácil acesso"],
+  ["silencioso", "Menos barulho"],
+  ["arejada", "Mais arejado"],
+  ["abafada", "Mais abafado"],
+  ["espacoso", "Quarto espaçoso"],
+  ["sem_escadas", "Sem escadas"],
+  ["descer_escadas", "Descendo escadas"],
   ["longe_garagem", "Longe da garagem"],
   ["proximo_garagem", "Próximo da garagem"],
   ["janela_grande", "Janela grande"],
@@ -38,8 +43,8 @@ export const ROOM_FEATURE_FILTERS = [
   ["parede_janela", "Parede próxima da janela"],
   ["frigobar", "Com frigobar"],
   ["tv_smart", "Com Smart TV"],
-  ["rua", "De frente para a rua"],
-  ["fundos", "Nos fundos"],
+  ["rua", "Frente para a rua"],
+  ["fundos", "Fundos do hotel"],
   ["banheiro_amplo", "Banheiro amplo"],
   ["ultima_opcao", "Vender por último"],
 ] as const;
@@ -88,26 +93,62 @@ export function normalizeRoomFeatures(room: RoomWithFeatures): RoomFeaturePatch 
 export function roomMatchesFeature(room: RoomWithFeatures, filter: string) {
   const f = normalizeRoomFeatures(room);
   switch (filter) {
-    case "frigobar": return f.frigobar;
-    case "tv_smart": return f.tv_smart;
-    case "silencioso": return f.nivel_ruido === "silencioso";
-    case "rua": return f.vista === "rua";
-    case "fundos": return f.vista === "fundos";
-    case "arejada": return f.ventilacao === "arejada";
-    case "abafada": return f.ventilacao === "abafada";
-    case "espacoso": return f.tamanho_quarto === "espacoso";
-    case "sem_escadas": return f.acesso_escadas === "sem_escadas";
-    case "descer_escadas": return f.acesso_escadas === "descer";
-    case "proximo_garagem": return f.proximo_garagem === true;
-    case "longe_garagem": return f.proximo_garagem === false;
-    case "janela_grande": return f.tamanho_janela === "grande";
-    case "janela_vidro": return f.tipo_janela === "vidro" || f.tipo_janela === "mista";
-    case "janela_madeira": return f.tipo_janela === "madeira" || f.tipo_janela === "mista";
-    case "vista_livre": return f.parede_frente_janela === false;
-    case "parede_janela": return f.parede_frente_janela === true;
-    case "banheiro_amplo": return f.tamanho_banheiro === "amplo";
-    case "ultima_opcao": return f.prioridade_venda === 3;
-    default: return true;
+    case "pacote_conforto":
+      return (
+        f.ventilacao === "arejada" &&
+        f.tamanho_quarto === "espacoso" &&
+        f.tamanho_banheiro === "amplo" &&
+        f.frigobar &&
+        f.tv_smart
+      );
+    case "pacote_silencio":
+      return f.nivel_ruido === "silencioso" && f.ventilacao !== "abafada";
+    case "pacote_equipado":
+      return f.frigobar && f.tv_smart;
+    case "pacote_familia":
+      return f.tamanho_quarto === "espacoso" && f.tamanho_banheiro !== "pequeno";
+    case "pacote_acesso":
+      return f.acesso_escadas === "sem_escadas";
+    case "frigobar":
+      return f.frigobar;
+    case "tv_smart":
+      return f.tv_smart;
+    case "silencioso":
+      return f.nivel_ruido === "silencioso";
+    case "rua":
+      return f.vista === "rua";
+    case "fundos":
+      return f.vista === "fundos";
+    case "arejada":
+      return f.ventilacao === "arejada";
+    case "abafada":
+      return f.ventilacao === "abafada";
+    case "espacoso":
+      return f.tamanho_quarto === "espacoso";
+    case "sem_escadas":
+      return f.acesso_escadas === "sem_escadas";
+    case "descer_escadas":
+      return f.acesso_escadas === "descer";
+    case "proximo_garagem":
+      return f.proximo_garagem === true;
+    case "longe_garagem":
+      return f.proximo_garagem === false;
+    case "janela_grande":
+      return f.tamanho_janela === "grande";
+    case "janela_vidro":
+      return f.tipo_janela === "vidro" || f.tipo_janela === "mista";
+    case "janela_madeira":
+      return f.tipo_janela === "madeira" || f.tipo_janela === "mista";
+    case "vista_livre":
+      return f.parede_frente_janela === false;
+    case "parede_janela":
+      return f.parede_frente_janela === true;
+    case "banheiro_amplo":
+      return f.tamanho_banheiro === "amplo";
+    case "ultima_opcao":
+      return f.prioridade_venda === 3;
+    default:
+      return true;
   }
 }
 
@@ -157,58 +198,154 @@ function tag(key: string, label: string, tone: string): FeatureTag {
   return { key, label, className: tones[tone] ?? tones.zinc };
 }
 
-export function RoomFeatureBadges({ room, compact = false, max }: { room: RoomWithFeatures; compact?: boolean; max?: number }) {
+export function RoomFeatureBadges({
+  room,
+  compact = false,
+  max,
+}: {
+  room: RoomWithFeatures;
+  compact?: boolean;
+  max?: number;
+}) {
   const all = roomFeatureTags(room);
   const tags = typeof max === "number" ? all.slice(0, max) : all;
-  if (!all.length) return compact ? null : <p className="text-xs text-muted-foreground">Características ainda não cadastradas.</p>;
-  return <div className="flex flex-wrap gap-1" aria-label={`Características do quarto ${room.numero}`}>
-    {tags.map((item) => <span key={item.key} className={`inline-flex items-center rounded border font-semibold ${item.className} ${compact ? "px-1 py-0.5 text-[8px]" : "px-2 py-1 text-[10px]"}`}>{item.label}</span>)}
-    {typeof max === "number" && all.length > max && <span className={`rounded border border-border bg-muted font-bold text-muted-foreground ${compact ? "px-1 py-0.5 text-[8px]" : "px-2 py-1 text-[10px]"}`}>+{all.length - max}</span>}
-  </div>;
+  if (!all.length) {
+    return compact ? null : (
+      <p className="text-xs text-muted-foreground">Características ainda não cadastradas.</p>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-1" aria-label={`Características do quarto ${room.numero}`}>
+      {tags.map((item) => (
+        <span
+          key={item.key}
+          className={`inline-flex items-center rounded border font-semibold ${item.className} ${compact ? "px-1 py-0.5 text-[8px]" : "px-2 py-1 text-[10px]"}`}
+        >
+          {item.label}
+        </span>
+      ))}
+      {typeof max === "number" && all.length > max && (
+        <span
+          className={`rounded border border-border bg-muted font-bold text-muted-foreground ${compact ? "px-1 py-0.5 text-[8px]" : "px-2 py-1 text-[10px]"}`}
+        >
+          +{all.length - max}
+        </span>
+      )}
+    </div>
+  );
 }
 
-export function RoomFeaturesEditor({ room, saving = false, onSave }: { room: RoomWithFeatures; saving?: boolean; onSave: (patch: RoomFeaturePatch) => void }) {
+export function RoomFeaturesEditor({
+  room,
+  saving = false,
+  onSave,
+}: {
+  room: RoomWithFeatures;
+  saving?: boolean;
+  onSave: (patch: RoomFeaturePatch) => void;
+}) {
   const [value, setValue] = useState<RoomFeaturePatch>(() => normalizeRoomFeatures(room));
   useEffect(() => setValue(normalizeRoomFeatures(room)), [room]);
-  const set = <K extends keyof RoomFeaturePatch>(key: K, next: RoomFeaturePatch[K]) => setValue((current) => ({ ...current, [key]: next }));
+  const set = <K extends keyof RoomFeaturePatch>(key: K, next: RoomFeaturePatch[K]) =>
+    setValue((current) => ({ ...current, [key]: next }));
 
-  return <section className="rounded-xl border border-border bg-muted/20 p-3">
-    <div className="mb-3">
-      <h4 className="font-semibold text-pine-dark">Preferências e características do quarto</h4>
-      <p className="text-[11px] text-muted-foreground">Cadastre somente o que foi conferido. Ventilador não significa automaticamente que o quarto é arejado.</p>
-    </div>
-    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-      <Toggle label="Possui frigobar" checked={value.frigobar} onChange={(v) => set("frigobar", v)} />
-      <Toggle label="Possui Smart TV" checked={value.tv_smart} onChange={(v) => set("tv_smart", v)} />
-      <Toggle label="Possui ventilador" checked={value.ventilador} onChange={(v) => set("ventilador", v)} />
-      <SelectField label="Posição" value={value.vista} onChange={(v) => set("vista", v as RoomFeaturePatch["vista"])} options={[["nao_informada","Não informado"],["rua","Frente para a rua"],["lateral","Lateral"],["fundos","Fundos do hotel"],["interna","Área interna"]]} />
-      <SelectField label="Nível de ruído" value={value.nivel_ruido} onChange={(v) => set("nivel_ruido", v as RoomFeaturePatch["nivel_ruido"])} options={[["nao_informado","Não informado"],["silencioso","Mais silencioso"],["moderado","Moderado"],["barulhento","Mais barulhento"]]} />
-      <SelectField label="Ventilação percebida" value={value.ventilacao} onChange={(v) => set("ventilacao", v as RoomFeaturePatch["ventilacao"])} options={[["nao_informada","Não avaliada"],["arejada","Mais arejado"],["normal","Normal"],["abafada","Mais abafado"]]} />
-      <SelectField label="Tamanho do quarto" value={value.tamanho_quarto} onChange={(v) => set("tamanho_quarto", v as RoomFeaturePatch["tamanho_quarto"])} options={[["nao_informado","Não informado"],["compacto","Compacto"],["normal","Normal"],["espacoso","Espaçoso"]]} />
-      <SelectField label="Tipo de janela" value={value.tipo_janela} onChange={(v) => set("tipo_janela", v as RoomFeaturePatch["tipo_janela"])} options={[["nao_informado","Não informado"],["madeira","Madeira"],["vidro","Vidro"],["mista","Mista"]]} />
-      <SelectField label="Tamanho da janela" value={value.tamanho_janela} onChange={(v) => set("tamanho_janela", v as RoomFeaturePatch["tamanho_janela"])} options={[["nao_informado","Não informado"],["pequena","Pequena"],["media","Média"],["grande","Grande"]]} />
-      <SelectField label="Acesso ao quarto" value={value.acesso_escadas} onChange={(v) => set("acesso_escadas", v as RoomFeaturePatch["acesso_escadas"])} options={[["nao_informado","Não informado"],["sem_escadas","Sem escadas"],["subir","Precisa subir escadas"],["descer","Precisa descer escadas"]]} />
-      <SelectField label="Próximo da garagem" value={tri(value.proximo_garagem)} onChange={(v) => set("proximo_garagem", fromTri(v))} options={[["nao_informado","Não informado"],["sim","Sim"],["nao","Não"]]} />
-      <SelectField label="Parede próxima da janela" value={tri(value.parede_frente_janela)} onChange={(v) => set("parede_frente_janela", fromTri(v))} options={[["nao_informado","Não informado"],["sim","Sim, vista obstruída"],["nao","Não, espaço livre"]]} />
-      <SelectField label="Tamanho do banheiro" value={value.tamanho_banheiro} onChange={(v) => set("tamanho_banheiro", v as RoomFeaturePatch["tamanho_banheiro"])} options={[["nao_informado","Não informado"],["pequeno","Pequeno"],["normal","Normal"],["amplo","Amplo"]]} />
-      <SelectField label="Prioridade de venda" value={String(value.prioridade_venda)} onChange={(v) => set("prioridade_venda", Number(v) as 1 | 2 | 3)} options={[["1","Priorizar"],["2","Ordem normal"],["3","Vender por último"]]} />
-    </div>
-    <Field label="Observações internas"><textarea className="field min-h-20 resize-y" value={value.observacoes_quarto ?? ""} maxLength={1000} placeholder="Ex.: fundo do hotel; precisa descer escadas; janela voltada para parede próxima..." onChange={(e) => set("observacoes_quarto", e.target.value || null)} /></Field>
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><RoomFeatureBadges room={{ ...room, ...value }} max={10} /><button type="button" className="btn-primary" disabled={saving} onClick={() => onSave({ ...value, observacoes_quarto: value.observacoes_quarto?.trim() || null })}>{saving ? "Salvando…" : "Salvar características"}</button></div>
-  </section>;
+  return (
+    <section className="rounded-xl border border-border bg-muted/20 p-3">
+      <div className="mb-3">
+        <h4 className="font-semibold text-pine-dark">Preferências e características do quarto</h4>
+        <p className="text-[11px] text-muted-foreground">
+          Cadastre somente o que foi conferido. Ventilador não significa automaticamente que o quarto é arejado.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <Toggle label="Possui frigobar" checked={value.frigobar} onChange={(v) => set("frigobar", v)} />
+        <Toggle label="Possui Smart TV" checked={value.tv_smart} onChange={(v) => set("tv_smart", v)} />
+        <Toggle label="Possui ventilador" checked={value.ventilador} onChange={(v) => set("ventilador", v)} />
+        <SelectField label="Posição" value={value.vista} onChange={(v) => set("vista", v as RoomFeaturePatch["vista"])} options={[["nao_informada", "Não informado"], ["rua", "Frente para a rua"], ["lateral", "Lateral"], ["fundos", "Fundos do hotel"], ["interna", "Área interna"]]} />
+        <SelectField label="Nível de ruído" value={value.nivel_ruido} onChange={(v) => set("nivel_ruido", v as RoomFeaturePatch["nivel_ruido"])} options={[["nao_informado", "Não informado"], ["silencioso", "Mais silencioso"], ["moderado", "Moderado"], ["barulhento", "Mais barulhento"]]} />
+        <SelectField label="Ventilação percebida" value={value.ventilacao} onChange={(v) => set("ventilacao", v as RoomFeaturePatch["ventilacao"])} options={[["nao_informada", "Não avaliada"], ["arejada", "Mais arejado"], ["normal", "Normal"], ["abafada", "Mais abafado"]]} />
+        <SelectField label="Tamanho do quarto" value={value.tamanho_quarto} onChange={(v) => set("tamanho_quarto", v as RoomFeaturePatch["tamanho_quarto"])} options={[["nao_informado", "Não informado"], ["compacto", "Compacto"], ["normal", "Normal"], ["espacoso", "Espaçoso"]]} />
+        <SelectField label="Tipo de janela" value={value.tipo_janela} onChange={(v) => set("tipo_janela", v as RoomFeaturePatch["tipo_janela"])} options={[["nao_informado", "Não informado"], ["madeira", "Madeira"], ["vidro", "Vidro"], ["mista", "Mista"]]} />
+        <SelectField label="Tamanho da janela" value={value.tamanho_janela} onChange={(v) => set("tamanho_janela", v as RoomFeaturePatch["tamanho_janela"])} options={[["nao_informado", "Não informado"], ["pequena", "Pequena"], ["media", "Média"], ["grande", "Grande"]]} />
+        <SelectField label="Acesso ao quarto" value={value.acesso_escadas} onChange={(v) => set("acesso_escadas", v as RoomFeaturePatch["acesso_escadas"])} options={[["nao_informado", "Não informado"], ["sem_escadas", "Sem escadas"], ["subir", "Precisa subir escadas"], ["descer", "Precisa descer escadas"]]} />
+        <SelectField label="Tamanho do banheiro" value={value.tamanho_banheiro} onChange={(v) => set("tamanho_banheiro", v as RoomFeaturePatch["tamanho_banheiro"])} options={[["nao_informado", "Não informado"], ["pequeno", "Pequeno"], ["normal", "Normal"], ["amplo", "Amplo"]]} />
+        <SelectField label="Próximo da garagem" value={value.proximo_garagem == null ? "nao_informado" : value.proximo_garagem ? "sim" : "nao"} onChange={(v) => set("proximo_garagem", v === "nao_informado" ? null : v === "sim")} options={[["nao_informado", "Não informado"], ["sim", "Sim"], ["nao", "Não"]]} />
+        <SelectField label="Parede diante da janela" value={value.parede_frente_janela == null ? "nao_informado" : value.parede_frente_janela ? "sim" : "nao"} onChange={(v) => set("parede_frente_janela", v === "nao_informado" ? null : v === "sim")} options={[["nao_informado", "Não informado"], ["sim", "Sim"], ["nao", "Não"]]} />
+        <SelectField label="Prioridade de venda" value={String(value.prioridade_venda)} onChange={(v) => set("prioridade_venda", Number(v) as 1 | 2 | 3)} options={[["1", "Priorizar"], ["2", "Ordem normal"], ["3", "Vender por último"]]} />
+      </div>
+      <label className="mt-3 block text-[11px] font-semibold text-muted-foreground">
+        <span className="mb-1 block">Observações internas</span>
+        <textarea
+          className="field min-h-20 resize-y"
+          value={value.observacoes_quarto ?? ""}
+          maxLength={1000}
+          placeholder="Ex.: recebe barulho pela manhã; bom para família; janela menor..."
+          onChange={(event) => set("observacoes_quarto", event.target.value || null)}
+        />
+      </label>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        <RoomFeatureBadges room={{ ...room, ...value }} max={8} />
+        <button
+          type="button"
+          className="btn-primary"
+          disabled={saving}
+          onClick={() =>
+            onSave({
+              ...value,
+              observacoes_quarto: value.observacoes_quarto?.trim() || null,
+            })
+          }
+        >
+          {saving ? "Salvando…" : "Salvar características"}
+        </button>
+      </div>
+    </section>
+  );
 }
 
-function tri(value: boolean | null) { return value == null ? "nao_informado" : value ? "sim" : "nao"; }
-function fromTri(value: string) { return value === "sim" ? true : value === "nao" ? false : null; }
-
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
-  return <label className="flex min-h-11 cursor-pointer items-center justify-between rounded-lg border border-border bg-card px-3 text-xs font-semibold"><span>{label}</span><input type="checkbox" className="h-4 w-4 accent-primary" checked={checked} onChange={(e) => onChange(e.target.checked)} /></label>;
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex min-h-11 cursor-pointer items-center justify-between rounded-lg border border-border bg-card px-3 text-xs font-semibold">
+      <span>{label}</span>
+      <input
+        type="checkbox"
+        className="h-4 w-4 accent-primary"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+    </label>
+  );
 }
 
-function SelectField({ label, value, options, onChange }: { label: string; value: string; options: readonly (readonly [string, string])[]; onChange: (value: string) => void }) {
-  return <Field label={label}><select className="field" value={value} onChange={(e) => onChange(e.target.value)}>{options.map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select></Field>;
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block text-[11px] font-semibold text-muted-foreground"><span className="mb-1 block">{label}</span>{children}</label>;
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly (readonly [string, string])[];
+}) {
+  return (
+    <label className="block text-[11px] font-semibold text-muted-foreground">
+      <span className="mb-1 block">{label}</span>
+      <select className="field" value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map(([optionValue, optionLabel]) => (
+          <option key={optionValue} value={optionValue}>
+            {optionLabel}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 }
