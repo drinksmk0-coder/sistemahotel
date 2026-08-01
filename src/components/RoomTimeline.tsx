@@ -113,7 +113,7 @@ export function RoomTimeline({
 
   const roomColumnWidth = 300;
   const dayWidth = 78;
-  const rowHeight = 78;
+  const rowHeight = 42;
   const gridTemplateColumns = `${roomColumnWidth}px repeat(${daysVisible}, minmax(${dayWidth}px, 1fr))`;
   const minimumWidth = roomColumnWidth + daysVisible * dayWidth;
 
@@ -303,7 +303,7 @@ export function RoomTimeline({
                     <button
                       type="button"
                       onClick={() => onRoomClick(room)}
-                      className={`sticky left-0 z-20 flex items-center justify-between gap-3 border-r border-border bg-card px-3 text-left transition hover:bg-sage-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${tariffAccentClass(
+                      className={`sticky left-0 z-20 flex items-center border-r border-border px-3 py-1 text-left transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${roomPanelClass(
                         Number(room.preco),
                       )}`}
                       title={
@@ -311,21 +311,15 @@ export function RoomTimeline({
                       }
                     >
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-3">
-                          <div className="flex items-baseline gap-2">
-                            <span className="sr-only">Quarto</span>
-                            <strong className="text-xl font-black text-pine-dark">
-                              {room.numero}
-                            </strong>
-                            <span className="text-[10px] font-semibold text-muted-foreground">
-                              {group.floor}º andar
-                            </span>
-                          </div>
-                          <span className="shrink-0 text-xs font-black text-primary">
+                        <div className="flex items-center justify-between gap-3">
+                          <strong className="text-lg font-black">
+                            {room.numero}
+                          </strong>
+                          <span className="shrink-0 text-xs font-black">
                             {fmtBRL(room.preco)}
                           </span>
                         </div>
-                        <div className="mt-1">
+                        <div className="-mt-0.5">
                           <RoomFeatureBadges room={room} compact max={4} />
                         </div>
                       </div>
@@ -374,7 +368,7 @@ export function RoomTimeline({
                           key={reservation.id}
                           type="button"
                           onClick={() => onRoomClick(room)}
-                          className={`relative z-10 mx-1 my-2 flex min-w-0 items-center overflow-hidden rounded-lg border-2 px-2 text-left shadow-md transition hover:z-20 hover:brightness-105 hover:shadow-xl focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${visual.className}`}
+                          className={`relative z-10 mx-1 my-1 flex min-w-0 items-center overflow-hidden rounded-md border px-2 text-left shadow-sm transition hover:z-20 hover:brightness-105 hover:shadow-md focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${visual.className}`}
                           style={{
                             gridColumn: `${startIndex + 2} / span ${span}`,
                             gridRow: 1,
@@ -384,11 +378,11 @@ export function RoomTimeline({
                           )} a ${fmtDate(reservation.checkout)}`}
                         >
                           <span className="min-w-0">
-                            <strong className="block truncate text-sm font-black">
+                            <strong className="block truncate text-xs font-black">
                               {reservation.cliente_nome}
                             </strong>
-                            <span className="flex items-center gap-1 truncate text-xs font-bold opacity-95">
-                              <CircleDollarSign className="h-4 w-4 shrink-0" />
+                            <span className="flex items-center gap-1 truncate text-[10px] font-bold opacity-95">
+                              <CircleDollarSign className="h-3 w-3 shrink-0" />
                               {visual.label} · {fmtBRL(reservation.valor_total)}
                             </span>
                           </span>
@@ -421,11 +415,17 @@ function Legend({ color, label }: { color: string; label: string }) {
   );
 }
 
-function tariffAccentClass(price: number) {
-  if (price === 110) return "border-l-4 border-l-orange-300";
-  if (price === 90) return "border-l-4 border-l-blue-300";
-  if (price === 80) return "border-l-4 border-l-slate-300";
-  return "border-l-4 border-l-border";
+function roomPanelClass(price: number) {
+  if (price === 110) {
+    return "border-orange-200 bg-orange-100 text-orange-950";
+  }
+  if (price === 90) {
+    return "border-blue-200 bg-blue-100 text-blue-950";
+  }
+  if (price === 80) {
+    return "border-slate-300 bg-white text-slate-950";
+  }
+  return "border-slate-300 bg-slate-100 text-slate-950";
 }
 
 function reservationVisual(reservation: Reservation, today: string) {
