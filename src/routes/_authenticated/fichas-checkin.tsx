@@ -466,7 +466,7 @@ function FichaDetalhes({
           className="btn-ghost flex items-center gap-2"
           onClick={() =>
             window.open(
-              `/checkin-online?token=${row.public_token}`,
+              `/checkin-print?token=${row.public_token}`,
               "_blank",
               "noopener",
             )
