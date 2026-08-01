@@ -6,13 +6,13 @@ aside.app-sidebar img[title][alt] {
 }
 
 /* O resumo do gráfico já aparece no cabeçalho, no canto superior direito. */
-article > .grid.border-t.border-border.pt-1\.5 {
+.executive-readable-root article > .grid.border-t.border-border.pt-1\.5 {
   display: none !important;
 }
 
 /* Remove repetições abaixo das roscas: os rótulos externos já informam nome e percentual. */
-article > div > .flex.flex-wrap.justify-center.text-muted-foreground,
-article > div > .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
+.executive-readable-root article > div > .flex.flex-wrap.justify-center.text-muted-foreground,
+.executive-readable-root article > div > .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
   display: none !important;
 }
 
@@ -22,20 +22,47 @@ article > div > .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
 }
 
 .executive-temporal-host {
-  min-height: 278px;
+  min-height: 0;
 }
 
-/* Garante rolagem vertical no modo normal e em tela cheia. */
+/* Encaixa o painel executivo no viewport sem criar rolagem vertical. */
 .executive-readable-root {
-  overflow-y: auto !important;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden !important;
 }
 
 .executive-readable-root:fullscreen,
 .executive-readable-root:has(> div:fullscreen) {
   height: 100vh;
   max-height: 100vh;
+  overflow: hidden !important;
+}
+
+.executive-dashboard-grid {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.executive-dashboard-grid > section:last-child {
+  min-height: 0;
+  align-content: stretch;
+}
+
+.executive-dashboard-grid > section:last-child > article {
+  min-height: 0;
+}
+
+.executive-chart {
+  height: clamp(76px, 9.5vh, 132px);
+  min-height: 0;
+}
+
+@media (min-width: 768px) {
+  .executive-dashboard-grid > section:last-child {
+    height: 100%;
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+  }
 }
 
 /* Amplia somente textos, rótulos e números; não altera dimensões ou posições dos gráficos. */
