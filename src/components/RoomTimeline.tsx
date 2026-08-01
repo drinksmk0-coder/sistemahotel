@@ -4,17 +4,14 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
-  Eye,
   Plus,
+  Type,
 } from "lucide-react";
-import {
-  RoomFeatureBadges,
-  roomFeatureTags,
-} from "@/components/RoomFeatures";
+import { RoomFeatureBadges, roomFeatureTags } from "@/components/RoomFeatures";
 import type { Reservation, Room } from "@/lib/data";
 import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
 
-const LARGE_TEXT_STORAGE_KEY = "hotel:room-map-large-text";
+const LARGE_TEXT_KEY = "hotel:room-map:large-text";
 
 export function RoomTimeline({
   rooms,
@@ -31,29 +28,29 @@ export function RoomTimeline({
   onRoomClick: (room: Room) => void;
   onCreateReservation: (room: Room, date: string) => void;
 }) {
-  const [daysVisible, setDaysVisible] = useState<7 | 14 | 21>(7);
-  const [largeText, setLargeText] = useState(false);
+  const [daysVisible, setDaysVisible] = useState<7 | 14 | 21>(14);
+  const [largeText, setLargeText] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(LARGE_TEXT_KEY) === "1";
+  });
   const today = todayISO();
-
-  useEffect(() => {
-    setLargeText(window.localStorage.getItem(LARGE_TEXT_STORAGE_KEY) === "1");
-  }, []);
-
-  function toggleLargeText() {
-    setLargeText((current) => {
-      const next = !current;
-      window.localStorage.setItem(LARGE_TEXT_STORAGE_KEY, next ? "1" : "0");
-      return next;
-    });
-  }
-
   const dates = useMemo(
-    () =>
-      Array.from({ length: daysVisible }, (_, index) =>
-        addDaysISO(startDate, index),
-      ),
+    () => Array.from({ length: daysVisible }, (_, index) => addDaysISO(startDate, index)),
     [daysVisible, startDate],
   );
+  const endDate = dates[dates.length - 1] ?? startDate;
+
+  useEffect(() => {
+    window.localStorage.setItem(LARGE_TEXT_KEY, largeText ? "1" : "0");
+  }, [largeText]);
+
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>("[data-room-timeline-root]");
+    const toolbar = root?.previousElementSibling;
+    const duplicatedDate = toolbar?.querySelector<HTMLInputElement>('input[type="date"]');
+    const label = duplicatedDate?.closest("label");
+    if (label instanceof HTMLElement) label.hidden = true;
+  }, []);
 
   const groupedRooms = useMemo(() => {
     const groups = new Map<string, Room[]>();
@@ -87,9 +84,7 @@ export function RoomTimeline({
           const occupied = rooms.filter((room) =>
             (reservationsByRoom.get(room.numero) ?? []).some(
               (reservation) =>
-                !["cancelado", "finalizado", "manutencao"].includes(
-                  reservation.status,
-                ) &&
+                !["cancelado", "finalizado", "manutencao"].includes(reservation.status) &&
                 reservation.checkin <= date &&
                 reservation.checkout > date,
             ),
@@ -100,90 +95,73 @@ export function RoomTimeline({
     [dates, reservationsByRoom, rooms],
   );
 
-  const roomColumnWidth = largeText ? 310 : 265;
-  const dayColumnWidth = largeText ? 92 : 82;
-  const gridTemplateColumns = `${roomColumnWidth}px repeat(${daysVisible}, minmax(${dayColumnWidth}px, 1fr))`;
-  const minimumWidth = roomColumnWidth + daysVisible * dayColumnWidth;
-  const endDate = dates[dates.length - 1] ?? startDate;
+  const roomColumnWidth = largeText ? 300 : 260;
+  const dayWidth = largeText ? 92 : 78;
+  const rowHeight = largeText ? 82 : 66;
+  const gridTemplateColumns = `${roomColumnWidth}px repeat(${daysVisible}, minmax(${dayWidth}px, 1fr))`;
+  const minimumWidth = roomColumnWidth + daysVisible * dayWidth;
 
   return (
-    <section className="overflow-hidden rounded-xl border-2 border-border bg-card shadow-md">
+    <section
+      data-room-timeline-root
+      className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+    >
       <div className="border-b border-border bg-card px-3 py-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
-              <CalendarDays className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <strong
-                className={`block truncate font-extrabold text-pine-dark ${
-                  largeText ? "text-lg" : "text-base"
-                }`}
-              >
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="relative inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg bg-primary px-3 py-2 font-bold text-primary-foreground shadow-sm hover:brightness-105 focus-within:ring-2 focus-within:ring-primary/40">
+              <CalendarDays className="h-5 w-5 shrink-0" />
+              <span className={largeText ? "text-base" : "text-sm"}>
                 {fmtDate(startDate)} a {fmtDate(endDate)}
-              </strong>
-              <span
-                className={`font-medium text-muted-foreground ${
-                  largeText ? "text-sm" : "text-xs"
-                }`}
-              >
-                Clique em um espaço livre para reservar. Clique na UH para abrir
-                os detalhes.
               </span>
-            </div>
+              <input
+                type="date"
+                className="absolute inset-0 cursor-pointer opacity-0"
+                value={startDate}
+                onChange={(event) => {
+                  if (event.target.value) onStartDateChange(event.target.value);
+                }}
+                aria-label="Escolher data para consultar hospedagens"
+              />
+            </label>
+            <span className="max-w-xl text-xs font-medium text-muted-foreground">
+              Clique na data azul para abrir o calendário, digitar uma data antiga ou consultar quem se hospedou naquele período.
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              className={`inline-flex min-h-10 items-center gap-2 rounded-lg border-2 px-3 font-extrabold transition ${
-                largeText
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-card text-pine-dark hover:bg-muted"
-              }`}
-              onClick={toggleLargeText}
-              aria-pressed={largeText}
-            >
-              <Eye className="h-5 w-5" />
-              Letras grandes
-            </button>
-
-            <div className="flex items-center rounded-lg border border-border bg-muted/30 p-1">
+            <div className="flex items-center rounded-lg border border-border bg-muted/35 p-1">
               <button
                 type="button"
-                className="grid h-9 w-9 place-items-center rounded-md text-pine-dark transition hover:bg-card"
-                onClick={() =>
-                  onStartDateChange(addDaysISO(startDate, -daysVisible))
-                }
+                className="grid min-h-10 min-w-10 place-items-center rounded-md text-pine-dark hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() => onStartDateChange(addDaysISO(startDate, -daysVisible))}
                 aria-label="Período anterior"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 type="button"
-                className="min-h-9 rounded-md px-3 text-sm font-extrabold text-pine-dark transition hover:bg-card"
+                className="min-h-10 rounded-md px-3 text-sm font-extrabold text-pine-dark hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={() => onStartDateChange(todayISO())}
               >
                 Hoje
               </button>
               <button
                 type="button"
-                className="grid h-9 w-9 place-items-center rounded-md text-pine-dark transition hover:bg-card"
-                onClick={() =>
-                  onStartDateChange(addDaysISO(startDate, daysVisible))
-                }
+                className="grid min-h-10 min-w-10 place-items-center rounded-md text-pine-dark hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() => onStartDateChange(addDaysISO(startDate, daysVisible))}
                 aria-label="Próximo período"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="flex items-center rounded-lg border border-border bg-muted/30 p-1 font-bold">
+            <div className="flex items-center rounded-lg border border-border bg-muted/35 p-1 font-bold">
               {[7, 14, 21].map((days) => (
                 <button
                   key={days}
                   type="button"
-                  className={`min-h-9 rounded-md px-3 text-sm transition ${
+                  className={`min-h-10 rounded-md px-3 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                     daysVisible === days
                       ? "bg-primary text-primary-foreground shadow"
                       : "text-muted-foreground hover:bg-card"
@@ -194,178 +172,133 @@ export function RoomTimeline({
                 </button>
               ))}
             </div>
+
+            <button
+              type="button"
+              className={`inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 text-sm font-extrabold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                largeText
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card text-pine-dark hover:bg-muted"
+              }`}
+              onClick={() => setLargeText((current) => !current)}
+              aria-pressed={largeText}
+            >
+              <Type className="h-5 w-5" /> Letras grandes
+            </button>
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs font-bold text-foreground">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-slate-700">
           <Legend color="bg-pine" label="Hospedado / quitado" />
           <Legend color="bg-sky-500" label="Reserva sem pagamento" />
           <Legend color="bg-amber-400" label="Sinal pago" />
-          <Legend color="bg-rose-600" label="Vencida / saldo pendente" />
+          <Legend color="bg-rose-500" label="Vencida / saldo pendente" />
           <Legend color="bg-slate-400" label="Finalizada" />
-        </div>
-
-        <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Cores das tarifas">
-          <span className="text-xs font-extrabold text-pine-dark">Tarifas:</span>
-          <TariffLegend price={110} />
-          <TariffLegend price={90} />
-          <TariffLegend price={80} />
+          <span className="mx-1 hidden h-5 w-px bg-border md:block" />
+          <PriceLegend price={110} />
+          <PriceLegend price={90} />
+          <PriceLegend price={80} />
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <div style={{ minWidth: minimumWidth }}>
           <div
-            className="sticky top-0 z-30 grid border-b-2 border-border bg-card/95 backdrop-blur"
+            className="sticky top-0 z-30 grid border-b border-border bg-card/95 backdrop-blur"
             style={{ gridTemplateColumns }}
           >
-            <div className="sticky left-0 z-40 flex items-center border-r-2 border-border bg-card px-3 py-3">
+            <div className="sticky left-0 z-40 flex items-center border-r border-border bg-card px-3 py-2">
               <div>
-                <span
-                  className={`block font-extrabold uppercase tracking-wide text-muted-foreground ${
-                    largeText ? "text-sm" : "text-xs"
-                  }`}
-                >
+                <span className="block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">
                   Quarto e diária
                 </span>
-                <strong
-                  className={`text-pine-dark ${
-                    largeText ? "text-lg" : "text-base"
-                  }`}
-                >
-                  {rooms.length} quartos
+                <strong className={largeText ? "text-base text-pine-dark" : "text-sm text-pine-dark"}>
+                  {rooms.length} quartos encontrados
                 </strong>
               </div>
             </div>
-
             {dates.map((date) => {
               const current = parseDate(date);
               const isToday = date === today;
               const weekend = [0, 6].includes(current.getDay());
               const available = availabilityByDate.get(date) ?? 0;
               return (
-                <div
+                <button
                   key={date}
-                  className={`border-r border-border px-1 py-2 text-center ${
-                    isToday ? "bg-brass-bg" : weekend ? "bg-muted/60" : ""
+                  type="button"
+                  onClick={() => onStartDateChange(date)}
+                  className={`border-r border-border/70 px-1 py-2 text-center focus-visible:z-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                    isToday ? "bg-amber-100" : weekend ? "bg-slate-100" : "bg-card"
                   }`}
+                  aria-label={`Consultar ${fmtDate(date)}`}
                 >
-                  <span
-                    className={`block font-extrabold uppercase text-muted-foreground ${
-                      largeText ? "text-sm" : "text-xs"
-                    }`}
-                  >
-                    {current
-                      .toLocaleDateString("pt-BR", { weekday: "short" })
-                      .replace(".", "")}
+                  <span className="block text-[11px] font-extrabold uppercase text-slate-600">
+                    {current.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
                   </span>
                   <span
-                    className={`mx-auto mt-1 flex items-center justify-center rounded-full font-black ${
-                      largeText ? "h-9 w-9 text-lg" : "h-8 w-8 text-base"
-                    } ${
-                      isToday
-                        ? "bg-pine text-white shadow"
-                        : "bg-card text-foreground"
-                    }`}
+                    className={`mx-auto mt-0.5 flex items-center justify-center rounded-full font-black ${
+                      largeText ? "h-8 w-8 text-base" : "h-7 w-7 text-sm"
+                    } ${isToday ? "bg-pine text-white shadow" : "text-slate-950"}`}
                   >
                     {current.getDate()}
                   </span>
-                  <span
-                    className={`mt-1 block font-extrabold ${
-                      largeText ? "text-sm" : "text-xs"
-                    } ${available === 0 ? "text-brick" : "text-sage"}`}
-                  >
+                  <span className={`mt-0.5 block font-extrabold ${available === 0 ? "text-brick" : "text-emerald-700"} ${largeText ? "text-xs" : "text-[10px]"}`}>
                     {available} livre(s)
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
 
           {groupedRooms.map((group) => (
             <div key={group.name}>
-              <div
-                className={`sticky left-0 z-20 flex items-center border-b border-pine/20 bg-sage-bg px-3 ${
-                  largeText ? "h-11" : "h-9"
-                }`}
-              >
-                <span
-                  className={`font-black uppercase tracking-wide text-pine-dark ${
-                    largeText ? "text-sm" : "text-xs"
-                  }`}
-                >
+              <div className="sticky left-0 z-20 flex min-h-8 items-center border-b border-pine/10 bg-sage-bg px-3">
+                <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-pine-dark">
                   {group.name}
                 </span>
-                <span className="ml-2 rounded-full bg-white px-2.5 py-1 text-xs font-extrabold text-pine-dark shadow-sm">
+                <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-700">
                   {group.rooms.length} UH
                 </span>
               </div>
 
               {group.rooms.map((room) => {
-                const visibleReservations = (
-                  reservationsByRoom.get(room.numero) ?? []
-                )
+                const visibleReservations = (reservationsByRoom.get(room.numero) ?? [])
                   .filter(
                     (reservation) =>
-                      reservation.quarto === room.numero &&
                       reservation.status !== "cancelado" &&
-                      reservation.checkin <
-                        addDaysISO(startDate, daysVisible) &&
+                      reservation.checkin < addDaysISO(startDate, daysVisible) &&
                       reservation.checkout > startDate,
                   )
-                  .sort((left, right) =>
-                    left.checkin.localeCompare(right.checkin),
-                  );
+                  .sort((left, right) => left.checkin.localeCompare(right.checkin));
                 const featureTitle = roomFeatureTags(room)
-                  .map((tag) => tag.label)
+                  .map((item) => item.label)
                   .join(" · ");
-                const tariff = tariffStyle(Number(room.preco));
 
                 return (
                   <div
                     key={`${room.company_id}-${room.numero}`}
-                    className={`relative grid border-b border-border ${
-                      largeText ? "min-h-[88px]" : "min-h-[72px]"
-                    }`}
-                    style={{ gridTemplateColumns }}
+                    className="relative grid border-b border-border/80"
+                    style={{ gridTemplateColumns, minHeight: rowHeight }}
                   >
                     <button
                       type="button"
                       onClick={() => onRoomClick(room)}
-                      className="sticky left-0 z-20 flex items-center justify-between gap-3 border-r-2 border-border bg-card px-3 text-left transition hover:bg-sage-bg focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
-                      title={
-                        featureTitle || "Características ainda não cadastradas"
-                      }
+                      className="sticky left-0 z-20 flex items-center justify-between gap-3 border-r border-border bg-card px-3 text-left transition hover:bg-sage-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                      title={featureTitle || "Características ainda não cadastradas"}
                     >
                       <div className="min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-baseline gap-2">
                           <span className="sr-only">Quarto</span>
-                          <strong
-                            className={`leading-none text-pine-dark ${
-                              largeText ? "text-3xl" : "text-2xl"
-                            }`}
-                          >
+                          <strong className={largeText ? "text-3xl font-black text-pine-dark" : "text-2xl font-black text-pine-dark"}>
                             {room.numero}
                           </strong>
-                          <span
-                            className={`font-bold text-muted-foreground ${
-                              largeText ? "text-sm" : "text-xs"
-                            }`}
-                          >
+                          <span className={largeText ? "text-sm font-bold text-slate-700" : "text-xs font-bold text-slate-700"}>
                             {room.andar}º andar
                           </span>
                         </div>
-                        <div className="mt-2">
-                          <RoomFeatureBadges room={room} compact max={2} />
-                        </div>
+                        <RoomFeatureBadges room={room} compact max={largeText ? 3 : 2} />
                       </div>
-
-                      <span
-                        className={`shrink-0 rounded-xl border-2 px-3 py-2 text-center font-black shadow-sm ${
-                          largeText ? "text-lg" : "text-base"
-                        } ${tariff.className}`}
-                        aria-label={`Diária ${fmtBRL(room.preco)}`}
-                      >
+                      <span className={`shrink-0 rounded-lg border-2 px-2.5 py-1.5 font-black shadow-sm ${priceClass(Number(room.preco))} ${largeText ? "text-lg" : "text-base"}`}>
                         {fmtBRL(room.preco)}
                       </span>
                     </button>
@@ -378,30 +311,20 @@ export function RoomTimeline({
                           key={date}
                           type="button"
                           onClick={() => onCreateReservation(room, date)}
-                          className={`group/cell relative border-r border-border/70 transition hover:bg-sage-bg focus-visible:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary ${
-                            isToday
-                              ? "bg-brass-bg/50"
-                              : weekend
-                                ? "bg-muted/30"
-                                : ""
+                          className={`group/cell relative border-r border-border/65 transition hover:bg-sage-bg focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                            isToday ? "bg-amber-50" : weekend ? "bg-slate-50" : "bg-white"
                           }`}
                           style={{ gridColumn: index + 2 }}
                           aria-label={`Reservar quarto ${room.numero} em ${fmtDate(date)}`}
                         >
-                          <Plus className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 text-pine opacity-0 transition group-hover/cell:opacity-70 group-focus-visible/cell:opacity-100" />
+                          <Plus className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 text-pine opacity-0 transition group-hover/cell:opacity-60 group-focus-visible/cell:opacity-80" />
                         </button>
                       );
                     })}
 
                     {visibleReservations.map((reservation) => {
-                      const startIndex = Math.max(
-                        0,
-                        daysBetween(startDate, reservation.checkin),
-                      );
-                      const endIndex = Math.min(
-                        daysVisible,
-                        daysBetween(startDate, reservation.checkout),
-                      );
+                      const startIndex = Math.max(0, daysBetween(startDate, reservation.checkin));
+                      const endIndex = Math.min(daysVisible, daysBetween(startDate, reservation.checkout));
                       const span = Math.max(1, endIndex - startIndex);
                       const visual = reservationVisual(reservation, today);
                       return (
@@ -409,30 +332,18 @@ export function RoomTimeline({
                           key={reservation.id}
                           type="button"
                           onClick={() => onRoomClick(room)}
-                          className={`relative z-10 mx-1 my-2 flex min-w-0 items-center overflow-hidden rounded-lg border-2 px-3 text-left shadow-md transition hover:z-20 hover:brightness-105 hover:shadow-xl focus-visible:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${visual.className}`}
+                          className={`relative z-10 mx-1 my-2 flex min-w-0 items-center overflow-hidden rounded-lg border-2 px-2 text-left shadow-md transition hover:z-20 hover:brightness-105 hover:shadow-xl focus-visible:z-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${visual.className}`}
                           style={{
                             gridColumn: `${startIndex + 2} / span ${span}`,
                             gridRow: 1,
-                            clipPath:
-                              span > 1
-                                ? "polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 8px 50%)"
-                                : "polygon(0 0, 100% 0, 100% 100%, 0 100%)",
                           }}
                           title={`${reservation.cliente_nome} · ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`}
                         >
                           <span className="min-w-0">
-                            <strong
-                              className={`block truncate font-black ${
-                                largeText ? "text-base" : "text-sm"
-                              }`}
-                            >
+                            <strong className={`block truncate font-black ${largeText ? "text-base" : "text-sm"}`}>
                               {reservation.cliente_nome}
                             </strong>
-                            <span
-                              className={`mt-1 flex items-center gap-1 truncate font-bold opacity-95 ${
-                                largeText ? "text-sm" : "text-xs"
-                              }`}
-                            >
+                            <span className={`flex items-center gap-1 truncate font-bold opacity-95 ${largeText ? "text-sm" : "text-xs"}`}>
                               <CircleDollarSign className="h-4 w-4 shrink-0" />
                               {visual.label} · {fmtBRL(reservation.valor_total)}
                             </span>
@@ -447,8 +358,8 @@ export function RoomTimeline({
           ))}
 
           {rooms.length === 0 && (
-            <div className="p-10 text-center text-base font-semibold text-muted-foreground">
-              Nenhum quarto corresponde aos filtros selecionados.
+            <div className="p-10 text-center text-base font-semibold text-slate-700">
+              Nenhum quarto corresponde aos filtros selecionados. Tente outro pacote ou característica.
             </div>
           )}
         </div>
@@ -459,43 +370,26 @@ export function RoomTimeline({
 
 function Legend({ color, label }: { color: string; label: string }) {
   return (
-    <span className="flex items-center gap-2">
-      <span className={`h-3.5 w-3.5 rounded-full border border-black/10 ${color}`} />
+    <span className="flex items-center gap-1.5">
+      <span className={`h-3 w-3 rounded-full ${color}`} />
       {label}
     </span>
   );
 }
 
-function TariffLegend({ price }: { price: number }) {
-  const style = tariffStyle(price);
+function PriceLegend({ price }: { price: number }) {
   return (
-    <span
-      className={`rounded-lg border-2 px-2.5 py-1 text-xs font-black shadow-sm ${style.className}`}
-    >
+    <span className={`rounded-md border-2 px-2 py-1 text-xs font-black ${priceClass(price)}`}>
       R$ {price}
     </span>
   );
 }
 
-function tariffStyle(price: number) {
-  if (price === 110) {
-    return {
-      className: "border-orange-600 bg-orange-500 text-white",
-    };
-  }
-  if (price === 90) {
-    return {
-      className: "border-blue-700 bg-blue-600 text-white",
-    };
-  }
-  if (price === 80) {
-    return {
-      className: "border-slate-400 bg-white text-slate-950",
-    };
-  }
-  return {
-    className: "border-zinc-500 bg-zinc-100 text-zinc-950",
-  };
+function priceClass(price: number) {
+  if (price === 110) return "border-orange-500 bg-orange-100 text-orange-950";
+  if (price === 90) return "border-blue-500 bg-blue-100 text-blue-950";
+  if (price === 80) return "border-slate-400 bg-white text-slate-950";
+  return "border-slate-400 bg-slate-100 text-slate-950";
 }
 
 function reservationVisual(reservation: Reservation, today: string) {
@@ -508,7 +402,7 @@ function reservationVisual(reservation: Reservation, today: string) {
 
   if (overdue) {
     return {
-      className: "border-rose-800 bg-rose-600 text-white",
+      className: "border-rose-700 bg-rose-600 text-white",
       label: "Saldo vencido",
     };
   }
@@ -530,7 +424,7 @@ function reservationVisual(reservation: Reservation, today: string) {
   }
   if (paid > 0) {
     return {
-      className: "border-amber-700 bg-amber-400 text-slate-950",
+      className: "border-amber-600 bg-amber-400 text-slate-950",
       label: "Sinal pago",
     };
   }
