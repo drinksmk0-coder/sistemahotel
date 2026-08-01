@@ -28,7 +28,7 @@ export function RoomTimeline({
   onRoomClick: (room: Room) => void;
   onCreateReservation: (room: Room, date: string) => void;
 }) {
-  const [daysVisible, setDaysVisible] = useState<7 | 14 | 21>(14);
+  const [daysVisible, setDaysVisible] = useState<7 | 14 | 21>(7);
   const today = todayISO();
   const dates = useMemo(
     () =>
@@ -111,21 +111,21 @@ export function RoomTimeline({
     [dates, reservationsByRoom, rooms],
   );
 
-  const roomColumnWidth = 300;
-  const dayWidth = 78;
-  const rowHeight = 42;
+  const roomColumnWidth = 280;
+  const dayWidth = 80;
+  const rowHeight = 52;
   const gridTemplateColumns = `${roomColumnWidth}px repeat(${daysVisible}, minmax(${dayWidth}px, 1fr))`;
   const minimumWidth = roomColumnWidth + daysVisible * dayWidth;
 
   return (
     <section
       data-room-timeline-root
-      className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+      className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"
     >
-      <div className="border-b border-border bg-card px-3 py-3">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+      <div className="border-b border-border bg-card px-3 py-2.5">
+        <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <label className="relative inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-sm hover:brightness-105 focus-within:ring-2 focus-within:ring-primary/40">
+            <label className="relative inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-primary-foreground shadow-sm transition hover:brightness-105 focus-within:ring-2 focus-within:ring-primary/35">
               <CalendarDays className="h-4 w-4 shrink-0" />
               <span>
                 {fmtDate(startDate)} a {fmtDate(endDate)}
@@ -148,10 +148,10 @@ export function RoomTimeline({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center rounded-lg border border-border bg-muted/35 p-1">
+            <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1">
               <button
                 type="button"
-                className="grid min-h-9 min-w-9 place-items-center rounded-md text-pine-dark hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="grid min-h-9 min-w-9 place-items-center rounded-md text-pine-dark transition hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={() =>
                   onStartDateChange(addDaysISO(startDate, -daysVisible))
                 }
@@ -161,14 +161,14 @@ export function RoomTimeline({
               </button>
               <button
                 type="button"
-                className="min-h-9 rounded-md px-3 text-sm font-extrabold text-pine-dark hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="min-h-9 rounded-md px-3 text-sm font-extrabold text-pine-dark transition hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={() => onStartDateChange(todayISO())}
               >
                 Hoje
               </button>
               <button
                 type="button"
-                className="grid min-h-9 min-w-9 place-items-center rounded-md text-pine-dark hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                className="grid min-h-9 min-w-9 place-items-center rounded-md text-pine-dark transition hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={() =>
                   onStartDateChange(addDaysISO(startDate, daysVisible))
                 }
@@ -178,14 +178,14 @@ export function RoomTimeline({
               </button>
             </div>
 
-            <div className="flex items-center rounded-lg border border-border bg-muted/35 p-1 font-bold">
+            <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1 font-bold">
               {[7, 14, 21].map((days) => (
                 <button
                   key={days}
                   type="button"
                   className={`min-h-9 rounded-md px-3 text-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                     daysVisible === days
-                      ? "bg-primary text-primary-foreground shadow"
+                      ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-card"
                   }`}
                   onClick={() => setDaysVisible(days as 7 | 14 | 21)}
@@ -197,12 +197,12 @@ export function RoomTimeline({
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-slate-700">
+        <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] font-semibold text-muted-foreground">
           <Legend color="bg-pine" label="Hospedado / quitado" />
-          <Legend color="bg-sky-500" label="Reserva sem pagamento" />
-          <Legend color="bg-amber-400" label="Sinal pago" />
-          <Legend color="bg-rose-500" label="Vencida / saldo pendente" />
-          <Legend color="bg-slate-400" label="Finalizada" />
+          <Legend color="bg-[var(--chart-5)]" label="Reserva sem pagamento" />
+          <Legend color="bg-brass" label="Sinal pago" />
+          <Legend color="bg-brick" label="Vencida / saldo pendente" />
+          <Legend color="bg-slate" label="Finalizada" />
         </div>
       </div>
 
@@ -214,7 +214,7 @@ export function RoomTimeline({
           >
             <div className="sticky left-0 z-40 flex items-center border-r border-border bg-card px-3 py-2">
               <div>
-                <span className="block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">
+                <span className="block text-[11px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
                   Quarto, diária e características
                 </span>
                 <strong className="text-sm text-pine-dark">
@@ -222,40 +222,44 @@ export function RoomTimeline({
                 </strong>
               </div>
             </div>
+
             {dates.map((date) => {
               const current = parseDate(date);
               const isToday = date === today;
               const weekend = [0, 6].includes(current.getDay());
               const available = availabilityByDate.get(date) ?? 0;
+
               return (
                 <button
                   key={date}
                   type="button"
                   onClick={() => onStartDateChange(date)}
-                  className={`border-r border-border/70 px-1 py-2 text-center focus-visible:z-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  className={`border-r border-border/70 px-1 py-2 text-center transition focus-visible:z-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                     isToday
-                      ? "bg-amber-100"
+                      ? "bg-primary/10"
                       : weekend
-                        ? "bg-slate-100"
+                        ? "bg-muted/40"
                         : "bg-card"
                   }`}
                   aria-label={`Consultar ${fmtDate(date)}`}
                 >
-                  <span className="block text-[11px] font-extrabold uppercase text-slate-600">
+                  <span className="block text-[10px] font-extrabold uppercase text-muted-foreground">
                     {current
                       .toLocaleDateString("pt-BR", { weekday: "short" })
                       .replace(".", "")}
                   </span>
                   <span
                     className={`mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-black ${
-                      isToday ? "bg-pine text-white shadow" : "text-slate-950"
+                      isToday
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-pine-dark"
                     }`}
                   >
                     {current.getDate()}
                   </span>
                   <span
-                    className={`mt-0.5 block text-[10px] font-extrabold ${
-                      available === 0 ? "text-brick" : "text-emerald-700"
+                    className={`mt-0.5 block text-[10px] font-bold ${
+                      available === 0 ? "text-brick" : "text-primary"
                     }`}
                   >
                     {available} livre(s)
@@ -267,11 +271,11 @@ export function RoomTimeline({
 
           {groupedRooms.map((group) => (
             <div key={`${group.name}-${group.floor}`}>
-              <div className="sticky left-0 z-20 flex min-h-9 items-center border-b border-pine/10 bg-sage-bg px-3">
-                <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-pine-dark">
+              <div className="sticky left-0 z-20 flex h-9 items-center border-b border-primary/15 bg-primary/10 px-3">
+                <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-pine-dark">
                   {group.name} · {group.floor}º andar
                 </span>
-                <span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-700">
+                <span className="ml-2 rounded-full border border-primary/15 bg-card px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
                   {group.rooms.length} UH
                 </span>
               </div>
@@ -297,30 +301,28 @@ export function RoomTimeline({
                 return (
                   <div
                     key={`${room.company_id}-${room.numero}`}
-                    className="relative grid border-b border-border/80"
-                    style={{ gridTemplateColumns, minHeight: rowHeight }}
+                    className="relative grid border-b border-border/75"
+                    style={{ gridTemplateColumns, height: rowHeight }}
                   >
                     <button
                       type="button"
                       onClick={() => onRoomClick(room)}
-                      className={`sticky left-0 z-20 flex items-center border-r border-border px-3 py-1 text-left transition hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary ${roomPanelClass(
-                        Number(room.preco),
-                      )}`}
+                      className="sticky left-0 z-20 flex items-center border-r border-border bg-card px-3 py-1.5 text-left text-pine-dark transition hover:bg-primary/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
                       title={
                         featureTitle || "Características ainda não cadastradas"
                       }
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-3">
-                          <strong className="text-lg font-black">
+                          <strong className="text-base font-black">
                             {room.numero}
                           </strong>
-                          <span className="shrink-0 text-xs font-black">
+                          <span className="shrink-0 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[10px] font-extrabold text-primary">
                             {fmtBRL(room.preco)}
                           </span>
                         </div>
-                        <div className="-mt-0.5">
-                          <RoomFeatureBadges room={room} compact max={4} />
+                        <div className="mt-0.5 max-h-4 overflow-hidden">
+                          <RoomFeatureBadges room={room} compact max={3} />
                         </div>
                       </div>
                     </button>
@@ -330,24 +332,25 @@ export function RoomTimeline({
                         parseDate(date).getDay(),
                       );
                       const isToday = date === today;
+
                       return (
                         <button
                           key={date}
                           type="button"
                           onClick={() => onCreateReservation(room, date)}
-                          className={`group/cell relative border-r border-border/65 transition hover:bg-sage-bg focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                          className={`group/cell relative border-r border-border/60 transition hover:bg-primary/[0.08] focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                             isToday
-                              ? "bg-amber-50"
+                              ? "bg-primary/[0.06]"
                               : weekend
-                                ? "bg-slate-50"
-                                : "bg-white"
+                                ? "bg-muted/20"
+                                : "bg-card"
                           }`}
                           style={{ gridColumn: index + 2 }}
                           aria-label={`Reservar quarto ${room.numero} em ${fmtDate(
                             date,
                           )}`}
                         >
-                          <Plus className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 text-pine opacity-0 transition group-hover/cell:opacity-60 group-focus-visible/cell:opacity-80" />
+                          <Plus className="absolute left-1/2 top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 text-primary opacity-0 transition group-hover/cell:opacity-55 group-focus-visible/cell:opacity-80" />
                         </button>
                       );
                     })}
@@ -363,6 +366,7 @@ export function RoomTimeline({
                       );
                       const span = Math.max(1, endIndex - startIndex);
                       const visual = reservationVisual(reservation, today);
+
                       return (
                         <button
                           key={reservation.id}
@@ -378,10 +382,10 @@ export function RoomTimeline({
                           )} a ${fmtDate(reservation.checkout)}`}
                         >
                           <span className="min-w-0">
-                            <strong className="block truncate text-xs font-black">
+                            <strong className="block truncate text-[11px] font-black">
                               {reservation.cliente_nome}
                             </strong>
-                            <span className="flex items-center gap-1 truncate text-[10px] font-bold opacity-95">
+                            <span className="flex items-center gap-1 truncate text-[9px] font-bold opacity-95">
                               <CircleDollarSign className="h-3 w-3 shrink-0" />
                               {visual.label} · {fmtBRL(reservation.valor_total)}
                             </span>
@@ -396,7 +400,7 @@ export function RoomTimeline({
           ))}
 
           {rooms.length === 0 && (
-            <div className="p-10 text-center text-base font-semibold text-slate-700">
+            <div className="p-10 text-center text-sm font-semibold text-muted-foreground">
               Nenhum quarto corresponde aos filtros selecionados.
             </div>
           )}
@@ -409,23 +413,10 @@ export function RoomTimeline({
 function Legend({ color, label }: { color: string; label: string }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span className={`h-3 w-3 rounded-full ${color}`} />
+      <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
       {label}
     </span>
   );
-}
-
-function roomPanelClass(price: number) {
-  if (price === 110) {
-    return "border-orange-200 bg-orange-100 text-orange-950";
-  }
-  if (price === 90) {
-    return "border-blue-200 bg-blue-100 text-blue-950";
-  }
-  if (price === 80) {
-    return "border-slate-300 bg-white text-slate-950";
-  }
-  return "border-slate-300 bg-slate-100 text-slate-950";
 }
 
 function reservationVisual(reservation: Reservation, today: string) {
@@ -438,13 +429,13 @@ function reservationVisual(reservation: Reservation, today: string) {
 
   if (overdue) {
     return {
-      className: "border-rose-700 bg-rose-600 text-white",
+      className: "border-brick bg-brick text-white",
       label: "Saldo vencido",
     };
   }
   if (reservation.status === "finalizado") {
     return {
-      className: "border-slate-500 bg-slate-300 text-slate-950",
+      className: "border-border bg-muted text-muted-foreground",
       label: "Finalizada",
     };
   }
@@ -460,12 +451,13 @@ function reservationVisual(reservation: Reservation, today: string) {
   }
   if (paid > 0) {
     return {
-      className: "border-amber-600 bg-amber-400 text-slate-950",
+      className: "border-brass bg-brass text-white",
       label: "Sinal pago",
     };
   }
   return {
-    className: "border-sky-700 bg-sky-500 text-white",
+    className:
+      "border-[var(--chart-5)] bg-[var(--chart-5)] text-white",
     label: "A receber",
   };
 }
