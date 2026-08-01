@@ -1,245 +1,283 @@
-/* Redesign isolado: nenhuma regra afeta o painel oficial. */
+/* Prévia isolada inspirada no painel infográfico enviado pelo usuário.
+   Nenhuma regra deste arquivo afeta o painel oficial fora de .executive-premium-shell. */
 .executive-premium-shell {
-  --premium-chart-1: var(--primary);
-  --premium-chart-2: var(--destructive);
-  --premium-chart-3: color-mix(in srgb, var(--primary) 76%, var(--foreground));
-  --premium-chart-4: color-mix(in srgb, var(--primary) 62%, var(--muted-foreground));
-  --premium-chart-5: color-mix(in srgb, var(--primary) 48%, var(--background));
-  --premium-chart-6: color-mix(in srgb, var(--destructive) 58%, var(--primary));
-  --premium-chart-7: color-mix(in srgb, var(--primary) 70%, var(--secondary-foreground));
-  --premium-chart-8: var(--muted-foreground);
-  display: grid;
-  grid-template-columns: 78px minmax(0, 1fr);
+  --premium-1: var(--primary);
+  --premium-2: color-mix(in srgb, var(--primary) 72%, white);
+  --premium-3: color-mix(in srgb, var(--primary) 78%, black);
+  --premium-4: color-mix(in srgb, var(--primary) 48%, white);
+  --premium-5: color-mix(in srgb, var(--primary) 62%, var(--foreground));
+  --premium-alert: var(--destructive);
   height: 100%;
-  background: #f4f7fb;
-  color: #152238;
+  min-height: 0;
+  background:
+    radial-gradient(circle at 12% 2%, color-mix(in srgb, var(--premium-2) 68%, transparent), transparent 34%),
+    radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--premium-1) 30%, transparent), transparent 28%),
+    linear-gradient(135deg,
+      color-mix(in srgb, var(--premium-3) 88%, #162f66) 0%,
+      color-mix(in srgb, var(--premium-1) 78%, #2e6fb4) 44%,
+      color-mix(in srgb, var(--premium-2) 86%, #43c7df) 100%);
+  color: var(--foreground);
   font-family: "Segoe UI Variable", "Segoe UI", Inter, system-ui, sans-serif;
 }
 
-.executive-premium-nav {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 9px;
-  border-right: 1px solid #e3e8ef;
-  background: rgba(255, 255, 255, 0.94);
-}
-
-.executive-premium-brand {
-  display: grid;
-  width: 44px;
-  height: 44px;
-  place-items: center;
-  border-radius: 13px;
-  background: var(--primary);
-  color: var(--primary-foreground);
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 24%, transparent);
-}
-.executive-premium-brand svg { width: 23px; height: 23px; }
-.executive-premium-nav nav { display: grid; width: 100%; gap: 6px; }
-.executive-premium-nav button {
-  display: grid;
-  min-height: 54px;
-  place-items: center;
-  gap: 4px;
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: #657184;
-}
-.executive-premium-nav button:hover {
-  background: color-mix(in srgb, var(--primary) 8%, var(--background));
-  color: var(--primary);
-}
-.executive-premium-nav button.is-active {
-  background: color-mix(in srgb, var(--primary) 12%, var(--background));
-  color: var(--primary);
-}
-.executive-premium-nav button svg { width: 19px; height: 19px; }
-.executive-premium-nav button span { font-size: 9px; font-weight: 650; }
-
 .executive-premium-content {
-  min-width: 0;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 12px;
+  padding: 18px;
 }
 
 .executive-premium-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
-  padding: 10px 14px;
-  border: 1px solid #e5eaf1;
-  border-radius: 14px;
-  background: white;
-  box-shadow: 0 4px 14px rgba(25, 42, 70, 0.05);
+  gap: 16px;
+  margin-bottom: 14px;
+  padding: 13px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card) 94%, transparent);
+  box-shadow: 0 12px 30px rgba(16, 38, 75, 0.17);
+  backdrop-filter: blur(16px) saturate(135%);
 }
-.executive-premium-banner > div { display: grid; gap: 2px; }
-.executive-premium-banner strong { font-size: 13px; color: #17233a; }
-.executive-premium-banner span { font-size: 10px; color: #6d788a; }
+
+.executive-premium-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.executive-premium-heading > div {
+  display: grid;
+  gap: 2px;
+}
+
+.executive-premium-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 10px;
+  background: linear-gradient(145deg, var(--premium-2), var(--premium-1) 58%, var(--premium-3));
+  color: var(--primary-foreground);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--premium-1) 34%, transparent), inset 0 1px 0 rgba(255,255,255,.34);
+}
+
+.executive-premium-icon svg { width: 21px; height: 21px; }
+.executive-premium-banner strong { font-size: 14px; color: var(--foreground); }
+.executive-premium-banner span { font-size: 10px; color: var(--muted-foreground); }
 .executive-premium-chip {
-  padding: 5px 9px;
+  padding: 6px 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--primary) 10%, var(--background));
-  color: var(--primary) !important;
-  font-weight: 700;
+  background: color-mix(in srgb, var(--premium-2) 18%, var(--card));
+  color: var(--premium-3) !important;
+  font-weight: 750;
 }
 
 .executive-premium-shell .executive-readable-root {
-  height: calc(100% - 62px);
-  padding: 2px;
+  height: calc(100% - 70px);
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 2px 18px;
   background: transparent !important;
+  scrollbar-color: color-mix(in srgb, var(--premium-2) 58%, transparent) transparent;
 }
 
-/* Cards: menos borda, mais respiro e leitura. */
-.executive-premium-shell .executive-readable-root article,
+/* Superfícies brancas modulares, como no painel de referência. */
 .executive-premium-shell .executive-readable-root header,
+.executive-premium-shell .executive-readable-root article,
 .executive-premium-shell .executive-readable-root .card-surface {
-  border: 1px solid #e1e6ee !important;
-  border-radius: 14px !important;
-  background: #ffffff !important;
-  box-shadow: 0 4px 14px rgba(24, 40, 68, 0.055) !important;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--premium-1) 10%, var(--border)) !important;
+  border-radius: 10px !important;
+  background: color-mix(in srgb, var(--card) 97%, white) !important;
+  box-shadow: 0 10px 24px rgba(15, 40, 78, 0.13) !important;
+}
+
+.executive-premium-shell .executive-readable-root header::before,
+.executive-premium-shell .executive-readable-root article::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--premium-2), var(--premium-1), var(--premium-3));
+  opacity: 0.9;
+  pointer-events: none;
 }
 
 .executive-premium-shell .executive-readable-root article {
-  padding: 12px !important;
-}
-.executive-premium-shell .executive-readable-root article:hover {
-  border-color: color-mix(in srgb, var(--primary) 24%, #e1e6ee) !important;
-  box-shadow: 0 8px 22px rgba(24, 40, 68, 0.08) !important;
+  padding: 13px !important;
+  transition: transform 150ms ease, box-shadow 150ms ease;
 }
 
-/* Hierarquia tipográfica inspirada nos HTMLs enviados. */
-.executive-premium-shell .executive-readable-root h1 {
-  font-size: 21px !important;
-  line-height: 1.15 !important;
-  letter-spacing: -0.025em;
+.executive-premium-shell .executive-readable-root article:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(15, 40, 78, 0.17) !important;
 }
+
+/* Cabeçalho e filtros. */
+.executive-premium-shell .executive-readable-root h1 {
+  font-size: 22px !important;
+  line-height: 1.1 !important;
+  letter-spacing: -0.03em;
+  color: color-mix(in srgb, var(--premium-3) 78%, var(--foreground)) !important;
+}
+
 .executive-premium-shell .executive-readable-root article h2 {
   font-size: 13px !important;
   line-height: 1.25rem !important;
-  color: #17233a !important;
-}
-.executive-premium-shell .executive-readable-root section.grid.grid-cols-2 article span.text-\[7px\] {
-  font-size: 10px !important;
-  color: #687487 !important;
-}
-.executive-premium-shell .executive-readable-root section.grid.grid-cols-2 article strong.text-\[11px\] {
-  font-size: 17px !important;
-  line-height: 1.2 !important;
-  color: #14213a !important;
+  color: color-mix(in srgb, var(--premium-3) 74%, var(--foreground)) !important;
 }
 
-/* Controles mais discretos. */
 .executive-premium-shell .executive-readable-root button,
 .executive-premium-shell .executive-readable-root input,
 .executive-premium-shell .executive-readable-root select {
-  border-radius: 9px !important;
-  border-color: #dbe2ec !important;
-}
-.executive-premium-shell .executive-readable-root button:hover {
-  background: color-mix(in srgb, var(--primary) 7%, var(--background)) !important;
+  border-radius: 8px !important;
+  border-color: color-mix(in srgb, var(--premium-1) 14%, var(--border)) !important;
 }
 
-/* Eixos, barras e linhas com leitura editorial. */
-.executive-premium-shell .recharts-cartesian-grid line { stroke: var(--border); }
+.executive-premium-shell .executive-readable-root button:hover {
+  background: color-mix(in srgb, var(--premium-2) 12%, var(--card)) !important;
+}
+
+/* KPIs: números grandes e faixas discretas de cor. */
+.executive-premium-shell .executive-readable-root section.grid.grid-cols-2 > article {
+  min-height: 76px;
+  padding: 12px 13px 10px !important;
+}
+
+.executive-premium-shell .executive-readable-root section.grid.grid-cols-2 > article::after {
+  content: "";
+  position: absolute;
+  right: -20px;
+  bottom: -28px;
+  width: 72px;
+  height: 72px;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--premium-2) 34%, transparent), transparent 68%);
+  pointer-events: none;
+}
+
+.executive-premium-shell .executive-readable-root section.grid.grid-cols-2 article span.text-\[7px\] {
+  font-size: 9px !important;
+  letter-spacing: .04em;
+  color: var(--muted-foreground) !important;
+}
+
+.executive-premium-shell .executive-readable-root section.grid.grid-cols-2 article strong.text-\[11px\] {
+  font-size: 18px !important;
+  line-height: 1.15 !important;
+  color: color-mix(in srgb, var(--premium-3) 74%, var(--foreground)) !important;
+}
+
+/* Eixos, grade e tooltips. */
+.executive-premium-shell .recharts-cartesian-grid line {
+  stroke: color-mix(in srgb, var(--premium-1) 11%, var(--border));
+  stroke-dasharray: 2 5;
+}
+
 .executive-premium-shell .recharts-cartesian-axis-tick-value {
   font-size: 11px !important;
-  font-weight: 550 !important;
-  fill: var(--muted-foreground) !important;
+  font-weight: 600 !important;
+  fill: color-mix(in srgb, var(--premium-3) 58%, var(--muted-foreground)) !important;
 }
-.executive-premium-shell .recharts-bar-rectangle path { rx: 5px; ry: 5px; }
-.executive-premium-shell .recharts-line-curve { filter: none !important; }
 
-/*
- * Paleta dinâmica dos gráficos.
- * Os componentes compartilhados mantêm seus fallbacks originais fora desta prévia.
- * Aqui as cores fixas são substituídas pelas variáveis do tema do sistema.
- */
+.executive-premium-shell .recharts-tooltip-wrapper > div {
+  border: 1px solid color-mix(in srgb, var(--premium-1) 16%, var(--border)) !important;
+  border-radius: 9px !important;
+  background: color-mix(in srgb, var(--card) 97%, transparent) !important;
+  box-shadow: 0 14px 28px rgba(14, 37, 72, 0.18) !important;
+  backdrop-filter: blur(12px);
+}
+
+.executive-premium-shell .recharts-bar-rectangle path {
+  rx: 5px;
+  ry: 5px;
+  filter: drop-shadow(0 3px 3px rgba(28, 70, 128, 0.13));
+}
+
+.executive-premium-shell .recharts-line-curve {
+  filter: drop-shadow(0 3px 4px color-mix(in srgb, var(--premium-1) 22%, transparent));
+}
+
+.executive-premium-shell .recharts-pie-sector path {
+  filter: drop-shadow(0 4px 5px rgba(20, 56, 103, 0.15));
+}
+
+/* Paleta derivada da cor do sistema. */
 .executive-premium-shell [fill="#2563EB"],
-.executive-premium-shell [fill="#2563eb"] { fill: var(--premium-chart-1) !important; }
+.executive-premium-shell [fill="#2563eb"] { fill: var(--premium-1) !important; }
 .executive-premium-shell [stroke="#2563EB"],
-.executive-premium-shell [stroke="#2563eb"] { stroke: var(--premium-chart-1) !important; }
+.executive-premium-shell [stroke="#2563eb"] { stroke: var(--premium-1) !important; }
 
 .executive-premium-shell [fill="#E11D48"],
-.executive-premium-shell [fill="#e11d48"] { fill: var(--premium-chart-2) !important; }
+.executive-premium-shell [fill="#e11d48"] { fill: var(--premium-alert) !important; }
 .executive-premium-shell [stroke="#E11D48"],
-.executive-premium-shell [stroke="#e11d48"] { stroke: var(--premium-chart-2) !important; }
+.executive-premium-shell [stroke="#e11d48"] { stroke: var(--premium-alert) !important; }
 
 .executive-premium-shell [fill="#F59E0B"],
-.executive-premium-shell [fill="#f59e0b"] { fill: var(--premium-chart-3) !important; }
+.executive-premium-shell [fill="#f59e0b"] { fill: var(--premium-2) !important; }
 .executive-premium-shell [stroke="#F59E0B"],
-.executive-premium-shell [stroke="#f59e0b"] { stroke: var(--premium-chart-3) !important; }
+.executive-premium-shell [stroke="#f59e0b"] { stroke: var(--premium-2) !important; }
 
-.executive-premium-shell [fill="#059669"] { fill: var(--premium-chart-4) !important; }
-.executive-premium-shell [stroke="#059669"] { stroke: var(--premium-chart-4) !important; }
+.executive-premium-shell [fill="#059669"] { fill: var(--premium-5) !important; }
+.executive-premium-shell [stroke="#059669"] { stroke: var(--premium-5) !important; }
 
 .executive-premium-shell [fill="#7C3AED"],
-.executive-premium-shell [fill="#7c3aed"] { fill: var(--premium-chart-5) !important; }
+.executive-premium-shell [fill="#7c3aed"] { fill: var(--premium-3) !important; }
 .executive-premium-shell [stroke="#7C3AED"],
-.executive-premium-shell [stroke="#7c3aed"] { stroke: var(--premium-chart-5) !important; }
+.executive-premium-shell [stroke="#7c3aed"] { stroke: var(--premium-3) !important; }
 
 .executive-premium-shell [fill="#EA580C"],
-.executive-premium-shell [fill="#ea580c"] { fill: var(--premium-chart-6) !important; }
+.executive-premium-shell [fill="#ea580c"] { fill: var(--premium-4) !important; }
 .executive-premium-shell [stroke="#EA580C"],
-.executive-premium-shell [stroke="#ea580c"] { stroke: var(--premium-chart-6) !important; }
+.executive-premium-shell [stroke="#ea580c"] { stroke: var(--premium-4) !important; }
 
 .executive-premium-shell [fill="#0891B2"],
-.executive-premium-shell [fill="#0891b2"] { fill: var(--premium-chart-7) !important; }
+.executive-premium-shell [fill="#0891b2"] { fill: color-mix(in srgb, var(--premium-1) 46%, var(--premium-2)) !important; }
 .executive-premium-shell [stroke="#0891B2"],
-.executive-premium-shell [stroke="#0891b2"] { stroke: var(--premium-chart-7) !important; }
+.executive-premium-shell [stroke="#0891b2"] { stroke: color-mix(in srgb, var(--premium-1) 46%, var(--premium-2)) !important; }
 
 .executive-premium-shell [fill="#4B5563"],
-.executive-premium-shell [fill="#4b5563"] { fill: var(--premium-chart-8) !important; }
+.executive-premium-shell [fill="#4b5563"] { fill: color-mix(in srgb, var(--premium-3) 52%, var(--muted-foreground)) !important; }
 .executive-premium-shell [stroke="#4B5563"],
-.executive-premium-shell [stroke="#4b5563"] { stroke: var(--premium-chart-8) !important; }
+.executive-premium-shell [stroke="#4b5563"] { stroke: color-mix(in srgb, var(--premium-3) 52%, var(--muted-foreground)) !important; }
 
-/* Mantém as bolinhas das legendas sincronizadas com a mesma paleta. */
-.executive-premium-shell [style*="37, 99, 235"] { background-color: var(--premium-chart-1) !important; }
-.executive-premium-shell [style*="225, 29, 72"] { background-color: var(--premium-chart-2) !important; }
-.executive-premium-shell [style*="245, 158, 11"] { background-color: var(--premium-chart-3) !important; }
-.executive-premium-shell [style*="5, 150, 105"] { background-color: var(--premium-chart-4) !important; }
-.executive-premium-shell [style*="124, 58, 237"] { background-color: var(--premium-chart-5) !important; }
-.executive-premium-shell [style*="234, 88, 12"] { background-color: var(--premium-chart-6) !important; }
-.executive-premium-shell [style*="8, 145, 178"] { background-color: var(--premium-chart-7) !important; }
-.executive-premium-shell [style*="75, 85, 99"] { background-color: var(--premium-chart-8) !important; }
+/* Legendas sincronizadas com a paleta dos gráficos. */
+.executive-premium-shell [style*="37, 99, 235"] { background-color: var(--premium-1) !important; }
+.executive-premium-shell [style*="225, 29, 72"] { background-color: var(--premium-alert) !important; }
+.executive-premium-shell [style*="245, 158, 11"] { background-color: var(--premium-2) !important; }
+.executive-premium-shell [style*="5, 150, 105"] { background-color: var(--premium-5) !important; }
+.executive-premium-shell [style*="124, 58, 237"] { background-color: var(--premium-3) !important; }
+.executive-premium-shell [style*="234, 88, 12"] { background-color: var(--premium-4) !important; }
 
-/* Roscas: sem rótulos externos cortados; legenda lateral faz a leitura. */
+/* Roscas como infográficos: gráfico limpo e legenda abaixo. */
 .executive-premium-shell .recharts-pie-labels,
 .executive-premium-shell .recharts-pie-label-line {
   display: none !important;
 }
-.executive-premium-shell article:has(.recharts-pie) > div:not(:first-child) {
-  overflow: visible !important;
-}
+
 .executive-premium-shell article .flex.flex-wrap.justify-center.text-muted-foreground,
 .executive-premium-shell article .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
   display: flex !important;
-  gap: 8px 14px !important;
-  font-size: 11px !important;
-  line-height: 1.25rem !important;
-  color: #334155 !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  gap: 7px 14px !important;
+  padding-top: 6px;
+  font-size: 10px !important;
+  line-height: 1.2rem !important;
+  color: color-mix(in srgb, var(--premium-3) 62%, var(--muted-foreground)) !important;
 }
 
-/* Tooltip premium. */
-.executive-premium-shell .recharts-tooltip-wrapper > div {
-  border: 1px solid #e1e7ef !important;
-  border-radius: 10px !important;
-  background: rgba(255, 255, 255, 0.98) !important;
-  box-shadow: 0 12px 28px rgba(23, 36, 58, 0.14) !important;
+/* Oculta somente o resumo narrativo inferior repetido nesta prévia. */
+.executive-premium-shell article > .grid.border-t.border-border.pt-1\.5 {
+  display: none !important;
 }
-
-/* Remove o resumo inferior repetido somente nesta prévia. */
-.executive-premium-shell article > .grid.border-t.border-border.pt-1\.5 { display: none !important; }
 
 @media (max-width: 900px) {
-  .executive-premium-shell { grid-template-columns: 58px minmax(0, 1fr); }
-  .executive-premium-nav button span { display: none; }
-  .executive-premium-nav button { min-height: 42px; }
+  .executive-premium-content { padding: 10px; }
   .executive-premium-banner { align-items: flex-start; }
+  .executive-premium-heading { align-items: flex-start; }
+  .executive-premium-chip { display: none; }
 }
