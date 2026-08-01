@@ -1,6 +1,16 @@
-/* Ajuste final da prévia: fundo neutro e bordas discretas.
-   Importado depois do tema infográfico para não alterar gráficos, dados ou layout. */
+/* Ajuste final da prévia: fundo neutro, bordas discretas e gráficos ligados ao tema.
+   Importado depois do tema infográfico para não alterar dados, consultas ou layout. */
 .executive-premium-shell {
+  --executive-chart-1: var(--primary);
+  --executive-chart-2: color-mix(in srgb, var(--primary) 72%, var(--background));
+  --executive-chart-3: color-mix(in srgb, var(--primary) 78%, var(--foreground));
+  --executive-chart-4: color-mix(in srgb, var(--primary) 52%, var(--background));
+  --executive-chart-5: color-mix(in srgb, var(--primary) 58%, var(--muted-foreground));
+  --executive-chart-6: color-mix(in srgb, var(--primary) 36%, var(--background));
+  --executive-chart-7: color-mix(in srgb, var(--primary) 68%, var(--secondary-foreground));
+  --executive-chart-8: var(--muted-foreground);
+  --executive-chart-positive: color-mix(in srgb, var(--primary) 70%, #15996b);
+  --executive-chart-negative: var(--destructive);
   background: color-mix(in srgb, var(--background) 96%, #e9eef5) !important;
 }
 
@@ -49,6 +59,134 @@
 .executive-premium-shell .recharts-tooltip-wrapper > div {
   border-color: color-mix(in srgb, var(--border) 92%, transparent) !important;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.11) !important;
+}
+
+/*
+ * Paleta dinâmica do Recharts.
+ * Os componentes antigos ainda entregam cores hexadecimais como fallback,
+ * mas nesta prévia elas são substituídas pelas variáveis do tema do sistema.
+ */
+.executive-premium-shell [fill="#2563EB"],
+.executive-premium-shell [fill="#2563eb"] {
+  fill: var(--executive-chart-1) !important;
+}
+.executive-premium-shell [stroke="#2563EB"],
+.executive-premium-shell [stroke="#2563eb"] {
+  stroke: var(--executive-chart-1) !important;
+}
+
+.executive-premium-shell [fill="#E11D48"],
+.executive-premium-shell [fill="#e11d48"] {
+  fill: var(--executive-chart-negative) !important;
+}
+.executive-premium-shell [stroke="#E11D48"],
+.executive-premium-shell [stroke="#e11d48"] {
+  stroke: var(--executive-chart-negative) !important;
+}
+
+.executive-premium-shell [fill="#F59E0B"],
+.executive-premium-shell [fill="#f59e0b"] {
+  fill: var(--executive-chart-2) !important;
+}
+.executive-premium-shell [stroke="#F59E0B"],
+.executive-premium-shell [stroke="#f59e0b"] {
+  stroke: var(--executive-chart-2) !important;
+}
+
+.executive-premium-shell [fill="#059669"] {
+  fill: var(--executive-chart-positive) !important;
+}
+.executive-premium-shell [stroke="#059669"] {
+  stroke: var(--executive-chart-positive) !important;
+}
+
+.executive-premium-shell [fill="#7C3AED"],
+.executive-premium-shell [fill="#7c3aed"] {
+  fill: var(--executive-chart-3) !important;
+}
+.executive-premium-shell [stroke="#7C3AED"],
+.executive-premium-shell [stroke="#7c3aed"] {
+  stroke: var(--executive-chart-3) !important;
+}
+
+.executive-premium-shell [fill="#EA580C"],
+.executive-premium-shell [fill="#ea580c"] {
+  fill: var(--executive-chart-4) !important;
+}
+.executive-premium-shell [stroke="#EA580C"],
+.executive-premium-shell [stroke="#ea580c"] {
+  stroke: var(--executive-chart-4) !important;
+}
+
+.executive-premium-shell [fill="#0891B2"],
+.executive-premium-shell [fill="#0891b2"] {
+  fill: var(--executive-chart-5) !important;
+}
+.executive-premium-shell [stroke="#0891B2"],
+.executive-premium-shell [stroke="#0891b2"] {
+  stroke: var(--executive-chart-5) !important;
+}
+
+.executive-premium-shell [fill="#4B5563"],
+.executive-premium-shell [fill="#4b5563"] {
+  fill: var(--executive-chart-8) !important;
+}
+.executive-premium-shell [stroke="#4B5563"],
+.executive-premium-shell [stroke="#4b5563"] {
+  stroke: var(--executive-chart-8) !important;
+}
+
+/* Reforço por posição para roscas, inclusive quando o SVG normaliza o hexadecimal. */
+.executive-premium-shell .recharts-pie-sector:nth-child(1) path { fill: var(--executive-chart-1) !important; }
+.executive-premium-shell .recharts-pie-sector:nth-child(2) path { fill: var(--executive-chart-negative) !important; }
+.executive-premium-shell .recharts-pie-sector:nth-child(3) path { fill: var(--executive-chart-2) !important; }
+.executive-premium-shell .recharts-pie-sector:nth-child(4) path { fill: var(--executive-chart-positive) !important; }
+.executive-premium-shell .recharts-pie-sector:nth-child(5) path { fill: var(--executive-chart-3) !important; }
+.executive-premium-shell .recharts-pie-sector:nth-child(6) path { fill: var(--executive-chart-4) !important; }
+.executive-premium-shell .recharts-pie-sector:nth-child(7) path { fill: var(--executive-chart-5) !important; }
+.executive-premium-shell .recharts-pie-sector:nth-child(8) path { fill: var(--executive-chart-8) !important; }
+
+/* Barras e série temporal passam a seguir o tema, sem azul/roxo fixo. */
+.executive-premium-shell .recharts-bar-rectangle path {
+  fill: var(--executive-chart-1) !important;
+}
+.executive-premium-shell .recharts-line:nth-of-type(1) .recharts-line-curve,
+.executive-premium-shell .recharts-line:nth-of-type(1) .recharts-line-dot {
+  stroke: var(--executive-chart-1) !important;
+}
+.executive-premium-shell .recharts-line:nth-of-type(2) .recharts-line-curve,
+.executive-premium-shell .recharts-line:nth-of-type(2) .recharts-line-dot {
+  stroke: var(--executive-chart-negative) !important;
+}
+.executive-premium-shell .recharts-line:nth-of-type(3) .recharts-line-curve,
+.executive-premium-shell .recharts-line:nth-of-type(3) .recharts-line-dot {
+  stroke: var(--executive-chart-positive) !important;
+}
+
+/* Legendas HTML sincronizadas com a mesma paleta. */
+.executive-premium-shell [style*="37, 99, 235"],
+.executive-premium-shell [style*="#2563EB"],
+.executive-premium-shell [style*="#2563eb"] {
+  background-color: var(--executive-chart-1) !important;
+}
+.executive-premium-shell [style*="225, 29, 72"],
+.executive-premium-shell [style*="#E11D48"],
+.executive-premium-shell [style*="#e11d48"] {
+  background-color: var(--executive-chart-negative) !important;
+}
+.executive-premium-shell [style*="245, 158, 11"],
+.executive-premium-shell [style*="#F59E0B"],
+.executive-premium-shell [style*="#f59e0b"] {
+  background-color: var(--executive-chart-2) !important;
+}
+.executive-premium-shell [style*="5, 150, 105"],
+.executive-premium-shell [style*="#059669"] {
+  background-color: var(--executive-chart-positive) !important;
+}
+.executive-premium-shell [style*="124, 58, 237"],
+.executive-premium-shell [style*="#7C3AED"],
+.executive-premium-shell [style*="#7c3aed"] {
+  background-color: var(--executive-chart-3) !important;
 }
 
 @media (max-width: 900px) {
