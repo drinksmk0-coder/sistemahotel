@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ExecutiveBiDashboardSafe } from "@/components/executive/ExecutiveBiDashboardSafe";
+import { ExecutiveBiDashboardReadable } from "@/components/executive/ExecutiveBiDashboardReadable";
 import "@/components/executive/executive-dashboard-fixes.css";
 
 export const Route = createFileRoute("/_authenticated/painel-executivo")({
-  component: ExecutiveBiDashboardSafe,
+  component: ExecutiveBiDashboardReadable,
 });
