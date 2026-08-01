@@ -16,6 +16,60 @@ article > div > .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
   display: none !important;
 }
 
+/* Substitui somente o conteúdo do primeiro card pelo gráfico temporal real. */
+.executive-temporal-replaced > *:not(.executive-temporal-host) {
+  display: none !important;
+}
+
+.executive-temporal-host {
+  min-height: 278px;
+}
+
+/* Garante rolagem vertical no modo normal e em tela cheia. */
+.executive-readable-root {
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.executive-readable-root:fullscreen,
+.executive-readable-root:has(> div:fullscreen) {
+  height: 100vh;
+  max-height: 100vh;
+}
+
+/* Amplia somente textos, rótulos e números; não altera dimensões ou posições dos gráficos. */
+.executive-readable-root article h2 {
+  font-size: 0.875rem !important;
+  line-height: 1.25rem !important;
+}
+
+.executive-readable-root article > div:first-child > span {
+  font-size: 0.625rem !important;
+  line-height: 0.875rem !important;
+}
+
+.executive-readable-root section.grid.grid-cols-2 article span.text-\[7px\] {
+  font-size: 0.625rem !important;
+  line-height: 0.875rem !important;
+}
+
+.executive-readable-root section.grid.grid-cols-2 article strong.text-\[11px\] {
+  font-size: 0.875rem !important;
+  line-height: 1.125rem !important;
+}
+
+.executive-readable-root .recharts-cartesian-axis-tick-value,
+.executive-readable-root .recharts-pie-label-text,
+.executive-readable-root .recharts-text {
+  font-size: 10px !important;
+  font-weight: 600;
+}
+
+.executive-readable-root .recharts-tooltip-wrapper {
+  font-size: 12px !important;
+}
+
 /* Mantém o HotelAI no canto inferior direito, sem cobrir gráficos ou ações. */
 @media (min-width: 640px) {
   body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
