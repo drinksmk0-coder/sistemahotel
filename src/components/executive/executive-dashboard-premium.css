@@ -1,30 +1,24 @@
-/* Prévia isolada inspirada no painel infográfico enviado pelo usuário.
-   Nenhuma regra deste arquivo afeta o painel oficial fora de .executive-premium-shell. */
+/* Prévia isolada: usa do HTML de referência apenas estrutura, hierarquia e espaçamento.
+   Todas as cores vêm exclusivamente do tema do SistemaHotel. */
 .executive-premium-shell {
   --premium-1: var(--primary);
-  --premium-2: color-mix(in srgb, var(--primary) 72%, white);
-  --premium-3: color-mix(in srgb, var(--primary) 78%, black);
-  --premium-4: color-mix(in srgb, var(--primary) 48%, white);
-  --premium-5: color-mix(in srgb, var(--primary) 62%, var(--foreground));
+  --premium-2: color-mix(in srgb, var(--primary) 72%, var(--background));
+  --premium-3: color-mix(in srgb, var(--primary) 72%, var(--foreground));
+  --premium-4: color-mix(in srgb, var(--primary) 44%, var(--background));
+  --premium-5: color-mix(in srgb, var(--primary) 58%, var(--muted-foreground));
   --premium-alert: var(--destructive);
   height: 100%;
   min-height: 0;
-  background:
-    radial-gradient(circle at 12% 2%, color-mix(in srgb, var(--premium-2) 68%, transparent), transparent 34%),
-    radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--premium-1) 30%, transparent), transparent 28%),
-    linear-gradient(135deg,
-      color-mix(in srgb, var(--premium-3) 88%, #162f66) 0%,
-      color-mix(in srgb, var(--premium-1) 78%, #2e6fb4) 44%,
-      color-mix(in srgb, var(--premium-2) 86%, #43c7df) 100%);
+  background: var(--background);
   color: var(--foreground);
-  font-family: "Segoe UI Variable", "Segoe UI", Inter, system-ui, sans-serif;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .executive-premium-content {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  padding: 18px;
+  padding: 16px;
 }
 
 .executive-premium-banner {
@@ -33,12 +27,11 @@
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 14px;
-  padding: 13px 16px;
-  border: 1px solid rgba(255, 255, 255, 0.58);
+  padding: 14px 16px;
+  border: 1px solid var(--border);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--card) 94%, transparent);
-  box-shadow: 0 12px 30px rgba(16, 38, 75, 0.17);
-  backdrop-filter: blur(16px) saturate(135%);
+  background: var(--card);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--foreground) 7%, transparent);
 }
 
 .executive-premium-heading {
@@ -58,9 +51,9 @@
   height: 38px;
   place-items: center;
   border-radius: 10px;
-  background: linear-gradient(145deg, var(--premium-2), var(--premium-1) 58%, var(--premium-3));
-  color: var(--primary-foreground);
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--premium-1) 34%, transparent), inset 0 1px 0 rgba(255,255,255,.34);
+  background: color-mix(in srgb, var(--primary) 14%, var(--card));
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--border));
 }
 
 .executive-premium-icon svg { width: 21px; height: 21px; }
@@ -69,8 +62,9 @@
 .executive-premium-chip {
   padding: 6px 10px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--premium-2) 18%, var(--card));
-  color: var(--premium-3) !important;
+  background: color-mix(in srgb, var(--primary) 10%, var(--card));
+  color: var(--primary) !important;
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
   font-weight: 750;
 }
 
@@ -80,83 +74,57 @@
   overflow-y: auto;
   padding: 0 2px 18px;
   background: transparent !important;
-  scrollbar-color: color-mix(in srgb, var(--premium-2) 58%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--muted-foreground) 34%, transparent) transparent;
 }
 
-/* Superfícies brancas modulares, como no painel de referência. */
 .executive-premium-shell .executive-readable-root header,
 .executive-premium-shell .executive-readable-root article,
 .executive-premium-shell .executive-readable-root .card-surface {
   position: relative;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--premium-1) 10%, var(--border)) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 10px !important;
-  background: color-mix(in srgb, var(--card) 97%, white) !important;
-  box-shadow: 0 10px 24px rgba(15, 40, 78, 0.13) !important;
-}
-
-.executive-premium-shell .executive-readable-root header::before,
-.executive-premium-shell .executive-readable-root article::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--premium-2), var(--premium-1), var(--premium-3));
-  opacity: 0.9;
-  pointer-events: none;
+  background: var(--card) !important;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--foreground) 6%, transparent) !important;
 }
 
 .executive-premium-shell .executive-readable-root article {
-  padding: 13px !important;
-  transition: transform 150ms ease, box-shadow 150ms ease;
+  padding: 14px !important;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .executive-premium-shell .executive-readable-root article:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 14px 30px rgba(15, 40, 78, 0.17) !important;
+  border-color: color-mix(in srgb, var(--primary) 20%, var(--border)) !important;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--foreground) 8%, transparent) !important;
 }
 
-/* Cabeçalho e filtros. */
 .executive-premium-shell .executive-readable-root h1 {
   font-size: 22px !important;
   line-height: 1.1 !important;
   letter-spacing: -0.03em;
-  color: color-mix(in srgb, var(--premium-3) 78%, var(--foreground)) !important;
+  color: var(--foreground) !important;
 }
 
 .executive-premium-shell .executive-readable-root article h2 {
   font-size: 13px !important;
   line-height: 1.25rem !important;
-  color: color-mix(in srgb, var(--premium-3) 74%, var(--foreground)) !important;
+  color: var(--foreground) !important;
 }
 
 .executive-premium-shell .executive-readable-root button,
 .executive-premium-shell .executive-readable-root input,
 .executive-premium-shell .executive-readable-root select {
   border-radius: 8px !important;
-  border-color: color-mix(in srgb, var(--premium-1) 14%, var(--border)) !important;
+  border-color: var(--border) !important;
 }
 
 .executive-premium-shell .executive-readable-root button:hover {
-  background: color-mix(in srgb, var(--premium-2) 12%, var(--card)) !important;
+  background: color-mix(in srgb, var(--primary) 8%, var(--card)) !important;
 }
 
-/* KPIs: números grandes e faixas discretas de cor. */
 .executive-premium-shell .executive-readable-root section.grid.grid-cols-2 > article {
   min-height: 76px;
   padding: 12px 13px 10px !important;
-}
-
-.executive-premium-shell .executive-readable-root section.grid.grid-cols-2 > article::after {
-  content: "";
-  position: absolute;
-  right: -20px;
-  bottom: -28px;
-  width: 72px;
-  height: 72px;
-  border-radius: 999px;
-  background: radial-gradient(circle, color-mix(in srgb, var(--premium-2) 34%, transparent), transparent 68%);
-  pointer-events: none;
 }
 
 .executive-premium-shell .executive-readable-root section.grid.grid-cols-2 article span.text-\[7px\] {
@@ -168,44 +136,32 @@
 .executive-premium-shell .executive-readable-root section.grid.grid-cols-2 article strong.text-\[11px\] {
   font-size: 18px !important;
   line-height: 1.15 !important;
-  color: color-mix(in srgb, var(--premium-3) 74%, var(--foreground)) !important;
+  color: var(--foreground) !important;
 }
 
-/* Eixos, grade e tooltips. */
 .executive-premium-shell .recharts-cartesian-grid line {
-  stroke: color-mix(in srgb, var(--premium-1) 11%, var(--border));
+  stroke: color-mix(in srgb, var(--border) 82%, transparent);
   stroke-dasharray: 2 5;
 }
 
 .executive-premium-shell .recharts-cartesian-axis-tick-value {
   font-size: 11px !important;
   font-weight: 600 !important;
-  fill: color-mix(in srgb, var(--premium-3) 58%, var(--muted-foreground)) !important;
+  fill: var(--muted-foreground) !important;
 }
 
 .executive-premium-shell .recharts-tooltip-wrapper > div {
-  border: 1px solid color-mix(in srgb, var(--premium-1) 16%, var(--border)) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 9px !important;
-  background: color-mix(in srgb, var(--card) 97%, transparent) !important;
-  box-shadow: 0 14px 28px rgba(14, 37, 72, 0.18) !important;
-  backdrop-filter: blur(12px);
+  background: var(--card) !important;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--foreground) 10%, transparent) !important;
 }
 
 .executive-premium-shell .recharts-bar-rectangle path {
   rx: 5px;
   ry: 5px;
-  filter: drop-shadow(0 3px 3px rgba(28, 70, 128, 0.13));
 }
 
-.executive-premium-shell .recharts-line-curve {
-  filter: drop-shadow(0 3px 4px color-mix(in srgb, var(--premium-1) 22%, transparent));
-}
-
-.executive-premium-shell .recharts-pie-sector path {
-  filter: drop-shadow(0 4px 5px rgba(20, 56, 103, 0.15));
-}
-
-/* Paleta derivada da cor do sistema. */
 .executive-premium-shell [fill="#2563EB"],
 .executive-premium-shell [fill="#2563eb"] { fill: var(--premium-1) !important; }
 .executive-premium-shell [stroke="#2563EB"],
@@ -235,24 +191,15 @@
 .executive-premium-shell [stroke="#ea580c"] { stroke: var(--premium-4) !important; }
 
 .executive-premium-shell [fill="#0891B2"],
-.executive-premium-shell [fill="#0891b2"] { fill: color-mix(in srgb, var(--premium-1) 46%, var(--premium-2)) !important; }
+.executive-premium-shell [fill="#0891b2"] { fill: color-mix(in srgb, var(--premium-1) 52%, var(--premium-2)) !important; }
 .executive-premium-shell [stroke="#0891B2"],
-.executive-premium-shell [stroke="#0891b2"] { stroke: color-mix(in srgb, var(--premium-1) 46%, var(--premium-2)) !important; }
+.executive-premium-shell [stroke="#0891b2"] { stroke: color-mix(in srgb, var(--premium-1) 52%, var(--premium-2)) !important; }
 
 .executive-premium-shell [fill="#4B5563"],
-.executive-premium-shell [fill="#4b5563"] { fill: color-mix(in srgb, var(--premium-3) 52%, var(--muted-foreground)) !important; }
+.executive-premium-shell [fill="#4b5563"] { fill: var(--muted-foreground) !important; }
 .executive-premium-shell [stroke="#4B5563"],
-.executive-premium-shell [stroke="#4b5563"] { stroke: color-mix(in srgb, var(--premium-3) 52%, var(--muted-foreground)) !important; }
+.executive-premium-shell [stroke="#4b5563"] { stroke: var(--muted-foreground) !important; }
 
-/* Legendas sincronizadas com a paleta dos gráficos. */
-.executive-premium-shell [style*="37, 99, 235"] { background-color: var(--premium-1) !important; }
-.executive-premium-shell [style*="225, 29, 72"] { background-color: var(--premium-alert) !important; }
-.executive-premium-shell [style*="245, 158, 11"] { background-color: var(--premium-2) !important; }
-.executive-premium-shell [style*="5, 150, 105"] { background-color: var(--premium-5) !important; }
-.executive-premium-shell [style*="124, 58, 237"] { background-color: var(--premium-3) !important; }
-.executive-premium-shell [style*="234, 88, 12"] { background-color: var(--premium-4) !important; }
-
-/* Roscas como infográficos: gráfico limpo e legenda abaixo. */
 .executive-premium-shell .recharts-pie-labels,
 .executive-premium-shell .recharts-pie-label-line {
   display: none !important;
@@ -267,10 +214,9 @@
   padding-top: 6px;
   font-size: 10px !important;
   line-height: 1.2rem !important;
-  color: color-mix(in srgb, var(--premium-3) 62%, var(--muted-foreground)) !important;
+  color: var(--muted-foreground) !important;
 }
 
-/* Oculta somente o resumo narrativo inferior repetido nesta prévia. */
 .executive-premium-shell article > .grid.border-t.border-border.pt-1\.5 {
   display: none !important;
 }
