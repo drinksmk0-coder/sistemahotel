@@ -84,7 +84,7 @@ export function ExecutiveBiDashboardReadable() {
   }, []);
 
   return (
-    <div ref={rootRef} className="executive-readable-root h-full min-h-0 overflow-y-auto">
+    <div ref={rootRef} className="executive-readable-root h-full min-h-0 overflow-hidden" data-executive-dashboard>
       <ExecutiveBiDashboard />
       {host && createPortal(
         <TemporalFinancialPanel companyId={company.data?.id} range={range} />,
@@ -126,9 +126,9 @@ function TemporalFinancialPanel({ companyId, range }: { companyId?: string; rang
 
   return (
     <div className="p-2.5">
-      <div className="mb-2 flex min-h-7 items-start justify-between gap-3">
-        <h2 className="text-sm font-extrabold text-foreground">1. O resultado melhorou ou piorou?</h2>
-        <span className="max-w-[48%] truncate rounded-full bg-primary/8 px-2.5 py-1 text-[10px] font-semibold text-primary" title={insight}>{insight}</span>
+      <div className="mb-2 flex min-h-7 items-start justify-between gap-3 border-b border-border/70 pb-1.5">
+        <h2 className="text-sm font-extrabold text-pine-dark">1. O resultado melhorou ou piorou?</h2>
+        <span className="max-w-[48%] truncate rounded-full border border-primary/15 bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary" title={insight}>{insight}</span>
       </div>
       <div className="mb-2 flex flex-wrap gap-4 px-1 text-[11px] font-semibold">
         <Legend color={COLORS.receita} label="Receita" />
@@ -140,17 +140,19 @@ function TemporalFinancialPanel({ companyId, range }: { companyId?: string; rang
       ) : query.error ? (
         <div className="grid h-[210px] place-items-center text-sm text-destructive">Não foi possível carregar a evolução temporal.</div>
       ) : (
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={rows} margin={{ left: 4, right: 18, top: 12, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="period" tick={{ fontSize: 11, fontWeight: 600 }} minTickGap={18} />
-            <YAxis width={72} tick={{ fontSize: 10, fontWeight: 600 }} tickFormatter={compactCurrency} />
-            <Tooltip labelStyle={{ fontWeight: 700 }} formatter={(value: number) => fmtBRL(value)} />
-            <Line type="monotone" dataKey="receita" name="Receita" stroke={COLORS.receita} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-            <Line type="monotone" dataKey="despesas" name="Despesas" stroke={COLORS.despesas} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-            <Line type="monotone" dataKey="gop" name="GOP" stroke={COLORS.gop} strokeWidth={3} strokeDasharray="7 4" dot={{ r: 4 }} activeDot={{ r: 6 }} />
-          </LineChart>
-        </ResponsiveContainer>
+        <div className="executive-chart">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={rows} margin={{ left: 4, right: 18, top: 8, bottom: 2 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="period" tick={{ fontSize: 10, fontWeight: 600 }} minTickGap={18} />
+              <YAxis width={68} tick={{ fontSize: 9, fontWeight: 600 }} tickFormatter={compactCurrency} />
+              <Tooltip labelStyle={{ fontWeight: 700 }} formatter={(value: number) => fmtBRL(value)} />
+              <Line type="monotone" dataKey="receita" name="Receita" stroke={COLORS.receita} strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="despesas" name="Despesas" stroke={COLORS.despesas} strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              <Line type="monotone" dataKey="gop" name="GOP" stroke={COLORS.gop} strokeWidth={3} strokeDasharray="7 4" dot={{ r: 3 }} activeDot={{ r: 5 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
       )}
     </div>
   );
