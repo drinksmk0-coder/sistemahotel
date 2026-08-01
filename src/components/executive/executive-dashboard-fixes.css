@@ -65,15 +65,15 @@ article > div > .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
   font-weight: 700;
 }
 
-/* Aumenta somente os rótulos externos das roscas. */
+/* Rótulos externos das roscas no meio-termo da referência aprovada. */
 .executive-readable-root .recharts-pie-label-text,
 .executive-readable-root .recharts-pie-labels text {
-  font-size: 14px !important;
-  font-weight: 700 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
 }
 
 .executive-readable-root .recharts-pie-label-line {
-  stroke-width: 1.4px !important;
+  stroke-width: 1.25px !important;
 }
 
 /* Tooltips maiores, sem alterar o gráfico. */
