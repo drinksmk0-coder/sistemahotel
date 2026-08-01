@@ -39,7 +39,7 @@ function Windows11DashboardPreview() {
             <span className="win11-app-icon"><BarChart3 /></span>
             <div>
               <strong>HospedaMais</strong>
-              <span>Painel Executivo BI — prévia Fluent</span>
+              <span>Painel Executivo BI — Fluent + Power BI</span>
             </div>
           </div>
           <div className="win11-window-controls" aria-hidden="true">
@@ -65,10 +65,10 @@ function Windows11DashboardPreview() {
           <main className="win11-content">
             <div className="windows11-preview-banner">
               <div>
-                <strong>Prévia visual — Fluent Design do Windows 11</strong>
-                <span>Mesmos dados, textos e gráficos do painel oficial.</span>
+                <strong>Prévia híbrida de gestão</strong>
+                <span>Leitura limpa, comparação rápida e gráfico financeiro temporal.</span>
               </div>
-              <span className="win11-preview-chip">Demonstração isolada</span>
+              <span className="win11-preview-chip">Painel oficial preservado</span>
             </div>
             <ExecutiveBiDashboardReadable />
           </main>
