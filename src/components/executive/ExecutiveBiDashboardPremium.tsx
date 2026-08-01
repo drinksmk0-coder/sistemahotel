@@ -1,6 +1,7 @@
 import { BarChart3 } from "lucide-react";
 import { ExecutiveBiDashboardReadable } from "@/components/executive/ExecutiveBiDashboardReadable";
 import "@/components/executive/executive-dashboard-premium.css";
+import "@/components/executive/executive-dashboard-premium-clean.css";
 
 export function ExecutiveBiDashboardPremium() {
   return (
