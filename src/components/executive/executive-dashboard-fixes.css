@@ -1,160 +1,93 @@
-/* Correções visuais específicas do painel executivo. */
-
-/* No menu recolhido, mantém somente a marca principal e remove a segunda miniatura do hotel. */
+/* Ajustes exclusivos do Pulso do Hotel. */
 aside.app-sidebar img[title][alt] {
   display: none !important;
 }
 
-/* O resumo do gráfico já aparece no cabeçalho, no canto superior direito. */
-.executive-readable-root article > .grid.border-t.border-border.pt-1\.5 {
-  display: none !important;
-}
-
-/* Remove repetições abaixo das roscas: os rótulos externos já informam nome e percentual. */
-.executive-readable-root article > div > .flex.flex-wrap.justify-center.text-muted-foreground,
-.executive-readable-root article > div > .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
-  display: none !important;
-}
-
-/* Substitui somente o conteúdo do primeiro card pelo gráfico temporal real. */
 .executive-temporal-replaced > *:not(.executive-temporal-host) {
   display: none !important;
 }
 
-.executive-temporal-host {
-  min-height: 0;
-}
-
-/* Encaixa o painel executivo no viewport sem criar rolagem vertical. */
 .executive-readable-root {
-  height: 100%;
   min-height: 0;
-  overflow: hidden !important;
-  isolation: isolate;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   background:
-    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 28%),
-    linear-gradient(180deg, color-mix(in srgb, var(--background) 96%, white), var(--background));
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 28%),
+    var(--background);
 }
 
 .executive-readable-root:fullscreen,
 .executive-readable-root:has(> div:fullscreen) {
   height: 100vh;
   max-height: 100vh;
-  overflow: hidden !important;
+  overflow-y: auto !important;
 }
 
+/* Altura natural: cada análise ocupa somente o espaço necessário. */
 .executive-dashboard-grid {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: block !important;
+  height: auto !important;
 }
 
 .executive-dashboard-grid > section:last-child {
-  min-height: 0;
-  align-content: stretch;
+  height: auto !important;
+  grid-template-rows: none !important;
+  align-items: start;
 }
 
 .executive-dashboard-grid > section:last-child > article {
+  height: auto !important;
   min-height: 0;
 }
 
-.executive-chart {
-  height: clamp(76px, 9.5vh, 132px);
-  min-height: 0;
-}
-
-@media (min-width: 768px) {
-  .executive-dashboard-grid > section:last-child {
-    height: 100%;
-    grid-template-rows: repeat(4, minmax(0, 1fr));
-  }
-}
-
-/* Superfícies modernas e leves, mantendo a identidade do sistema. */
 .executive-readable-root header,
 .executive-readable-root article {
-  border-color: color-mix(in srgb, var(--border) 74%, transparent) !important;
-  background: color-mix(in srgb, var(--card) 92%, transparent) !important;
+  border-color: color-mix(in srgb, var(--border) 78%, transparent) !important;
+  background: color-mix(in srgb, var(--card) 97%, transparent) !important;
   box-shadow:
     0 1px 2px rgb(15 23 42 / 0.04),
-    0 10px 28px rgb(15 23 42 / 0.055) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+    0 8px 24px rgb(15 23 42 / 0.045) !important;
 }
 
 .executive-readable-root article {
   position: relative;
-  overflow: hidden;
-  border-radius: 0.9rem !important;
-  transition:
-    transform 180ms ease,
-    box-shadow 180ms ease,
-    border-color 180ms ease;
+  border-radius: 0.85rem !important;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .executive-readable-root article::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: linear-gradient(180deg, var(--primary), color-mix(in srgb, var(--primary) 18%, transparent));
-  opacity: 0.55;
-  pointer-events: none;
+  display: none !important;
 }
 
 @media (hover: hover) {
   .executive-readable-root article:hover {
-    transform: translateY(-1px);
-    border-color: color-mix(in srgb, var(--primary) 20%, var(--border)) !important;
+    border-color: color-mix(in srgb, var(--primary) 18%, var(--border)) !important;
     box-shadow:
-      0 2px 4px rgb(15 23 42 / 0.05),
-      0 16px 34px rgb(15 23 42 / 0.08) !important;
+      0 2px 4px rgb(15 23 42 / 0.045),
+      0 12px 28px rgb(15 23 42 / 0.065) !important;
   }
 }
 
-/* KPI cards: maior clareza de leitura e aspecto premium sem aumentar o tamanho. */
 .executive-readable-root section.grid.grid-cols-2 article {
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--card) 97%, white), color-mix(in srgb, var(--card) 94%, var(--primary) 2%)) !important;
+  background: linear-gradient(145deg, var(--card), color-mix(in srgb, var(--card) 96%, var(--primary) 4%)) !important;
 }
 
-.executive-readable-root section.grid.grid-cols-2 article strong {
-  letter-spacing: -0.025em;
-}
-
-.executive-readable-root section.grid.grid-cols-2 article svg {
-  filter: drop-shadow(0 4px 8px color-mix(in srgb, var(--primary) 20%, transparent));
-}
-
-/* Cabeçalhos e chips com hierarquia visual mais atual. */
 .executive-readable-root article h2 {
   font-size: 0.875rem !important;
-  line-height: 1.25rem !important;
-  letter-spacing: -0.015em;
+  line-height: 1.2rem !important;
+  letter-spacing: -0.012em;
 }
 
-.executive-readable-root article > div:first-child > span,
-.executive-readable-root .executive-temporal-host span.rounded-full {
-  border-color: color-mix(in srgb, var(--primary) 18%, transparent) !important;
-  background: color-mix(in srgb, var(--primary) 9%, transparent) !important;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45);
+/* Chips podem usar mais largura sem encobrir o título. */
+.executive-bi-card > div:first-child > span {
+  max-width: 52% !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.executive-readable-root article > div:first-child > span {
-  font-size: 0.6875rem !important;
-  line-height: 0.95rem !important;
-}
-
-.executive-readable-root section.grid.grid-cols-2 article span.text-\[7px\] {
-  font-size: 0.625rem !important;
-  line-height: 0.875rem !important;
-}
-
-.executive-readable-root section.grid.grid-cols-2 article strong.text-\[11px\] {
-  font-size: 0.875rem !important;
-  line-height: 1.125rem !important;
-}
-
-/* Gráficos: menos ruído, linhas mais elegantes e barras com acabamento atual. */
+/* Gráficos editoriais: grades leves, eixos legíveis e barras suaves. */
 .executive-readable-root .recharts-cartesian-grid-horizontal line,
 .executive-readable-root .recharts-cartesian-grid-vertical line {
   stroke: color-mix(in srgb, var(--border) 58%, transparent) !important;
@@ -163,26 +96,19 @@ aside.app-sidebar img[title][alt] {
 
 .executive-readable-root .recharts-cartesian-axis-line,
 .executive-readable-root .recharts-cartesian-axis-tick-line {
-  stroke: color-mix(in srgb, var(--border) 42%, transparent) !important;
+  stroke: color-mix(in srgb, var(--border) 46%, transparent) !important;
 }
 
 .executive-readable-root .recharts-cartesian-axis-tick-value,
-.executive-readable-root .recharts-pie-label-text,
 .executive-readable-root .recharts-text {
-  fill: color-mix(in srgb, var(--foreground) 68%, transparent) !important;
-  font-size: 11px !important;
+  fill: color-mix(in srgb, var(--foreground) 72%, transparent) !important;
+  font-size: 10px !important;
   font-weight: 650;
 }
 
-.executive-readable-root .recharts-line-curve,
-.executive-readable-root .recharts-sector,
 .executive-readable-root .recharts-rectangle {
-  filter: drop-shadow(0 5px 8px rgb(15 23 42 / 0.08));
-}
-
-.executive-readable-root .recharts-rectangle {
-  rx: 6px;
-  ry: 6px;
+  rx: 7px;
+  ry: 7px;
 }
 
 .executive-readable-root .recharts-line-dot circle,
@@ -191,42 +117,21 @@ aside.app-sidebar img[title][alt] {
   stroke: var(--card) !important;
 }
 
-.executive-readable-root .recharts-pie-label-line {
-  stroke-width: 1.15px !important;
-  stroke: color-mix(in srgb, var(--muted-foreground) 56%, transparent) !important;
-}
-
-/* Tooltip editorial: compacto, legível e consistente em todos os gráficos. */
 .executive-readable-root .recharts-tooltip-wrapper {
-  z-index: 20;
-  font-size: 13px !important;
-  line-height: 1.2rem !important;
-  filter: drop-shadow(0 16px 28px rgb(15 23 42 / 0.16));
+  z-index: 30;
+  font-size: 12px !important;
+  filter: drop-shadow(0 14px 24px rgb(15 23 42 / 0.15));
 }
 
 .executive-readable-root .recharts-default-tooltip {
   border: 1px solid color-mix(in srgb, var(--border) 74%, transparent) !important;
-  border-radius: 12px !important;
-  background: color-mix(in srgb, var(--card) 94%, transparent) !important;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55);
-  backdrop-filter: blur(14px);
+  border-radius: 10px !important;
+  background: color-mix(in srgb, var(--card) 96%, transparent) !important;
 }
 
-.executive-readable-root .recharts-tooltip-label {
-  margin-bottom: 0.25rem !important;
-  font-weight: 800 !important;
-  color: var(--foreground) !important;
-}
-
-/* Campos de período e botões rápidos com aparência de controle analítico moderno. */
 .executive-readable-root input[type="date"],
 .executive-readable-root header button {
   border-radius: 0.65rem !important;
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease;
 }
 
 .executive-readable-root input[type="date"]:focus,
@@ -236,23 +141,7 @@ aside.app-sidebar img[title][alt] {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 13%, transparent) !important;
 }
 
-@media (hover: hover) {
-  .executive-readable-root header button:hover {
-    transform: translateY(-1px);
-    background: color-mix(in srgb, var(--primary) 8%, var(--card)) !important;
-  }
-}
-
-/* Acessibilidade: remove animações quando o usuário prefere menos movimento. */
-@media (prefers-reduced-motion: reduce) {
-  .executive-readable-root article,
-  .executive-readable-root header button,
-  .executive-readable-root input[type="date"] {
-    transition: none !important;
-  }
-}
-
-/* Mantém o HotelAI no canto inferior direito, sem cobrir gráficos ou ações. */
+/* O assistente não deve cobrir chips ou gráficos. */
 @media (min-width: 640px) {
   body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
   body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
@@ -264,9 +153,30 @@ aside.app-sidebar img[title][alt] {
 }
 
 @media (max-width: 639px) {
+  .executive-readable-root {
+    overflow-x: hidden !important;
+  }
+
+  .executive-bi-card > div:first-child {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .executive-bi-card > div:first-child > span {
+    max-width: 100% !important;
+  }
+
   body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
   body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
     right: 0.75rem !important;
     bottom: 5.5rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .executive-readable-root article,
+  .executive-readable-root header button,
+  .executive-readable-root input[type="date"] {
+    transition: none !important;
   }
 }
