@@ -14,6 +14,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { useInspectorGuard } from "@/hooks/use-inspector-guard";
+import { CompanyThemeSync } from "@/components/CompanyThemeSync";
+import { AppUpdateWatcher } from "@/components/AppUpdateWatcher";
 
 function NotFoundComponent() {
   return (
@@ -105,10 +107,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/7cdf396a-8e93-4ff7-8a32-d0bdfe4742f6" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { rel: "stylesheet", href: appCss },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/hotel-real-logo.png" },
@@ -150,6 +149,8 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <CompanyThemeSync />
+      <AppUpdateWatcher />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
       <Toaster richColors position="top-center" />
