@@ -24,20 +24,44 @@ export const Route = createFileRoute("/_authenticated/avaliacoes")({
   component: Avaliacoes,
 });
 
+type DetailedFeedback = Feedback & {
+  nota_cama: number | null;
+  nota_banheiro: number | null;
+  nota_silencio: number | null;
+  nota_ventilacao: number | null;
+  nota_espaco: number | null;
+  nota_tv: number | null;
+  nota_frigobar: number | null;
+  nota_iluminacao: number | null;
+  nota_custo_beneficio: number | null;
+  voltaria_quarto: boolean | null;
+  preferencia_principal: string | null;
+  problema_principal: string | null;
+};
+
 const CRITERIA = [
   { key: "nota_geral", label: "Geral" },
-  { key: "nota_atendimento", label: "Funcionários" },
-  { key: "nota_chuveiro", label: "Comodidades" },
   { key: "nota_limpeza", label: "Limpeza" },
-  { key: "nota_conforto", label: "Conforto" },
-  { key: "nota_wifi", label: "Wi-Fi gratuito" },
+  { key: "nota_cama", label: "Cama e conforto" },
+  { key: "nota_banheiro", label: "Banheiro" },
+  { key: "nota_chuveiro", label: "Chuveiro e água quente" },
+  { key: "nota_silencio", label: "Silêncio e barulho" },
+  { key: "nota_ventilacao", label: "Ventilação e temperatura" },
+  { key: "nota_espaco", label: "Espaço do quarto" },
+  { key: "nota_tv", label: "TV" },
+  { key: "nota_frigobar", label: "Frigobar" },
+  { key: "nota_wifi", label: "Wi-Fi" },
+  { key: "nota_iluminacao", label: "Iluminação" },
+  { key: "nota_custo_beneficio", label: "Custo-benefício" },
+  { key: "nota_atendimento", label: "Atendimento" },
 ] as const;
 
 function Avaliacoes() {
-  const { data: feedbacks = [] } = useFeedbacks();
+  const { data: rawFeedbacks = [] } = useFeedbacks();
+  const feedbacks = rawFeedbacks as DetailedFeedback[];
   const updateFb = useUpdate("feedbacks", ["feedbacks"]);
   const deleteFb = useDelete("feedbacks", ["feedbacks"]);
-  const [editing, setEditing] = useState<Feedback | null>(null);
+  const [editing, setEditing] = useState<DetailedFeedback | null>(null);
   const [quartoFiltro, setQuartoFiltro] = useState<string>("");
 
   const quartos = useMemo(
@@ -60,6 +84,16 @@ function Avaliacoes() {
       return { ...c, avg, count: vals.length };
     });
   }, [filtrados]);
+  const neutralTrends = useMemo(
+    () =>
+      CRITERIA.map((criterion) => ({
+        ...criterion,
+        count: filtrados.filter((feedback) => feedback[criterion.key] === 3).length,
+      }))
+        .filter((criterion) => criterion.count >= 2)
+        .sort((a, b) => b.count - a.count),
+    [filtrados],
+  );
 
   const recomendam = filtrados.filter((f) => f.recomendaria);
   const nps = filtrados.length ? Math.round((recomendam.length / filtrados.length) * 100) : 0;
@@ -95,18 +129,35 @@ function Avaliacoes() {
         : filtrados;
     const suffix = scope.mode === "date" ? scope.date : "historico-completo";
     downloadExcel(`avaliacoes-${suffix}.xls`, [
-      ["Data", "Hóspede", "Quarto", "Geral", "Limpeza", "Conforto", "Atendimento", "WiFi", "Chuveiro", "Recomenda", "Comentário", "Sugestão"],
+      [
+        "Data", "Hóspede", "Quarto", "Geral", "Limpeza", "Cama e conforto",
+        "Banheiro", "Chuveiro", "Silêncio/barulho", "Ventilação", "Espaço", "TV",
+        "Frigobar", "Wi-Fi", "Iluminação", "Custo-benefício", "Atendimento",
+        "Voltaria ao quarto", "Recomenda", "Preferência", "Problema principal",
+        "Comentário", "Sugestão",
+      ],
       ...exportedFeedbacks.map((f) => [
         f.created_at.slice(0, 10),
         f.hospede_nome,
         f.quarto,
         f.nota_geral,
         f.nota_limpeza,
-        f.nota_conforto,
-        f.nota_atendimento,
-        f.nota_wifi,
+        f.nota_cama,
+        f.nota_banheiro,
         f.nota_chuveiro,
+        f.nota_silencio,
+        f.nota_ventilacao,
+        f.nota_espaco,
+        f.nota_tv,
+        f.nota_frigobar,
+        f.nota_wifi,
+        f.nota_iluminacao,
+        f.nota_custo_beneficio,
+        f.nota_atendimento,
+        f.voltaria_quarto == null ? "" : f.voltaria_quarto ? "sim" : "não",
         f.recomendaria ? "sim" : "não",
+        f.preferencia_principal,
+        f.problema_principal,
         f.comentario,
         f.sugestao,
       ]),
@@ -156,7 +207,7 @@ function Avaliacoes() {
         </div>
       </section>
 
-      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <div className="stat-card">
           <p className="text-xs uppercase text-muted-foreground">Recomendariam</p>
           <p className="font-serif text-2xl font-bold">{nps}%</p>
@@ -171,6 +222,22 @@ function Avaliacoes() {
         ))}
       </div>
 
+      {neutralTrends.length > 0 && (
+        <section className="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <h3 className="font-serif text-base font-bold text-pine-dark">Pontos neutros recorrentes</h3>
+          <p className="text-xs text-muted-foreground">
+            Nota 3 não abre reclamação, mas aparece aqui quando se repete em duas ou mais avaliações.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {neutralTrends.map((trendItem) => (
+              <span key={trendItem.key} className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs text-slate-700">
+                {trendItem.label}: <strong>{trendItem.count} notas 3</strong>
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
       {filtrados.length > 0 && (
         <div className="mb-6 grid gap-4 lg:grid-cols-2">
           <section className="card-surface p-4">
@@ -178,29 +245,23 @@ function Avaliacoes() {
             <p className="text-xs text-muted-foreground">
               Rótulos mostram onde a experiência precisa melhorar.
             </p>
-            <div className="mt-3 h-64">
+            <div className="mt-3 h-[430px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={averages} margin={{ top: 18, right: 10, bottom: 28 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis
-                    dataKey="label"
-                    angle={-18}
-                    textAnchor="end"
-                    interval={0}
-                    height={55}
-                  />
-                  <YAxis domain={[0, 5]} />
+                <BarChart data={averages} layout="vertical" margin={{ top: 4, right: 42, bottom: 4, left: 8 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" domain={[0, 5]} />
+                  <YAxis type="category" dataKey="label" width={138} interval={0} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(value) => Number(value).toFixed(1)} />
                   <Legend />
                   <Bar
                     dataKey="avg"
                     name="Nota média (0–5)"
                     fill="var(--pine)"
-                    radius={[5, 5, 0, 0]}
+                    radius={[0, 5, 5, 0]}
                   >
                     <LabelList
                       dataKey="avg"
-                      position="top"
+                      position="right"
                       formatter={(value: number) => value.toFixed(1)}
                     />
                   </Bar>
@@ -298,6 +359,16 @@ function Avaliacoes() {
                   ⚠ Relatou problema de Wi-Fi{f.wifi_dispositivo ? ` (aparelho: ${f.wifi_dispositivo})` : ""}
                 </p>
               )}
+              <FeedbackScoreDetails feedback={f} />
+              {(f.voltaria_quarto != null || f.preferencia_principal || f.problema_principal) && (
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  {f.voltaria_quarto != null && (
+                    <span>Voltaria ao quarto: <strong>{f.voltaria_quarto ? "Sim" : "Não"}</strong></span>
+                  )}
+                  {f.preferencia_principal && <span>Mais valoriza: <strong>{f.preferencia_principal}</strong></span>}
+                  {f.problema_principal && <span>Problema principal: <strong>{f.problema_principal}</strong></span>}
+                </div>
+              )}
               {f.comentario && <p className="mt-2 text-sm">{f.comentario}</p>}
               {f.sugestao && (
                 <p className="mt-2 rounded-lg bg-sage-bg/50 px-3 py-2 text-sm text-pine-dark">
@@ -332,14 +403,14 @@ function EditFeedbackModal({
   onClose,
   onSave,
 }: {
-  feedback: Feedback;
+  feedback: DetailedFeedback;
   saving: boolean;
   onClose: () => void;
-  onSave: (patch: Partial<Feedback>) => void;
+  onSave: (patch: Partial<DetailedFeedback>) => void;
 }) {
-  const [form, setForm] = useState<Feedback>(feedback);
+  const [form, setForm] = useState<DetailedFeedback>(feedback);
 
-  function set<K extends keyof Feedback>(key: K, value: Feedback[K]) {
+  function set<K extends keyof DetailedFeedback>(key: K, value: DetailedFeedback[K]) {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
@@ -354,10 +425,18 @@ function EditFeedbackModal({
       quarto: form.quarto,
       nota_geral: form.nota_geral,
       nota_limpeza: form.nota_limpeza,
-      nota_conforto: form.nota_conforto,
-      nota_atendimento: form.nota_atendimento,
-      nota_wifi: form.nota_wifi,
+      nota_cama: form.nota_cama,
+      nota_banheiro: form.nota_banheiro,
       nota_chuveiro: form.nota_chuveiro,
+      nota_silencio: form.nota_silencio,
+      nota_ventilacao: form.nota_ventilacao,
+      nota_espaco: form.nota_espaco,
+      nota_tv: form.nota_tv,
+      nota_frigobar: form.nota_frigobar,
+      nota_wifi: form.nota_wifi,
+      nota_iluminacao: form.nota_iluminacao,
+      nota_custo_beneficio: form.nota_custo_beneficio,
+      nota_atendimento: form.nota_atendimento,
       recomendaria: form.recomendaria,
       comentario: form.comentario,
       sugestao: form.sugestao,
@@ -440,5 +519,25 @@ function EditFeedbackModal({
         </div>
       </form>
     </Modal>
+  );
+}
+
+function FeedbackScoreDetails({ feedback }: { feedback: DetailedFeedback }) {
+  const scores = CRITERIA.filter((criterion) => feedback[criterion.key] != null);
+  if (scores.length === 0) return null;
+
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-5">
+      {scores.map((criterion) => {
+        const score = Number(feedback[criterion.key]);
+        const tone = score === 1 ? "border-red-200 bg-red-50 text-red-800" : score === 2 ? "border-orange-200 bg-orange-50 text-orange-800" : score === 3 ? "border-slate-200 bg-slate-50 text-slate-700" : "border-emerald-200 bg-emerald-50 text-emerald-800";
+        return (
+          <div key={criterion.key} className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-xs ${tone}`}>
+            <span className="truncate" title={criterion.label}>{criterion.label}</span>
+            <strong>{score}/5</strong>
+          </div>
+        );
+      })}
+    </div>
   );
 }
