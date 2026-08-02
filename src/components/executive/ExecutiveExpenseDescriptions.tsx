@@ -179,8 +179,7 @@ function DescriptionCard({ rows, loading, error }: { rows: DescriptionRow[]; loa
           ))}
         </div>
       )}
-    </div>,
-    host,
+    </div>
   );
 }
 
