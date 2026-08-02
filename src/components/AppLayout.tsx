@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSession, useRole, useProfile, type AppRole } from "@/hooks/use-auth";
 import { setCurrentCompanyId, useCurrentCompany } from "@/lib/data";
 import { useQueryClient } from "@tanstack/react-query";
+import { AlertCenter } from "@/components/AlertCenter";
 
 const TABS = [
   { to: "/painel", label: "Painel", icon: BarChart3, roles: ["dono", "recepcao", "limpeza", "cafe"] },
@@ -193,7 +194,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
       )}
 
       <main className="min-w-0 px-3 pb-24 pt-16 sm:px-4 md:px-5 xl:ml-60 xl:px-5 xl:pb-6 xl:pt-5">
-        <div className="mx-auto w-full max-w-[1800px]">{children}</div>
+        <div className="mx-auto w-full max-w-[1800px]">
+          {role === "dono" && <AlertCenter showDashboardCard={path === "/painel"} />}
+          {children}
+        </div>
       </main>
 
       {mobileTabs.length > 0 && (
