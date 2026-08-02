@@ -30,6 +30,10 @@ aside.app-sidebar img[title][alt] {
   height: 100%;
   min-height: 0;
   overflow: hidden !important;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in srgb, var(--background) 96%, white), var(--background));
 }
 
 .executive-readable-root:fullscreen,
@@ -65,10 +69,74 @@ aside.app-sidebar img[title][alt] {
   }
 }
 
-/* Amplia somente textos, rótulos e números; não altera dimensões ou posições dos gráficos. */
+/* Superfícies modernas e leves, mantendo a identidade do sistema. */
+.executive-readable-root header,
+.executive-readable-root article {
+  border-color: color-mix(in srgb, var(--border) 74%, transparent) !important;
+  background: color-mix(in srgb, var(--card) 92%, transparent) !important;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.04),
+    0 10px 28px rgb(15 23 42 / 0.055) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.executive-readable-root article {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.9rem !important;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.executive-readable-root article::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--primary), color-mix(in srgb, var(--primary) 18%, transparent));
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .executive-readable-root article:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--primary) 20%, var(--border)) !important;
+    box-shadow:
+      0 2px 4px rgb(15 23 42 / 0.05),
+      0 16px 34px rgb(15 23 42 / 0.08) !important;
+  }
+}
+
+/* KPI cards: maior clareza de leitura e aspecto premium sem aumentar o tamanho. */
+.executive-readable-root section.grid.grid-cols-2 article {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--card) 97%, white), color-mix(in srgb, var(--card) 94%, var(--primary) 2%)) !important;
+}
+
+.executive-readable-root section.grid.grid-cols-2 article strong {
+  letter-spacing: -0.025em;
+}
+
+.executive-readable-root section.grid.grid-cols-2 article svg {
+  filter: drop-shadow(0 4px 8px color-mix(in srgb, var(--primary) 20%, transparent));
+}
+
+/* Cabeçalhos e chips com hierarquia visual mais atual. */
 .executive-readable-root article h2 {
   font-size: 0.875rem !important;
   line-height: 1.25rem !important;
+  letter-spacing: -0.015em;
+}
+
+.executive-readable-root article > div:first-child > span,
+.executive-readable-root .executive-temporal-host span.rounded-full {
+  border-color: color-mix(in srgb, var(--primary) 18%, transparent) !important;
+  background: color-mix(in srgb, var(--primary) 9%, transparent) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.45);
 }
 
 .executive-readable-root article > div:first-child > span {
@@ -86,23 +154,102 @@ aside.app-sidebar img[title][alt] {
   line-height: 1.125rem !important;
 }
 
-/* Rótulos externos das roscas, eixos e textos dos gráficos. */
+/* Gráficos: menos ruído, linhas mais elegantes e barras com acabamento atual. */
+.executive-readable-root .recharts-cartesian-grid-horizontal line,
+.executive-readable-root .recharts-cartesian-grid-vertical line {
+  stroke: color-mix(in srgb, var(--border) 58%, transparent) !important;
+  stroke-dasharray: 2 5;
+}
+
+.executive-readable-root .recharts-cartesian-axis-line,
+.executive-readable-root .recharts-cartesian-axis-tick-line {
+  stroke: color-mix(in srgb, var(--border) 42%, transparent) !important;
+}
+
 .executive-readable-root .recharts-cartesian-axis-tick-value,
 .executive-readable-root .recharts-pie-label-text,
 .executive-readable-root .recharts-text {
-  font-size: 12px !important;
-  font-weight: 700;
+  fill: color-mix(in srgb, var(--foreground) 68%, transparent) !important;
+  font-size: 11px !important;
+  font-weight: 650;
 }
 
-/* Linhas de ligação das roscas um pouco mais visíveis. */
+.executive-readable-root .recharts-line-curve,
+.executive-readable-root .recharts-sector,
+.executive-readable-root .recharts-rectangle {
+  filter: drop-shadow(0 5px 8px rgb(15 23 42 / 0.08));
+}
+
+.executive-readable-root .recharts-rectangle {
+  rx: 6px;
+  ry: 6px;
+}
+
+.executive-readable-root .recharts-line-dot circle,
+.executive-readable-root .recharts-active-dot circle {
+  stroke-width: 2px !important;
+  stroke: var(--card) !important;
+}
+
 .executive-readable-root .recharts-pie-label-line {
-  stroke-width: 1.25px !important;
+  stroke-width: 1.15px !important;
+  stroke: color-mix(in srgb, var(--muted-foreground) 56%, transparent) !important;
 }
 
-/* Tooltips maiores, sem alterar o gráfico. */
+/* Tooltip editorial: compacto, legível e consistente em todos os gráficos. */
 .executive-readable-root .recharts-tooltip-wrapper {
-  font-size: 14px !important;
-  line-height: 1.25rem !important;
+  z-index: 20;
+  font-size: 13px !important;
+  line-height: 1.2rem !important;
+  filter: drop-shadow(0 16px 28px rgb(15 23 42 / 0.16));
+}
+
+.executive-readable-root .recharts-default-tooltip {
+  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent) !important;
+  border-radius: 12px !important;
+  background: color-mix(in srgb, var(--card) 94%, transparent) !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55);
+  backdrop-filter: blur(14px);
+}
+
+.executive-readable-root .recharts-tooltip-label {
+  margin-bottom: 0.25rem !important;
+  font-weight: 800 !important;
+  color: var(--foreground) !important;
+}
+
+/* Campos de período e botões rápidos com aparência de controle analítico moderno. */
+.executive-readable-root input[type="date"],
+.executive-readable-root header button {
+  border-radius: 0.65rem !important;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.executive-readable-root input[type="date"]:focus,
+.executive-readable-root header button:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 60%, var(--border)) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 13%, transparent) !important;
+}
+
+@media (hover: hover) {
+  .executive-readable-root header button:hover {
+    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--primary) 8%, var(--card)) !important;
+  }
+}
+
+/* Acessibilidade: remove animações quando o usuário prefere menos movimento. */
+@media (prefers-reduced-motion: reduce) {
+  .executive-readable-root article,
+  .executive-readable-root header button,
+  .executive-readable-root input[type="date"] {
+    transition: none !important;
+  }
 }
 
 /* Mantém o HotelAI no canto inferior direito, sem cobrir gráficos ou ações. */
