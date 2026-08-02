@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentCompany } from "@/lib/data";
+import { CompanyThemePicker } from "@/components/CompanyThemePicker";
 
 const DEFAULT_THEME = "#2f5d48";
 
@@ -55,5 +56,5 @@ export function CompanyThemeSync() {
     };
   }, [companyId, queryClient]);
 
-  return null;
+  return <CompanyThemePicker />;
 }
