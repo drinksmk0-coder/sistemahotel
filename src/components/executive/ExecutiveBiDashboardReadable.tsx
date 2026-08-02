@@ -2,11 +2,13 @@ import { ExecutiveCancellationImpact } from "@/components/executive/ExecutiveCan
 import { ExecutiveDashboardInteractions } from "@/components/executive/ExecutiveDashboardInteractions";
 import { ExecutiveDashboardReference } from "@/components/executive/ExecutiveDashboardReference";
 import { ExecutiveDashboardUiGuard } from "@/components/executive/ExecutiveDashboardUiGuard";
+import { ExecutiveDonutLegendStandardizer } from "@/components/executive/ExecutiveDonutLegendStandardizer";
 import { ExecutiveExpenseCategoryFrequency } from "@/components/executive/ExecutiveExpenseCategoryFrequency";
 import { ExecutiveRevenueExpenseGopChart } from "@/components/executive/ExecutiveRevenueExpenseGopChart";
 import "@/components/executive/executive-dashboard-reference-enhancements.css";
 import "@/components/executive/executive-dashboard-responsive.css";
 import "@/components/executive/executive-dashboard-financial-map.css";
+import "@/components/executive/executive-dashboard-donut-legend.css";
 
 export function ExecutiveBiDashboardReadable() {
   return (
@@ -19,6 +21,7 @@ export function ExecutiveBiDashboardReadable() {
       <ExecutiveRevenueExpenseGopChart />
       <ExecutiveCancellationImpact />
       <ExecutiveExpenseCategoryFrequency />
+      <ExecutiveDonutLegendStandardizer />
       <ExecutiveDashboardUiGuard />
     </div>
   );
