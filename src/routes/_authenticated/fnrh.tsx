@@ -1,14 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, Clock3, FileCheck2, FileText, Search, SlidersHorizontal } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { PageHeader } from "@/components/AppLayout";
 import {
   FnrhReservationActions,
   type GuestCheckinSummary,
 } from "@/components/fnrh/FnrhReservationActions";
 import { supabase } from "@/integrations/supabase/client";
-import { useClients, useCurrentCompany, useReservations, type Reservation } from "@/lib/data";
+import { useClients, useCurrentCompany, useReservations, type Client, type Reservation } from "@/lib/data";
 import { fmtDate } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/fnrh")({
@@ -74,7 +74,7 @@ function FnrhCenter() {
         if (filter === "sem_ficha" && record) return false;
         if (filter === "aguardando" && record?.status !== "enviado") return false;
         if (filter === "recebidas" && record?.status !== "preenchido") return false;
-        if (filter === "conferidas" && !record || !["conferido", "enviado_mtur"].includes(record.status)) return false;
+        if (filter === "conferidas" && (!record || !["conferido", "enviado_mtur"].includes(record.status))) return false;
         if (!term) return true;
         return normalize(`${reservation.cliente_nome} ${reservation.quarto} ${reservation.codigo_externo ?? ""}`).includes(term);
       })
@@ -195,7 +195,7 @@ function FnrhCenter() {
   );
 }
 
-function ReservationRow({ reservation, record, client, onChanged }: { reservation: Reservation; record?: GuestCheckinSummary; client?: ReturnType<typeof useClients>["data"][number]; onChanged: () => void }) {
+function ReservationRow({ reservation, record, client, onChanged }: { reservation: Reservation; record?: GuestCheckinSummary; client?: Client; onChanged: () => void }) {
   return (
     <tr className="border-b border-border/60 last:border-0 hover:bg-muted/25">
       <td className="px-4 py-3">
@@ -247,7 +247,7 @@ function PreferenceHint({ record }: { record?: GuestCheckinSummary }) {
   );
 }
 
-function Metric({ icon, label, value, tone }: { icon: React.ReactNode; label: string; value: number; tone: "blue" | "amber" | "rose" | "green" }) {
+function Metric({ icon, label, value, tone }: { icon: ReactNode; label: string; value: number; tone: "blue" | "amber" | "rose" | "green" }) {
   const classes = {
     blue: "border-blue-200 bg-blue-50 text-blue-700",
     amber: "border-amber-200 bg-amber-50 text-amber-800",
