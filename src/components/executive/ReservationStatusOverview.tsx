@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentCompany } from "@/lib/data";
 
@@ -12,12 +12,20 @@ type ReservationStatus = {
   cancelled: number;
   noShow: number;
 };
-
 type FunnelRow = {
   label: string;
   value: number;
   rate: number;
   tone: "primary" | "positive" | "warning" | "danger";
+};
+
+const EMPTY_STATUS: ReservationStatus = {
+  total: 0,
+  confirmed: 0,
+  inHouse: 0,
+  completed: 0,
+  cancelled: 0,
+  noShow: 0,
 };
 
 export function ReservationStatusOverview() {
@@ -27,18 +35,23 @@ export function ReservationStatusOverview() {
   useEffect(() => {
     const root = document.querySelector<HTMLElement>("[data-executive-dashboard]");
     if (!root) return;
+
     const sync = () => {
       const fields = root.querySelectorAll<HTMLInputElement>('input[type="date"]');
       if (fields.length < 2 || !fields[0].value || !fields[1].value) return;
       const start = fields[0].value <= fields[1].value ? fields[0].value : fields[1].value;
       const end = fields[0].value <= fields[1].value ? fields[1].value : fields[0].value;
-      setRange((current) => current?.start === start && current?.end === end ? current : { start, end });
+      setRange((current) =>
+        current?.start === start && current?.end === end ? current : { start, end },
+      );
     };
+
     sync();
     root.addEventListener("input", sync, true);
     root.addEventListener("change", sync, true);
     const observer = new MutationObserver(sync);
     observer.observe(root, { childList: true, subtree: true });
+
     return () => {
       root.removeEventListener("input", sync, true);
       root.removeEventListener("change", sync, true);
@@ -58,10 +71,11 @@ export function ReservationStatusOverview() {
         .gte("checkin", range!.start)
         .lte("checkin", range!.end);
       if (error) throw error;
-      const rows = data ?? [];
-      const result: ReservationStatus = { total: rows.length, confirmed: 0, inHouse: 0, completed: 0, cancelled: 0, noShow: 0 };
-      rows.forEach((row: { status?: string | null }) => {
+
+      const result: ReservationStatus = { ...EMPTY_STATUS };
+      (data ?? []).forEach((row: { status?: string | null }) => {
         const status = normalizeStatus(row.status);
+        result.total += 1;
         if (status === "cancelled") result.cancelled += 1;
         else if (status === "noShow") result.noShow += 1;
         else if (status === "completed") result.completed += 1;
@@ -72,20 +86,21 @@ export function ReservationStatusOverview() {
     },
   });
 
-  if (!range) return null;
-  const status = query.data ?? { total: 0, confirmed: 0, inHouse: 0, completed: 0, cancelled: 0, noShow: 0 };
+  const status = query.data ?? EMPTY_STATUS;
   const valid = Math.max(0, status.total - status.cancelled - status.noShow);
-  const funnel = useMemo<FunnelRow[]>(() => [
-    { label: "Reservas criadas", value: status.total, rate: 100, tone: "primary" },
+  const cancellationRate = rate(status.cancelled, status.total);
+  const noShowRate = rate(status.noShow, status.total);
+  const funnel: FunnelRow[] = [
+    { label: "Reservas criadas", value: status.total, rate: status.total ? 100 : 0, tone: "primary" },
     { label: "Confirmadas", value: status.confirmed, rate: rate(status.confirmed, status.total), tone: "primary" },
     { label: "Check-in / hospedadas", value: status.inHouse, rate: rate(status.inHouse, status.total), tone: "positive" },
     { label: "Check-out / finalizadas", value: status.completed, rate: rate(status.completed, valid), tone: "positive" },
-    { label: "Canceladas", value: status.cancelled, rate: rate(status.cancelled, status.total), tone: "danger" },
-    { label: "No-show", value: status.noShow, rate: rate(status.noShow, status.total), tone: "warning" },
-  ], [status, valid]);
-  const cancellationRate = rate(status.cancelled, status.total);
-  const noShowRate = rate(status.noShow, status.total);
+    { label: "Canceladas", value: status.cancelled, rate: cancellationRate, tone: "danger" },
+    { label: "No-show", value: status.noShow, rate: noShowRate, tone: "warning" },
+  ];
   const maxValue = Math.max(1, ...funnel.map((row) => row.value));
+
+  if (!range) return null;
 
   return (
     <section className="mb-2 rounded-xl border border-border bg-card p-3 shadow-sm" aria-label="Funil operacional das reservas">
@@ -93,7 +108,7 @@ export function ReservationStatusOverview() {
         <div>
           <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-primary">Funil de reservas</p>
           <h2 className="text-sm font-black text-pine-dark">Da reserva criada ao check-out</h2>
-          <p className="text-[10px] text-muted-foreground">Mostra conversão, perdas por cancelamento e não comparecimento.</p>
+          <p className="text-[10px] text-muted-foreground">Conversão e perdas por cancelamento ou não comparecimento.</p>
         </div>
         <div className="flex gap-1.5 text-[10px] font-extrabold">
           <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700">Cancelamento {cancellationRate.toFixed(1)}%</span>
@@ -143,7 +158,11 @@ function Metric({ label, value, detail, danger = false }: { label: string; value
 }
 
 function normalizeStatus(value: string | null | undefined): "confirmed" | "inHouse" | "completed" | "cancelled" | "noShow" {
-  const status = String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[\s_-]+/g, "");
+  const status = String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
   if (status.includes("cancel")) return "cancelled";
   if (status.includes("noshow") || status.includes("naocompareceu") || status.includes("naocomparecimento")) return "noShow";
   if (status.includes("finaliz") || status.includes("checkout") || status.includes("conclu")) return "completed";
@@ -151,4 +170,6 @@ function normalizeStatus(value: string | null | undefined): "confirmed" | "inHou
   return "confirmed";
 }
 
-function rate(value: number, total: number) { return total > 0 ? (value / total) * 100 : 0; }
+function rate(value: number, total: number) {
+  return total > 0 ? (value / total) * 100 : 0;
+}
