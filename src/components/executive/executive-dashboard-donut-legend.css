@@ -1,15 +1,19 @@
 /* Padrão único para todos os gráficos de rosca do painel:
-   categoria + valor ao lado da legenda e porcentagem alinhada à direita. */
+   percentual dentro da fatia e valor financeiro ao lado do nome na legenda. */
 .executive-readable-root [data-executive-donut-layout="true"] {
-  min-height: 11rem !important;
-  grid-template-columns: minmax(8.25rem, 0.72fr) minmax(0, 1.28fr) !important;
-  gap: 0.5rem !important;
+  min-height: 10rem !important;
+  grid-template-columns: minmax(7.5rem, 0.66fr) minmax(0, 1.34fr) !important;
+  gap: 0.45rem !important;
   align-items: center !important;
 }
 
 .executive-readable-root [data-executive-donut-chart="true"] {
-  height: 11rem !important;
+  height: 10rem !important;
   min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.executive-readable-root [data-executive-donut-chart="true"] svg {
   overflow: visible !important;
 }
 
@@ -21,9 +25,9 @@
 
 .executive-readable-root [data-executive-donut-legend-row="true"] {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-columns: minmax(0, 1fr) !important;
   align-items: center !important;
-  gap: 0.55rem !important;
+  gap: 0 !important;
 }
 
 .executive-readable-root [data-executive-donut-legend-label="true"] {
@@ -55,13 +59,15 @@
   white-space: nowrap;
 }
 
+/* O percentual deixa de ocupar espaço na legenda porque passa a ser exibido
+   diretamente dentro de cada fatia da rosca. */
 .executive-readable-root [data-executive-donut-percentage="true"] {
-  min-width: 3.3rem;
-  color: var(--foreground);
-  font-weight: 900 !important;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  white-space: nowrap;
+  display: none !important;
+}
+
+.executive-readable-root text[data-executive-donut-slice-label="true"] {
+  font-family: inherit;
+  letter-spacing: -0.02em;
 }
 
 @media (max-width: 639px) {
@@ -71,7 +77,7 @@
   }
 
   .executive-readable-root [data-executive-donut-chart="true"] {
-    height: 9.75rem !important;
+    height: 9.5rem !important;
   }
 
   .executive-readable-root [data-executive-donut-value="true"] {
