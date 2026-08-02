@@ -1,5 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clipboard, ExternalLink, FileCheck2, FileText, MessageCircle, Printer, Send } from "lucide-react";
+import {
+  Check,
+  Clipboard,
+  ExternalLink,
+  FileCheck2,
+  FileText,
+  MessageCircle,
+  Printer,
+  Send,
+  SlidersHorizontal,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Modal } from "@/components/ui-kit";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +21,7 @@ export type GuestCheckinSummary = {
   reservation_id: string;
   public_token: string;
   status: "enviado" | "preenchido" | "conferido" | "enviado_mtur" | "erro_mtur";
+  form_data: Record<string, unknown> | null;
   submitted_at: string | null;
   reviewed_at: string | null;
 };
@@ -21,6 +32,8 @@ type Props = {
   record?: GuestCheckinSummary;
   onChanged: () => void;
 };
+
+const SELECT_FIELDS = "id,reservation_id,public_token,status,form_data,submitted_at,reviewed_at";
 
 const STATUS: Record<GuestCheckinSummary["status"], { label: string; short: string; className: string }> = {
   enviado: {
@@ -58,6 +71,23 @@ export function FnrhReservationActions({ reservation, client, record, onChanged 
 
   useEffect(() => setCurrent(record), [record]);
 
+  useEffect(() => {
+    if (!open || !company.data?.id || !current?.id) return;
+    let active = true;
+    void (supabase as any)
+      .from("guest_checkins")
+      .select(SELECT_FIELDS)
+      .eq("company_id", company.data.id)
+      .eq("id", current.id)
+      .maybeSingle()
+      .then((result: { data?: GuestCheckinSummary | null; error?: Error | null }) => {
+        if (active && !result.error && result.data) setCurrent(result.data);
+      });
+    return () => {
+      active = false;
+    };
+  }, [company.data?.id, current?.id, open]);
+
   const link = useMemo(() => {
     if (!current?.public_token || typeof window === "undefined") return "";
     return `${window.location.origin}/checkin-online?token=${current.public_token}`;
@@ -65,6 +95,9 @@ export function FnrhReservationActions({ reservation, client, record, onChanged 
 
   const printable = Boolean(current && ["preenchido", "conferido", "enviado_mtur"].includes(current.status));
   const status = current ? STATUS[current.status] : null;
+  const preferences = useMemo(() => preferenceRows(current?.form_data), [current?.form_data]);
+  const otherPreference = textValue(current?.form_data?.outras_preferencias);
+  const accessibility = textValue(current?.form_data?.necessidade_acessibilidade);
 
   async function createLink() {
     if (!company.data?.id) {
@@ -76,7 +109,7 @@ export function FnrhReservationActions({ reservation, client, record, onChanged 
     try {
       const existing = await (supabase as any)
         .from("guest_checkins")
-        .select("id,reservation_id,public_token,status,submitted_at,reviewed_at")
+        .select(SELECT_FIELDS)
         .eq("company_id", company.data.id)
         .eq("reservation_id", reservation.id)
         .maybeSingle();
@@ -92,7 +125,7 @@ export function FnrhReservationActions({ reservation, client, record, onChanged 
             client_id: reservation.cliente_id ?? null,
             status: "enviado",
           })
-          .select("id,reservation_id,public_token,status,submitted_at,reviewed_at")
+          .select(SELECT_FIELDS)
           .single();
         if (inserted.error) throw inserted.error;
         next = inserted.data as GuestCheckinSummary;
@@ -126,7 +159,7 @@ export function FnrhReservationActions({ reservation, client, record, onChanged 
         .from("guest_checkins")
         .update({ status: "conferido", reviewed_at: new Date().toISOString() })
         .eq("id", current.id)
-        .select("id,reservation_id,public_token,status,submitted_at,reviewed_at")
+        .select(SELECT_FIELDS)
         .single();
       if (result.error) throw result.error;
       setCurrent(result.data as GuestCheckinSummary);
@@ -160,7 +193,7 @@ export function FnrhReservationActions({ reservation, client, record, onChanged 
         <div className="space-y-4">
           <div className="grid gap-2 rounded-xl border border-border bg-muted/35 p-3 text-xs sm:grid-cols-3">
             <Info label="Reserva" value={reservation.codigo_externo || reservation.id.slice(0, 8).toUpperCase()} />
-            <Info label="Quarto" value={String(reservation.quarto)} />
+            <Info label="Quarto atual" value={String(reservation.quarto)} />
             <Info label="Período" value={`${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`} />
           </div>
 
@@ -169,7 +202,7 @@ export function FnrhReservationActions({ reservation, client, record, onChanged 
               <FileText className="mx-auto mb-2 h-8 w-8 text-primary" />
               <h3 className="font-black text-foreground">Criar formulário individual</h3>
               <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-muted-foreground">
-                O hóspede receberá um link seguro, preencherá pelo celular e a ficha voltará automaticamente para esta reserva.
+                O hóspede preencherá a FNRH, informará preferências como silêncio, ventilação, espaço e escadas, assinará e enviará tudo diretamente para esta reserva.
               </p>
               <button type="button" className="btn-primary mt-4 inline-flex items-center gap-2" onClick={() => void createLink()} disabled={busy}>
                 <Send className="h-4 w-4" /> {busy ? "Criando…" : "Gerar link da FNRH"}
@@ -187,6 +220,38 @@ export function FnrhReservationActions({ reservation, client, record, onChanged 
                 </div>
               </div>
 
+              {printable && (
+                <section className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+                  <div className="mb-3 flex items-center gap-2">
+                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10 text-primary">
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-black text-foreground">Preferências para escolha do quarto</h3>
+                      <p className="text-[10px] text-muted-foreground">Compare estas respostas com as características cadastradas dos quartos.</p>
+                    </div>
+                  </div>
+                  {preferences.length ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {preferences.map((item) => (
+                        <div key={item.label} className="rounded-lg border border-border bg-card px-3 py-2">
+                          <span className="block text-[9px] font-extrabold uppercase tracking-wide text-muted-foreground">{item.label}</span>
+                          <strong className="text-xs text-foreground">{item.value}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border bg-card px-3 py-3 text-xs font-semibold text-muted-foreground">O hóspede não informou preferências específicas.</p>
+                  )}
+                  {(accessibility || otherPreference) && (
+                    <div className="mt-2 space-y-2">
+                      {accessibility && <Detail label="Acessibilidade" value={accessibility} />}
+                      {otherPreference && <Detail label="Outras necessidades" value={otherPreference} />}
+                    </div>
+                  )}
+                </section>
+              )}
+
               <label className="block text-[10px] font-extrabold uppercase tracking-wide text-muted-foreground">
                 Link do hóspede
                 <div className="mt-1 flex min-w-0 gap-2">
@@ -203,7 +268,7 @@ export function FnrhReservationActions({ reservation, client, record, onChanged 
                     <MessageCircle className="h-4 w-4" /> Enviar pelo WhatsApp
                   </a>
                 ) : (
-                  <button type="button" className="btn-ghost flex items-center justify-center gap-2" onClick={() => toast.error("Cadastre o telefone do hóspede para usar o WhatsApp.") }>
+                  <button type="button" className="btn-ghost flex items-center justify-center gap-2" onClick={() => toast.error("Cadastre o telefone do hóspede para usar o WhatsApp.")}>
                     <MessageCircle className="h-4 w-4" /> Sem telefone cadastrado
                   </button>
                 )}
@@ -250,13 +315,64 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs">
+      <strong className="text-foreground">{label}: </strong>
+      <span className="text-muted-foreground">{value}</span>
+    </div>
+  );
+}
+
+function preferenceRows(data?: Record<string, unknown> | null) {
+  if (!data) return [];
+  const definitions = [
+    ["Barulho", "preferencia_ruido"],
+    ["Ventilação", "preferencia_ventilacao"],
+    ["Espaço", "preferencia_espaco"],
+    ["Escadas", "preferencia_escadas"],
+    ["Garagem", "preferencia_garagem"],
+    ["Tipo de janela", "preferencia_janela"],
+    ["Tamanho da janela", "preferencia_tamanho_janela"],
+  ] as const;
+  return definitions
+    .map(([label, key]) => ({ label, value: preferenceLabel(key, textValue(data[key])) }))
+    .filter((item) => Boolean(item.value));
+}
+
+function preferenceLabel(key: string, value: string) {
+  if (!value) return "";
+  const labels: Record<string, Record<string, string>> = {
+    preferencia_ruido: {
+      silencioso: "Prefere quarto silencioso",
+      indiferente: "Indiferente",
+      movimento: "Não se incomoda com movimento",
+    },
+    preferencia_ventilacao: { arejado: "Bem arejado", normal: "Normal", indiferente: "Indiferente" },
+    preferencia_espaco: { espacoso: "Mais espaçoso", normal: "Normal", compacto: "Compacto está bom" },
+    preferencia_escadas: { sem_escadas: "Precisa evitar escadas", poucas: "Prefere poucas escadas", indiferente: "Indiferente" },
+    preferencia_garagem: { proximo: "Perto da garagem", longe: "Longe da garagem", indiferente: "Indiferente" },
+    preferencia_janela: { vidro: "Vidro", madeira: "Madeira", mista: "Mista", indiferente: "Indiferente" },
+    preferencia_tamanho_janela: { grande: "Grande", media: "Média", pequena: "Pequena", indiferente: "Indiferente" },
+  };
+  return labels[key]?.[value] ?? humanize(value);
+}
+
+function textValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function humanize(value: string) {
+  return value.replaceAll("_", " ").replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+}
+
 function buildWhatsappUrl(phoneValue: string | null | undefined, reservation: Reservation, link: string) {
   const phone = whatsappPhone(phoneValue);
   if (!phone) return "";
   const message = [
     `Olá, ${reservation.cliente_nome}!`,
     "",
-    "Para agilizar seu check-in no Hotel Real Cruzília, preencha sua FNRH Digital pelo link abaixo:",
+    "Para agilizar seu check-in no Hotel Real Cruzília, preencha sua FNRH Digital e informe suas preferências de quarto pelo link abaixo:",
     link,
     "",
     `Reserva: ${reservation.codigo_externo || reservation.id.slice(0, 8).toUpperCase()}`,
