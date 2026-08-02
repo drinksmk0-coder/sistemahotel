@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CalendarClock, MessageCircle, Plus, Webhook } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, MessageCircle, Plus, Webhook, XCircle } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge, EmptyState, Field, Modal } from "@/components/ui-kit";
+import { supabase } from "@/integrations/supabase/client";
 import {
   useCompanyIntegrations,
   useCurrentCompany,
@@ -27,15 +29,47 @@ const TYPES = [
   { value: "channel_manager", label: "Channel Manager" },
 ];
 
+type BookingEmailEvent = {
+  id: string;
+  gmail_message_id: string;
+  booking_code: string;
+  hotel_id: string | null;
+  status: string;
+  reservation_id: string | null;
+  previous_status: string | null;
+  new_status: string | null;
+  error: string | null;
+  received_at: string | null;
+  created_at: string;
+};
+
 function Integracoes() {
   const current = useCurrentCompany();
   const { data: events = [] } = useIntegrationEvents();
   const { data: sessions = [] } = useWhatsappReservationSessions();
   const { data: integrations = [] } = useCompanyIntegrations();
+  const { data: bookingEvents = [], isLoading: bookingEventsLoading } = useQuery({
+    queryKey: ["booking_email_events", current.data?.id],
+    enabled: !!current.data?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("booking_email_events" as never)
+        .select("id,gmail_message_id,booking_code,hotel_id,status,reservation_id,previous_status,new_status,error,received_at,created_at")
+        .eq("company_id", current.data!.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      return data as unknown as BookingEmailEvent[];
+    },
+    refetchInterval: 60_000,
+  });
   const insert = useInsert("company_integrations", ["company_integrations"]);
   const update = useUpdate("company_integrations", ["company_integrations"]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CompanyIntegration | null>(null);
+
+  const pendingBookingEvents = bookingEvents.filter((event) => event.status === "needs_review");
+  const processedBookingEvents = bookingEvents.filter((event) => event.status === "processed");
 
   const webhookUrl = useMemo(() => {
     const base = "https://xjdqjjfnpcnywrkxentv.supabase.co/functions/v1/integracao-reservas";
@@ -54,7 +88,23 @@ function Integracoes() {
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      {pendingBookingEvents.length > 0 && (
+        <section className="mb-5 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950 shadow-sm">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold">
+                {pendingBookingEvents.length} cancelamento{pendingBookingEvents.length > 1 ? "s" : ""} da Booking precisa{pendingBookingEvents.length === 1 ? "" : "m"} de conferência
+              </h3>
+              <p className="mt-1 text-sm">
+                O aviso foi recebido e validado, mas o SistemaHotel não encontrou uma reserva local compatível ou identificou uma situação que exige revisão manual.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-4">
         <section className="card-surface p-4">
           <div className="mb-3 flex items-center gap-2">
             <MessageCircle className="h-4 w-4 text-pine" />
@@ -64,9 +114,6 @@ function Integracoes() {
             Use este webhook no WAHA. O token fica nos secrets do Supabase, nao no navegador.
           </p>
           <code className="mt-3 block break-all rounded-md bg-muted p-3 text-xs">{webhookUrl}</code>
-          <div className="mt-3 rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-            QR do WAHA aparece aqui quando a URL/API key do WAHA estiver conectada no backend.
-          </div>
         </section>
 
         <section className="card-surface p-4">
@@ -86,7 +133,73 @@ function Integracoes() {
           <p className="font-serif text-3xl font-bold">{sessions.length}</p>
           <p className="text-sm text-muted-foreground">Atendimentos iniciados pelo WhatsApp.</p>
         </section>
+
+        <section className="card-surface p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <h3 className="font-serif text-lg font-bold">Conferências Booking</h3>
+          </div>
+          <p className="font-serif text-3xl font-bold">{pendingBookingEvents.length}</p>
+          <p className="text-sm text-muted-foreground">Cancelamentos recebidos que ainda precisam de atenção.</p>
+        </section>
       </div>
+
+      <section className="mt-5 card-surface overflow-x-auto">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border p-4">
+          <div>
+            <h3 className="font-serif text-lg font-bold">Cancelamentos recebidos da Booking</h3>
+            <p className="text-sm text-muted-foreground">Histórico do Gmail, sem excluir reservas, hóspedes, pagamentos ou registros.</p>
+          </div>
+          <div className="flex gap-2 text-xs">
+            <Badge tone={pendingBookingEvents.length ? "brass" : "sage"}>{pendingBookingEvents.length} para conferir</Badge>
+            <Badge tone="sage">{processedBookingEvents.length} processados</Badge>
+          </div>
+        </div>
+        {bookingEventsLoading ? (
+          <div className="p-6 text-sm text-muted-foreground">Carregando eventos da Booking...</div>
+        ) : bookingEvents.length === 0 ? (
+          <EmptyState text="Nenhum cancelamento da Booking recebido ainda." />
+        ) : (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+                <th className="p-3">Data</th>
+                <th className="p-3">Código Booking</th>
+                <th className="p-3">Situação</th>
+                <th className="p-3">Reserva local</th>
+                <th className="p-3">Mensagem</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bookingEvents.map((event) => (
+                <tr key={event.id} className="border-b border-border/50">
+                  <td className="whitespace-nowrap p-3">{fmtDate((event.received_at ?? event.created_at).slice(0, 10))}</td>
+                  <td className="p-3 font-mono text-xs">{event.booking_code}</td>
+                  <td className="p-3">
+                    <span className="inline-flex items-center gap-1.5">
+                      {event.status === "processed" ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      ) : event.status === "needs_review" ? (
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      ) : event.status === "already_cancelled" ? (
+                        <CheckCircle2 className="h-4 w-4 text-slate-500" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-600" />
+                      )}
+                      <Badge tone={bookingTone(event.status)}>{bookingStatusLabel(event.status)}</Badge>
+                    </span>
+                  </td>
+                  <td className="p-3 font-mono text-xs">{event.reservation_id ?? "Não encontrada"}</td>
+                  <td className="max-w-[440px] p-3 text-muted-foreground">
+                    {event.error ?? bookingEventMessage(event)}
+                    <div className="mt-1 font-mono text-[10px] text-muted-foreground/70">Gmail: {event.gmail_message_id}</div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       <section className="mt-5 card-surface overflow-x-auto">
         <div className="border-b border-border p-4">
@@ -194,6 +307,26 @@ function Integracoes() {
       )}
     </div>
   );
+}
+
+function bookingTone(status: string): "sage" | "slate" | "brass" | "brick" {
+  if (status === "processed") return "sage";
+  if (status === "already_cancelled") return "slate";
+  if (status === "needs_review") return "brass";
+  return "brick";
+}
+
+function bookingStatusLabel(status: string) {
+  if (status === "processed") return "Cancelado no sistema";
+  if (status === "already_cancelled") return "Já estava cancelado";
+  if (status === "needs_review") return "Precisa conferir";
+  return "Erro";
+}
+
+function bookingEventMessage(event: BookingEmailEvent) {
+  if (event.status === "processed") return `Reserva alterada de ${event.previous_status ?? "reservado"} para ${event.new_status ?? "cancelado"}.`;
+  if (event.status === "already_cancelled") return "A reserva local já estava cancelada; nenhuma alteração adicional foi feita.";
+  return "Evento recebido da Booking.";
 }
 
 function labelType(type: string) {
