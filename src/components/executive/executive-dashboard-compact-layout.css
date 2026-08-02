@@ -1,85 +1,124 @@
-/* Grade principal do painel: os dois gráficos mais importantes dividem a primeira
-   linha e os demais blocos usam colunas menores para aumentar a densidade analítica. */
+/* Sistema único de dimensões para o painel executivo.
+   No desktop, todos os gráficos ocupam metade da largura e têm exatamente
+   a mesma altura. Conteúdos extensos rolam dentro do próprio card. */
+
 @media (min-width: 1100px) {
   .executive-readable-root > [data-executive-dashboard-grid="true"] {
+    --executive-chart-card-height: 19rem;
     display: grid !important;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem !important;
     align-items: stretch;
   }
 
+  /* Cabeçalho, filtros, KPIs e rodapé continuam ocupando a largura inteira. */
   .executive-readable-root > [data-executive-dashboard-grid="true"] > * {
     grid-column: 1 / -1;
     min-width: 0;
     margin-top: 0 !important;
   }
 
-  .executive-readable-root [data-executive-grid-main="true"],
-  .executive-readable-root [data-executive-grid-financial="true"] {
-    grid-column: span 3 !important;
-    min-height: 18rem;
-  }
-
-  .executive-readable-root [data-executive-grid-main="true"] > div {
-    height: 15.5rem !important;
-  }
-
+  /* As seções deixam de criar caixas intermediárias para que cada gráfico
+     participe diretamente da grade principal. */
   .executive-readable-root section[data-executive-chart-group="primary"],
-  .executive-readable-root section[data-executive-chart-group="operations"] {
+  .executive-readable-root section[data-executive-chart-group="operations"],
+  .executive-readable-root [data-expense-insights-host],
+  .executive-readable-root [data-executive-expense-grid="true"] {
     display: contents !important;
   }
 
-  .executive-readable-root [data-executive-grid-primary-donut="true"] {
-    grid-column: span 3 !important;
-  }
-
-  .executive-readable-root [data-executive-grid-third="true"] {
-    grid-column: span 2 !important;
-  }
-
-  .executive-readable-root [data-expense-insights-host] {
-    grid-column: 1 / -1 !important;
-    margin-top: 0 !important;
-  }
-
-  .executive-readable-root [data-executive-expense-grid="true"] {
-    display: grid !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    gap: 0.5rem !important;
-  }
-
+  /* Todos os cards analíticos usam exatamente o mesmo módulo visual. */
+  .executive-readable-root :is(
+    [data-executive-grid-main="true"],
+    [data-executive-grid-financial="true"],
+    [data-executive-grid-primary-donut="true"],
+    [data-executive-grid-third="true"]
+  ),
   .executive-readable-root [data-executive-expense-grid="true"] > article {
-    min-height: 15rem !important;
-    max-height: 20rem;
-    overflow: auto;
+    grid-column: span 1 !important;
+    display: flex !important;
+    height: var(--executive-chart-card-height) !important;
+    min-height: var(--executive-chart-card-height) !important;
+    max-height: var(--executive-chart-card-height) !important;
+    min-width: 0;
+    flex-direction: column;
+    padding: 0.75rem !important;
+    overflow: hidden;
   }
 
-  .executive-readable-root [data-expense-description-card] {
+  /* Reserva a mesma área de título em todos os gráficos, inclusive quando
+     o texto possui duas linhas. */
+  .executive-readable-root :is(
+    [data-executive-grid-main="true"],
+    [data-executive-grid-financial="true"],
+    [data-executive-grid-primary-donut="true"],
+    [data-executive-grid-third="true"]
+  ) > h2,
+  .executive-readable-root [data-executive-expense-grid="true"] > article h2 {
+    display: flex;
+    min-height: 2rem;
+    margin-bottom: 0.45rem !important;
+    align-items: flex-start;
+    line-height: 1.15;
+  }
+
+  /* O gráfico operacional e o financeiro utilizam a mesma área útil. */
+  .executive-readable-root [data-executive-grid-main="true"] > div {
+    height: 15rem !important;
+    min-height: 0 !important;
+    flex: 1 1 auto;
+  }
+
+  .executive-readable-root [data-executive-grid-financial="true"] [data-revenue-expense-gop-host] {
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .executive-readable-root [data-executive-grid-financial="true"] [data-revenue-expense-gop-host] > div,
+  .executive-readable-root [data-executive-grid-financial="true"] [data-revenue-expense-gop-host] > div > div {
+    min-height: 0;
+  }
+
+  /* Roscas, barras e mapa permanecem centralizados dentro da mesma altura. */
+  .executive-readable-root [data-executive-grid-primary-donut="true"] [data-executive-donut-layout="true"] {
+    min-height: 0 !important;
+    flex: 1 1 auto;
+  }
+
+  .executive-readable-root [data-executive-grid-third="true"] > div {
+    min-height: 0 !important;
+    flex: 1 1 auto;
+  }
+
+  /* Rankings e descrições podem ter muitos registros. A rolagem fica dentro
+     do card e não altera o alinhamento das linhas do dashboard. */
+  .executive-readable-root [data-executive-expense-grid="true"] > article {
+    overflow: auto;
     scrollbar-width: thin;
   }
 
   .executive-readable-root [data-expense-category-frequency-host] > div {
-    gap: 0.45rem !important;
+    gap: 0.4rem !important;
   }
 
-  .executive-readable-root [data-expense-category-frequency-host] .rounded-xl {
-    padding: 0.5rem !important;
+  .executive-readable-root [data-expense-category-frequency-host] .rounded-xl,
+  .executive-readable-root [data-expense-description-card] .rounded-lg {
+    padding: 0.45rem !important;
+  }
+
+  /* Observações técnicas das despesas ficam em uma linha própria. */
+  .executive-readable-root [data-executive-expense-grid="true"] > p {
+    grid-column: 1 / -1 !important;
   }
 }
 
 @media (min-width: 1100px) and (max-height: 850px) {
-  .executive-readable-root [data-executive-grid-main="true"],
-  .executive-readable-root [data-executive-grid-financial="true"] {
-    min-height: 16.5rem;
+  .executive-readable-root > [data-executive-dashboard-grid="true"] {
+    --executive-chart-card-height: 17.5rem;
   }
 
   .executive-readable-root [data-executive-grid-main="true"] > div {
-    height: 14rem !important;
-  }
-
-  .executive-readable-root [data-executive-expense-grid="true"] > article {
-    min-height: 13.5rem !important;
-    max-height: 18rem;
+    height: 13.5rem !important;
   }
 }
 
@@ -88,7 +127,15 @@
     grid-template-columns: 1fr !important;
   }
 
+  .executive-readable-root :is(
+    [data-executive-grid-main="true"],
+    [data-executive-grid-financial="true"],
+    [data-executive-grid-primary-donut="true"],
+    [data-executive-grid-third="true"]
+  ),
   .executive-readable-root [data-executive-expense-grid="true"] > article {
-    max-height: none;
+    height: auto !important;
+    min-height: 17rem;
+    max-height: none !important;
   }
 }
