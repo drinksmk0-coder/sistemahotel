@@ -1,7 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, Ban, BedDouble, CalendarCheck, CheckCircle2, UserX } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentCompany } from "@/lib/data";
 
@@ -13,6 +11,13 @@ type ReservationStatus = {
   completed: number;
   cancelled: number;
   noShow: number;
+};
+
+type FunnelRow = {
+  label: string;
+  value: number;
+  rate: number;
+  tone: "primary" | "positive" | "warning" | "danger";
 };
 
 export function ReservationStatusOverview() {
@@ -42,7 +47,7 @@ export function ReservationStatusOverview() {
   }, []);
 
   const query = useQuery({
-    queryKey: ["reservation-status-overview", company.data?.id, range?.start, range?.end],
+    queryKey: ["reservation-status-funnel", company.data?.id, range?.start, range?.end],
     enabled: Boolean(company.data?.id && range),
     staleTime: 60_000,
     queryFn: async (): Promise<ReservationStatus> => {
@@ -67,70 +72,73 @@ export function ReservationStatusOverview() {
     },
   });
 
+  if (!range) return null;
   const status = query.data ?? { total: 0, confirmed: 0, inHouse: 0, completed: 0, cancelled: 0, noShow: 0 };
+  const valid = Math.max(0, status.total - status.cancelled - status.noShow);
+  const funnel = useMemo<FunnelRow[]>(() => [
+    { label: "Reservas criadas", value: status.total, rate: 100, tone: "primary" },
+    { label: "Confirmadas", value: status.confirmed, rate: rate(status.confirmed, status.total), tone: "primary" },
+    { label: "Check-in / hospedadas", value: status.inHouse, rate: rate(status.inHouse, status.total), tone: "positive" },
+    { label: "Check-out / finalizadas", value: status.completed, rate: rate(status.completed, valid), tone: "positive" },
+    { label: "Canceladas", value: status.cancelled, rate: rate(status.cancelled, status.total), tone: "danger" },
+    { label: "No-show", value: status.noShow, rate: rate(status.noShow, status.total), tone: "warning" },
+  ], [status, valid]);
   const cancellationRate = rate(status.cancelled, status.total);
   const noShowRate = rate(status.noShow, status.total);
-  const completionRate = rate(status.completed, Math.max(0, status.total - status.cancelled - status.noShow));
-  const chartData = useMemo(() => [
-    { name: "Confirmadas", value: status.confirmed, fill: "var(--executive-series-1)" },
-    { name: "Hospedadas", value: status.inHouse, fill: "var(--executive-series-2)" },
-    { name: "Finalizadas", value: status.completed, fill: "var(--executive-series-3)" },
-    { name: "Canceladas", value: status.cancelled, fill: "var(--executive-negative)" },
-    { name: "No-show", value: status.noShow, fill: "var(--executive-warning)" },
-  ], [status]);
-
-  if (!range) return null;
+  const maxValue = Math.max(1, ...funnel.map((row) => row.value));
 
   return (
-    <section className="mb-2 rounded-xl border border-border bg-card p-3 shadow-sm" aria-label="Desempenho operacional das reservas">
+    <section className="mb-2 rounded-xl border border-border bg-card p-3 shadow-sm" aria-label="Funil operacional das reservas">
       <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-border/70 pb-2">
         <div>
-          <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-primary">Operação de reservas</p>
-          <h2 className="text-sm font-black text-pine-dark">Reservas, cancelamentos, finalizações e no-show</h2>
+          <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-primary">Funil de reservas</p>
+          <h2 className="text-sm font-black text-pine-dark">Da reserva criada ao check-out</h2>
+          <p className="text-[10px] text-muted-foreground">Mostra conversão, perdas por cancelamento e não comparecimento.</p>
         </div>
-        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${cancellationRate > 15 || noShowRate > 5 ? "border-rose-200 bg-rose-50 text-rose-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-          Perdas: {(cancellationRate + noShowRate).toFixed(1)}%
-        </span>
+        <div className="flex gap-1.5 text-[10px] font-extrabold">
+          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700">Cancelamento {cancellationRate.toFixed(1)}%</span>
+          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700">No-show {noShowRate.toFixed(1)}%</span>
+        </div>
       </div>
 
-      <div className="grid gap-2 lg:grid-cols-[1.15fr_0.85fr]">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <StatusCard icon={<CalendarCheck />} label="Reservas" value={status.total} detail="Criadas no período" />
-          <StatusCard icon={<BedDouble />} label="Confirmadas" value={status.confirmed} detail={`${rate(status.confirmed, status.total).toFixed(1)}% do total`} />
-          <StatusCard icon={<CheckCircle2 />} label="Finalizadas" value={status.completed} detail={`${completionRate.toFixed(1)}% de conclusão`} />
-          <StatusCard icon={<Ban />} label="Canceladas" value={status.cancelled} detail={`${cancellationRate.toFixed(1)}% de cancelamento`} danger={cancellationRate > 15} />
-          <StatusCard icon={<UserX />} label="No-show" value={status.noShow} detail={`${noShowRate.toFixed(1)}% não compareceram`} danger={noShowRate > 5} />
-          <StatusCard icon={<AlertTriangle />} label="Em hospedagem" value={status.inHouse} detail="Check-in realizado" />
+      <div className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
+        <div className="space-y-2" role="img" aria-label="Etapas do funil de reservas">
+          {funnel.map((row, index) => {
+            const width = Math.max(24, (row.value / maxValue) * 100 - index * 2.5);
+            const tone = {
+              primary: "bg-primary text-primary-foreground",
+              positive: "bg-emerald-600 text-white",
+              warning: "bg-amber-500 text-amber-950",
+              danger: "bg-rose-600 text-white",
+            }[row.tone];
+            return (
+              <div key={row.label} className="flex justify-center">
+                <div className={`flex min-h-9 items-center justify-between rounded-md px-3 text-xs font-bold shadow-sm ${tone}`} style={{ width: `${width}%` }}>
+                  <span className="truncate">{row.label}</span>
+                  <strong className="ml-3 shrink-0">{row.value} · {row.rate.toFixed(1)}%</strong>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        <div className="h-48 min-w-0">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} layout="vertical" margin={{ left: 4, right: 34, top: 4, bottom: 4 }}>
-              <CartesianGrid strokeDasharray="3 5" horizontal={false} />
-              <XAxis type="number" allowDecimals={false} />
-              <YAxis type="category" dataKey="name" width={82} tick={{ fontSize: 10, fontWeight: 700 }} />
-              <Tooltip formatter={(value: number) => `${value} reserva(s)`} />
-              <Bar dataKey="value" radius={[0, 7, 7, 0]} maxBarSize={21}>
-                {chartData.map((row) => <Cell key={row.name} fill={row.fill} />)}
-                <LabelList dataKey="value" position="right" />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="grid content-start gap-2 sm:grid-cols-3 lg:grid-cols-1">
+          <Metric label="Reservas válidas" value={valid} detail={`${rate(valid, status.total).toFixed(1)}% do total`} />
+          <Metric label="Conversão em check-out" value={status.completed} detail={`${rate(status.completed, valid).toFixed(1)}% das válidas`} />
+          <Metric label="Perdas totais" value={status.cancelled + status.noShow} detail={`${(cancellationRate + noShowRate).toFixed(1)}% do total`} danger={cancellationRate + noShowRate > 15} />
         </div>
       </div>
     </section>
   );
 }
 
-function StatusCard({ icon, label, value, detail, danger = false }: { icon: React.ReactNode; label: string; value: number; detail: string; danger?: boolean }) {
+function Metric({ label, value, detail, danger = false }: { label: string; value: number; detail: string; danger?: boolean }) {
   return (
-    <article className={`rounded-lg border px-3 py-2 shadow-none ${danger ? "border-rose-200 bg-rose-50/70" : "border-border bg-muted/20"}`}>
-      <div className={`mb-1 flex items-center gap-1.5 text-[9px] font-extrabold uppercase ${danger ? "text-rose-700" : "text-muted-foreground"}`}>
-        <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>{label}
-      </div>
-      <strong className="block text-lg font-black leading-none text-pine-dark">{value}</strong>
-      <span className="mt-1 block text-[10px] font-semibold text-muted-foreground">{detail}</span>
-    </article>
+    <div className={`rounded-lg border p-3 ${danger ? "border-rose-200 bg-rose-50" : "border-border bg-muted/25"}`}>
+      <span className="block text-[9px] font-extrabold uppercase text-muted-foreground">{label}</span>
+      <strong className="block text-xl font-black text-pine-dark">{value}</strong>
+      <span className={`text-[10px] font-semibold ${danger ? "text-rose-700" : "text-muted-foreground"}`}>{detail}</span>
+    </div>
   );
 }
 
