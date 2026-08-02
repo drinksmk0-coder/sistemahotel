@@ -1,3 +1,4 @@
+import { ExecutiveCancellationImpact } from "@/components/executive/ExecutiveCancellationImpact";
 import { ExecutiveDashboardInteractions } from "@/components/executive/ExecutiveDashboardInteractions";
 import { ExecutiveDashboardReference } from "@/components/executive/ExecutiveDashboardReference";
 import { ExecutiveRevenueExpenseGopChart } from "@/components/executive/ExecutiveRevenueExpenseGopChart";
@@ -14,6 +15,7 @@ export function ExecutiveBiDashboardReadable() {
       <ExecutiveDashboardReference />
       <ExecutiveDashboardInteractions />
       <ExecutiveRevenueExpenseGopChart />
+      <ExecutiveCancellationImpact />
     </div>
   );
 }
