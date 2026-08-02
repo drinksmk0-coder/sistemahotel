@@ -1,4 +1,5 @@
 import { ExecutiveBiDashboard } from "@/components/executive/ExecutiveBiDashboard";
+import { OccupancyReservationCombinedChart } from "@/components/executive/OccupancyReservationCombinedChart";
 
 export function ExecutiveBiDashboardReadable() {
   return (
@@ -7,6 +8,7 @@ export function ExecutiveBiDashboardReadable() {
       data-executive-dashboard
     >
       <ExecutiveBiDashboard />
+      <OccupancyReservationCombinedChart />
     </div>
   );
 }
