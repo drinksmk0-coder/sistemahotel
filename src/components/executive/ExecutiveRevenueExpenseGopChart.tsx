@@ -4,9 +4,12 @@ import { createPortal } from "react-dom";
 import {
   Bar,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Legend,
   Line,
+  Pie,
+  PieChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -42,7 +45,11 @@ type SaleRow = {
 };
 type ExpenseRow = {
   data: string;
+  categoria: string | null;
+  descricao: string | null;
   valor: number | string | null;
+  pagamento: string | null;
+  fornecedor: string | null;
 };
 type RoomRow = {
   numero: number;
@@ -55,11 +62,26 @@ type ClientRow = {
 type ChartRow = {
   key: string;
   label: string;
-  revenue: number;
+  lodgingRevenue: number;
+  productRevenue: number;
   expenses: number;
   gop: number;
 };
+type NamedValue = { name: string; value: number; count: number };
+type FinancialSummary = {
+  lodgingRevenue: number;
+  productRevenue: number;
+  expenses: number;
+  gop: number;
+  expenseCategories: NamedValue[];
+  expensePayments: NamedValue[];
+};
 
+const BLUE = "#2563eb";
+const TEAL = "#14b8a6";
+const RED = "#ef4444";
+const GREEN = "#16a34a";
+const EXPENSE_COLORS = [BLUE, TEAL, "#7c3aed", "#f59e0b", "#64748b", "#ec4899"];
 const ALL_FILTERS: Filters = {
   payment: "all",
   state: "all",
@@ -71,7 +93,8 @@ const ALL_FILTERS: Filters = {
 
 export function ExecutiveRevenueExpenseGopChart() {
   const company = useCurrentCompany();
-  const [host, setHost] = useState<HTMLElement | null>(null);
+  const [chartHost, setChartHost] = useState<HTMLElement | null>(null);
+  const [insightsHost, setInsightsHost] = useState<HTMLElement | null>(null);
   const [range, setRange] = useState<Range | null>(null);
   const [filters, setFilters] = useState<Filters>(ALL_FILTERS);
 
@@ -81,7 +104,9 @@ export function ExecutiveRevenueExpenseGopChart() {
 
     let attempts = 0;
     let card: HTMLElement | null = null;
-    let portalHost: HTMLDivElement | null = null;
+    let chartPortalHost: HTMLDivElement | null = null;
+    let financialPortalHost: HTMLDivElement | null = null;
+    let originalTitle = "2. Receitas por dia (R$)";
     const hiddenElements = new Set<HTMLElement>();
 
     const syncRange = () => {
@@ -116,26 +141,39 @@ export function ExecutiveRevenueExpenseGopChart() {
     const install = () => {
       attempts += 1;
       const title = Array.from(root.querySelectorAll<HTMLElement>("article h2"))
-        .find((heading) => heading.textContent?.trim() === "2. Receitas por dia (R$)");
+        .find((heading) => heading.textContent?.trim().startsWith("2. Receita"));
       card = title?.closest("article") ?? null;
-      if (!card || !title) return false;
+      const dashboard = root.firstElementChild as HTMLElement | null;
+      const footer = dashboard?.querySelector<HTMLElement>("footer");
+      if (!card || !title || !dashboard || !footer) return false;
 
-      portalHost = card.querySelector<HTMLDivElement>("[data-revenue-expense-gop-host]");
-      if (!portalHost) {
-        portalHost = document.createElement("div");
-        portalHost.dataset.revenueExpenseGopHost = "true";
-        portalHost.className = "min-w-0";
-        card.appendChild(portalHost);
+      originalTitle = title.textContent ?? originalTitle;
+      title.textContent = "2. Hospedagem, produtos, despesas e GOP por dia";
+
+      chartPortalHost = card.querySelector<HTMLDivElement>("[data-revenue-expense-gop-host]");
+      if (!chartPortalHost) {
+        chartPortalHost = document.createElement("div");
+        chartPortalHost.dataset.revenueExpenseGopHost = "true";
+        chartPortalHost.className = "min-w-0";
+        card.appendChild(chartPortalHost);
       }
 
       Array.from(card.children).forEach((child) => {
-        if (child === title || child === portalHost || !(child instanceof HTMLElement)) return;
+        if (child === title || child === chartPortalHost || !(child instanceof HTMLElement)) return;
         child.style.display = "none";
         child.dataset.revenueExpenseHidden = "true";
         hiddenElements.add(child);
       });
 
-      setHost(portalHost);
+      financialPortalHost = dashboard.querySelector<HTMLDivElement>("[data-expense-insights-host]");
+      if (!financialPortalHost) {
+        financialPortalHost = document.createElement("div");
+        financialPortalHost.dataset.expenseInsightsHost = "true";
+        dashboard.insertBefore(financialPortalHost, footer);
+      }
+
+      setChartHost(chartPortalHost);
+      setInsightsHost(financialPortalHost);
       syncRange();
       syncFilters();
       return true;
@@ -149,7 +187,7 @@ export function ExecutiveRevenueExpenseGopChart() {
       window.setTimeout(() => {
         syncRange();
         syncFilters();
-        if (!portalHost?.isConnected) install();
+        if (!chartPortalHost?.isConnected || !financialPortalHost?.isConnected) install();
       }, 0);
     };
 
@@ -166,7 +204,10 @@ export function ExecutiveRevenueExpenseGopChart() {
         element.style.removeProperty("display");
         delete element.dataset.revenueExpenseHidden;
       });
-      portalHost?.remove();
+      const title = card?.querySelector<HTMLElement>("h2");
+      if (title) title.textContent = originalTitle;
+      chartPortalHost?.remove();
+      financialPortalHost?.remove();
     };
   }, []);
 
@@ -190,7 +231,7 @@ export function ExecutiveRevenueExpenseGopChart() {
           .lte("data", range!.end),
         (supabase as any)
           .from("expenses")
-          .select("data,valor")
+          .select("data,categoria,descricao,valor,pagamento,fornecedor")
           .eq("company_id", company.data!.id)
           .gte("data", range!.start)
           .lte("data", range!.end),
@@ -220,92 +261,227 @@ export function ExecutiveRevenueExpenseGopChart() {
     },
   });
 
-  const rows = useMemo(() => {
-    if (!query.data || !range) return [];
-    return buildChartRows(query.data, range, filters);
+  const analysis = useMemo(() => {
+    if (!query.data || !range) return { rows: [], summary: emptySummary() };
+    return buildAnalysis(query.data, range, filters);
   }, [filters, query.data, range]);
 
-  const hasUnallocatedFilters = filters.payment !== "all"
-    || filters.state !== "all"
+  const hasUnallocatedFilters = filters.state !== "all"
     || filters.room !== "all"
     || filters.channel !== "all"
     || filters.category !== "all";
 
-  if (!host) return null;
-
-  return createPortal(
-    <div className="min-w-0">
-      {query.isLoading && <ChartState text="Carregando receitas, despesas e GOP…" />}
-      {query.error && <ChartState text="Não foi possível carregar as despesas do período." danger />}
-      {!query.isLoading && !query.error && <RevenueExpenseGopChart rows={rows} />}
-      {hasUnallocatedFilters && !query.isLoading && !query.error && (
-        <p className="mt-1 text-[9px] font-medium text-muted-foreground">
-          Despesas gerais não possuem vínculo com pagamento, estado, quarto, canal ou categoria; esses filtros segmentam a receita, enquanto os custos permanecem no período selecionado.
-        </p>
+  return (
+    <>
+      {chartHost && createPortal(
+        <div className="min-w-0">
+          {query.isLoading && <ChartState text="Carregando receitas, despesas e GOP…" />}
+          {query.error && <ChartState text="Não foi possível carregar a visão financeira." danger />}
+          {!query.isLoading && !query.error && <RevenueExpenseGopChart rows={analysis.rows} summary={analysis.summary} />}
+        </div>,
+        chartHost,
       )}
-    </div>,
-    host,
+
+      {insightsHost && createPortal(
+        <ExpenseInsights
+          loading={query.isLoading}
+          error={Boolean(query.error)}
+          summary={analysis.summary}
+          hasUnallocatedFilters={hasUnallocatedFilters}
+        />,
+        insightsHost,
+      )}
+    </>
   );
 }
 
-function RevenueExpenseGopChart({ rows }: { rows: ChartRow[] }) {
-  if (!rows.some((row) => row.revenue !== 0 || row.expenses !== 0)) {
+function RevenueExpenseGopChart({ rows, summary }: { rows: ChartRow[]; summary: FinancialSummary }) {
+  if (!rows.some((row) => row.lodgingRevenue !== 0 || row.productRevenue !== 0 || row.expenses !== 0)) {
     return <ChartState text="Sem receitas ou despesas no período selecionado." />;
   }
 
   return (
-    <div className="h-52 min-w-0">
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={rows} margin={{ left: 0, right: 8, top: 12, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 5" vertical={false} />
-          <XAxis dataKey="label" minTickGap={18} />
-          <YAxis width={52} tickFormatter={compactCurrency} />
-          <Tooltip
-            formatter={(value: number, name: string) => [fmtBRL(value), name]}
-            labelFormatter={(label) => `Período: ${label}`}
-          />
-          <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
-          <ReferenceLine y={0} stroke="var(--border)" />
-          <Bar dataKey="revenue" name="Receitas" fill="#2563eb" radius={[5, 5, 0, 0]} maxBarSize={18} />
-          <Bar dataKey="expenses" name="Despesas gerais" fill="#ef4444" radius={[5, 5, 0, 0]} maxBarSize={18} />
-          <Line
-            type="monotone"
-            dataKey="gop"
-            name="GOP"
-            stroke="#16a34a"
-            strokeWidth={3}
-            dot={{ r: 3, fill: "#16a34a", strokeWidth: 0 }}
-            activeDot={{ r: 5 }}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
+    <div className="min-w-0">
+      <div className="mb-2 grid grid-cols-2 gap-1.5 xl:grid-cols-4">
+        <SummaryValue label="Hospedagem" value={summary.lodgingRevenue} tone="blue" />
+        <SummaryValue label="Produtos/serviços" value={summary.productRevenue} tone="teal" />
+        <SummaryValue label="Despesas" value={summary.expenses} tone="red" />
+        <SummaryValue label="GOP" value={summary.gop} tone={summary.gop >= 0 ? "green" : "red"} />
+      </div>
+      <div className="h-44 min-w-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={rows} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 5" vertical={false} />
+            <XAxis dataKey="label" minTickGap={18} />
+            <YAxis width={52} tickFormatter={compactCurrency} />
+            <Tooltip
+              formatter={(value: number, name: string) => [fmtBRL(value), name]}
+              labelFormatter={(label) => `Período: ${label}`}
+            />
+            <Legend wrapperStyle={{ fontSize: 9, fontWeight: 700 }} />
+            <ReferenceLine y={0} stroke="var(--border)" />
+            <Bar dataKey="lodgingRevenue" name="Hospedagem" fill={BLUE} radius={[5, 5, 0, 0]} maxBarSize={16} />
+            <Bar dataKey="productRevenue" name="Produtos/serviços" fill={TEAL} radius={[5, 5, 0, 0]} maxBarSize={16} />
+            <Bar dataKey="expenses" name="Despesas" fill={RED} radius={[5, 5, 0, 0]} maxBarSize={16} />
+            <Line
+              type="monotone"
+              dataKey="gop"
+              name="GOP"
+              stroke={GREEN}
+              strokeWidth={3}
+              dot={{ r: 3, fill: GREEN, strokeWidth: 0 }}
+              activeDot={{ r: 5 }}
+            />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
 
-function buildChartRows(data: {
+function SummaryValue({ label, value, tone }: { label: string; value: number; tone: "blue" | "teal" | "red" | "green" }) {
+  const tones = {
+    blue: "border-blue-100 bg-blue-50/70 text-blue-700",
+    teal: "border-teal-100 bg-teal-50/70 text-teal-700",
+    red: "border-red-100 bg-red-50/70 text-red-700",
+    green: "border-emerald-100 bg-emerald-50/70 text-emerald-700",
+  };
+  return (
+    <div className={`rounded-lg border px-2 py-1.5 ${tones[tone]}`}>
+      <span className="block text-[8px] font-extrabold uppercase tracking-wide">{label}</span>
+      <strong className="block truncate text-[11px] tabular-nums" title={fmtBRL(value)}>{fmtBRL(value)}</strong>
+    </div>
+  );
+}
+
+function ExpenseInsights({ loading, error, summary, hasUnallocatedFilters }: {
+  loading: boolean;
+  error: boolean;
+  summary: FinancialSummary;
+  hasUnallocatedFilters: boolean;
+}) {
+  return (
+    <section className="executive-expense-insights grid grid-cols-1 gap-2 lg:grid-cols-2">
+      <article className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-black text-blue-600">8. Ranking de despesas por categoria</h2>
+            <p className="text-[10px] font-medium text-muted-foreground">Mostra onde o hotel está concentrando seus custos.</p>
+          </div>
+          <strong className="whitespace-nowrap text-sm text-red-600">{fmtBRL(summary.expenses)}</strong>
+        </div>
+        {loading && <CompactState text="Carregando despesas…" />}
+        {error && <CompactState text="Não foi possível carregar as despesas." danger />}
+        {!loading && !error && <ExpenseRanking rows={summary.expenseCategories} />}
+      </article>
+
+      <article className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
+        <div className="mb-3">
+          <h2 className="text-sm font-black text-blue-600">9. Como as despesas foram pagas</h2>
+          <p className="text-[10px] font-medium text-muted-foreground">Compara valor e quantidade de pagamentos por modalidade.</p>
+        </div>
+        {loading && <CompactState text="Carregando formas de pagamento…" />}
+        {error && <CompactState text="Não foi possível carregar as formas de pagamento." danger />}
+        {!loading && !error && <ExpensePaymentDonut rows={summary.expensePayments} />}
+      </article>
+
+      {hasUnallocatedFilters && (
+        <p className="col-span-full px-2 text-[9px] font-medium text-muted-foreground">
+          Estado, quarto, canal e categoria segmentam receitas. Despesas não possuem esses vínculos no cadastro; nelas são aplicados período, dia da semana e forma de pagamento.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function ExpenseRanking({ rows }: { rows: NamedValue[] }) {
+  if (!rows.length) return <CompactState text="Nenhuma despesa cadastrada no período selecionado." />;
+  const max = Math.max(1, ...rows.map((row) => row.value));
+  return (
+    <div className="flex min-h-48 flex-col justify-evenly gap-3">
+      {rows.slice(0, 7).map((row) => (
+        <div key={row.name} className="grid grid-cols-[minmax(7rem,1fr)_2fr_auto] items-center gap-2 text-xs">
+          <span className="truncate font-semibold" title={row.name}>{row.name}</span>
+          <div className="h-3.5 overflow-hidden rounded-full bg-red-50">
+            <div className="h-full rounded-full bg-red-500" style={{ width: `${Math.max(3, (row.value / max) * 100)}%` }} />
+          </div>
+          <span className="min-w-[6.5rem] text-right tabular-nums"><strong>{fmtBRL(row.value)}</strong> · {row.count}x</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ExpensePaymentDonut({ rows }: { rows: NamedValue[] }) {
+  if (!rows.length) return <CompactState text="Nenhuma forma de pagamento registrada no período." />;
+  const data = compactRows(rows);
+  const total = data.reduce((sum, row) => sum + row.value, 0);
+  return (
+    <div className="grid min-h-48 grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(10rem,0.85fr)_minmax(0,1.15fr)]">
+      <div className="h-48 min-w-0">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              cx="50%"
+              cy="50%"
+              innerRadius={48}
+              outerRadius={76}
+              paddingAngle={data.length === 1 ? 0 : 2}
+              stroke={data.length === 1 ? "none" : "var(--card)"}
+              strokeWidth={data.length === 1 ? 0 : 2}
+              isAnimationActive={false}
+            >
+              {data.map((row, index) => <Cell key={row.name} fill={EXPENSE_COLORS[index % EXPENSE_COLORS.length]} />)}
+            </Pie>
+            <Tooltip formatter={(value: number) => fmtBRL(value)} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="space-y-2 text-xs">
+        {data.map((row, index) => (
+          <div key={row.name} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+            <span className="flex min-w-0 items-center gap-2">
+              <i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: EXPENSE_COLORS[index % EXPENSE_COLORS.length] }} />
+              <span className="truncate" title={row.name}>{row.name}</span>
+            </span>
+            <strong className="whitespace-nowrap text-right tabular-nums">{((row.value / total) * 100).toFixed(1)}% · {fmtBRL(row.value)} · {row.count}x</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildAnalysis(data: {
   reservations: ReservationRow[];
   sales: SaleRow[];
   expenses: ExpenseRow[];
   rooms: RoomRow[];
   clients: ClientRow[];
-}, range: Range, filters: Filters): ChartRow[] {
+}, range: Range, filters: Filters): { rows: ChartRow[]; summary: FinancialSummary } {
   const roomMap = new Map(data.rooms.map((room) => [room.numero, room]));
   const clientMap = new Map(data.clients.map((client) => [client.id, client]));
-  const raw = new Map<string, { revenue: number; expenses: number }>();
+  const raw = new Map<string, { lodgingRevenue: number; productRevenue: number; expenses: number }>();
 
   data.reservations
     .filter((row) => !isCancelled(row.status) && !isNoShow(row.status) && !isMaintenance(row.status))
     .filter((row) => matchesReservation(row, filters, roomMap, clientMap))
-    .forEach((row) => addDaily(raw, row.checkin, "revenue", number(row.valor_total)));
+    .forEach((row) => addDaily(raw, row.checkin, "lodgingRevenue", number(row.valor_total)));
 
   data.sales
     .filter((row) => matchesSale(row, filters))
-    .forEach((row) => addDaily(raw, row.data, "revenue", number(row.total)));
+    .forEach((row) => addDaily(raw, row.data, "productRevenue", number(row.total)));
 
-  data.expenses
-    .filter((row) => filters.weekday === "all" || weekday(row.data) === filters.weekday)
-    .forEach((row) => addDaily(raw, row.data, "expenses", number(row.valor)));
+  const filteredExpenses = data.expenses.filter((row) => {
+    if (filters.weekday !== "all" && weekday(row.data) !== filters.weekday) return false;
+    if (filters.payment !== "all" && normalizePayment(row.pagamento) !== filters.payment) return false;
+    return true;
+  });
+
+  filteredExpenses.forEach((row) => addDaily(raw, row.data, "expenses", number(row.valor)));
 
   const span = daysBetween(range.start, range.end) + 1;
   const grouped = new Map<string, ChartRow>();
@@ -314,24 +490,54 @@ function buildChartRows(data: {
 
   while (cursor <= end) {
     const date = iso(cursor);
-    const values = raw.get(date) ?? { revenue: 0, expenses: 0 };
+    const values = raw.get(date) ?? { lodgingRevenue: 0, productRevenue: 0, expenses: 0 };
     const bucket = chartBucket(date, span);
     const current = grouped.get(bucket.key) ?? {
       key: bucket.key,
       label: bucket.label,
-      revenue: 0,
+      lodgingRevenue: 0,
+      productRevenue: 0,
       expenses: 0,
       gop: 0,
     };
-    current.revenue += values.revenue;
+    current.lodgingRevenue += values.lodgingRevenue;
+    current.productRevenue += values.productRevenue;
     current.expenses += values.expenses;
     grouped.set(bucket.key, current);
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
-  return [...grouped.values()]
+  const rows = [...grouped.values()]
     .sort((a, b) => a.key.localeCompare(b.key))
-    .map((row) => ({ ...row, gop: row.revenue - row.expenses }));
+    .map((row) => ({ ...row, gop: row.lodgingRevenue + row.productRevenue - row.expenses }));
+
+  const lodgingRevenue = rows.reduce((sum, row) => sum + row.lodgingRevenue, 0);
+  const productRevenue = rows.reduce((sum, row) => sum + row.productRevenue, 0);
+  const expenses = rows.reduce((sum, row) => sum + row.expenses, 0);
+
+  return {
+    rows,
+    summary: {
+      lodgingRevenue,
+      productRevenue,
+      expenses,
+      gop: lodgingRevenue + productRevenue - expenses,
+      expenseCategories: aggregateExpenses(filteredExpenses, (row) => cleanLabel(row.categoria, "Não informado")),
+      expensePayments: aggregateExpenses(filteredExpenses, (row) => normalizePayment(row.pagamento)),
+    },
+  };
+}
+
+function aggregateExpenses(rows: ExpenseRow[], getName: (row: ExpenseRow) => string): NamedValue[] {
+  const map = new Map<string, NamedValue>();
+  rows.forEach((row) => {
+    const name = getName(row);
+    const current = map.get(name) ?? { name, value: 0, count: 0 };
+    current.value += number(row.valor);
+    current.count += 1;
+    map.set(name, current);
+  });
+  return [...map.values()].filter((row) => row.value > 0).sort((a, b) => b.value - a.value);
 }
 
 function matchesReservation(
@@ -373,10 +579,37 @@ function chartBucket(date: string, span: number) {
   };
 }
 
-function addDaily(map: Map<string, { revenue: number; expenses: number }>, date: string, field: "revenue" | "expenses", value: number) {
-  const current = map.get(date) ?? { revenue: 0, expenses: 0 };
+function addDaily(
+  map: Map<string, { lodgingRevenue: number; productRevenue: number; expenses: number }>,
+  date: string,
+  field: "lodgingRevenue" | "productRevenue" | "expenses",
+  value: number,
+) {
+  const current = map.get(date) ?? { lodgingRevenue: 0, productRevenue: 0, expenses: 0 };
   current[field] += value;
   map.set(date, current);
+}
+
+function compactRows(rows: NamedValue[]) {
+  if (rows.length <= 6) return rows;
+  const top = rows.slice(0, 5);
+  const rest = rows.slice(5).reduce((acc, row) => ({
+    name: "Outros",
+    value: acc.value + row.value,
+    count: acc.count + row.count,
+  }), { name: "Outros", value: 0, count: 0 });
+  return [...top, rest];
+}
+
+function emptySummary(): FinancialSummary {
+  return {
+    lodgingRevenue: 0,
+    productRevenue: 0,
+    expenses: 0,
+    gop: 0,
+    expenseCategories: [],
+    expensePayments: [],
+  };
 }
 
 function sameFilters(a: Filters, b: Filters) {
@@ -388,6 +621,11 @@ function sameFilters(a: Filters, b: Filters) {
     && a.category === b.category;
 }
 
+function cleanLabel(value: string | null | undefined, fallback: string) {
+  const clean = String(value ?? "").trim();
+  return clean || fallback;
+}
+
 function normalizePayment(value: string | null) {
   const text = normalize(value);
   if (text.includes("pix")) return "Pix";
@@ -395,7 +633,8 @@ function normalizePayment(value: string | null) {
   if (text.includes("debito")) return "Cartão de Débito";
   if (text.includes("credito")) return "Cartão de Crédito";
   if (text.includes("transfer")) return "Transferência";
-  return value?.trim() || "Outros";
+  if (text.includes("boleto")) return "Boleto";
+  return value?.trim() || "Não informado";
 }
 
 function normalizeChannel(value: string | null) {
@@ -450,6 +689,14 @@ function stateCode(value: string) {
 function ChartState({ text, danger = false }: { text: string; danger?: boolean }) {
   return (
     <div className={`grid h-52 place-items-center rounded-xl text-xs font-semibold ${danger ? "bg-red-50 text-red-700" : "text-muted-foreground"}`}>
+      {text}
+    </div>
+  );
+}
+
+function CompactState({ text, danger = false }: { text: string; danger?: boolean }) {
+  return (
+    <div className={`grid min-h-48 place-items-center rounded-xl text-xs font-semibold ${danger ? "bg-red-50 text-red-700" : "text-muted-foreground"}`}>
       {text}
     </div>
   );
