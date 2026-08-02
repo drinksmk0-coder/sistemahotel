@@ -361,6 +361,13 @@ export function activeReservationForRoom(reservations: Reservation[], numero: nu
   return active[0] ?? null;
 }
 
+// Checkout due today or overdue keeps the operational cleaning warning visible
+// until the stay is finalized. Cancelled and maintenance records never trigger it.
+export function isCheckoutDueForCleaning(reservation: Reservation): boolean {
+  if (["cancelado", "finalizado", "manutencao"].includes(reservation.status)) return false;
+  return reservation.checkout <= todayISO();
+}
+
 // Future / upcoming reservations for a room (checkout still ahead), so the desk
 // can see a room is already booked before creating a new one.
 export function futureReservationsForRoom(
@@ -393,7 +400,6 @@ export function roomBlock(complaints: Complaint[], numero: number): Complaint | 
     ) ?? null
   );
 }
-
 
 export function hasActiveOverlap(
   reservations: Reservation[],
