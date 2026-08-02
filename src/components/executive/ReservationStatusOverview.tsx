@@ -1,28 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentCompany } from "@/lib/data";
 
 type Range = { start: string; end: string };
 type ReservationStatus = {
   total: number;
-  confirmed: number;
-  inHouse: number;
   completed: number;
   cancelled: number;
   noShow: number;
 };
-type FunnelRow = {
-  label: string;
-  value: number;
-  rate: number;
-  tone: "primary" | "positive" | "warning" | "danger";
-};
 
 const EMPTY_STATUS: ReservationStatus = {
   total: 0,
-  confirmed: 0,
-  inHouse: 0,
   completed: 0,
   cancelled: 0,
   noShow: 0,
@@ -60,7 +61,7 @@ export function ReservationStatusOverview() {
   }, []);
 
   const query = useQuery({
-    queryKey: ["reservation-status-funnel", company.data?.id, range?.start, range?.end],
+    queryKey: ["reservation-status-bars", company.data?.id, range?.start, range?.end],
     enabled: Boolean(company.data?.id && range),
     staleTime: 60_000,
     queryFn: async (): Promise<ReservationStatus> => {
@@ -76,88 +77,57 @@ export function ReservationStatusOverview() {
       (data ?? []).forEach((row: { status?: string | null }) => {
         const status = normalizeStatus(row.status);
         result.total += 1;
+        if (status === "completed") result.completed += 1;
         if (status === "cancelled") result.cancelled += 1;
-        else if (status === "noShow") result.noShow += 1;
-        else if (status === "completed") result.completed += 1;
-        else if (status === "inHouse") result.inHouse += 1;
-        else result.confirmed += 1;
+        if (status === "noShow") result.noShow += 1;
       });
       return result;
     },
   });
 
-  const status = query.data ?? EMPTY_STATUS;
-  const valid = Math.max(0, status.total - status.cancelled - status.noShow);
-  const cancellationRate = rate(status.cancelled, status.total);
-  const noShowRate = rate(status.noShow, status.total);
-  const funnel: FunnelRow[] = [
-    { label: "Reservas criadas", value: status.total, rate: status.total ? 100 : 0, tone: "primary" },
-    { label: "Confirmadas", value: status.confirmed, rate: rate(status.confirmed, status.total), tone: "primary" },
-    { label: "Check-in / hospedadas", value: status.inHouse, rate: rate(status.inHouse, status.total), tone: "positive" },
-    { label: "Check-out / finalizadas", value: status.completed, rate: rate(status.completed, valid), tone: "positive" },
-    { label: "Canceladas", value: status.cancelled, rate: cancellationRate, tone: "danger" },
-    { label: "No-show", value: status.noShow, rate: noShowRate, tone: "warning" },
-  ];
-  const maxValue = Math.max(1, ...funnel.map((row) => row.value));
-
   if (!range) return null;
 
+  const status = query.data ?? EMPTY_STATUS;
+  const data = [
+    { name: "Reservas", value: status.total, fill: "var(--executive-series-1)" },
+    { name: "Finalizadas", value: status.completed, fill: "var(--executive-series-3)" },
+    { name: "Canceladas", value: status.cancelled, fill: "var(--executive-negative)" },
+    { name: "No-show", value: status.noShow, fill: "var(--executive-warning)" },
+  ];
+  const cancellationRate = rate(status.cancelled, status.total);
+  const noShowRate = rate(status.noShow, status.total);
+
   return (
-    <section className="mb-2 rounded-xl border border-border bg-card p-3 shadow-sm" aria-label="Funil operacional das reservas">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-border/70 pb-2">
+    <section className="mx-0 mb-2 rounded-xl border border-border bg-card p-3 shadow-sm" aria-label="Comparação do status das reservas">
+      <div className="mb-2 flex flex-wrap items-start justify-between gap-2 border-b border-border/70 pb-2">
         <div>
-          <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-primary">Funil de reservas</p>
-          <h2 className="text-sm font-black text-pine-dark">Da reserva criada ao check-out</h2>
-          <p className="text-[10px] text-muted-foreground">Conversão e perdas por cancelamento ou não comparecimento.</p>
+          <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-primary">Operação de reservas</p>
+          <h2 className="text-sm font-black text-pine-dark">Reservas, finalizadas, canceladas e no-show</h2>
         </div>
-        <div className="flex gap-1.5 text-[10px] font-extrabold">
-          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-rose-700">Cancelamento {cancellationRate.toFixed(1)}%</span>
-          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700">No-show {noShowRate.toFixed(1)}%</span>
-        </div>
+        <span className="rounded-full border border-primary/15 bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary">
+          Cancelamento {cancellationRate.toFixed(1)}% · No-show {noShowRate.toFixed(1)}%
+        </span>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.35fr_0.65fr]">
-        <div className="space-y-2" role="img" aria-label="Etapas do funil de reservas">
-          {funnel.map((row, index) => {
-            const width = Math.max(24, (row.value / maxValue) * 100 - index * 2.5);
-            const tone = {
-              primary: "bg-primary text-primary-foreground",
-              positive: "bg-emerald-600 text-white",
-              warning: "bg-amber-500 text-amber-950",
-              danger: "bg-rose-600 text-white",
-            }[row.tone];
-            return (
-              <div key={row.label} className="flex justify-center">
-                <div className={`flex min-h-9 items-center justify-between rounded-md px-3 text-xs font-bold shadow-sm ${tone}`} style={{ width: `${width}%` }}>
-                  <span className="truncate">{row.label}</span>
-                  <strong className="ml-3 shrink-0">{row.value} · {row.rate.toFixed(1)}%</strong>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="grid content-start gap-2 sm:grid-cols-3 lg:grid-cols-1">
-          <Metric label="Reservas válidas" value={valid} detail={`${rate(valid, status.total).toFixed(1)}% do total`} />
-          <Metric label="Conversão em check-out" value={status.completed} detail={`${rate(status.completed, valid).toFixed(1)}% das válidas`} />
-          <Metric label="Perdas totais" value={status.cancelled + status.noShow} detail={`${(cancellationRate + noShowRate).toFixed(1)}% do total`} danger={cancellationRate + noShowRate > 15} />
-        </div>
+      <div className="h-56">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} margin={{ left: 8, right: 18, top: 22, bottom: 4 }}>
+            <CartesianGrid strokeDasharray="3 5" vertical={false} />
+            <XAxis dataKey="name" />
+            <YAxis allowDecimals={false} width={34} />
+            <Tooltip formatter={(value: number) => `${value} reserva(s)`} />
+            <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={72}>
+              {data.map((row) => <Cell key={row.name} fill={row.fill} />)}
+              <LabelList dataKey="value" position="top" />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </section>
   );
 }
 
-function Metric({ label, value, detail, danger = false }: { label: string; value: number; detail: string; danger?: boolean }) {
-  return (
-    <div className={`rounded-lg border p-3 ${danger ? "border-rose-200 bg-rose-50" : "border-border bg-muted/25"}`}>
-      <span className="block text-[9px] font-extrabold uppercase text-muted-foreground">{label}</span>
-      <strong className="block text-xl font-black text-pine-dark">{value}</strong>
-      <span className={`text-[10px] font-semibold ${danger ? "text-rose-700" : "text-muted-foreground"}`}>{detail}</span>
-    </div>
-  );
-}
-
-function normalizeStatus(value: string | null | undefined): "confirmed" | "inHouse" | "completed" | "cancelled" | "noShow" {
+function normalizeStatus(value: string | null | undefined): "completed" | "cancelled" | "noShow" | "other" {
   const status = String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -166,8 +136,7 @@ function normalizeStatus(value: string | null | undefined): "confirmed" | "inHou
   if (status.includes("cancel")) return "cancelled";
   if (status.includes("noshow") || status.includes("naocompareceu") || status.includes("naocomparecimento")) return "noShow";
   if (status.includes("finaliz") || status.includes("checkout") || status.includes("conclu")) return "completed";
-  if (status.includes("hosped") || status.includes("ocupad") || status.includes("checkin")) return "inHouse";
-  return "confirmed";
+  return "other";
 }
 
 function rate(value: number, total: number) {
