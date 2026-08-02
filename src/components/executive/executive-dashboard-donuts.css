@@ -20,6 +20,18 @@
   margin-inline: auto;
 }
 
+/* A categoria principal volta ao azul, independentemente da cor escolhida para o sistema. */
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) .recharts-pie-sector:first-of-type path,
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) .recharts-pie-sector path {
+  fill: #2563eb !important;
+}
+
+/* Mantém a bolinha da legenda sincronizada com a fatia azul. */
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child > div:last-child > div:first-child i,
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child > div:last-child i {
+  background: #2563eb !important;
+}
+
 /* Forma de pagamento: separação discreta entre categorias. */
 .executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) .recharts-pie-sector path {
   stroke: var(--card) !important;
@@ -27,10 +39,11 @@
   stroke-linejoin: round;
 }
 
-/* Canal com uma única categoria: elimina a fenda branca que cortava o anel de 100%. */
+/* Canal com uma única categoria: o próprio azul cobre a pequena abertura criada
+   pelo padding do gráfico, formando um círculo contínuo e sem pontas cortadas. */
 .executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) .recharts-pie-sector path {
-  stroke: transparent !important;
-  stroke-width: 0 !important;
+  stroke: #2563eb !important;
+  stroke-width: 4px !important;
   stroke-linejoin: round;
 }
 
