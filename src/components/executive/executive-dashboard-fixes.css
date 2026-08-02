@@ -15,8 +15,6 @@ aside.app-sidebar img[title][alt] {
   background:
     radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 28%),
     var(--background);
-
-  /* Paleta analítica derivada automaticamente da cor escolhida no sistema. */
   --executive-series-1: var(--primary);
   --executive-series-2: color-mix(in srgb, var(--primary) 72%, white);
   --executive-series-3: color-mix(in srgb, var(--primary) 62%, black);
@@ -34,7 +32,6 @@ aside.app-sidebar img[title][alt] {
   overflow-y: auto !important;
 }
 
-/* Altura natural: cada análise ocupa somente o espaço necessário. */
 .executive-dashboard-grid {
   display: block !important;
   height: auto !important;
@@ -55,9 +52,7 @@ aside.app-sidebar img[title][alt] {
 .executive-readable-root article {
   border-color: color-mix(in srgb, var(--border) 78%, transparent) !important;
   background: color-mix(in srgb, var(--card) 97%, transparent) !important;
-  box-shadow:
-    0 1px 2px rgb(15 23 42 / 0.04),
-    0 8px 24px rgb(15 23 42 / 0.045) !important;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px rgb(15 23 42 / 0.045) !important;
 }
 
 .executive-readable-root article {
@@ -73,9 +68,7 @@ aside.app-sidebar img[title][alt] {
 @media (hover: hover) {
   .executive-readable-root article:hover {
     border-color: color-mix(in srgb, var(--primary) 18%, var(--border)) !important;
-    box-shadow:
-      0 2px 4px rgb(15 23 42 / 0.045),
-      0 12px 28px rgb(15 23 42 / 0.065) !important;
+    box-shadow: 0 2px 4px rgb(15 23 42 / 0.045), 0 12px 28px rgb(15 23 42 / 0.065) !important;
   }
 }
 
@@ -89,15 +82,15 @@ aside.app-sidebar img[title][alt] {
   letter-spacing: -0.012em;
 }
 
-/* Chips podem usar mais largura sem encobrir o título. */
+/* Remove todos os chips de resumo dos cabeçalhos dos gráficos. */
 .executive-bi-card > div:first-child > span {
-  max-width: 52% !important;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: none !important;
 }
 
-/* Gráficos editoriais: grades leves, eixos legíveis e barras suaves. */
+.executive-bi-card > div:first-child {
+  justify-content: flex-start !important;
+}
+
 .executive-readable-root .recharts-cartesian-grid-horizontal line,
 .executive-readable-root .recharts-cartesian-grid-vertical line {
   stroke: color-mix(in srgb, var(--border) 58%, transparent) !important;
@@ -139,13 +132,11 @@ aside.app-sidebar img[title][alt] {
   background: color-mix(in srgb, var(--card) 96%, transparent) !important;
 }
 
-/* Todas as séries comuns acompanham a cor principal do sistema. */
 .executive-readable-root .recharts-bar-rectangle path,
 .executive-readable-root .recharts-bar-rectangle rect {
   fill: var(--executive-series-1) !important;
 }
 
-/* Gráficos combinados: primeira barra = receita, segunda = despesa. */
 .executive-readable-root .recharts-bar:nth-of-type(1) .recharts-rectangle {
   fill: var(--executive-series-1) !important;
 }
@@ -154,7 +145,6 @@ aside.app-sidebar img[title][alt] {
   fill: var(--executive-negative) !important;
 }
 
-/* Linhas usam variações do tema; séries negativas preservam significado. */
 .executive-readable-root .recharts-line:nth-of-type(1) .recharts-line-curve {
   stroke: var(--executive-series-3) !important;
 }
@@ -177,7 +167,6 @@ aside.app-sidebar img[title][alt] {
   fill: var(--executive-series-2) !important;
 }
 
-/* Áreas e seus gradientes também seguem a identidade visual. */
 .executive-readable-root .recharts-area-curve {
   stroke: var(--executive-series-1) !important;
 }
@@ -186,62 +175,58 @@ aside.app-sidebar img[title][alt] {
   fill: color-mix(in srgb, var(--primary) 24%, transparent) !important;
 }
 
-/* Roscas: seis variações da cor escolhida, sem paleta azul/verde fixa. */
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 1) path {
-  fill: var(--executive-series-1) !important;
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 1) path { fill: var(--executive-series-1) !important; }
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 2) path { fill: var(--executive-series-2) !important; }
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 3) path { fill: var(--executive-series-3) !important; }
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 4) path { fill: var(--executive-series-4) !important; }
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 5) path { fill: var(--executive-series-5) !important; }
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 6) path { fill: var(--executive-series-6) !important; }
+
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 1) > span:first-child { background: var(--executive-series-1) !important; }
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 2) > span:first-child { background: var(--executive-series-2) !important; }
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 3) > span:first-child { background: var(--executive-series-3) !important; }
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 4) > span:first-child { background: var(--executive-series-4) !important; }
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 5) > span:first-child { background: var(--executive-series-5) !important; }
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 6) > span:first-child { background: var(--executive-series-6) !important; }
+
+/* Mapa: respeita a intensidade calculada por receita em cada estado. */
+.executive-readable-root svg[aria-label*="Mapa do Brasil"] {
+  min-height: 18rem;
+  overflow: visible;
+  filter: drop-shadow(0 8px 18px color-mix(in srgb, var(--primary) 14%, transparent));
 }
 
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 2) path {
-  fill: var(--executive-series-2) !important;
-}
-
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 3) path {
-  fill: var(--executive-series-3) !important;
-}
-
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 4) path {
-  fill: var(--executive-series-4) !important;
-}
-
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 5) path {
-  fill: var(--executive-series-5) !important;
-}
-
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 6) path {
-  fill: var(--executive-series-6) !important;
-}
-
-/* Marcadores da legenda das roscas herdam a mesma sequência temática. */
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 1) > span:first-child {
-  background: var(--executive-series-1) !important;
-}
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 2) > span:first-child {
-  background: var(--executive-series-2) !important;
-}
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 3) > span:first-child {
-  background: var(--executive-series-3) !important;
-}
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 4) > span:first-child {
-  background: var(--executive-series-4) !important;
-}
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 5) > span:first-child {
-  background: var(--executive-series-5) !important;
-}
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 6) > span:first-child {
-  background: var(--executive-series-6) !important;
-}
-
-/* Mapa do Brasil acompanha o tema mantendo diferentes intensidades. */
 .executive-readable-root svg[aria-label*="Mapa do Brasil"] path {
   fill: var(--executive-series-1) !important;
-  fill-opacity: 0.24;
-  stroke: var(--card) !important;
-  transition: fill-opacity 150ms ease, filter 150ms ease;
+  fill-opacity: revert !important;
+  stroke: color-mix(in srgb, var(--card) 88%, var(--foreground)) !important;
+  stroke-width: 1.5 !important;
+  vector-effect: non-scaling-stroke;
+  transition: fill-opacity 150ms ease, filter 150ms ease, stroke-width 150ms ease;
 }
 
 .executive-readable-root svg[aria-label*="Mapa do Brasil"] path:hover {
-  fill-opacity: 0.9;
-  filter: brightness(0.92);
+  fill-opacity: 1 !important;
+  stroke-width: 2.5 !important;
+  filter: brightness(0.82) saturate(1.35);
+}
+
+/* A tabela geográfica ganha barras visuais proporcionais à receita. */
+.executive-bi-card:has(svg[aria-label*="Mapa do Brasil"]) .space-y-2 > div:not(:first-child) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--border));
+  background: color-mix(in srgb, var(--primary) 7%, var(--card)) !important;
+}
+
+.executive-bi-card:has(svg[aria-label*="Mapa do Brasil"]) .space-y-2 > div:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 38%;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 24%, transparent), transparent);
 }
 
 .executive-readable-root input[type="date"],
@@ -256,7 +241,6 @@ aside.app-sidebar img[title][alt] {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 13%, transparent) !important;
 }
 
-/* O assistente não deve cobrir chips ou gráficos. */
 @media (min-width: 640px) {
   body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
   body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
@@ -268,19 +252,8 @@ aside.app-sidebar img[title][alt] {
 }
 
 @media (max-width: 639px) {
-  .executive-readable-root {
-    overflow-x: hidden !important;
-  }
-
-  .executive-bi-card > div:first-child {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .executive-bi-card > div:first-child > span {
-    max-width: 100% !important;
-  }
-
+  .executive-readable-root { overflow-x: hidden !important; }
+  .executive-bi-card > div:first-child { flex-direction: column; align-items: flex-start; }
   body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
   body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
     right: 0.75rem !important;
