@@ -15,6 +15,16 @@ aside.app-sidebar img[title][alt] {
   background:
     radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 28%),
     var(--background);
+
+  /* Paleta analítica derivada automaticamente da cor escolhida no sistema. */
+  --executive-series-1: var(--primary);
+  --executive-series-2: color-mix(in srgb, var(--primary) 72%, white);
+  --executive-series-3: color-mix(in srgb, var(--primary) 62%, black);
+  --executive-series-4: color-mix(in srgb, var(--primary) 46%, var(--foreground));
+  --executive-series-5: color-mix(in srgb, var(--primary) 38%, white);
+  --executive-series-6: color-mix(in srgb, var(--primary) 78%, var(--muted));
+  --executive-negative: var(--destructive, #be123c);
+  --executive-warning: var(--brass, #b7791f);
 }
 
 .executive-readable-root:fullscreen,
@@ -129,6 +139,111 @@ aside.app-sidebar img[title][alt] {
   background: color-mix(in srgb, var(--card) 96%, transparent) !important;
 }
 
+/* Todas as séries comuns acompanham a cor principal do sistema. */
+.executive-readable-root .recharts-bar-rectangle path,
+.executive-readable-root .recharts-bar-rectangle rect {
+  fill: var(--executive-series-1) !important;
+}
+
+/* Gráficos combinados: primeira barra = receita, segunda = despesa. */
+.executive-readable-root .recharts-bar:nth-of-type(1) .recharts-rectangle {
+  fill: var(--executive-series-1) !important;
+}
+
+.executive-readable-root .recharts-bar:nth-of-type(2) .recharts-rectangle {
+  fill: var(--executive-negative) !important;
+}
+
+/* Linhas usam variações do tema; séries negativas preservam significado. */
+.executive-readable-root .recharts-line:nth-of-type(1) .recharts-line-curve {
+  stroke: var(--executive-series-3) !important;
+}
+
+.executive-readable-root .recharts-line:nth-of-type(2) .recharts-line-curve {
+  stroke: var(--executive-series-2) !important;
+}
+
+.executive-readable-root .recharts-line:nth-of-type(3) .recharts-line-curve {
+  stroke: var(--executive-series-4) !important;
+}
+
+.executive-readable-root .recharts-line:nth-of-type(1) .recharts-line-dot circle,
+.executive-readable-root .recharts-line:nth-of-type(1) .recharts-active-dot circle {
+  fill: var(--executive-series-3) !important;
+}
+
+.executive-readable-root .recharts-line:nth-of-type(2) .recharts-line-dot circle,
+.executive-readable-root .recharts-line:nth-of-type(2) .recharts-active-dot circle {
+  fill: var(--executive-series-2) !important;
+}
+
+/* Áreas e seus gradientes também seguem a identidade visual. */
+.executive-readable-root .recharts-area-curve {
+  stroke: var(--executive-series-1) !important;
+}
+
+.executive-readable-root .recharts-area-area {
+  fill: color-mix(in srgb, var(--primary) 24%, transparent) !important;
+}
+
+/* Roscas: seis variações da cor escolhida, sem paleta azul/verde fixa. */
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 1) path {
+  fill: var(--executive-series-1) !important;
+}
+
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 2) path {
+  fill: var(--executive-series-2) !important;
+}
+
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 3) path {
+  fill: var(--executive-series-3) !important;
+}
+
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 4) path {
+  fill: var(--executive-series-4) !important;
+}
+
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 5) path {
+  fill: var(--executive-series-5) !important;
+}
+
+.executive-readable-root .recharts-pie-sector:nth-child(6n + 6) path {
+  fill: var(--executive-series-6) !important;
+}
+
+/* Marcadores da legenda das roscas herdam a mesma sequência temática. */
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 1) > span:first-child {
+  background: var(--executive-series-1) !important;
+}
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 2) > span:first-child {
+  background: var(--executive-series-2) !important;
+}
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 3) > span:first-child {
+  background: var(--executive-series-3) !important;
+}
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 4) > span:first-child {
+  background: var(--executive-series-4) !important;
+}
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 5) > span:first-child {
+  background: var(--executive-series-5) !important;
+}
+.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 6) > span:first-child {
+  background: var(--executive-series-6) !important;
+}
+
+/* Mapa do Brasil acompanha o tema mantendo diferentes intensidades. */
+.executive-readable-root svg[aria-label*="Mapa do Brasil"] path {
+  fill: var(--executive-series-1) !important;
+  fill-opacity: 0.24;
+  stroke: var(--card) !important;
+  transition: fill-opacity 150ms ease, filter 150ms ease;
+}
+
+.executive-readable-root svg[aria-label*="Mapa do Brasil"] path:hover {
+  fill-opacity: 0.9;
+  filter: brightness(0.92);
+}
+
 .executive-readable-root input[type="date"],
 .executive-readable-root header button {
   border-radius: 0.65rem !important;
@@ -176,7 +291,8 @@ aside.app-sidebar img[title][alt] {
 @media (prefers-reduced-motion: reduce) {
   .executive-readable-root article,
   .executive-readable-root header button,
-  .executive-readable-root input[type="date"] {
+  .executive-readable-root input[type="date"],
+  .executive-readable-root svg[aria-label*="Mapa do Brasil"] path {
     transition: none !important;
   }
 }
