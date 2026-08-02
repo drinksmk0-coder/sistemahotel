@@ -1,28 +1,15 @@
-/* Ajustes exclusivos do Pulso do Hotel. */
+/* Estilos exclusivos do Pulso do Hotel. */
 aside.app-sidebar img[title][alt] {
-  display: none !important;
-}
-
-.executive-temporal-replaced > *:not(.executive-temporal-host) {
   display: none !important;
 }
 
 .executive-readable-root {
   min-height: 0;
   overflow-y: auto !important;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  background:
-    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 28%),
-    var(--background);
-  --executive-series-1: var(--primary);
-  --executive-series-2: color-mix(in srgb, var(--primary) 72%, white);
-  --executive-series-3: color-mix(in srgb, var(--primary) 62%, black);
-  --executive-series-4: color-mix(in srgb, var(--primary) 46%, var(--foreground));
-  --executive-series-5: color-mix(in srgb, var(--primary) 38%, white);
-  --executive-series-6: color-mix(in srgb, var(--primary) 78%, var(--muted));
-  --executive-negative: var(--destructive, #be123c);
-  --executive-warning: var(--brass, #b7791f);
+  background: var(--background);
 }
 
 .executive-readable-root:fullscreen,
@@ -32,213 +19,58 @@ aside.app-sidebar img[title][alt] {
   overflow-y: auto !important;
 }
 
-.executive-dashboard-grid {
-  display: block !important;
-  height: auto !important;
-}
-
-.executive-dashboard-grid > section:last-child {
-  height: auto !important;
-  grid-template-rows: none !important;
-  align-items: start;
-}
-
-.executive-dashboard-grid > section:last-child > article {
-  height: auto !important;
-  min-height: 0;
-}
-
-.executive-readable-root header,
-.executive-readable-root article {
-  border-color: color-mix(in srgb, var(--border) 78%, transparent) !important;
-  background: color-mix(in srgb, var(--card) 97%, transparent) !important;
-  box-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px rgb(15 23 42 / 0.045) !important;
-}
-
-.executive-readable-root article {
-  position: relative;
-  border-radius: 0.85rem !important;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
-}
-
-.executive-readable-root article::before {
-  display: none !important;
-}
-
-@media (hover: hover) {
-  .executive-readable-root article:hover {
-    border-color: color-mix(in srgb, var(--primary) 18%, var(--border)) !important;
-    box-shadow: 0 2px 4px rgb(15 23 42 / 0.045), 0 12px 28px rgb(15 23 42 / 0.065) !important;
-  }
-}
-
-.executive-readable-root section.grid.grid-cols-2 article {
-  background: linear-gradient(145deg, var(--card), color-mix(in srgb, var(--card) 96%, var(--primary) 4%)) !important;
-}
-
-.executive-readable-root article h2 {
-  font-size: 0.875rem !important;
-  line-height: 1.2rem !important;
-  letter-spacing: -0.012em;
-}
-
-/* Remove todos os chips de resumo dos cabeçalhos dos gráficos. */
-.executive-bi-card > div:first-child > span {
-  display: none !important;
-}
-
-.executive-bi-card > div:first-child {
-  justify-content: flex-start !important;
+.executive-readable-root article,
+.executive-readable-root header {
+  border-color: color-mix(in srgb, var(--border) 86%, transparent) !important;
+  background: var(--card) !important;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.035),
+    0 6px 18px rgb(15 23 42 / 0.035) !important;
 }
 
 .executive-readable-root .recharts-cartesian-grid-horizontal line,
 .executive-readable-root .recharts-cartesian-grid-vertical line {
-  stroke: color-mix(in srgb, var(--border) 58%, transparent) !important;
-  stroke-dasharray: 2 5;
+  stroke: color-mix(in srgb, var(--border) 62%, transparent) !important;
+  stroke-dasharray: 3 5;
 }
 
 .executive-readable-root .recharts-cartesian-axis-line,
 .executive-readable-root .recharts-cartesian-axis-tick-line {
-  stroke: color-mix(in srgb, var(--border) 46%, transparent) !important;
+  stroke: color-mix(in srgb, var(--border) 48%, transparent) !important;
 }
 
 .executive-readable-root .recharts-cartesian-axis-tick-value,
 .executive-readable-root .recharts-text {
-  fill: color-mix(in srgb, var(--foreground) 72%, transparent) !important;
-  font-size: 10px !important;
+  fill: color-mix(in srgb, var(--foreground) 78%, transparent);
+  font-size: 10px;
   font-weight: 650;
-}
-
-.executive-readable-root .recharts-rectangle {
-  rx: 7px;
-  ry: 7px;
-}
-
-.executive-readable-root .recharts-line-dot circle,
-.executive-readable-root .recharts-active-dot circle {
-  stroke-width: 2px !important;
-  stroke: var(--card) !important;
 }
 
 .executive-readable-root .recharts-tooltip-wrapper {
   z-index: 30;
-  font-size: 12px !important;
-  filter: drop-shadow(0 14px 24px rgb(15 23 42 / 0.15));
+  font-size: 12px;
+  filter: drop-shadow(0 12px 22px rgb(15 23 42 / 0.14));
 }
 
 .executive-readable-root .recharts-default-tooltip {
-  border: 1px solid color-mix(in srgb, var(--border) 74%, transparent) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 10px !important;
-  background: color-mix(in srgb, var(--card) 96%, transparent) !important;
+  background: var(--card) !important;
 }
 
-.executive-readable-root .recharts-bar-rectangle path,
-.executive-readable-root .recharts-bar-rectangle rect {
-  fill: var(--executive-series-1) !important;
+.executive-readable-root .recharts-rectangle {
+  rx: 5px;
+  ry: 5px;
 }
 
-.executive-readable-root .recharts-bar:nth-of-type(1) .recharts-rectangle {
-  fill: var(--executive-series-1) !important;
-}
-
-.executive-readable-root .recharts-bar:nth-of-type(2) .recharts-rectangle {
-  fill: var(--executive-negative) !important;
-}
-
-.executive-readable-root .recharts-line:nth-of-type(1) .recharts-line-curve {
-  stroke: var(--executive-series-3) !important;
-}
-
-.executive-readable-root .recharts-line:nth-of-type(2) .recharts-line-curve {
-  stroke: var(--executive-series-2) !important;
-}
-
-.executive-readable-root .recharts-line:nth-of-type(3) .recharts-line-curve {
-  stroke: var(--executive-series-4) !important;
-}
-
-.executive-readable-root .recharts-line:nth-of-type(1) .recharts-line-dot circle,
-.executive-readable-root .recharts-line:nth-of-type(1) .recharts-active-dot circle {
-  fill: var(--executive-series-3) !important;
-}
-
-.executive-readable-root .recharts-line:nth-of-type(2) .recharts-line-dot circle,
-.executive-readable-root .recharts-line:nth-of-type(2) .recharts-active-dot circle {
-  fill: var(--executive-series-2) !important;
-}
-
-.executive-readable-root .recharts-area-curve {
-  stroke: var(--executive-series-1) !important;
-}
-
-.executive-readable-root .recharts-area-area {
-  fill: color-mix(in srgb, var(--primary) 24%, transparent) !important;
-}
-
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 1) path { fill: var(--executive-series-1) !important; }
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 2) path { fill: var(--executive-series-2) !important; }
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 3) path { fill: var(--executive-series-3) !important; }
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 4) path { fill: var(--executive-series-4) !important; }
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 5) path { fill: var(--executive-series-5) !important; }
-.executive-readable-root .recharts-pie-sector:nth-child(6n + 6) path { fill: var(--executive-series-6) !important; }
-
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 1) > span:first-child { background: var(--executive-series-1) !important; }
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 2) > span:first-child { background: var(--executive-series-2) !important; }
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 3) > span:first-child { background: var(--executive-series-3) !important; }
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 4) > span:first-child { background: var(--executive-series-4) !important; }
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 5) > span:first-child { background: var(--executive-series-5) !important; }
-.executive-bi-card .space-y-1\.5 > div:nth-child(6n + 6) > span:first-child { background: var(--executive-series-6) !important; }
-
-/* Mapa: respeita a intensidade calculada por receita em cada estado. */
-.executive-readable-root svg[aria-label*="Mapa do Brasil"] {
-  min-height: 18rem;
-  overflow: visible;
-  filter: drop-shadow(0 8px 18px color-mix(in srgb, var(--primary) 14%, transparent));
-}
-
-.executive-readable-root svg[aria-label*="Mapa do Brasil"] path {
-  fill: var(--executive-series-1) !important;
-  fill-opacity: revert !important;
-  stroke: color-mix(in srgb, var(--card) 88%, var(--foreground)) !important;
-  stroke-width: 1.5 !important;
+.executive-readable-root svg[aria-label="Mapa do Brasil por receita"] path {
   vector-effect: non-scaling-stroke;
-  transition: fill-opacity 150ms ease, filter 150ms ease, stroke-width 150ms ease;
+  transition: filter 150ms ease, stroke-width 150ms ease;
 }
 
-.executive-readable-root svg[aria-label*="Mapa do Brasil"] path:hover {
-  fill-opacity: 1 !important;
-  stroke-width: 2.5 !important;
-  filter: brightness(0.82) saturate(1.35);
-}
-
-/* A tabela geográfica ganha barras visuais proporcionais à receita. */
-.executive-bi-card:has(svg[aria-label*="Mapa do Brasil"]) .space-y-2 > div:not(:first-child) {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--primary) 10%, var(--border));
-  background: color-mix(in srgb, var(--primary) 7%, var(--card)) !important;
-}
-
-.executive-bi-card:has(svg[aria-label*="Mapa do Brasil"]) .space-y-2 > div:not(:first-child)::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  width: 38%;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--primary) 24%, transparent), transparent);
-}
-
-.executive-readable-root input[type="date"],
-.executive-readable-root header button {
-  border-radius: 0.65rem !important;
-}
-
-.executive-readable-root input[type="date"]:focus,
-.executive-readable-root header button:focus-visible {
-  outline: none;
-  border-color: color-mix(in srgb, var(--primary) 60%, var(--border)) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 13%, transparent) !important;
+.executive-readable-root svg[aria-label="Mapa do Brasil por receita"] path:hover {
+  filter: brightness(0.88) saturate(1.25);
+  stroke-width: 2.2;
 }
 
 @media (min-width: 640px) {
@@ -252,8 +84,6 @@ aside.app-sidebar img[title][alt] {
 }
 
 @media (max-width: 639px) {
-  .executive-readable-root { overflow-x: hidden !important; }
-  .executive-bi-card > div:first-child { flex-direction: column; align-items: flex-start; }
   body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
   body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
     right: 0.75rem !important;
@@ -262,10 +92,7 @@ aside.app-sidebar img[title][alt] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .executive-readable-root article,
-  .executive-readable-root header button,
-  .executive-readable-root input[type="date"],
-  .executive-readable-root svg[aria-label*="Mapa do Brasil"] path {
+  .executive-readable-root svg[aria-label="Mapa do Brasil por receita"] path {
     transition: none !important;
   }
 }
