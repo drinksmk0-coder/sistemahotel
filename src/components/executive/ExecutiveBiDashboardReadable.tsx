@@ -1,4 +1,6 @@
+import { ExecutiveDashboardInteractions } from "@/components/executive/ExecutiveDashboardInteractions";
 import { ExecutiveDashboardReference } from "@/components/executive/ExecutiveDashboardReference";
+import "@/components/executive/executive-dashboard-reference-enhancements.css";
 
 export function ExecutiveBiDashboardReadable() {
   return (
@@ -7,6 +9,7 @@ export function ExecutiveBiDashboardReadable() {
       data-executive-dashboard
     >
       <ExecutiveDashboardReference />
+      <ExecutiveDashboardInteractions />
     </div>
   );
 }
