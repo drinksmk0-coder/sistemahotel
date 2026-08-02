@@ -71,11 +71,22 @@ function Avaliar() {
   const [sugestao, setSugestao] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const alertCriteria = CRITERIA.filter((criterion) => {
+    const score = notas[criterion.key];
+    return score === 1 || score === 2;
+  });
+  const improvementCriteria = CRITERIA.filter((criterion) => {
+    const score = notas[criterion.key];
+    return score >= 1 && score <= 4;
+  });
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!notas.nota_geral) return toast.error("Dê ao menos a nota geral");
     if (!quartoInput.trim()) return toast.error("Informe o número do quarto");
+    if (alertCriteria.length > 0 && !sugestao.trim()) {
+      return toast.error("Conte rapidamente o que aconteceu nas notas abaixo de 3");
+    }
 
     const q = Number(quartoInput);
     if (!Number.isInteger(q) || q <= 0) return toast.error("Número do quarto inválido");
@@ -111,20 +122,6 @@ function Avaliar() {
         sugestao: sugestao.trim() || null,
       } as never);
       if (error) throw error;
-
-      if (wifiProblema) {
-        await supabase.from("complaints").insert({
-          company_id: empresa ?? null,
-          quarto: q,
-          categoria: "wifi",
-          gravidade: "media",
-          origem: "qrcode",
-          hospede_nome: nome.trim() || null,
-          dispositivo: wifiDispositivo || null,
-          descricao: "Problema de Wi‑Fi relatado na avaliação do hóspede.",
-          status: "aberto",
-        } as never);
-      }
 
       setSent(true);
     } catch (error) {
@@ -222,8 +219,22 @@ function Avaliar() {
             <textarea className="field min-h-20" value={comentario} onChange={(e) => setComentario(e.target.value)} maxLength={500} />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold text-muted-foreground">O que devemos melhorar neste quarto?</span>
-            <textarea className="field min-h-20" value={sugestao} onChange={(e) => setSugestao(e.target.value)} maxLength={500} />
+            <span className="mb-1 block text-xs font-semibold text-muted-foreground">
+              {alertCriteria.length > 0
+                ? `O que aconteceu em: ${alertCriteria.map((criterion) => criterion.label).join(", ")}?`
+                : improvementCriteria.length > 0
+                  ? "O que faltou para essas notas serem 5?"
+                  : "O que devemos melhorar neste quarto?"}
+              {alertCriteria.length > 0 && " (obrigatório)"}
+            </span>
+            <textarea
+              className="field min-h-20"
+              value={sugestao}
+              onChange={(e) => setSugestao(e.target.value)}
+              maxLength={500}
+              required={alertCriteria.length > 0}
+              placeholder={alertCriteria.length > 0 ? "Explique brevemente para que o hotel possa resolver." : undefined}
+            />
           </label>
 
           <button type="submit" disabled={busy} className="btn-primary w-full py-3 text-base disabled:opacity-60">
