@@ -42,7 +42,9 @@ Deno.serve(async (request) => {
     };
 
     const companyId = String(body.company_id ?? "").trim();
-    const question = String(body.question ?? "").trim().slice(0, 4000);
+    const question = String(body.question ?? "")
+      .trim()
+      .slice(0, 4000);
     if (!companyId) return json({ error: "Empresa não informada." }, 400);
     if (!question) return json({ error: "Escreva uma pergunta." }, 400);
 
@@ -69,16 +71,16 @@ Deno.serve(async (request) => {
 
     const memberRole = String(membership.role ?? "");
     if (!["dono", "recepcao"].includes(memberRole)) {
-      return json(
-        { error: "O assistente está disponível somente para dono e recepção." },
-        403,
-      );
+      return json({ error: "O assistente está disponível somente para dono e recepção." }, 403);
     }
 
     const mode: AssistantMode = body.mode === "reception" ? "reception" : "analysis";
 
     // Perguntas de navegação e tarefas básicas nunca dependem de um provedor externo.
-    const localNavigation = localNavigationAnswer(question);
+    const localNavigation =
+      mode === "reception" || explicitlyAsksNavigation(question)
+        ? localNavigationAnswer(question)
+        : "";
     if (localNavigation) {
       return json({
         answer: localNavigation,
@@ -107,9 +109,7 @@ Deno.serve(async (request) => {
     }
 
     const customReceptionInstructions =
-      mode === "reception"
-        ? await loadReceptionInstructions(admin, companyId)
-        : "";
+      mode === "reception" ? await loadReceptionInstructions(admin, companyId) : "";
 
     const systemPrompt = buildSystemPrompt(mode, customReceptionInstructions);
     const safeConversation = conversation.map((message) => ({
@@ -303,19 +303,24 @@ function localNavigationAnswer(question: string) {
   return "";
 }
 
+function explicitlyAsksNavigation(question: string) {
+  return /\b(onde|aonde|qual menu|em qual menu|localizo|encontro|acesso|abrir|onde clico|como cadastrar|como criar)\b/i.test(
+    question,
+  );
+}
+
 async function loadOperationalContext(
   admin: ReturnType<typeof createClient>,
   companyId: string,
   question: string,
 ) {
-  const [company, snapshot, checkins, integrations, receptionRules] =
-    await Promise.all([
-      loadCompany(admin, companyId),
-      loadAggregatedSnapshot(admin, companyId),
-      loadCheckinSummary(admin, companyId),
-      loadIntegrationSummary(admin, companyId),
-      loadReceptionInstructions(admin, companyId),
-    ]);
+  const [company, snapshot, checkins, integrations, receptionRules] = await Promise.all([
+    loadCompany(admin, companyId),
+    loadAggregatedSnapshot(admin, companyId),
+    loadCheckinSummary(admin, companyId),
+    loadIntegrationSummary(admin, companyId),
+    loadReceptionInstructions(admin, companyId),
+  ]);
 
   const availability = shouldCheckAvailability(question)
     ? await loadExactRoomAvailability(admin, companyId, question)
@@ -334,10 +339,7 @@ async function loadOperationalContext(
   };
 }
 
-async function loadCompany(
-  admin: ReturnType<typeof createClient>,
-  companyId: string,
-) {
+async function loadCompany(admin: ReturnType<typeof createClient>, companyId: string) {
   const { data, error } = await admin
     .from("companies")
     .select("nome,slug")
@@ -347,10 +349,7 @@ async function loadCompany(
   return data ?? {};
 }
 
-async function loadAggregatedSnapshot(
-  admin: ReturnType<typeof createClient>,
-  companyId: string,
-) {
+async function loadAggregatedSnapshot(admin: ReturnType<typeof createClient>, companyId: string) {
   const { data, error } = await admin.rpc("get_hotel_ai_snapshot", {
     p_company_id: companyId,
   });
@@ -358,10 +357,7 @@ async function loadAggregatedSnapshot(
   return data ?? {};
 }
 
-async function loadCheckinSummary(
-  admin: ReturnType<typeof createClient>,
-  companyId: string,
-) {
+async function loadCheckinSummary(admin: ReturnType<typeof createClient>, companyId: string) {
   const { data, error } = await admin
     .from("guest_checkins")
     .select(
@@ -388,9 +384,7 @@ async function loadCheckinSummary(
     if (!result.error && Array.isArray(result.data)) reservations = result.data;
   }
 
-  const reservationById = new Map(
-    reservations.map((row) => [String(row.id), row]),
-  );
+  const reservationById = new Map(reservations.map((row) => [String(row.id), row]));
   const byStatus: Record<string, number> = {};
   for (const row of rows) {
     const status = String(row.status ?? "sem_status");
@@ -410,8 +404,7 @@ async function loadCheckinSummary(
         reviewed_at: row.reviewed_at,
         mtur_status: row.mtur_status,
         signed: Boolean(row.signature_data_url),
-        reservation_code:
-          reservation.codigo_externo ?? String(row.reservation_id).slice(0, 8),
+        reservation_code: reservation.codigo_externo ?? String(row.reservation_id).slice(0, 8),
         room: reservation.quarto,
         checkin: reservation.checkin,
         checkout: reservation.checkout,
@@ -422,10 +415,7 @@ async function loadCheckinSummary(
   };
 }
 
-async function loadIntegrationSummary(
-  admin: ReturnType<typeof createClient>,
-  companyId: string,
-) {
+async function loadIntegrationSummary(admin: ReturnType<typeof createClient>, companyId: string) {
   const { data, error } = await admin
     .from("company_integrations")
     .select("tipo,nome,ativo,updated_at")
@@ -469,17 +459,11 @@ async function loadGeminiKey(admin: ReturnType<typeof createClient>) {
 
 function buildGeminiModelChain() {
   const configured = Deno.env.get("GEMINI_MODEL")?.trim();
-  const candidates = [
-    configured,
-    "gemini-3.5-flash",
-    "gemini-3.5-flash-lite",
-  ].filter((value): value is string => Boolean(value));
+  const candidates = [configured, "gemini-3.5-flash", "gemini-3.5-flash-lite"].filter(
+    (value): value is string => Boolean(value),
+  );
 
-  const retired = new Set([
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-2.5-flash",
-  ]);
+  const retired = new Set(["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash"]);
 
   return [...new Set(candidates)].filter((model) => !retired.has(model));
 }
@@ -610,9 +594,7 @@ async function callOpenAIWithRetries(args: {
         lastMessage = "Resposta vazia do provedor reserva.";
       } else {
         lastStatus = response.status;
-        lastMessage =
-          nestedString(payload, ["error", "message"]) ||
-          String(payload.message ?? "");
+        lastMessage = nestedString(payload, ["error", "message"]) || String(payload.message ?? "");
       }
     } catch (error) {
       lastStatus = 503;
@@ -644,9 +626,7 @@ async function loadExactRoomAvailability(
   question: string,
 ) {
   const dates =
-    question.match(
-      /\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b/g,
-    ) ?? [];
+    question.match(/\b(?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b/g) ?? [];
 
   const normalizedDates = dates
     .map(normalizeDate)
@@ -695,12 +675,8 @@ async function loadExactRoomAvailability(
 
 function deterministicSystemAnswer(question: string, context: RecordRow) {
   const normalized = normalize(question);
-  const checkin = isRecord(context.checkin_online)
-    ? context.checkin_online
-    : {};
-  const availability = isRecord(context.availability)
-    ? context.availability
-    : {};
+  const checkin = isRecord(context.checkin_online) ? context.checkin_online : {};
+  const availability = isRecord(context.availability) ? context.availability : {};
 
   if (
     /\b(onde foi|onde fica|onde encontro|para onde foi|formulario|fnrh|assinatura|assinei|status da ficha|recebeu a ficha)\b/.test(
@@ -734,9 +710,7 @@ function deterministicSystemAnswer(question: string, context: RecordRow) {
   }
 
   if (
-    /\b(disponibilidade|quarto livre|quartos livres|disponivel|disponiveis)\b/.test(
-      normalized,
-    ) &&
+    /\b(disponibilidade|quarto livre|quartos livres|disponivel|disponiveis)\b/.test(normalized) &&
     availability.consultada
   ) {
     const count = Number(availability.quantidade_disponivel ?? 0);
@@ -763,9 +737,7 @@ function deterministicSystemAnswer(question: string, context: RecordRow) {
   }
 
   if (/\b(booking|channel manager|servico de conectividade)\b/.test(normalized)) {
-    const integrations = Array.isArray(context.integrations)
-      ? context.integrations
-      : [];
+    const integrations = Array.isArray(context.integrations) ? context.integrations : [];
     const booking = integrations.find((item) => {
       const row = isRecord(item) ? item : {};
       return /booking/i.test(`${row.tipo ?? ""} ${row.nome ?? ""}`);
@@ -820,9 +792,7 @@ function offlineFallbackAnswer(
     ].join("\n");
   }
 
-  const snapshot = isRecord(context.hotel_snapshot)
-    ? context.hotel_snapshot
-    : {};
+  const snapshot = isRecord(context.hotel_snapshot) ? context.hotel_snapshot : {};
   const snapshotAvailable = !snapshot.unavailable;
 
   return [
@@ -835,10 +805,7 @@ function offlineFallbackAnswer(
   ].join("\n");
 }
 
-function buildSystemPrompt(
-  mode: AssistantMode,
-  customInstructions: string,
-) {
+function buildSystemPrompt(mode: AssistantMode, customInstructions: string) {
   const common = `
 Você é o HotelAI, assistente operacional e analista do sistema de gestão hoteleira.
 Responda em português do Brasil e trate o CONTEXTO OFICIAL DO SISTEMA como fonte de verdade.
@@ -887,7 +854,9 @@ function normalizeConversation(value: unknown): ConversationMessage[] {
     .filter(isRecord)
     .map((item) => ({
       role: (item.role === "assistant" ? "assistant" : "user") as ConversationMessage["role"],
-      text: String(item.text ?? "").trim().slice(0, 2000),
+      text: String(item.text ?? "")
+        .trim()
+        .slice(0, 2000),
     }))
     .filter((item) => item.text)
     .slice(-12);
@@ -895,9 +864,7 @@ function normalizeConversation(value: unknown): ConversationMessage[] {
 
 function normalizeDate(value: string) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  const match = value.match(
-    /^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/,
-  );
+  const match = value.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?$/);
   if (!match) return undefined;
 
   const year = match[3]
@@ -916,8 +883,7 @@ function naturalStayDates(value: string) {
   }
 
   const onlySunday =
-    /\bdomingo\b/.test(clean) &&
-    !/\b(sabado|fim de semana|final de semana|fds)\b/.test(clean);
+    /\bdomingo\b/.test(clean) && !/\b(sabado|fim de semana|final de semana|fds)\b/.test(clean);
 
   const checkin = nextWeekday(onlySunday ? 0 : 6);
   return { checkin, checkout: addDays(checkin, 1) };
@@ -925,9 +891,7 @@ function naturalStayDates(value: string) {
 
 function nextWeekday(target: number) {
   const parts = localDateParts();
-  const today = new Date(
-    `${parts.year}-${parts.month}-${parts.day}T12:00:00-03:00`,
-  );
+  const today = new Date(`${parts.year}-${parts.month}-${parts.day}T12:00:00-03:00`);
 
   let distance = (target - today.getDay() + 7) % 7;
   if (distance === 0) distance = 7;
@@ -949,8 +913,7 @@ function localDateParts() {
     day: "2-digit",
   }).formatToParts(new Date());
 
-  const get = (type: string) =>
-    parts.find((part) => part.type === type)?.value ?? "";
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
 
   return {
     year: get("year"),
@@ -968,24 +931,17 @@ function addDays(date: string, amount: number) {
 function redactPersonalData(value: string) {
   return value
     .replace(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g, "[e-mail removido]")
-    .replace(
-      /\b(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?9?\d{4}[-\s]?\d{4}\b/g,
-      "[telefone removido]",
-    )
+    .replace(/\b(?:\+?55\s*)?(?:\(?\d{2}\)?\s*)?9?\d{4}[-\s]?\d{4}\b/g, "[telefone removido]")
     .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, "[CPF removido]")
     .slice(0, 4000);
 }
 
 function extractGeminiText(payload: RecordRow) {
-  const candidates = Array.isArray(payload.candidates)
-    ? payload.candidates
-    : [];
+  const candidates = Array.isArray(payload.candidates) ? payload.candidates : [];
 
   return candidates
     .flatMap((candidate) => {
-      const content = (candidate as RecordRow).content as
-        | RecordRow
-        | undefined;
+      const content = (candidate as RecordRow).content as RecordRow | undefined;
       return Array.isArray(content?.parts) ? content.parts : [];
     })
     .map((part) => String((part as RecordRow).text ?? ""))
@@ -1037,20 +993,18 @@ function isRecord(value: unknown): value is RecordRow {
 }
 
 function isRetryableStatus(status: number) {
-  return status === 408 ||
+  return (
+    status === 408 ||
     status === 409 ||
     status === 429 ||
     status === 500 ||
     status === 502 ||
     status === 503 ||
-    status === 504;
+    status === 504
+  );
 }
 
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit,
-  timeoutMs: number,
-) {
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -1107,8 +1061,7 @@ Nunca invente Pix, link, preço, disponibilidade, pagamento ou documento.
 const SYSTEM_CATALOG = [
   {
     menu: "Pulso do Hotel",
-    purpose:
-      "KPIs, hospedagem, produtos, hóspedes, marketing, custos e ações.",
+    purpose: "KPIs, hospedagem, produtos, hóspedes, marketing, custos e ações.",
   },
   {
     menu: "Mapa",
@@ -1116,13 +1069,11 @@ const SYSTEM_CATALOG = [
   },
   {
     menu: "Reservas",
-    purpose:
-      "Reserva, pagamento, check-in, checkout, FNRH online, recibo e NFS-e.",
+    purpose: "Reserva, pagamento, check-in, checkout, FNRH online, recibo e NFS-e.",
   },
   {
     menu: "Fichas de check-in",
-    purpose:
-      "Formulários recebidos, assinatura, status e conferência da recepção.",
+    purpose: "Formulários recebidos, assinatura, status e conferência da recepção.",
   },
   {
     menu: "Clientes",
@@ -1130,8 +1081,7 @@ const SYSTEM_CATALOG = [
   },
   {
     menu: "Vendas",
-    purpose:
-      "Produtos, serviços, consumo, pagamento e receita adicional.",
+    purpose: "Produtos, serviços, consumo, pagamento e receita adicional.",
   },
   {
     menu: "Despesas",

@@ -1,7 +1,22 @@
-import { useMemo, useState } from "react";
-import { CalendarDays, ChevronLeft, ChevronRight, CircleDollarSign, Plus } from "lucide-react";
-import { RoomFeatureBadges, roomFeatureTags } from "@/components/RoomFeatures";
-import type { Reservation, Room } from "@/lib/data";
+import { useEffect, useMemo, useState } from "react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  CircleDollarSign,
+  LogOut,
+  Plus,
+  Undo2,
+} from "lucide-react";
+import {
+  useUpdate,
+  type Reservation,
+  type Room,
+} from "@/lib/data";
+import {
+  RoomFeatureBadges,
+  roomFeatureTags,
+} from "@/components/RoomFeatures";
 import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
 
 export function RoomTimeline({
@@ -20,31 +35,69 @@ export function RoomTimeline({
   onCreateReservation: (room: Room, date: string) => void;
 }) {
   const [daysVisible, setDaysVisible] = useState<7 | 14 | 21>(7);
+  const updateRoomSituation = useUpdate("rooms", ["rooms"]);
   const today = todayISO();
   const dates = useMemo(
-    () => Array.from({ length: daysVisible }, (_, index) => addDaysISO(startDate, index)),
+    () =>
+      Array.from({ length: daysVisible }, (_, index) =>
+        addDaysISO(startDate, index),
+      ),
     [daysVisible, startDate],
   );
+  const endDate = dates[dates.length - 1] ?? startDate;
+
+  useEffect(() => {
+    const root = document.querySelector<HTMLElement>(
+      "[data-room-timeline-root]",
+    );
+    const toolbar = root?.previousElementSibling;
+    const duplicatedDate = toolbar?.querySelector<HTMLInputElement>(
+      'input[type="date"]',
+    );
+    const label = duplicatedDate?.closest("label");
+    if (label instanceof HTMLElement) label.hidden = true;
+  }, []);
+
   const groupedRooms = useMemo(() => {
-    const groups = new Map<string, Room[]>();
+    const groups = new Map<
+      string,
+      { name: string; floor: number; rooms: Room[] }
+    >();
+
     rooms.forEach((room) => {
-      const key = room.configuracao?.trim() || "Outros quartos";
-      groups.set(key, [...(groups.get(key) ?? []), room]);
+      const name = room.configuracao?.trim() || "Outros quartos";
+      const key = `${name}|${room.andar}`;
+      const current = groups.get(key);
+      if (current) {
+        current.rooms.push(room);
+      } else {
+        groups.set(key, { name, floor: room.andar, rooms: [room] });
+      }
     });
-    return [...groups]
-      .map(([name, items]) => ({
-        name,
-        rooms: items.sort((left, right) => left.numero - right.numero),
+
+    return [...groups.values()]
+      .map((group) => ({
+        ...group,
+        rooms: group.rooms.sort((left, right) => left.numero - right.numero),
       }))
-      .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+      .sort(
+        (left, right) =>
+          left.floor - right.floor ||
+          left.name.localeCompare(right.name, "pt-BR"),
+      );
   }, [rooms]);
+
   const reservationsByRoom = useMemo(() => {
     const grouped = new Map<number, Reservation[]>();
     reservations.forEach((reservation) => {
-      grouped.set(reservation.quarto, [...(grouped.get(reservation.quarto) ?? []), reservation]);
+      grouped.set(reservation.quarto, [
+        ...(grouped.get(reservation.quarto) ?? []),
+        reservation,
+      ]);
     });
     return grouped;
   }, [reservations]);
+
   const availabilityByDate = useMemo(
     () =>
       new Map(
@@ -52,7 +105,9 @@ export function RoomTimeline({
           const occupied = rooms.filter((room) =>
             (reservationsByRoom.get(room.numero) ?? []).some(
               (reservation) =>
-                !["cancelado", "finalizado", "manutencao"].includes(reservation.status) &&
+                !["cancelado", "finalizado", "manutencao"].includes(
+                  reservation.status,
+                ) &&
                 reservation.checkin <= date &&
                 reservation.checkout > date,
             ),
@@ -63,62 +118,81 @@ export function RoomTimeline({
     [dates, reservationsByRoom, rooms],
   );
 
-  const roomColumnWidth = 208;
-  const gridTemplateColumns = `${roomColumnWidth}px repeat(${daysVisible}, minmax(70px, 1fr))`;
-  const minimumWidth = roomColumnWidth + daysVisible * 70;
-  const endDate = dates[dates.length - 1] ?? startDate;
+  const roomColumnWidth = 260;
+  const dayWidth = 80;
+  const rowHeight = 46;
+  const gridTemplateColumns = `${roomColumnWidth}px repeat(${daysVisible}, minmax(${dayWidth}px, 1fr))`;
+  const minimumWidth = roomColumnWidth + daysVisible * dayWidth;
 
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
-      <div className="border-b border-border bg-card px-2 py-1.5">
-        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-center gap-2">
-            <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
-            <div className="min-w-0">
-              <strong className="block truncate text-xs text-pine-dark">
+    <section
+      data-room-timeline-root
+      className="overflow-hidden rounded-lg border border-border bg-card shadow-sm"
+    >
+      <div className="border-b border-border bg-card px-2.5 py-1.5">
+        <div className="flex flex-col gap-1.5 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="relative inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground shadow-sm transition hover:brightness-105 focus-within:ring-2 focus-within:ring-primary/35">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+              <span>
                 {fmtDate(startDate)} a {fmtDate(endDate)}
-              </strong>
-              <span className="text-[9px] text-muted-foreground">
-                As etiquetas ao lado da UH mostram características confirmadas do quarto.
               </span>
-            </div>
+              <input
+                type="date"
+                className="absolute inset-0 cursor-pointer opacity-0"
+                value={startDate}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    onStartDateChange(event.target.value);
+                  }
+                }}
+                aria-label="Escolher data para consultar hospedagens"
+              />
+            </label>
+            <span className="text-[10px] font-medium text-muted-foreground">
+              Clique na data para consultar outro período.
+            </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1 text-[10px]">
-            <div className="flex items-center">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5">
               <button
                 type="button"
-                className="rounded p-1 text-pine-dark transition hover:bg-muted"
-                onClick={() => onStartDateChange(addDaysISO(startDate, -daysVisible))}
+                className="grid min-h-7 min-w-7 place-items-center rounded-md text-pine-dark transition hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() =>
+                  onStartDateChange(addDaysISO(startDate, -daysVisible))
+                }
                 aria-label="Período anterior"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
                 type="button"
-                className="rounded px-1.5 py-1 font-bold text-pine-dark transition hover:bg-muted"
+                className="min-h-7 rounded-md px-2 text-xs font-extrabold text-pine-dark transition hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 onClick={() => onStartDateChange(todayISO())}
               >
                 Hoje
               </button>
               <button
                 type="button"
-                className="rounded p-1 text-pine-dark transition hover:bg-muted"
-                onClick={() => onStartDateChange(addDaysISO(startDate, daysVisible))}
+                className="grid min-h-7 min-w-7 place-items-center rounded-md text-pine-dark transition hover:bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                onClick={() =>
+                  onStartDateChange(addDaysISO(startDate, daysVisible))
+                }
                 aria-label="Próximo período"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="flex items-center font-bold">
+            <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 font-bold">
               {[7, 14, 21].map((days) => (
                 <button
                   key={days}
                   type="button"
-                  className={`rounded px-1.5 py-1 transition ${
+                  className={`min-h-7 rounded-md px-2 text-[11px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                     daysVisible === days
-                      ? "bg-primary text-primary-foreground shadow"
+                      ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-card"
                   }`}
                   onClick={() => setDaysVisible(days as 7 | 14 | 21)}
@@ -130,12 +204,12 @@ export function RoomTimeline({
           </div>
         </div>
 
-        <div className="mt-1 hidden flex-wrap gap-x-3 gap-y-1 text-[9px] font-semibold text-muted-foreground lg:flex">
-          <Legend color="bg-pine-300" label="Hospedado / quitado" />
-          <Legend color="bg-sky-400" label="Reserva sem pagamento" />
-          <Legend color="bg-amber-400" label="Sinal pago" />
-          <Legend color="bg-rose-500" label="Vencida / saldo pendente" />
-          <Legend color="bg-slate-400" label="Finalizada" />
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-semibold text-muted-foreground">
+          <Legend color="bg-pine" label="Hospedado" />
+          <Legend color="bg-[var(--chart-5)]" label="Aguardando check-in" />
+          <Legend color="bg-indigo-600" label="Saiu e retorna" />
+          <Legend color="bg-brick" label="Vencida / saldo pendente" />
+          <Legend color="bg-slate" label="Finalizada" />
         </div>
       </div>
 
@@ -145,141 +219,225 @@ export function RoomTimeline({
             className="sticky top-0 z-30 grid border-b border-border bg-card/95 backdrop-blur"
             style={{ gridTemplateColumns }}
           >
-            <div className="sticky left-0 z-40 flex items-center border-r border-border bg-card px-2 py-1.5">
-              <div>
-                <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                  Unidade e perfil
-                </span>
-                <strong className="text-xs text-pine-dark">{rooms.length} quartos</strong>
-              </div>
+            <div className="sticky left-0 z-40 flex items-center border-r border-border bg-card px-2 py-1">
+              <strong className="text-xs text-pine-dark">
+                {rooms.length} quartos
+              </strong>
             </div>
+
             {dates.map((date) => {
               const current = parseDate(date);
               const isToday = date === today;
               const weekend = [0, 6].includes(current.getDay());
+              const available = availabilityByDate.get(date) ?? 0;
+
               return (
-                <div
+                <button
                   key={date}
-                  className={`border-r border-border/70 px-1 py-1 text-center ${
-                    isToday ? "bg-brass-bg" : weekend ? "bg-muted/55" : ""
+                  type="button"
+                  onClick={() => onStartDateChange(date)}
+                  className={`border-r border-border/70 px-1 py-1 text-center transition focus-visible:z-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                    isToday
+                      ? "bg-primary/10"
+                      : weekend
+                        ? "bg-muted/35"
+                        : "bg-card"
                   }`}
+                  aria-label={`Consultar ${fmtDate(date)}`}
                 >
-                  <span className="block text-[9px] font-bold uppercase text-muted-foreground">
-                    {current.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "")}
+                  <span className="block text-[9px] font-extrabold uppercase text-muted-foreground">
+                    {current
+                      .toLocaleDateString("pt-BR", { weekday: "short" })
+                      .replace(".", "")}
                   </span>
                   <span
-                    className={`mx-auto flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
-                      isToday ? "bg-pine text-white shadow" : "text-foreground"
+                    className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full text-xs font-black ${
+                      isToday
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-pine-dark"
                     }`}
                   >
                     {current.getDate()}
                   </span>
                   <span
-                    className={`block text-[8px] font-bold ${
-                      (availabilityByDate.get(date) ?? 0) === 0 ? "text-brick" : "text-sage"
+                    className={`block text-[9px] font-bold ${
+                      available === 0 ? "text-brick" : "text-primary"
                     }`}
                   >
-                    {availabilityByDate.get(date) ?? 0} livre(s)
+                    {available} livre(s)
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>
 
           {groupedRooms.map((group) => (
-            <div key={group.name}>
-              <div className="sticky left-0 z-20 flex h-6 items-center border-b border-pine/10 bg-sage-bg px-2">
-                <span className="text-[9px] font-extrabold uppercase tracking-[0.1em] text-pine-dark">
-                  {group.name}
+            <div key={`${group.name}-${group.floor}`}>
+              <div className="sticky left-0 z-20 flex h-7 items-center border-b border-primary/15 bg-primary/10 px-2.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-[0.07em] text-pine-dark">
+                  {group.name} · {group.floor}º andar
                 </span>
-                <span className="ml-2 rounded-full bg-white/75 px-2 py-0.5 text-[9px] font-bold text-muted-foreground">
+                <span className="ml-2 rounded-full border border-primary/15 bg-card px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground">
                   {group.rooms.length} UH
                 </span>
               </div>
 
               {group.rooms.map((room) => {
-                const visibleReservations = (reservationsByRoom.get(room.numero) ?? [])
+                const visibleReservations = (
+                  reservationsByRoom.get(room.numero) ?? []
+                )
                   .filter(
                     (reservation) =>
-                      reservation.quarto === room.numero &&
                       reservation.status !== "cancelado" &&
-                      reservation.checkin < addDaysISO(startDate, daysVisible) &&
+                      reservation.checkin <
+                        addDaysISO(startDate, daysVisible) &&
                       reservation.checkout > startDate,
                   )
-                  .sort((left, right) => left.checkin.localeCompare(right.checkin));
-                const featureTitle = roomFeatureTags(room).map((tag) => tag.label).join(" · ");
+                  .sort((left, right) =>
+                    left.checkin.localeCompare(right.checkin),
+                  );
+                const featureTitle = roomFeatureTags(room)
+                  .map((item) => item.label)
+                  .join(" · ");
 
                 return (
                   <div
                     key={`${room.company_id}-${room.numero}`}
-                    className="relative grid min-h-[48px] border-b border-border/70"
-                    style={{ gridTemplateColumns }}
+                    className="relative grid border-b border-border/75"
+                    style={{ gridTemplateColumns, height: rowHeight }}
                   >
                     <button
                       type="button"
                       onClick={() => onRoomClick(room)}
-                      className="sticky left-0 z-20 flex items-center justify-between gap-2 border-r border-border bg-card px-2 text-left transition hover:bg-sage-bg"
-                      title={featureTitle || "Características ainda não cadastradas"}
+                      className="sticky left-0 z-20 flex items-center border-r border-border bg-card px-2.5 py-1 text-left text-pine-dark transition hover:bg-primary/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                      title={
+                        featureTitle || "Características ainda não cadastradas"
+                      }
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="sr-only">Quarto</span>
-                          <strong className="text-sm text-pine-dark">{room.numero}</strong>
-                          <span className="text-[8px] font-semibold text-muted-foreground">{room.andar}º andar</span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <strong className="text-sm font-black">
+                            {room.numero}
+                          </strong>
+                          <span className="shrink-0 rounded-md border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-[9px] font-extrabold text-primary">
+                            {fmtBRL(room.preco)}
+                          </span>
                         </div>
-                        <RoomFeatureBadges room={room} compact max={2} />
+                        <div className="max-h-4 overflow-hidden">
+                          <RoomFeatureBadges room={room} compact max={3} />
+                        </div>
                       </div>
-                      <strong className="shrink-0 text-[8px] text-pine">{fmtBRL(room.preco)}</strong>
                     </button>
 
                     {dates.map((date, index) => {
-                      const weekend = [0, 6].includes(parseDate(date).getDay());
+                      const weekend = [0, 6].includes(
+                        parseDate(date).getDay(),
+                      );
                       const isToday = date === today;
+
                       return (
                         <button
                           key={date}
                           type="button"
                           onClick={() => onCreateReservation(room, date)}
-                          className={`group/cell relative border-r border-border/55 transition hover:bg-sage-bg ${
-                            isToday ? "bg-brass-bg/45" : weekend ? "bg-muted/25" : ""
+                          className={`group/cell relative border-r border-border/60 transition hover:bg-primary/[0.08] focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                            isToday
+                              ? "bg-primary/[0.06]"
+                              : weekend
+                                ? "bg-muted/20"
+                                : "bg-card"
                           }`}
                           style={{ gridColumn: index + 2 }}
-                          aria-label={`Reservar quarto ${room.numero} em ${fmtDate(date)}`}
+                          aria-label={`Reservar quarto ${room.numero} em ${fmtDate(
+                            date,
+                          )}`}
                         >
-                          <Plus className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 text-pine opacity-0 transition group-hover/cell:opacity-50" />
+                          <Plus className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 text-primary opacity-0 transition group-hover/cell:opacity-55 group-focus-visible/cell:opacity-80" />
                         </button>
                       );
                     })}
 
                     {visibleReservations.map((reservation) => {
-                      const startIndex = Math.max(0, daysBetween(startDate, reservation.checkin));
-                      const endIndex = Math.min(daysVisible, daysBetween(startDate, reservation.checkout));
+                      const startIndex = Math.max(
+                        0,
+                        daysBetween(startDate, reservation.checkin),
+                      );
+                      const endIndex = Math.min(
+                        daysVisible,
+                        daysBetween(startDate, reservation.checkout),
+                      );
                       const span = Math.max(1, endIndex - startIndex);
-                      const visual = reservationVisual(reservation, today);
+                      const checkedIn = reservationIsCheckedIn(reservation);
+                      const temporarilyAway =
+                        checkedIn && room.situacao === "ausente_temporario";
+                      const visual = reservationVisual(
+                        reservation,
+                        today,
+                        temporarilyAway,
+                      );
+
                       return (
-                        <button
+                        <div
                           key={reservation.id}
-                          type="button"
-                          onClick={() => onRoomClick(room)}
-                          className={`relative z-10 mx-0.5 my-1 flex min-w-0 items-center overflow-hidden rounded px-1.5 text-left shadow-sm transition hover:z-20 hover:brightness-105 hover:shadow-lg ${visual.className}`}
+                          className={`relative z-10 mx-1 my-1 flex min-w-0 overflow-hidden rounded-md border shadow-sm transition hover:z-20 hover:brightness-105 hover:shadow-md focus-within:z-30 focus-within:ring-2 focus-within:ring-offset-1 ${visual.className}`}
                           style={{
                             gridColumn: `${startIndex + 2} / span ${span}`,
                             gridRow: 1,
-                            clipPath:
-                              span > 1
-                                ? "polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 8px 50%)"
-                                : "polygon(0 0, 100% 0, 100% 100%, 0 100%)",
                           }}
-                          title={`${reservation.cliente_nome} · ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}`}
+                          title={`${reservation.cliente_nome} · ${fmtDate(
+                            reservation.checkin,
+                          )} a ${fmtDate(reservation.checkout)}`}
                         >
-                          <span className="min-w-0">
-                            <strong className="block truncate text-[9px]">{reservation.cliente_nome}</strong>
-                            <span className="flex items-center gap-0.5 truncate text-[8px] opacity-80">
-                              <CircleDollarSign className="h-2.5 w-2.5 shrink-0" />
-                              {visual.label} · {fmtBRL(reservation.valor_total)}
+                          <button
+                            type="button"
+                            onClick={() => onRoomClick(room)}
+                            className="flex min-w-0 flex-1 items-center px-2 text-left focus-visible:outline-none"
+                          >
+                            <span className="min-w-0">
+                              <strong className="block truncate text-[10px] font-black">
+                                {reservation.cliente_nome}
+                              </strong>
+                              <span className="flex items-center gap-1 truncate text-[8px] font-bold opacity-95">
+                                <CircleDollarSign className="h-2.5 w-2.5 shrink-0" />
+                                {visual.label}
+                              </span>
                             </span>
-                          </span>
-                        </button>
+                          </button>
+
+                          {checkedIn && (
+                            <button
+                              type="button"
+                              disabled={updateRoomSituation.isPending}
+                              onClick={() =>
+                                updateRoomSituation.mutate({
+                                  id: room.numero,
+                                  patch: {
+                                    situacao: temporarilyAway
+                                      ? null
+                                      : "ausente_temporario",
+                                  },
+                                })
+                              }
+                              className="flex min-w-8 shrink-0 items-center justify-center border-l border-white/25 bg-black/5 px-1.5 transition hover:bg-black/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/80 disabled:cursor-wait disabled:opacity-60"
+                              aria-label={
+                                temporarilyAway
+                                  ? `Marcar hóspede do quarto ${room.numero} como retornado`
+                                  : `Marcar hóspede do quarto ${room.numero} como saída temporária`
+                              }
+                              title={
+                                temporarilyAway
+                                  ? "Hóspede voltou"
+                                  : "Hóspede saiu e vai voltar"
+                              }
+                            >
+                              {temporarilyAway ? (
+                                <Undo2 className="h-3.5 w-3.5" />
+                              ) : (
+                                <LogOut className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
                       );
                     })}
                   </div>
@@ -289,7 +447,7 @@ export function RoomTimeline({
           ))}
 
           {rooms.length === 0 && (
-            <div className="p-8 text-center text-sm text-muted-foreground">
+            <div className="p-8 text-center text-sm font-semibold text-muted-foreground">
               Nenhum quarto corresponde aos filtros selecionados.
             </div>
           )}
@@ -301,30 +459,73 @@ export function RoomTimeline({
 
 function Legend({ color, label }: { color: string; label: string }) {
   return (
-    <span className="flex items-center gap-1.5">
-      <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
+    <span className="flex items-center gap-1">
+      <span className={`h-2 w-2 rounded-full ${color}`} />
       {label}
     </span>
   );
 }
 
-function reservationVisual(reservation: Reservation, today: string) {
-  const total = Number(reservation.valor_total);
-  const paid = Number(reservation.valor_pago);
+function reservationIsCheckedIn(reservation: Reservation) {
+  return reservation.status === "ocupado" || Boolean(reservation.checkin_at);
+}
+
+function reservationVisual(
+  reservation: Reservation,
+  today: string,
+  temporarilyAway: boolean,
+) {
+  const total = Math.max(0, Number(reservation.valor_total) || 0);
+  const paid = Math.max(0, Number(reservation.valor_pago) || 0);
+  const balance = Math.max(0, total - paid);
   const overdue =
-    !reservation.pago &&
+    balance > 0 &&
     reservation.checkout < today &&
     !["finalizado", "cancelado"].includes(reservation.status);
 
-  if (overdue) return { className: "border-brick bg-brick text-white", label: "Saldo vencido" };
+  if (overdue) {
+    return {
+      className: "border-brick bg-brick text-white",
+      label: `Saldo vencido · ${fmtBRL(balance)}`,
+    };
+  }
+
   if (reservation.status === "finalizado") {
-    return { className: "border-border bg-muted text-muted-foreground", label: "Finalizada" };
+    return {
+      className: "border-border bg-muted text-muted-foreground",
+      label: "Finalizada",
+    };
   }
-  if (reservation.pago || (total > 0 && paid >= total) || reservation.status === "ocupado") {
-    return { className: "border-pine-dark bg-pine text-white", label: "Quitado" };
+
+  if (reservationIsCheckedIn(reservation)) {
+    if (temporarilyAway) {
+      return {
+        className: "border-indigo-700 bg-indigo-600 text-white",
+        label: "Saiu e retorna",
+      };
+    }
+
+    return {
+      className: "border-pine-dark bg-pine text-white",
+      label:
+        balance > 0
+          ? `Hospedado · saldo ${fmtBRL(balance)}`
+          : "Hospedado · quitado",
+    };
   }
-  if (paid > 0) return { className: "border-brass bg-brass text-pine-dark", label: "Sinal pago" };
-  return { className: "border-[var(--chart-5)] bg-[var(--chart-5)] text-white", label: "A receber" };
+
+  const paymentLabel =
+    total > 0 && paid >= total
+      ? "quitada"
+      : paid > 0
+        ? "sinal pago"
+        : "sem pagamento";
+
+  return {
+    className:
+      "border-[var(--chart-5)] bg-[var(--chart-5)] text-white",
+    label: `Aguardando check-in · ${paymentLabel}`,
+  };
 }
 
 function parseDate(date: string) {
