@@ -1,0 +1,97 @@
+/* Ajuste exclusivo dos dois gráficos de rosca do Pulso do Hotel. */
+
+/* Mantém gráfico e legenda equilibrados, com a mesma proporção nos dois cards. */
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child,
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child {
+  grid-template-columns: minmax(9.5rem, 0.92fr) minmax(0, 1.08fr) !important;
+  gap: 0.75rem !important;
+  align-items: center !important;
+}
+
+/* Os dois anéis passam a ter exatamente o mesmo tamanho e ficam centralizados. */
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child > div:first-child,
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child > div:first-child {
+  width: 10.75rem !important;
+  height: 10.75rem !important;
+  max-width: 100%;
+  justify-self: center;
+  margin-inline: auto;
+}
+
+/* Evita aparência poligonal e separa os setores com acabamento limpo. */
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) .recharts-pie-sector path,
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) .recharts-pie-sector path {
+  stroke: var(--card);
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+}
+
+/* A legenda lateral é a única fonte de rótulos e não corta nomes longos. */
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child > div:last-child,
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child > div:last-child {
+  display: grid !important;
+  gap: 0.42rem !important;
+  min-width: 0;
+  width: 100%;
+}
+
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child > div:last-child > div,
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child > div:last-child > div {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start !important;
+  gap: 0.55rem !important;
+  min-width: 0;
+  padding-block: 0.08rem;
+}
+
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child > div:last-child > div > span:first-child,
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child > div:last-child > div > span:first-child {
+  min-width: 0;
+  align-items: flex-start !important;
+}
+
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) .truncate,
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) .truncate {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  line-height: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child > div:last-child strong,
+.executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child > div:last-child strong {
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Em telas baixas, reduz os dois anéis igualmente, sem distorcer a legenda. */
+@media (min-width: 1100px) and (max-height: 900px) {
+  .executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child > div:first-child,
+  .executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child > div:first-child {
+    width: 9.1rem !important;
+    height: 9.1rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child,
+  .executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child {
+    grid-template-columns: minmax(8.4rem, 0.9fr) minmax(0, 1.1fr) !important;
+    gap: 0.55rem !important;
+  }
+}
+
+/* Em celular, a legenda fica abaixo do anel e continua totalmente legível. */
+@media (max-width: 639px) {
+  .executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child,
+  .executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child {
+    grid-template-columns: 1fr !important;
+  }
+
+  .executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(2) > div:last-child > div:first-child,
+  .executive-readable-root > div:first-child > section:nth-of-type(2) > article:nth-child(3) > div:last-child > div:first-child {
+    width: 11rem !important;
+    height: 11rem !important;
+  }
+}

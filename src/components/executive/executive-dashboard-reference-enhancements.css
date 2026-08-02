@@ -1,0 +1,185 @@
+/* Ajustes finais do dashboard de referência. */
+.executive-readable-root {
+  overflow: auto !important;
+  background: var(--background);
+}
+
+.executive-dashboard-controls-host {
+  z-index: 60;
+}
+
+.executive-control-button {
+  display: inline-flex;
+  height: 2.5rem;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--background);
+  padding: 0 0.75rem;
+  color: var(--foreground);
+  font-size: 0.75rem;
+  font-weight: 800;
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.executive-control-button:hover,
+.executive-control-button[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--primary) 38%, var(--border));
+  background: color-mix(in srgb, var(--primary) 7%, var(--background));
+  color: var(--primary);
+}
+
+.executive-control-popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 100;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: 0.9rem;
+  background: var(--card);
+  padding: 0.75rem;
+  color: var(--foreground);
+  box-shadow: 0 18px 50px rgb(15 23 42 / 0.18);
+}
+
+.executive-report-option {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 0.65rem;
+  border-radius: 0.7rem;
+  padding: 0.7rem;
+  text-align: left;
+  transition: background-color 130ms ease;
+}
+
+.executive-report-option:hover {
+  background: var(--muted);
+}
+
+.executive-report-option > svg {
+  margin-top: 0.1rem;
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.executive-report-option span,
+.executive-report-option strong,
+.executive-report-option small {
+  display: block;
+}
+
+.executive-report-option strong {
+  font-size: 0.75rem;
+}
+
+.executive-report-option small {
+  margin-top: 0.15rem;
+  color: var(--muted-foreground);
+  font-size: 0.65rem;
+  line-height: 1rem;
+}
+
+.executive-help-tooltip {
+  position: fixed;
+  z-index: 9999;
+  width: min(20rem, calc(100vw - 2rem));
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--card) 96%, transparent);
+  padding: 0.65rem 0.75rem;
+  color: var(--foreground);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.1rem;
+  box-shadow: 0 14px 38px rgb(15 23 42 / 0.2);
+  backdrop-filter: blur(10px);
+}
+
+/* Nas roscas, a informação aparece apenas na legenda lateral. */
+.executive-readable-root .recharts-pie .recharts-label-list,
+.executive-readable-root .recharts-pie .recharts-label,
+.executive-readable-root .recharts-pie-labels {
+  display: none !important;
+}
+
+/* Destaque sutil para deixar claro que cards e gráficos têm explicação. */
+.executive-readable-root article {
+  cursor: help;
+}
+
+.executive-readable-root header,
+.executive-dashboard-controls-host,
+.executive-dashboard-controls-host * {
+  cursor: default;
+}
+
+/* Modo compacto para notebooks e telas 1366x768: mantém o painel inteiro visível. */
+@media (min-width: 1100px) and (max-height: 850px) {
+  .executive-readable-root > div:first-child {
+    width: 135.135% !important;
+    zoom: 0.74;
+  }
+
+  .executive-readable-root > div:first-child > header {
+    padding-top: 0.55rem !important;
+    padding-bottom: 0.55rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section {
+    gap: 0.4rem !important;
+  }
+}
+
+@media (min-width: 1100px) and (min-height: 851px) and (max-height: 980px) {
+  .executive-readable-root > div:first-child {
+    width: 119.048% !important;
+    zoom: 0.84;
+  }
+}
+
+@media (max-width: 900px) {
+  .executive-dashboard-controls-host {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .executive-control-popover {
+    left: 0;
+    right: auto;
+  }
+}
+
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  [data-executive-dashboard],
+  [data-executive-dashboard] * {
+    visibility: visible !important;
+  }
+
+  [data-executive-dashboard] {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  .executive-readable-root > div:first-child {
+    width: 100% !important;
+    zoom: 1 !important;
+  }
+
+  .executive-dashboard-controls-host,
+  .executive-help-tooltip,
+  aside,
+  nav {
+    display: none !important;
+  }
+}

@@ -1,84 +1,78 @@
-/* Correções visuais específicas do painel executivo. */
-
-/* No menu recolhido, mantém somente a marca principal e remove a segunda miniatura do hotel. */
+/* Estilos exclusivos do Pulso do Hotel. */
 aside.app-sidebar img[title][alt] {
   display: none !important;
 }
 
-/* O resumo do gráfico já aparece no cabeçalho, no canto superior direito. */
-article > .grid.border-t.border-border.pt-1\.5 {
-  display: none !important;
-}
-
-/* Remove repetições abaixo das roscas: os rótulos externos já informam nome e percentual. */
-article > div > .flex.flex-wrap.justify-center.text-muted-foreground,
-article > div > .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
-  display: none !important;
-}
-
-/* Substitui somente o conteúdo do primeiro card pelo gráfico temporal real. */
-.executive-temporal-replaced > *:not(.executive-temporal-host) {
-  display: none !important;
-}
-
-.executive-temporal-host {
-  min-height: 278px;
-}
-
-/* Garante rolagem vertical no modo normal e em tela cheia. */
 .executive-readable-root {
+  min-height: 0;
   overflow-y: auto !important;
+  overflow-x: hidden;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  background: var(--background);
 }
 
 .executive-readable-root:fullscreen,
 .executive-readable-root:has(> div:fullscreen) {
   height: 100vh;
   max-height: 100vh;
+  overflow-y: auto !important;
 }
 
-/* Amplia somente textos, rótulos e números; não altera dimensões ou posições dos gráficos. */
-.executive-readable-root article h2 {
-  font-size: 0.875rem !important;
-  line-height: 1.25rem !important;
+.executive-readable-root article,
+.executive-readable-root header {
+  border-color: color-mix(in srgb, var(--border) 86%, transparent) !important;
+  background: var(--card) !important;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.035),
+    0 6px 18px rgb(15 23 42 / 0.035) !important;
 }
 
-.executive-readable-root article > div:first-child > span {
-  font-size: 0.6875rem !important;
-  line-height: 0.95rem !important;
+.executive-readable-root .recharts-cartesian-grid-horizontal line,
+.executive-readable-root .recharts-cartesian-grid-vertical line {
+  stroke: color-mix(in srgb, var(--border) 62%, transparent) !important;
+  stroke-dasharray: 3 5;
 }
 
-.executive-readable-root section.grid.grid-cols-2 article span.text-\[7px\] {
-  font-size: 0.625rem !important;
-  line-height: 0.875rem !important;
+.executive-readable-root .recharts-cartesian-axis-line,
+.executive-readable-root .recharts-cartesian-axis-tick-line {
+  stroke: color-mix(in srgb, var(--border) 48%, transparent) !important;
 }
 
-.executive-readable-root section.grid.grid-cols-2 article strong.text-\[11px\] {
-  font-size: 0.875rem !important;
-  line-height: 1.125rem !important;
-}
-
-/* Rótulos externos das roscas, eixos e textos dos gráficos. */
 .executive-readable-root .recharts-cartesian-axis-tick-value,
-.executive-readable-root .recharts-pie-label-text,
 .executive-readable-root .recharts-text {
-  font-size: 12px !important;
-  font-weight: 700;
+  fill: color-mix(in srgb, var(--foreground) 78%, transparent);
+  font-size: 10px;
+  font-weight: 650;
 }
 
-/* Linhas de ligação das roscas um pouco mais visíveis. */
-.executive-readable-root .recharts-pie-label-line {
-  stroke-width: 1.25px !important;
-}
-
-/* Tooltips maiores, sem alterar o gráfico. */
 .executive-readable-root .recharts-tooltip-wrapper {
-  font-size: 14px !important;
-  line-height: 1.25rem !important;
+  z-index: 30;
+  font-size: 12px;
+  filter: drop-shadow(0 12px 22px rgb(15 23 42 / 0.14));
 }
 
-/* Mantém o HotelAI no canto inferior direito, sem cobrir gráficos ou ações. */
+.executive-readable-root .recharts-default-tooltip {
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  background: var(--card) !important;
+}
+
+.executive-readable-root .recharts-rectangle {
+  rx: 5px;
+  ry: 5px;
+}
+
+.executive-readable-root svg[aria-label="Mapa do Brasil por receita"] path {
+  vector-effect: non-scaling-stroke;
+  transition: filter 150ms ease, stroke-width 150ms ease;
+}
+
+.executive-readable-root svg[aria-label="Mapa do Brasil por receita"] path:hover {
+  filter: brightness(0.88) saturate(1.25);
+  stroke-width: 2.2;
+}
+
 @media (min-width: 640px) {
   body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
   body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
@@ -94,5 +88,11 @@ article > div > .grid.grid-cols-1.gap-0\.5.text-\[7px\] {
   body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
     right: 0.75rem !important;
     bottom: 5.5rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .executive-readable-root svg[aria-label="Mapa do Brasil por receita"] path {
+    transition: none !important;
   }
 }
