@@ -1,0 +1,358 @@
+/* Responsividade estrutural do Pulso do Hotel.
+   Não usa zoom fixo: reorganiza layout, densidade e gráficos por viewport. */
+
+.executive-readable-root {
+  width: 100%;
+  min-width: 0;
+  overflow: auto !important;
+  container-type: inline-size;
+}
+
+/* Neutraliza o zoom legado usado apenas para 1366x768. */
+.executive-readable-root > div:first-child {
+  width: min(100%, 1920px) !important;
+  max-width: 1920px;
+  margin-inline: auto;
+  zoom: 1 !important;
+  transform: none !important;
+  transform-origin: top left;
+}
+
+.executive-readable-root article,
+.executive-readable-root section,
+.executive-readable-root header,
+.executive-readable-root .recharts-responsive-container {
+  min-width: 0;
+}
+
+/* Controles do cabeçalho podem quebrar linha sem cortar conteúdo. */
+.executive-readable-root header > div:last-child,
+.executive-readable-root header label,
+.executive-dashboard-controls-host {
+  min-width: 0;
+}
+
+.executive-readable-root header input[type="date"] {
+  min-width: 0;
+}
+
+/* Desktop amplo e ultrawide. */
+@media (min-width: 1536px) {
+  .executive-readable-root > div:first-child {
+    padding-inline: clamp(0rem, 1vw, 1.25rem);
+  }
+
+  .executive-readable-root > div:first-child > article [class~="h-[300px]"] {
+    height: clamp(18rem, 30vh, 23rem) !important;
+  }
+
+  .executive-readable-root .h-52 {
+    height: clamp(13rem, 20vh, 17rem) !important;
+  }
+}
+
+/* Notebook e desktop padrão. */
+@media (min-width: 1024px) and (max-width: 1535px) {
+  .executive-readable-root > div:first-child > section:nth-of-type(2),
+  .executive-readable-root > div:first-child > section:nth-of-type(3) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Telas baixas: compacta densidade, sem reduzir a escala do documento. */
+@media (min-width: 1100px) and (max-height: 900px) {
+  .executive-readable-root > div:first-child {
+    padding-bottom: 0.4rem !important;
+  }
+
+  .executive-readable-root > div:first-child > * + * {
+    margin-top: 0.35rem !important;
+  }
+
+  .executive-readable-root header {
+    padding: 0.45rem 0.75rem !important;
+    gap: 0.45rem !important;
+  }
+
+  .executive-readable-root header h1 {
+    font-size: 1rem !important;
+    line-height: 1.2rem !important;
+  }
+
+  .executive-readable-root header p {
+    font-size: 0.62rem !important;
+  }
+
+  .executive-readable-root header > div:first-child > div:first-child {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  .executive-readable-root header input[type="date"] {
+    height: 1.9rem !important;
+    width: 6.7rem !important;
+    font-size: 0.65rem !important;
+  }
+
+  .executive-readable-root header button,
+  .executive-control-button,
+  .executive-readable-root header > div:last-child > div {
+    height: 2rem !important;
+    padding-inline: 0.55rem !important;
+    font-size: 0.65rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type {
+    gap: 0.35rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article {
+    min-height: 4.2rem;
+    gap: 0.45rem !important;
+    padding: 0.45rem 0.55rem !important;
+    border-radius: 0.8rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article > div:first-child {
+    width: 1.9rem !important;
+    height: 1.9rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article strong {
+    font-size: 0.82rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article p,
+  .executive-readable-root > div:first-child > section:first-of-type article span {
+    font-size: 0.55rem !important;
+    line-height: 0.75rem !important;
+  }
+
+  .executive-readable-root article {
+    padding: 0.55rem !important;
+    border-radius: 0.8rem !important;
+  }
+
+  .executive-readable-root article h2 {
+    margin-bottom: 0.25rem !important;
+    font-size: 0.7rem !important;
+    line-height: 0.95rem !important;
+  }
+
+  .executive-readable-root > div:first-child > article [class~="h-[300px]"] {
+    height: clamp(13.5rem, 28vh, 16.5rem) !important;
+  }
+
+  .executive-readable-root .h-52 {
+    height: clamp(9.25rem, 18vh, 11.25rem) !important;
+  }
+
+  .executive-readable-root .h-48 {
+    height: clamp(8.5rem, 17vh, 10.5rem) !important;
+  }
+
+  .executive-readable-root .min-h-52,
+  .executive-readable-root .min-h-60 {
+    min-height: 9.75rem !important;
+  }
+
+  .executive-readable-root .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.4rem !important;
+  }
+
+  .executive-readable-root .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.25rem !important;
+  }
+
+  .executive-readable-root footer {
+    padding-block: 0 !important;
+    font-size: 0.55rem !important;
+  }
+}
+
+/* Tablet horizontal e vertical: duas colunas nos blocos detalhados. */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .executive-readable-root > div:first-child > section:first-of-type {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .executive-readable-root > div:first-child > section:nth-of-type(2),
+  .executive-readable-root > div:first-child > section:nth-of-type(3) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .executive-readable-root > div:first-child > section:nth-of-type(2) > article:last-child,
+  .executive-readable-root > div:first-child > section:nth-of-type(3) > article:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .executive-readable-root header {
+    align-items: stretch !important;
+  }
+
+  .executive-readable-root header > div:last-child {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .executive-readable-root > div:first-child > article [class~="h-[300px]"] {
+    height: 17rem !important;
+  }
+}
+
+/* Celular e telas estreitas. */
+@media (max-width: 639px) {
+  .executive-readable-root {
+    overflow-x: hidden !important;
+  }
+
+  .executive-readable-root > div:first-child {
+    padding-inline: 0.35rem;
+  }
+
+  .executive-readable-root header {
+    padding: 0.7rem !important;
+    border-radius: 0.9rem !important;
+  }
+
+  .executive-readable-root header > div:first-child {
+    align-items: flex-start;
+  }
+
+  .executive-readable-root header > div:last-child {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch !important;
+  }
+
+  .executive-readable-root header label {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .executive-readable-root header label > div {
+    width: 100%;
+  }
+
+  .executive-readable-root header input[type="date"] {
+    width: 100% !important;
+    flex: 1 1 0%;
+  }
+
+  .executive-readable-root header > div:last-child > div,
+  .executive-readable-root header button,
+  .executive-dashboard-controls-host,
+  .executive-control-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .executive-dashboard-controls-host {
+    grid-column: 1 / -1;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.4rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article {
+    min-height: 5.25rem;
+    align-items: flex-start;
+    gap: 0.45rem !important;
+    padding: 0.55rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article > div:first-child {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article strong {
+    white-space: normal;
+    font-size: 0.82rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:nth-of-type(2),
+  .executive-readable-root > div:first-child > section:nth-of-type(3) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Gráfico temporal mantém legibilidade com rolagem horizontal local. */
+  .executive-readable-root > div:first-child > article:first-of-type {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .executive-readable-root > div:first-child > article:first-of-type [class~="h-[300px]"] {
+    width: max(44rem, 100%);
+    height: 16rem !important;
+  }
+
+  .executive-readable-root .grid.min-h-52,
+  .executive-readable-root .grid.min-h-60 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .executive-readable-root .h-48,
+  .executive-readable-root .h-52 {
+    height: 12rem !important;
+  }
+
+  .executive-readable-root article {
+    border-radius: 0.9rem !important;
+  }
+
+  .executive-control-popover {
+    position: fixed !important;
+    inset-inline: 0.75rem !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: 1rem !important;
+    width: auto !important;
+    max-height: min(70vh, 32rem);
+    overflow-y: auto;
+  }
+}
+
+/* Celulares muito estreitos: KPIs em uma coluna para evitar truncamento. */
+@media (max-width: 380px) {
+  .executive-readable-root > div:first-child > section:first-of-type {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .executive-readable-root header > div:last-child {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .executive-dashboard-controls-host {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Tela cheia preserva o comportamento responsivo. */
+.executive-readable-root:fullscreen,
+.executive-readable-root:has(:fullscreen) {
+  width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  padding: clamp(0.35rem, 1vw, 0.85rem);
+  background: var(--background);
+}
+
+@media print {
+  .executive-readable-root > div:first-child {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .executive-dashboard-controls-host,
+  .executive-help-tooltip,
+  .executive-control-popover {
+    display: none !important;
+  }
+}
