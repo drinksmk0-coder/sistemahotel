@@ -8,6 +8,7 @@ export function ExecutiveDashboardUiGuard() {
     if (!root) return;
 
     let repairTimer = 0;
+    let closeAfterPreset = false;
 
     const findFilterButton = () => Array.from(root.querySelectorAll<HTMLButtonElement>("button[aria-expanded]"))
       .find((button) => button.textContent?.includes("Filtros")) ?? null;
@@ -17,7 +18,10 @@ export function ExecutiveDashboardUiGuard() {
 
     const closeFilters = () => {
       const button = findFilterButton();
-      if (button?.getAttribute("aria-expanded") === "true") button.click();
+      if (!button) return false;
+      if (button.getAttribute("aria-expanded") === "true") button.click();
+      closeAfterPreset = false;
+      return true;
     };
 
     const decorateFilter = () => {
@@ -33,7 +37,7 @@ export function ExecutiveDashboardUiGuard() {
       close.setAttribute("aria-label", "Fechar filtros");
       close.title = "Fechar filtros";
       close.textContent = "×";
-      close.addEventListener("click", closeFilters);
+      close.addEventListener("click", () => closeFilters());
       panel.appendChild(close);
     };
 
@@ -54,6 +58,7 @@ export function ExecutiveDashboardUiGuard() {
       window.clearTimeout(repairTimer);
       repairTimer = window.setTimeout(() => {
         decorateFilter();
+        if (closeAfterPreset) closeFilters();
         restoreFinancialWidgets();
       }, 80);
     };
@@ -75,7 +80,10 @@ export function ExecutiveDashboardUiGuard() {
       const button = target.closest<HTMLButtonElement>("button");
       if (!panel || !button) return;
       if (QUICK_PERIODS.has(button.textContent?.trim() ?? "")) {
-        window.setTimeout(closeFilters, 0);
+        closeAfterPreset = true;
+        window.setTimeout(() => {
+          if (!closeFilters()) scheduleRepair();
+        }, 0);
       }
     };
 
