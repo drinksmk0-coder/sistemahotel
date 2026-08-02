@@ -5,6 +5,8 @@ import { useCurrentCompany } from "@/lib/data";
 
 const DEFAULT_THEME = "#2f5d48";
 
+type ThemedCompany = { id: string; tema_cor?: string | null };
+
 function validHex(value?: string | null) {
   return value && /^#[0-9a-f]{6}$/i.test(value) ? value : DEFAULT_THEME;
 }
@@ -24,11 +26,13 @@ function applyCompanyTheme(value?: string | null) {
 export function CompanyThemeSync() {
   const company = useCurrentCompany();
   const queryClient = useQueryClient();
-  const companyId = company.data?.id;
+  const themedCompany = company.data as ThemedCompany | null;
+  const companyId = themedCompany?.id;
+  const themeColor = themedCompany?.tema_cor;
 
   useEffect(() => {
-    applyCompanyTheme(company.data?.tema_cor);
-  }, [company.data?.tema_cor]);
+    applyCompanyTheme(themeColor);
+  }, [themeColor]);
 
   useEffect(() => {
     if (!companyId) return;
