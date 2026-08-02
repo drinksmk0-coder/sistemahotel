@@ -8,6 +8,7 @@ import {
   ChevronRight,
   CreditCard,
   DollarSign,
+  FileCheck2,
   FileWarning,
   Hotel,
   LayoutDashboard,
@@ -31,6 +32,7 @@ const TABS = [
   { to: "/painel", label: "Visão geral", icon: BarChart3, roles: ["dono", "recepcao", "limpeza", "cafe"], group: "Operação" },
   { to: "/mapa", label: "Mapa de quartos", icon: BedDouble, roles: ["dono", "recepcao"], group: "Operação" },
   { to: "/reservas", label: "Reservas", icon: CalendarDays, roles: ["dono", "recepcao"], group: "Operação" },
+  { to: "/fnrh", label: "FNRH e check-in", icon: FileCheck2, roles: ["dono", "recepcao"], group: "Operação" },
   { to: "/clientes", label: "Hóspedes", icon: Users, roles: ["dono", "recepcao"], group: "Operação" },
   { to: "/vendas", label: "Receitas", icon: DollarSign, roles: ["dono", "recepcao"], group: "Gestão" },
   { to: "/despesas", label: "Despesas", icon: FileWarning, roles: ["dono"], group: "Gestão" },
@@ -43,7 +45,7 @@ const TABS = [
   { to: "/equipe", label: "Equipe", icon: Users, roles: ["dono"], group: "Configurações" },
 ] as const;
 
-const MOBILE_PRIMARY_TABS = ["/painel", "/mapa", "/reservas", "/clientes"] as const;
+const MOBILE_PRIMARY_TABS = ["/painel", "/mapa", "/reservas", "/fnrh"] as const;
 const GROUPS = ["Operação", "Gestão", "Relacionamento", "Configurações"] as const;
 
 const ROLE_LABELS: Record<string, string> = {
@@ -262,3 +264,5 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
     </div>
   );
 }
+
+void CreditCard;
