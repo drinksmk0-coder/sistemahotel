@@ -1,0 +1,98 @@
+/* Estilos exclusivos do Pulso do Hotel. */
+aside.app-sidebar img[title][alt] {
+  display: none !important;
+}
+
+.executive-readable-root {
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background: var(--background);
+}
+
+.executive-readable-root:fullscreen,
+.executive-readable-root:has(> div:fullscreen) {
+  height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto !important;
+}
+
+.executive-readable-root article,
+.executive-readable-root header {
+  border-color: color-mix(in srgb, var(--border) 86%, transparent) !important;
+  background: var(--card) !important;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.035),
+    0 6px 18px rgb(15 23 42 / 0.035) !important;
+}
+
+.executive-readable-root .recharts-cartesian-grid-horizontal line,
+.executive-readable-root .recharts-cartesian-grid-vertical line {
+  stroke: color-mix(in srgb, var(--border) 62%, transparent) !important;
+  stroke-dasharray: 3 5;
+}
+
+.executive-readable-root .recharts-cartesian-axis-line,
+.executive-readable-root .recharts-cartesian-axis-tick-line {
+  stroke: color-mix(in srgb, var(--border) 48%, transparent) !important;
+}
+
+.executive-readable-root .recharts-cartesian-axis-tick-value,
+.executive-readable-root .recharts-text {
+  fill: color-mix(in srgb, var(--foreground) 78%, transparent);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.executive-readable-root .recharts-tooltip-wrapper {
+  z-index: 30;
+  font-size: 12px;
+  filter: drop-shadow(0 12px 22px rgb(15 23 42 / 0.14));
+}
+
+.executive-readable-root .recharts-default-tooltip {
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+  background: var(--card) !important;
+}
+
+.executive-readable-root .recharts-rectangle {
+  rx: 5px;
+  ry: 5px;
+}
+
+.executive-readable-root svg[aria-label="Mapa do Brasil por receita"] path {
+  vector-effect: non-scaling-stroke;
+  transition: filter 150ms ease, stroke-width 150ms ease;
+}
+
+.executive-readable-root svg[aria-label="Mapa do Brasil por receita"] path:hover {
+  filter: brightness(0.88) saturate(1.25);
+  stroke-width: 2.2;
+}
+
+@media (min-width: 640px) {
+  body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
+  body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
+    top: auto !important;
+    right: 1rem !important;
+    bottom: 1rem !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 639px) {
+  body:has([aria-label="Abrir HotelAI"]) div.fixed:has(> button[aria-label="Abrir HotelAI"]),
+  body:has([aria-label="Fechar HotelAI"]) div.fixed:has(> button[aria-label="Fechar HotelAI"]) {
+    right: 0.75rem !important;
+    bottom: 5.5rem !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .executive-readable-root svg[aria-label="Mapa do Brasil por receita"] path {
+    transition: none !important;
+  }
+}
