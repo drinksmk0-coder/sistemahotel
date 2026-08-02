@@ -1,5 +1,5 @@
-/* O mapa usa a cor escolhida para o sistema: estados sem dados continuam visíveis
-   com baixa opacidade; estados com receita preservam a intensidade calculada. */
+/* O mapa acompanha a cor escolhida no sistema. Estados sem receita permanecem
+   visíveis com baixa opacidade, e os maiores valores recebem mais destaque. */
 .executive-readable-root svg[aria-label="Mapa do Brasil por receita"] {
   overflow: visible;
   filter: drop-shadow(0 4px 10px color-mix(in srgb, var(--primary) 14%, transparent));
@@ -23,7 +23,11 @@
 }
 
 .executive-readable-root svg[aria-label="Mapa do Brasil por receita"] + div > div {
-  background: linear-gradient(to right, color-mix(in srgb, var(--primary) 20%, var(--card)), var(--primary)) !important;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--primary) 20%, var(--card)),
+    var(--primary)
+  ) !important;
 }
 
 .executive-readable-root article:has(svg[aria-label="Mapa do Brasil por receita"]) .bg-blue-100 {
@@ -34,28 +38,47 @@
   background: var(--primary) !important;
 }
 
-@media (min-width: 1536px) {
-  .executive-readable-root > div:first-child > section:first-of-type {
-    grid-template-columns: repeat(9, minmax(0, 1fr)) !important;
+/* O filtro abre sobre o dashboard. Ele não aumenta a altura da página,
+   não empurra os cards e não modifica nenhum gráfico. */
+.executive-readable-root > div:first-child > section[data-executive-control] {
+  position: fixed;
+  z-index: 90;
+  top: 5.25rem;
+  right: 1.25rem;
+  width: min(46rem, calc(100vw - 2.5rem));
+  max-height: calc(100vh - 6.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--border)) !important;
+  box-shadow:
+    0 24px 60px rgb(15 23 42 / 0.2),
+    0 6px 18px rgb(15 23 42 / 0.1) !important;
+  animation: executive-filter-open 140ms ease-out;
+}
+
+@keyframes executive-filter-open {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
-@media (min-width: 1024px) and (max-width: 1535px) {
-  .executive-readable-root > div:first-child > section:first-of-type {
-    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+@media (max-width: 767px) {
+  .executive-readable-root > div:first-child > section[data-executive-control] {
+    top: 4.5rem;
+    right: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+    max-height: calc(100vh - 5.5rem);
   }
 }
 
-.executive-financial-strip {
-  min-width: 0;
-}
-
-@media (max-width: 639px) {
-  .executive-financial-strip {
-    grid-template-columns: minmax(0, 1fr) !important;
-  }
-
-  .executive-financial-strip > p {
-    grid-column: auto !important;
+@media (prefers-reduced-motion: reduce) {
+  .executive-readable-root > div:first-child > section[data-executive-control] {
+    animation: none;
   }
 }
