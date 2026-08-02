@@ -38,22 +38,86 @@
   background: var(--primary) !important;
 }
 
-/* O filtro abre sobre o dashboard. Ele não aumenta a altura da página,
-   não empurra os cards e não modifica nenhum gráfico. */
-.executive-readable-root > div:first-child > section[data-executive-control] {
+/* Popover compacto: abre sobre o dashboard sem empurrar cards e gráficos. */
+.executive-readable-root [data-executive-filter-panel] {
   position: fixed;
   z-index: 90;
-  top: 5.25rem;
-  right: 1.25rem;
-  width: min(46rem, calc(100vw - 2.5rem));
-  max-height: calc(100vh - 6.5rem);
+  top: 4.75rem;
+  right: 1rem;
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 5.75rem);
   overflow-y: auto;
   overscroll-behavior: contain;
+  padding: 0.75rem !important;
+  border-radius: 1rem !important;
   border-color: color-mix(in srgb, var(--primary) 30%, var(--border)) !important;
   box-shadow:
-    0 24px 60px rgb(15 23 42 / 0.2),
-    0 6px 18px rgb(15 23 42 / 0.1) !important;
+    0 20px 50px rgb(15 23 42 / 0.18),
+    0 5px 14px rgb(15 23 42 / 0.1) !important;
   animation: executive-filter-open 140ms ease-out;
+}
+
+.executive-readable-root [data-executive-filter-panel] > div:first-child {
+  margin-bottom: 0.55rem !important;
+  padding-right: 2rem;
+}
+
+.executive-readable-root [data-executive-filter-panel] > div:first-child p {
+  display: none;
+}
+
+.executive-readable-root [data-executive-filter-panel] > div:nth-child(2) {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.35rem !important;
+  margin-bottom: 0.65rem !important;
+}
+
+.executive-readable-root [data-executive-filter-panel] > div:nth-child(2) button {
+  min-width: 0;
+  padding: 0.35rem 0.3rem !important;
+  white-space: nowrap;
+}
+
+.executive-readable-root [data-executive-filter-panel] > div:nth-child(3) {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.55rem !important;
+}
+
+.executive-readable-root [data-executive-filter-panel] label span {
+  margin-bottom: 0.2rem !important;
+  font-size: 0.5rem !important;
+  letter-spacing: 0.04em;
+}
+
+.executive-readable-root [data-executive-filter-panel] select {
+  height: 2.05rem !important;
+  border-radius: 0.65rem !important;
+  font-size: 0.68rem !important;
+}
+
+.executive-filter-close {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  display: grid;
+  width: 1.8rem;
+  height: 1.8rem;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.executive-filter-close:hover {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+  background: color-mix(in srgb, var(--primary) 8%, var(--background));
+  color: var(--primary);
 }
 
 @keyframes executive-filter-open {
@@ -67,8 +131,7 @@
   }
 }
 
-/* Os rankings de categoria e quarto utilizam toda a altura útil dos cards.
-   As barras ficam mais espessas e afastadas, eliminando o vazio inferior. */
+/* Os rankings de categoria e quarto utilizam toda a altura útil dos cards. */
 .executive-readable-root article > .space-y-3.py-2 {
   display: flex;
   min-height: 14rem;
@@ -102,12 +165,20 @@
 }
 
 @media (max-width: 767px) {
-  .executive-readable-root > div:first-child > section[data-executive-control] {
-    top: 4.5rem;
-    right: 0.75rem;
-    left: 0.75rem;
+  .executive-readable-root [data-executive-filter-panel] {
+    top: 4.25rem;
+    right: 0.65rem;
+    left: 0.65rem;
     width: auto;
-    max-height: calc(100vh - 5.5rem);
+    max-height: calc(100vh - 5rem);
+  }
+
+  .executive-readable-root [data-executive-filter-panel] > div:nth-child(2) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .executive-readable-root [data-executive-filter-panel] > div:nth-child(3) {
+    grid-template-columns: 1fr !important;
   }
 
   .executive-readable-root article > .space-y-3.py-2 {
@@ -137,7 +208,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .executive-readable-root > div:first-child > section[data-executive-control] {
+  .executive-readable-root [data-executive-filter-panel] {
     animation: none;
   }
 }
