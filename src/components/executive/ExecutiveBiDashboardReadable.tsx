@@ -1,5 +1,4 @@
-import { ExecutiveBiDashboard } from "@/components/executive/ExecutiveBiDashboard";
-import { OccupancyReservationCombinedChart } from "@/components/executive/OccupancyReservationCombinedChart";
+import { ExecutiveDashboardReference } from "@/components/executive/ExecutiveDashboardReference";
 
 export function ExecutiveBiDashboardReadable() {
   return (
@@ -7,8 +6,7 @@ export function ExecutiveBiDashboardReadable() {
       className="executive-readable-root h-full min-h-0 overflow-hidden"
       data-executive-dashboard
     >
-      <ExecutiveBiDashboard />
-      <OccupancyReservationCombinedChart />
+      <ExecutiveDashboardReference />
     </div>
   );
 }
