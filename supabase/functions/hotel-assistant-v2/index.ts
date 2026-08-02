@@ -32,7 +32,9 @@ Deno.serve(async (request) => {
       conversation?: ConversationMessage[];
     };
     const companyId = String(body.company_id ?? "").trim();
-    const question = String(body.question ?? "").trim().slice(0, 4000);
+    const question = String(body.question ?? "")
+      .trim()
+      .slice(0, 4000);
     const mode = body.mode === "reception" ? "reception" : "analysis";
 
     if (!companyId) return json({ error: "Empresa não informada." }, 400);
@@ -80,11 +82,11 @@ Deno.serve(async (request) => {
       text: redactPersonalData(message.text),
     }));
     const safeQuestion = redactPersonalData(question);
-    const contextualQuestion = [
-      `PERGUNTA DO PROPRIETÁRIO:\n${safeQuestion}`,
-      `CONTEXTO ADICIONAL DA HOSPEDAMAIS:\n${JSON.stringify(context)}`,
-      "Responda com: o que aconteceu, evidências, possíveis causas, impacto, ação recomendada, prazo e nível de confiança.",
-    ].join("\n\n");
+    // Envie somente a pergunta real para o classificador do assistente-base.
+    // Antes, o snapshot era concatenado à pergunta; palavras como "reserva" dentro
+    // do contexto faziam perguntas analíticas (ex.: "como está o hotel?") virarem
+    // indevidamente um tutorial de reservas.
+    const memoryContext = ownerMemoryConversation(context);
 
     const upstream = await fetch(`${supabaseUrl}/functions/v1/hotel-assistant`, {
       method: "POST",
@@ -96,8 +98,8 @@ Deno.serve(async (request) => {
       body: JSON.stringify({
         company_id: companyId,
         mode,
-        question: contextualQuestion,
-        conversation: safeConversation,
+        question: safeQuestion,
+        conversation: [...safeConversation, ...memoryContext].slice(-12),
       }),
     });
     const payload = (await upstream.json().catch(() => ({}))) as {
@@ -108,7 +110,12 @@ Deno.serve(async (request) => {
       degraded?: boolean;
     };
 
-    if (upstream.ok && payload.answer) {
+    const trustworthyUpstreamAnswer =
+      upstream.ok &&
+      payload.answer &&
+      (mode === "reception" || (payload.degraded !== true && payload.provider !== "local"));
+
+    if (trustworthyUpstreamAnswer) {
       return json({
         ...payload,
         answer: payload.answer,
@@ -120,8 +127,15 @@ Deno.serve(async (request) => {
       });
     }
 
+    console.warn("hotel-assistant-v2 upstream degraded", {
+      status: upstream.status,
+      provider: payload.provider ?? "unknown",
+      model: payload.model ?? "unknown",
+      degraded: payload.degraded === true,
+    });
+
     return json({
-      answer: offlineAnswer(context, payload.error),
+      answer: localExecutiveAnswer(question, context, payload.error),
       mode,
       source: "system",
       provider: "local",
@@ -148,47 +162,29 @@ async function loadOwnerContext(
   question: string,
   mode: "analysis" | "reception",
 ) {
-  const asksWater = /\b(agua|água)\b/i.test(question);
-  const [companyResult, snapshotResult, memoryResult, pendingResult, waterResult] =
-    await Promise.all([
-      admin
-        .from("companies")
-        .select("nome,slug,cidade,estado")
-        .eq("id", companyId)
-        .maybeSingle(),
-      admin.rpc("get_hotel_ai_snapshot", { p_company_id: companyId }),
-      mode === "analysis"
-        ? admin
-            .from("company_ai_memory")
-            .select("category,title,content,updated_at")
-            .eq("company_id", companyId)
-            .eq("active", true)
-            .order("updated_at", { ascending: false })
-            .limit(40)
-        : Promise.resolve({ data: [], error: null }),
-      admin
-        .from("reservations")
-        .select(
-          "status,checkout,valor_total,valor_pago,billing_responsibility,billing_status,billing_due_date",
-        )
-        .eq("company_id", companyId)
-        .in("status", ["ocupado", "saida_pendente", "finalizado"])
-        .limit(1000),
-      asksWater
-        ? admin
-            .from("sales")
-            .select("data,quarto,item,categoria,qtd,valor_unit,total,valor_pago,status")
-            .eq("company_id", companyId)
-            .or(
-              "item.ilike.%agua%,item.ilike.%água%,categoria.ilike.%agua%,categoria.ilike.%água%",
-            )
-            .order("data", { ascending: false })
-            .limit(2000)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
+  const [companyResult, snapshotResult, memoryResult, pendingResult] = await Promise.all([
+    admin.from("companies").select("nome,slug,cidade,estado").eq("id", companyId).maybeSingle(),
+    admin.rpc("get_hotel_ai_snapshot", { p_company_id: companyId }),
+    mode === "analysis"
+      ? admin
+          .from("company_ai_memory")
+          .select("category,title,content,updated_at")
+          .eq("company_id", companyId)
+          .eq("active", true)
+          .order("updated_at", { ascending: false })
+          .limit(40)
+      : Promise.resolve({ data: [], error: null }),
+    admin
+      .from("reservations")
+      .select(
+        "status,checkout,valor_total,valor_pago,billing_responsibility,billing_status,billing_due_date",
+      )
+      .eq("company_id", companyId)
+      .in("status", ["ocupado", "saida_pendente", "finalizado"])
+      .limit(1000),
+  ]);
 
   const pendingRows = pendingResult.data ?? [];
-  const waterRows = waterResult.data ?? [];
   const memory = (memoryResult.data ?? []).map((row) => ({
     category: row.category,
     title: redactPersonalData(String(row.title ?? "")).slice(0, 120),
@@ -200,7 +196,7 @@ async function loadOwnerContext(
     company: companyResult.data ?? {},
     hotel_snapshot: snapshotResult.error
       ? { unavailable: true, reason: snapshotResult.error.message }
-      : snapshotResult.data ?? {},
+      : (snapshotResult.data ?? {}),
     ai_memory: memory,
     pending_operations: {
       pending_departures: pendingRows.filter((row) => row.status === "saida_pendente").length,
@@ -209,28 +205,18 @@ async function loadOwnerContext(
           row.billing_responsibility === "company" &&
           ["pending", "overdue"].includes(String(row.billing_status)),
       ).length,
-      overdue_company_receivables: pendingRows.filter(
-        (row) => row.billing_status === "overdue",
-      ).length,
+      overdue_company_receivables: pendingRows.filter((row) => row.billing_status === "overdue")
+        .length,
       estimated_open_lodging_balance: pendingRows.reduce(
-        (sum, row) =>
-          sum + Math.max(0, Number(row.valor_total) - Number(row.valor_pago)),
+        (sum, row) => sum + Math.max(0, Number(row.valor_total) - Number(row.valor_pago)),
         0,
       ),
     },
     water_consumption: {
-      consulted: asksWater,
-      lines: waterRows.length,
-      quantity: waterRows.reduce((sum, row) => sum + Math.max(0, Number(row.qtd)), 0),
-      total: waterRows.reduce((sum, row) => sum + Math.max(0, Number(row.total)), 0),
-      paid: waterRows.reduce(
-        (sum, row) => sum + Math.max(0, Number(row.valor_pago)),
-        0,
-      ),
-      rooms: new Set(waterRows.map((row) => row.quarto)).size,
-      details: waterRows.slice(0, 60),
+      requires_corporate_account: true,
       report_path: "/relatorio-consumo-agua",
-      document_type: "Espelho de consumo de água — não é nota fiscal",
+      rule: "O relatório exige uma empresa cadastrada e inclui somente funcionários vinculados. Hóspedes comuns nunca entram.",
+      document_type: "Relatório empresarial de consumo de água — não é nota fiscal",
     },
     rules: {
       checkin:
@@ -247,22 +233,17 @@ async function loadOwnerContext(
 
 function deterministicAnswer(question: string, context: RecordRow) {
   const value = normalize(question);
-  const water = asRecord(context.water_consumption);
   const pending = asRecord(context.pending_operations);
 
-  if (/\b(agua|água)\b/.test(value) && /\b(relatorio|consumo|quantidade|total|imprimir)\b/.test(value)) {
-    const quantity = Number(water.quantity ?? 0);
-    const total = Number(water.total ?? 0);
-    const paid = Number(water.paid ?? 0);
+  if (
+    /\b(agua|água)\b/.test(value) &&
+    /\b(relatorio|consumo|quantidade|total|imprimir)\b/.test(value)
+  ) {
     return [
-      "# Relatório de consumo de água",
-      `**Quantidade registrada:** ${quantity.toLocaleString("pt-BR")} unidade(s)`,
-      `**Valor total:** ${formatMoney(total)}`,
-      `**Pago:** ${formatMoney(paid)}`,
-      `**Pendente:** ${formatMoney(Math.max(0, total - paid))}`,
-      `**Quartos com lançamento:** ${Number(water.rooms ?? 0)}`,
+      "# Relatório empresarial de consumo de água",
       "",
-      "Abra **Relatório de água** no menu para filtrar o período, informar a empresa pagadora e imprimir ou salvar em PDF.",
+      "Abra **Relatório de água**, selecione uma empresa cadastrada e o período.",
+      "O sistema mostrará somente o consumo dos funcionários vinculados à empresa selecionada. Hóspedes comuns nunca entram no relatório.",
       "Este documento é um espelho gerencial de consumo e não substitui nota fiscal.",
     ].join("\n");
   }
@@ -280,21 +261,266 @@ function deterministicAnswer(question: string, context: RecordRow) {
     ].join("\n");
   }
 
-  if (/\b(memoria|memória)\b/.test(value) && /\b(onde|como|salvar|alimentar|cadastrar)\b/.test(value)) {
+  if (
+    /\b(memoria|memória)\b/.test(value) &&
+    /\b(onde|como|salvar|alimentar|cadastrar)\b/.test(value)
+  ) {
     return "Abra **Memória do HotelAI**. Registre regras e conhecimentos da empresa sem CPF, cartões, senhas ou documentos de hóspedes. A memória fornece contexto e não treina o modelo externo.";
   }
 
   return "";
 }
 
-function offlineAnswer(context: RecordRow, upstreamError?: string) {
+function localExecutiveAnswer(question: string, context: RecordRow, upstreamError?: string) {
+  const value = normalize(question);
   const pending = asRecord(context.pending_operations);
+  const snapshot = asRecord(context.hotel_snapshot);
+  const flattened = flattenSnapshot(snapshot);
+  const metrics = [
+    metricLine(
+      flattened,
+      "Receita contratada de hospedagem",
+      ["reservations_contracted_revenue", "lodgingRevenue", "lodging_revenue"],
+      "money",
+    ),
+    metricLine(flattened, "Receita de hospedagem recebida", ["reservations_paid_revenue"], "money"),
+    metricLine(
+      flattened,
+      "Receita de produtos e serviços",
+      ["sales_total_revenue", "salesRevenue", "sales_revenue"],
+      "money",
+    ),
+    metricLine(flattened, "Despesas", ["expenses_total", "expenses", "despesas"], "money"),
+    metricLine(flattened, "GOP / resultado operacional", ["gop", "resultado_operacional"], "money"),
+    metricLine(flattened, "Margem", ["margin", "margem"], "percent"),
+    metricLine(flattened, "Ocupação", ["occupancyRate", "occupancy_rate", "ocupacao"], "percent"),
+    metricLine(
+      flattened,
+      "ADR / diária média",
+      ["reservations_average_daily_rate", "adr", "diaria_media"],
+      "money",
+    ),
+    metricLine(flattened, "RevPAR", ["revpar"], "money"),
+    metricLine(
+      flattened,
+      "Reservas",
+      ["reservations_total", "reservationCount", "reservation_count", "reservas"],
+      "number",
+    ),
+    metricLine(flattened, "Reservas ativas hoje", ["reservations_active_today"], "number"),
+    metricLine(flattened, "Quartos disponíveis agora", ["inventory_rooms_available_now"], "number"),
+    metricLine(
+      flattened,
+      "Avaliação média",
+      ["reviews_average_overall", "averageRating", "average_rating"],
+      "number",
+    ),
+    metricLine(
+      flattened,
+      "Reclamações abertas",
+      ["complaints_open", "openComplaints", "open_complaints"],
+      "number",
+    ),
+    metricLine(flattened, "Saldo pendente de hospedagem", ["reservations_outstanding"], "money"),
+    metricLine(flattened, "Saldo pendente de vendas", ["sales_outstanding"], "money"),
+  ].filter(Boolean) as string[];
+
+  const details: string[] = [];
+  if (/canal|origem|booking|whatsapp|formulario|formulário|hotel direto/.test(value)) {
+    details.push(
+      ...rankedRows(
+        snapshot,
+        ["reservations.by_channel", "channelRows", "channel_rows", "originRows", "origin_rows"],
+        "Canais e origens",
+      ),
+    );
+  }
+  if (/despesa|custo|gasto/.test(value)) {
+    details.push(
+      ...rankedRows(
+        snapshot,
+        ["expenses.by_category", "expenseRows", "expense_rows"],
+        "Principais despesas",
+      ),
+    );
+  }
+  if (/reclam|avaliacao|avaliação|nota|quarto|barulho|limpeza/.test(value)) {
+    details.push(
+      ...rankedRows(
+        snapshot,
+        ["complaints.by_category", "complaintRows", "complaint_rows"],
+        "Reclamações por categoria",
+      ),
+    );
+  }
+
+  const actions = executiveActions(flattened, pending);
   return [
-    upstreamError || "O provedor externo está temporariamente indisponível.",
-    `Saídas pendentes: ${Number(pending.pending_departures ?? 0)}.`,
-    `Contas empresariais a receber: ${Number(pending.company_receivables ?? 0)}.`,
-    "Relatório de água, regras de check-in/check-out e memória da empresa continuam disponíveis localmente.",
+    "# HotelAI — análise executiva",
+    "",
+    "## Evidências atuais",
+    metrics.length
+      ? metrics.join("\n")
+      : "O snapshot atual não disponibilizou indicadores suficientes. Não vou inventar valores.",
+    details.length ? `\n${details.join("\n")}` : "",
+    "",
+    "## Prioridades",
+    actions.join("\n"),
+    "",
+    "## Leitura",
+    "A análise acima foi calculada diretamente com os dados agregados do hotel. Compare ocupação, diária média, receita e margem no mesmo período; receita maior sem melhora da margem indica pressão de custos ou descontos.",
+    upstreamError
+      ? `\n**Provedor externo:** indisponível nesta tentativa. A análise local permaneceu ativa.`
+      : "",
+    "",
+    "**Confiança:** alta nos valores exibidos; hipóteses dependem da comparação com períodos anteriores.",
   ].join("\n");
+}
+
+function ownerMemoryConversation(context: RecordRow): ConversationMessage[] {
+  const memory = Array.isArray(context.ai_memory) ? context.ai_memory : [];
+  if (!memory.length) return [];
+  const summary = memory
+    .slice(0, 6)
+    .map((item) => {
+      const row = asRecord(item);
+      return `${String(row.title ?? "Regra")}: ${String(row.content ?? "").slice(0, 1200)}`;
+    })
+    .join("\n");
+  return [{ role: "assistant", text: `MEMÓRIA SANITIZADA DA EMPRESA:\n${summary}` }];
+}
+
+function flattenSnapshot(value: unknown, result = new Map<string, unknown>(), prefix = "") {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return result;
+  for (const [key, child] of Object.entries(value as RecordRow)) {
+    const normalizedKey = normalizeKey(key);
+    const path = prefix ? `${prefix}_${normalizedKey}` : normalizedKey;
+    result.set(path, child);
+    if (!result.has(normalizedKey)) result.set(normalizedKey, child);
+    if (child && typeof child === "object" && !Array.isArray(child)) {
+      flattenSnapshot(child, result, path);
+    }
+  }
+  return result;
+}
+
+function metricLine(
+  values: Map<string, unknown>,
+  label: string,
+  aliases: string[],
+  format: "money" | "percent" | "number",
+) {
+  let found: unknown;
+  for (const alias of aliases.map(normalizeKey)) {
+    if (values.has(alias)) {
+      found = values.get(alias);
+      break;
+    }
+  }
+  const number = Number(found);
+  if (found == null || found === "" || Number.isNaN(number)) return "";
+  const formatted =
+    format === "money"
+      ? formatMoney(number)
+      : format === "percent"
+        ? `${number.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`
+        : number.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+  return `- **${label}:** ${formatted}`;
+}
+
+function rankedRows(snapshot: RecordRow, aliases: string[], title: string) {
+  const rows =
+    aliases
+      .map((alias) => nestedValue(snapshot, alias))
+      .find((value): value is unknown[] => Array.isArray(value)) ?? [];
+  if (!rows.length) return [];
+  const lines = rows.slice(0, 6).map((item) => {
+    const row = asRecord(item);
+    const label =
+      row.channel ??
+      row.canal ??
+      row.origin ??
+      row.origem ??
+      row.category ??
+      row.categoria ??
+      row.label ??
+      row.name ??
+      "Sem categoria";
+    const numeric =
+      row.revenue ??
+      row.receita ??
+      row.total ??
+      row.value ??
+      row.valor ??
+      row.count ??
+      row.quantidade;
+    const number = Number(numeric);
+    return `- ${String(label)}: ${Number.isFinite(number) ? number.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "sem valor consolidado"}`;
+  });
+  return [`### ${title}`, ...lines];
+}
+
+function executiveActions(values: Map<string, unknown>, pending: RecordRow) {
+  const actions: string[] = [];
+  const complaints = numericMetric(values, [
+    "complaints_open",
+    "openComplaints",
+    "open_complaints",
+  ]);
+  const rating = numericMetric(values, [
+    "reviews_average_overall",
+    "averageRating",
+    "average_rating",
+  ]);
+  const margin = numericMetric(values, ["margin", "margem"]);
+  if (complaints > 0)
+    actions.push(
+      `1. Tratar ${complaints.toLocaleString("pt-BR")} reclamação(ões) aberta(s), começando pelas urgentes.`,
+    );
+  if (rating > 0 && rating < 3.5)
+    actions.push(
+      `${actions.length + 1}. Investigar a avaliação média abaixo de 3,5 e os critérios com notas menores.`,
+    );
+  if (margin < 0)
+    actions.push(
+      `${actions.length + 1}. Rever despesas e preços: o resultado operacional está negativo.`,
+    );
+  const pendingDepartures = Number(pending.pending_departures ?? 0);
+  if (pendingDepartures > 0)
+    actions.push(`${actions.length + 1}. Conferir ${pendingDepartures} saída(s) pendente(s).`);
+  const receivables = Number(pending.company_receivables ?? 0);
+  if (receivables > 0)
+    actions.push(
+      `${actions.length + 1}. Cobrar ou conciliar ${receivables} conta(s) empresarial(is) a receber.`,
+    );
+  if (!actions.length)
+    actions.push(
+      "1. Nenhum alerta crítico foi confirmado pelos indicadores disponíveis; acompanhe a comparação com o período anterior.",
+    );
+  return actions;
+}
+
+function numericMetric(values: Map<string, unknown>, aliases: string[]) {
+  for (const alias of aliases.map(normalizeKey)) {
+    const value = Number(values.get(alias));
+    if (Number.isFinite(value)) return value;
+  }
+  return 0;
+}
+
+function nestedValue(value: RecordRow, path: string) {
+  let current: unknown = value;
+  for (const segment of path.split(".")) {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined;
+    current = (current as RecordRow)[segment];
+  }
+  return current;
+}
+
+function normalizeKey(value: string) {
+  return normalize(value)
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "");
 }
 
 function normalizeConversation(value: unknown): ConversationMessage[] {
@@ -302,7 +528,7 @@ function normalizeConversation(value: unknown): ConversationMessage[] {
   return value
     .filter((item): item is RecordRow => Boolean(item) && typeof item === "object")
     .map((item) => ({
-      role: item.role === "assistant" ? "assistant" as const : "user" as const,
+      role: item.role === "assistant" ? ("assistant" as const) : ("user" as const),
       text: String(item.text ?? "").slice(0, 2000),
     }))
     .filter((item) => item.text.trim())
@@ -327,9 +553,7 @@ function normalize(value: string) {
 }
 
 function asRecord(value: unknown): RecordRow {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as RecordRow)
-    : {};
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as RecordRow) : {};
 }
 
 function formatMoney(value: number) {
