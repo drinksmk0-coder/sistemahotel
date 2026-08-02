@@ -277,28 +277,52 @@ function localExecutiveAnswer(question: string, context: RecordRow, upstreamErro
   const snapshot = asRecord(context.hotel_snapshot);
   const flattened = flattenSnapshot(snapshot);
   const metrics = [
-    metricLine(flattened, "Receita total", ["revenue", "receita", "receita_total"], "money"),
-    metricLine(flattened, "Receita de hospedagem", ["lodgingRevenue", "lodging_revenue"], "money"),
+    metricLine(
+      flattened,
+      "Receita contratada de hospedagem",
+      ["reservations_contracted_revenue", "lodgingRevenue", "lodging_revenue"],
+      "money",
+    ),
+    metricLine(flattened, "Receita de hospedagem recebida", ["reservations_paid_revenue"], "money"),
     metricLine(
       flattened,
       "Receita de produtos e serviços",
-      ["salesRevenue", "sales_revenue"],
+      ["sales_total_revenue", "salesRevenue", "sales_revenue"],
       "money",
     ),
-    metricLine(flattened, "Despesas", ["expenses", "despesas"], "money"),
+    metricLine(flattened, "Despesas", ["expenses_total", "expenses", "despesas"], "money"),
     metricLine(flattened, "GOP / resultado operacional", ["gop", "resultado_operacional"], "money"),
     metricLine(flattened, "Margem", ["margin", "margem"], "percent"),
     metricLine(flattened, "Ocupação", ["occupancyRate", "occupancy_rate", "ocupacao"], "percent"),
-    metricLine(flattened, "ADR / diária média", ["adr", "diaria_media"], "money"),
+    metricLine(
+      flattened,
+      "ADR / diária média",
+      ["reservations_average_daily_rate", "adr", "diaria_media"],
+      "money",
+    ),
     metricLine(flattened, "RevPAR", ["revpar"], "money"),
     metricLine(
       flattened,
       "Reservas",
-      ["reservationCount", "reservation_count", "reservas"],
+      ["reservations_total", "reservationCount", "reservation_count", "reservas"],
       "number",
     ),
-    metricLine(flattened, "Avaliação média", ["averageRating", "average_rating"], "number"),
-    metricLine(flattened, "Reclamações abertas", ["openComplaints", "open_complaints"], "number"),
+    metricLine(flattened, "Reservas ativas hoje", ["reservations_active_today"], "number"),
+    metricLine(flattened, "Quartos disponíveis agora", ["inventory_rooms_available_now"], "number"),
+    metricLine(
+      flattened,
+      "Avaliação média",
+      ["reviews_average_overall", "averageRating", "average_rating"],
+      "number",
+    ),
+    metricLine(
+      flattened,
+      "Reclamações abertas",
+      ["complaints_open", "openComplaints", "open_complaints"],
+      "number",
+    ),
+    metricLine(flattened, "Saldo pendente de hospedagem", ["reservations_outstanding"], "money"),
+    metricLine(flattened, "Saldo pendente de vendas", ["sales_outstanding"], "money"),
   ].filter(Boolean) as string[];
 
   const details: string[] = [];
@@ -306,17 +330,27 @@ function localExecutiveAnswer(question: string, context: RecordRow, upstreamErro
     details.push(
       ...rankedRows(
         snapshot,
-        ["channelRows", "channel_rows", "originRows", "origin_rows"],
+        ["reservations.by_channel", "channelRows", "channel_rows", "originRows", "origin_rows"],
         "Canais e origens",
       ),
     );
   }
   if (/despesa|custo|gasto/.test(value)) {
-    details.push(...rankedRows(snapshot, ["expenseRows", "expense_rows"], "Principais despesas"));
+    details.push(
+      ...rankedRows(
+        snapshot,
+        ["expenses.by_category", "expenseRows", "expense_rows"],
+        "Principais despesas",
+      ),
+    );
   }
   if (/reclam|avaliacao|avaliação|nota|quarto|barulho|limpeza/.test(value)) {
     details.push(
-      ...rankedRows(snapshot, ["complaintRows", "complaint_rows"], "Reclamações por categoria"),
+      ...rankedRows(
+        snapshot,
+        ["complaints.by_category", "complaintRows", "complaint_rows"],
+        "Reclamações por categoria",
+      ),
     );
   }
 
@@ -356,12 +390,15 @@ function ownerMemoryConversation(context: RecordRow): ConversationMessage[] {
   return [{ role: "assistant", text: `MEMÓRIA SANITIZADA DA EMPRESA:\n${summary}` }];
 }
 
-function flattenSnapshot(value: unknown, result = new Map<string, unknown>()) {
+function flattenSnapshot(value: unknown, result = new Map<string, unknown>(), prefix = "") {
   if (!value || typeof value !== "object" || Array.isArray(value)) return result;
   for (const [key, child] of Object.entries(value as RecordRow)) {
-    result.set(normalizeKey(key), child);
+    const normalizedKey = normalizeKey(key);
+    const path = prefix ? `${prefix}_${normalizedKey}` : normalizedKey;
+    result.set(path, child);
+    if (!result.has(normalizedKey)) result.set(normalizedKey, child);
     if (child && typeof child === "object" && !Array.isArray(child)) {
-      flattenSnapshot(child, result);
+      flattenSnapshot(child, result, path);
     }
   }
   return result;
@@ -392,8 +429,10 @@ function metricLine(
 }
 
 function rankedRows(snapshot: RecordRow, aliases: string[], title: string) {
-  const key = aliases.find((alias) => Array.isArray(snapshot[alias]));
-  const rows = key ? (snapshot[key] as unknown[]) : [];
+  const rows =
+    aliases
+      .map((alias) => nestedValue(snapshot, alias))
+      .find((value): value is unknown[] => Array.isArray(value)) ?? [];
   if (!rows.length) return [];
   const lines = rows.slice(0, 6).map((item) => {
     const row = asRecord(item);
@@ -423,8 +462,16 @@ function rankedRows(snapshot: RecordRow, aliases: string[], title: string) {
 
 function executiveActions(values: Map<string, unknown>, pending: RecordRow) {
   const actions: string[] = [];
-  const complaints = numericMetric(values, ["openComplaints", "open_complaints"]);
-  const rating = numericMetric(values, ["averageRating", "average_rating"]);
+  const complaints = numericMetric(values, [
+    "complaints_open",
+    "openComplaints",
+    "open_complaints",
+  ]);
+  const rating = numericMetric(values, [
+    "reviews_average_overall",
+    "averageRating",
+    "average_rating",
+  ]);
   const margin = numericMetric(values, ["margin", "margem"]);
   if (complaints > 0)
     actions.push(
@@ -459,6 +506,15 @@ function numericMetric(values: Map<string, unknown>, aliases: string[]) {
     if (Number.isFinite(value)) return value;
   }
   return 0;
+}
+
+function nestedValue(value: RecordRow, path: string) {
+  let current: unknown = value;
+  for (const segment of path.split(".")) {
+    if (!current || typeof current !== "object" || Array.isArray(current)) return undefined;
+    current = (current as RecordRow)[segment];
+  }
+  return current;
 }
 
 function normalizeKey(value: string) {
