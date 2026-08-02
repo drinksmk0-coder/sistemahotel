@@ -40,24 +40,9 @@ export function OccupancyReservationCombinedChart() {
     const root = document.querySelector<HTMLElement>("[data-executive-dashboard]");
     if (!root) return;
 
-    const mount = () => {
-      const firstCard = root.querySelector<HTMLElement>("article.executive-bi-card");
-      if (!firstCard) return;
-      firstCard.classList.add("executive-occupancy-combined");
-      const title = firstCard.querySelector<HTMLElement>("h2");
-      if (title) {
-        title.textContent = "1. Ocupação, reservas, cancelamentos e no-show por dia";
-        title.title = title.textContent;
-      }
-      let portalHost = firstCard.querySelector<HTMLElement>("[data-occupancy-reservation-host]");
-      if (!portalHost) {
-        portalHost = document.createElement("div");
-        portalHost.dataset.occupancyReservationHost = "true";
-        portalHost.className = "occupancy-reservation-host";
-        firstCard.appendChild(portalHost);
-      }
-      setHost(portalHost);
-    };
+    let firstCard: HTMLElement | null = null;
+    let portalHost: HTMLElement | null = null;
+    let attempts = 0;
 
     const syncRange = () => {
       const fields = root.querySelectorAll<HTMLInputElement>('input[type="date"]');
@@ -67,20 +52,52 @@ export function OccupancyReservationCombinedChart() {
       setRange((current) => current?.start === start && current?.end === end ? current : { start, end });
     };
 
-    mount();
-    syncRange();
+    const install = () => {
+      attempts += 1;
+      firstCard = root.querySelector<HTMLElement>("article.executive-bi-card");
+      if (!firstCard) return false;
+
+      const title = firstCard.querySelector<HTMLElement>("h2");
+      if (title) {
+        title.textContent = "1. Ocupação, reservas, cancelamentos e no-show por dia";
+        title.title = title.textContent;
+      }
+
+      portalHost = firstCard.querySelector<HTMLElement>("[data-occupancy-reservation-host]");
+      if (!portalHost) {
+        portalHost = document.createElement("div");
+        portalHost.dataset.occupancyReservationHost = "true";
+        firstCard.appendChild(portalHost);
+      }
+
+      Array.from(firstCard.children).forEach((child, index) => {
+        if (child !== portalHost && index > 0) {
+          (child as HTMLElement).dataset.combinedChartHidden = "true";
+          (child as HTMLElement).style.display = "none";
+        }
+      });
+
+      setHost(portalHost);
+      syncRange();
+      return true;
+    };
+
+    const timer = window.setInterval(() => {
+      if (install() || attempts >= 50) window.clearInterval(timer);
+    }, 100);
+
     root.addEventListener("input", syncRange, true);
     root.addEventListener("change", syncRange, true);
-    const observer = new MutationObserver(() => {
-      mount();
-      syncRange();
-    });
-    observer.observe(root, { childList: true, subtree: true });
 
     return () => {
+      window.clearInterval(timer);
       root.removeEventListener("input", syncRange, true);
       root.removeEventListener("change", syncRange, true);
-      observer.disconnect();
+      firstCard?.querySelectorAll<HTMLElement>("[data-combined-chart-hidden]").forEach((element) => {
+        element.style.removeProperty("display");
+        delete element.dataset.combinedChartHidden;
+      });
+      portalHost?.remove();
     };
   }, []);
 
@@ -147,11 +164,7 @@ export function OccupancyReservationCombinedChart() {
           <XAxis dataKey="date" minTickGap={18} />
           <YAxis yAxisId="count" allowDecimals={false} width={32} />
           <YAxis yAxisId="occupancy" orientation="right" domain={[0, 100]} tickFormatter={(value) => `${value}%`} width={42} />
-          <Tooltip
-            formatter={(value: number, name: string) =>
-              name === "Taxa de ocupação" ? `${value.toFixed(1)}%` : `${value} reserva(s)`
-            }
-          />
+          <Tooltip formatter={(value: number, name: string) => name === "Taxa de ocupação" ? `${value.toFixed(1)}%` : `${value} reserva(s)`} />
           <Legend wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
           <Bar yAxisId="count" dataKey="reservations" name="Reservas" fill="var(--executive-series-1)" radius={[5, 5, 0, 0]} maxBarSize={28}>
             <LabelList dataKey="reservations" position="top" />
@@ -162,16 +175,7 @@ export function OccupancyReservationCombinedChart() {
           <Bar yAxisId="count" dataKey="noShow" name="No-show" fill="var(--executive-warning)" radius={[5, 5, 0, 0]} maxBarSize={28}>
             <LabelList dataKey="noShow" position="top" />
           </Bar>
-          <Line
-            yAxisId="occupancy"
-            type="monotone"
-            dataKey="occupancy"
-            name="Taxa de ocupação"
-            stroke="var(--executive-series-3)"
-            strokeWidth={3}
-            dot={{ r: 4 }}
-            activeDot={{ r: 6 }}
-          >
+          <Line yAxisId="occupancy" type="monotone" dataKey="occupancy" name="Taxa de ocupação" stroke="var(--executive-series-3)" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }}>
             <LabelList dataKey="occupancy" position="top" formatter={(value: number) => `${value.toFixed(1)}%`} />
           </Line>
         </ComposedChart>
@@ -192,12 +196,8 @@ function normalizeStatus(value: string | null | undefined): "active" | "cancelle
   return "active";
 }
 
-function parseDate(value: string) {
-  return new Date(`${value}T00:00:00Z`);
-}
-function iso(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
+function parseDate(value: string) { return new Date(`${value}T00:00:00Z`); }
+function iso(date: Date) { return date.toISOString().slice(0, 10); }
 function formatDay(value: string) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(parseDate(value));
 }
