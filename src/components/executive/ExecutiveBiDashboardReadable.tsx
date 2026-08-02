@@ -2,7 +2,7 @@ import { ExecutiveCancellationImpact } from "@/components/executive/ExecutiveCan
 import { ExecutiveDashboardInteractions } from "@/components/executive/ExecutiveDashboardInteractions";
 import { ExecutiveDashboardReference } from "@/components/executive/ExecutiveDashboardReference";
 import { ExecutiveDashboardUiGuard } from "@/components/executive/ExecutiveDashboardUiGuard";
-import { ExecutiveExpensePaymentCountBars } from "@/components/executive/ExecutiveExpensePaymentCountBars";
+import { ExecutiveExpenseCategoryFrequency } from "@/components/executive/ExecutiveExpenseCategoryFrequency";
 import { ExecutiveRevenueExpenseGopChart } from "@/components/executive/ExecutiveRevenueExpenseGopChart";
 import "@/components/executive/executive-dashboard-reference-enhancements.css";
 import "@/components/executive/executive-dashboard-responsive.css";
@@ -18,7 +18,7 @@ export function ExecutiveBiDashboardReadable() {
       <ExecutiveDashboardInteractions />
       <ExecutiveRevenueExpenseGopChart />
       <ExecutiveCancellationImpact />
-      <ExecutiveExpensePaymentCountBars />
+      <ExecutiveExpenseCategoryFrequency />
       <ExecutiveDashboardUiGuard />
     </div>
   );
