@@ -1,0 +1,17 @@
+/* Mantém a HotelAI longe da barra lateral da Vercel e de outros controles flutuantes. */
+div:has(> button[aria-label="Abrir HotelAI"]),
+div:has(> button[aria-label="Fechar HotelAI"]) {
+  right: 1rem !important;
+  bottom: 1.25rem !important;
+  top: auto !important;
+  transform: none !important;
+  z-index: 60 !important;
+}
+
+@media (max-width: 639px) {
+  div:has(> button[aria-label="Abrir HotelAI"]),
+  div:has(> button[aria-label="Fechar HotelAI"]) {
+    right: 0.75rem !important;
+    bottom: 6rem !important;
+  }
+}
