@@ -388,37 +388,21 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </button>
         )}
 
-        <div className={`border-b border-white/10 ${collapsed ? "px-2 py-3" : "px-4 py-3.5"}`}>
-          <button
-            type="button"
-            className={`flex w-full items-center rounded-xl text-left ${collapsed ? "justify-center" : "gap-2.5"}`}
-            onClick={() => desktop && setSidebarCollapsed((value) => !value)}
-            title={desktop ? (collapsed ? "Abrir menu lateral" : "Recolher menu lateral") : undefined}
-          >
-            <img
-              src={BRAND.icon}
-              alt={BRAND.name}
-              className="h-9 w-9 shrink-0 rounded-xl shadow-lg"
-            />
-            {!collapsed && (
-              <div className="min-w-0">
-                <h1 className="truncate text-base font-extrabold text-white">{BRAND.name}</h1>
-                <p className="text-[8px] uppercase tracking-[0.13em] text-white/50">
-                  {platformAdmin.data ? "Administração da plataforma" : BRAND.tagline}
-                </p>
-              </div>
-            )}
-          </button>
-
-          {!collapsed && (
-            <>
-              {showCompanySelector ? (
-                <label className="mt-3 block">
-                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-white/55">
+        <div className={`border-b border-white/10 ${collapsed ? "px-2 py-3" : "px-3 py-3"}`}>
+          {!collapsed ? (
+            showCompanySelector ? (
+              <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] p-2.5">
+                <img
+                  src={hotelLogo}
+                  alt="Logo do hotel"
+                  className="h-9 w-9 shrink-0 rounded-lg bg-white/90 object-contain p-0.5"
+                />
+                <label className="min-w-0 flex-1">
+                  <span className="mb-1 block text-[8px] font-bold uppercase tracking-wide text-white/50">
                     Hotel em atendimento
                   </span>
                   <select
-                    className="field border-white/20 bg-white/95 text-sm text-foreground"
+                    className="h-8 w-full rounded-lg border border-white/20 bg-white/95 px-2 text-xs font-bold text-foreground outline-none"
                     value={currentCompany.data?.id ?? ""}
                     onChange={(event) => setCurrentCompanyId(user?.id, event.target.value)}
                   >
@@ -427,40 +411,38 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     ))}
                   </select>
                 </label>
-              ) : (
-                <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2.5">
-                  <img
-                    src={hotelLogo}
-                    alt="Logo do hotel"
-                    className="h-8 w-8 rounded-lg bg-white/90 object-contain p-0.5"
-                  />
-                  <div className="min-w-0">
-                    <span className="block text-[8px] font-bold uppercase tracking-wide text-white/50">Hotel</span>
-                    <span className="block truncate text-xs font-extrabold text-white">{companyName}</span>
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2.5">
-                <span className="block text-[8px] font-bold uppercase tracking-[0.14em] text-white/45">Ambiente</span>
-                <span className="mt-1 flex items-center gap-2 text-xs font-extrabold text-white/90">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,.12)]" />
-                  Operação online
-                </span>
               </div>
-            </>
-          )}
-
-          {collapsed && (
-            <div className="mt-2 flex flex-col items-center gap-2">
+            ) : (
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[0.07] p-2.5 text-left transition hover:bg-white/[0.1]"
+                onClick={() => desktop && setSidebarCollapsed(true)}
+                title={desktop ? "Recolher menu lateral" : companyName}
+              >
+                <img
+                  src={hotelLogo}
+                  alt="Logo do hotel"
+                  className="h-10 w-10 shrink-0 rounded-xl bg-white/90 object-contain p-0.5"
+                />
+                <strong className="min-w-0 flex-1 truncate text-sm font-extrabold text-white">
+                  {companyName}
+                </strong>
+              </button>
+            )
+          ) : (
+            <button
+              type="button"
+              className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-white/[0.07]"
+              onClick={() => desktop && setSidebarCollapsed(false)}
+              title={companyName}
+              aria-label={`Abrir menu de ${companyName}`}
+            >
               <img
                 src={hotelLogo}
                 alt={companyName}
-                title={companyName}
-                className="h-7 w-7 rounded-md bg-white/90 object-contain p-0.5"
+                className="h-8 w-8 rounded-lg bg-white/90 object-contain p-0.5"
               />
-              <span className="h-2 w-2 rounded-full bg-emerald-400" title="Operação online" />
-            </div>
+            </button>
           )}
         </div>
 
