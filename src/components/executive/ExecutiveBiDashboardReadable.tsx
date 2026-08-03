@@ -1,4 +1,5 @@
 import { ExecutiveCancellationImpact } from "@/components/executive/ExecutiveCancellationImpact";
+import { ExecutiveDashboardFinalPolish } from "@/components/executive/ExecutiveDashboardFinalPolish";
 import { ExecutiveDashboardInteractions } from "@/components/executive/ExecutiveDashboardInteractions";
 import { ExecutiveDashboardReference } from "@/components/executive/ExecutiveDashboardReference";
 import { ExecutiveDashboardUiGuard } from "@/components/executive/ExecutiveDashboardUiGuard";
@@ -9,6 +10,7 @@ import "@/components/executive/executive-dashboard-reference-enhancements.css";
 import "@/components/executive/executive-dashboard-responsive.css";
 import "@/components/executive/executive-dashboard-financial-map.css";
 import "@/components/executive/executive-dashboard-donut-legend.css";
+import "@/components/executive/executive-dashboard-final-polish.css";
 
 export function ExecutiveBiDashboardReadable() {
   return (
@@ -22,6 +24,7 @@ export function ExecutiveBiDashboardReadable() {
       <ExecutiveCancellationImpact />
       <ExecutiveExpenseCategoryFrequency />
       <ExecutiveDonutLegendStandardizer />
+      <ExecutiveDashboardFinalPolish />
       <ExecutiveDashboardUiGuard />
     </div>
   );
