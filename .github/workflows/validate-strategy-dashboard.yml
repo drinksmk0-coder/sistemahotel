@@ -1,0 +1,29 @@
+name: Validar dashboard estratégico
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+
+      - name: Compilar aplicação
+        run: npm run build
