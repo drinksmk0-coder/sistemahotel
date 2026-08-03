@@ -17,7 +17,9 @@ import {
   CreditCard,
   DollarSign,
   Droplets,
+  FileCheck2,
   FileWarning,
+  Inbox,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -48,124 +50,169 @@ import {
 import { BRAND } from "@/lib/brand";
 import { SystemMonitor } from "@/components/SystemMonitor";
 
+type NavigationGroup =
+  | "Operação"
+  | "Gestão"
+  | "Relacionamento"
+  | "Inteligência"
+  | "Configurações";
+
 type NavigationItem = {
   to: string;
   label: string;
   icon: LucideIcon;
   roles: AppRole[];
+  group: NavigationGroup;
 };
 
-const TABS: NavigationItem[] = [
+const GROUPS: NavigationGroup[] = [
+  "Operação",
+  "Gestão",
+  "Relacionamento",
+  "Inteligência",
+  "Configurações",
+];
+
+const NAV_ITEMS: NavigationItem[] = [
   {
     to: "/central-estrategica",
     label: "Pulso do Hotel",
     icon: ChartNoAxesCombined,
     roles: ["dono"],
+    group: "Operação",
   },
   {
     to: "/painel",
-    label: "Painel",
+    label: "Visão geral",
     icon: LayoutDashboard,
     roles: ["recepcao", "limpeza", "cafe"],
+    group: "Operação",
   },
   {
     to: "/mapa",
     label: "Quadro de quartos",
     icon: BedDouble,
     roles: ["dono", "recepcao", "limpeza", "cafe"],
+    group: "Operação",
   },
   {
     to: "/reservas",
     label: "Reservas",
     icon: CreditCard,
     roles: ["dono", "recepcao"],
+    group: "Operação",
+  },
+  {
+    to: "/fichas-checkin",
+    label: "FNRH e check-in",
+    icon: FileCheck2,
+    roles: ["dono", "recepcao"],
+    group: "Operação",
+  },
+  {
+    to: "/caixa-entrada-hotel",
+    label: "Central de entradas",
+    icon: Inbox,
+    roles: ["dono", "recepcao"],
+    group: "Operação",
+  },
+  {
+    to: "/clientes",
+    label: "Hóspedes",
+    icon: Users,
+    roles: ["dono", "recepcao"],
+    group: "Operação",
   },
   {
     to: "/tarifario",
     label: "Tarifário",
     icon: CalendarRange,
     roles: ["dono"],
-  },
-  {
-    to: "/clientes",
-    label: "Clientes",
-    icon: Users,
-    roles: ["dono", "recepcao"],
+    group: "Gestão",
   },
   {
     to: "/vendas",
     label: "Vendas",
     icon: DollarSign,
     roles: ["dono", "recepcao"],
+    group: "Gestão",
   },
   {
     to: "/despesas",
     label: "Despesas",
     icon: FileWarning,
     roles: ["dono"],
+    group: "Gestão",
   },
   {
     to: "/reclamacoes",
     label: "Reclamações",
     icon: MessageSquare,
     roles: ["dono", "recepcao"],
-  },
-  {
-    to: "/mensagens",
-    label: "Mensagens",
-    icon: MessagesSquare,
-    roles: ["dono", "recepcao"],
-  },
-];
-
-const SECONDARY_TABS: NavigationItem[] = [
-  {
-    to: "/assistente",
-    label: "HotelAI — Análises",
-    icon: Bot,
-    roles: ["dono"],
-  },
-  {
-    to: "/memoria-ia",
-    label: "Memória do HotelAI",
-    icon: Brain,
-    roles: ["dono"],
-  },
-  {
-    to: "/relatorio-consumo-agua",
-    label: "Relatório de água",
-    icon: Droplets,
-    roles: ["dono"],
-  },
-  {
-    to: "/ajuda-sistema",
-    label: "Ajuda do sistema",
-    icon: CircleHelp,
-    roles: ["recepcao", "limpeza", "cafe"],
+    group: "Relacionamento",
   },
   {
     to: "/avaliacoes",
     label: "Avaliações",
     icon: Star,
     roles: ["dono", "recepcao"],
+    group: "Relacionamento",
+  },
+  {
+    to: "/mensagens",
+    label: "Mensagens",
+    icon: MessagesSquare,
+    roles: ["dono", "recepcao"],
+    group: "Relacionamento",
+  },
+  {
+    to: "/assistente",
+    label: "HotelAI — Análises",
+    icon: Bot,
+    roles: ["dono"],
+    group: "Inteligência",
+  },
+  {
+    to: "/memoria-ia",
+    label: "Memória do HotelAI",
+    icon: Brain,
+    roles: ["dono"],
+    group: "Inteligência",
+  },
+  {
+    to: "/relatorio-consumo-agua",
+    label: "Relatório de água",
+    icon: Droplets,
+    roles: ["dono"],
+    group: "Inteligência",
   },
   {
     to: "/integracoes",
     label: "Integrações",
     icon: Settings,
     roles: ["dono"],
+    group: "Configurações",
   },
   {
     to: "/empresa",
     label: "Aparência do hotel",
     icon: Settings,
     roles: ["dono"],
+    group: "Configurações",
   },
   {
     to: "/equipe",
     label: "Equipe",
     icon: Users,
     roles: ["dono"],
+    group: "Configurações",
+  },
+  {
+    to: "/ajuda-sistema",
+    label: "Ajuda do sistema",
+    icon: CircleHelp,
+    roles: ["recepcao", "limpeza", "cafe"],
+    group: "Configurações",
   },
 ];
 
@@ -174,6 +221,7 @@ const PLATFORM_ADMIN_TAB: NavigationItem = {
   label: "Administração HospedaMais",
   icon: ShieldCheck,
   roles: ["dono"],
+  group: "Configurações",
 };
 
 const MOBILE_PRIMARY_TABS = new Set([
@@ -181,9 +229,7 @@ const MOBILE_PRIMARY_TABS = new Set([
   "/painel",
   "/mapa",
   "/reservas",
-  "/clientes",
-  "/vendas",
-  "/ajuda-sistema",
+  "/fichas-checkin",
 ]);
 
 const ROLE_LABELS: Record<AppRole, string> = {
@@ -211,6 +257,7 @@ const STAFF_ALLOWED_PATHS: Record<Exclude<AppRole, "dono">, string[]> = {
     "/mensagens",
     "/avaliacoes",
     "/fichas-checkin",
+    "/caixa-entrada-hotel",
     "/ajuda-sistema",
   ],
   limpeza: ["/painel", "/mapa", "/ajuda-sistema"],
@@ -228,7 +275,7 @@ function Clock() {
   }, []);
 
   return (
-    <div className="font-mono text-xs text-white/65">
+    <div className="font-mono text-[10px] leading-relaxed text-white/60">
       <div className="capitalize">
         {now.toLocaleDateString("pt-BR", {
           weekday: "long",
@@ -249,9 +296,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const currentCompany = useCurrentCompany();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const path = useRouterState({
-    select: (state) => state.location.pathname,
-  });
+  const path = useRouterState({ select: (state) => state.location.pathname });
   const [menuOpen, setMenuOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
@@ -259,25 +304,23 @@ export function AppLayout({ children }: { children: ReactNode }) {
       ? window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true"
       : false,
   );
-  const visibleTabs = role
-    ? TABS.filter((tab) => tab.roles.includes(role))
-    : [];
-  const secondaryTabs = role
-    ? SECONDARY_TABS.filter((tab) => tab.roles.includes(role))
+  const [systemSettings, setSystemSettings] = useState(() =>
+    getSystemSettings(currentCompany.data?.id),
+  );
+
+  const visibleItems = role
+    ? NAV_ITEMS.filter((item) => item.roles.includes(role))
     : [];
   if (role === "dono" && platformAdmin.data) {
-    secondaryTabs.unshift(PLATFORM_ADMIN_TAB);
+    visibleItems.push(PLATFORM_ADMIN_TAB);
   }
-  const mobileTabs = visibleTabs
-    .concat(secondaryTabs)
-    .filter((tab) => MOBILE_PRIMARY_TABS.has(tab.to))
+
+  const mobileTabs = visibleItems
+    .filter((item) => MOBILE_PRIMARY_TABS.has(item.to))
     .slice(0, 4);
   const showCompanySelector =
     role === "dono" && currentCompany.companies.length > 1;
   const companyName = currentCompany.data?.nome ?? "Empresa não selecionada";
-  const [systemSettings, setSystemSettings] = useState(() =>
-    getSystemSettings(currentCompany.data?.id),
-  );
   const hotelLogo =
     systemSettings.logo && systemSettings.logo !== "/hotel-real-logo.png"
       ? systemSettings.logo
@@ -326,8 +369,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
           desktop
             ? collapsed
               ? "w-[4.5rem]"
-              : "w-[13.5rem]"
-            : "w-[min(13.5rem,86vw)]"
+              : "w-[15rem]"
+            : "w-[min(15rem,88vw)]"
         }`}
         style={
           { "--sidebar-primary": systemSettings.primaryColor } as CSSProperties
@@ -359,123 +402,139 @@ export function AppLayout({ children }: { children: ReactNode }) {
             />
             {!collapsed && (
               <div className="min-w-0">
-                <h1 className="truncate text-base font-extrabold text-white">
-                  {BRAND.name}
-                </h1>
+                <h1 className="truncate text-base font-extrabold text-white">{BRAND.name}</h1>
                 <p className="text-[8px] uppercase tracking-[0.13em] text-white/50">
-                  {platformAdmin.data
-                    ? "Administração da plataforma"
-                    : BRAND.tagline}
+                  {platformAdmin.data ? "Administração da plataforma" : BRAND.tagline}
                 </p>
               </div>
             )}
           </button>
 
-          {!collapsed && (showCompanySelector ? (
-            <label className="mt-3 block">
-              <span className="mb-1 block text-[11px] font-semibold uppercase text-white/70">
-                Hotel em atendimento
-              </span>
-              <select
-                className="field border-white/20 bg-white/95 text-sm text-foreground"
-                value={currentCompany.data?.id ?? ""}
-                onChange={(event) =>
-                  setCurrentCompanyId(user?.id, event.target.value)
-                }
-              >
-                {currentCompany.companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <div className="mt-3 flex items-center gap-2 rounded-md border border-white/10 bg-white/[0.06] px-2.5 py-2">
-              <img
-                src={hotelLogo}
-                alt="Logo do hotel"
-                className="h-7 w-7 rounded-md bg-white/90 object-contain p-0.5"
-              />
-              <div className="min-w-0">
-                <span className="block text-[9px] font-semibold uppercase text-white/55">
-                  Hotel
-                </span>
-                <span className="block truncate text-xs font-semibold text-white">
-                  {companyName}
-                </span>
-              </div>
-            </div>
-          ))}
-
-          {collapsed && (
-            <img
-              src={hotelLogo}
-              alt={companyName}
-              title={companyName}
-              className="mx-auto mt-2 h-7 w-7 rounded-md bg-white/90 object-contain p-0.5"
-            />
-          )}
-        </div>
-
-        <nav className={`app-sidebar-nav flex-1 space-y-0.5 px-2 py-2 ${collapsed ? "overflow-visible" : "overflow-y-auto"}`}>
-          {visibleTabs.map((tab) => (
-            <NavigationLink
-              key={tab.to}
-              item={tab}
-              active={path.startsWith(tab.to)}
-              collapsed={collapsed}
-              onNavigate={() => setMenuOpen(false)}
-            />
-          ))}
-          {secondaryTabs.length > 0 && (
-            <div className="mt-1 space-y-0.5 border-t border-white/10 pt-1">
-              {secondaryTabs.map((tab) => (
-                <NavigationLink
-                  key={tab.to}
-                  item={tab}
-                  active={path.startsWith(tab.to)}
-                  collapsed={collapsed}
-                  onNavigate={() => setMenuOpen(false)}
-                />
-              ))}
-            </div>
-          )}
-        </nav>
-
-        <div className={`border-t border-white/10 ${collapsed ? "p-2" : "p-3"}`}>
           {!collapsed && (
             <>
-              <Clock />
-              <div className="mt-2">
-                <div className="truncate text-xs font-semibold text-white">
-                  {profile?.nome ?? user?.email}
-                </div>
-                <div className="text-[11px] text-white/65">
-                  {platformAdmin.data
-                    ? "Administrador HospedaMais"
-                    : role
-                      ? ROLE_LABELS[role]
-                      : "Aguardando liberação"}
-                </div>
-                {role && (
-                  <div className="mt-0.5 text-[9px] text-white/45">
-                    {ROLE_SUBTITLES[role]}
+              {showCompanySelector ? (
+                <label className="mt-3 block">
+                  <span className="mb-1 block text-[10px] font-bold uppercase tracking-wide text-white/55">
+                    Hotel em atendimento
+                  </span>
+                  <select
+                    className="field border-white/20 bg-white/95 text-sm text-foreground"
+                    value={currentCompany.data?.id ?? ""}
+                    onChange={(event) => setCurrentCompanyId(user?.id, event.target.value)}
+                  >
+                    {currentCompany.companies.map((company) => (
+                      <option key={company.id} value={company.id}>{company.nome}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <div className="mt-3 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2.5">
+                  <img
+                    src={hotelLogo}
+                    alt="Logo do hotel"
+                    className="h-8 w-8 rounded-lg bg-white/90 object-contain p-0.5"
+                  />
+                  <div className="min-w-0">
+                    <span className="block text-[8px] font-bold uppercase tracking-wide text-white/50">Hotel</span>
+                    <span className="block truncate text-xs font-extrabold text-white">{companyName}</span>
                   </div>
-                )}
+                </div>
+              )}
+
+              <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2.5">
+                <span className="block text-[8px] font-bold uppercase tracking-[0.14em] text-white/45">Ambiente</span>
+                <span className="mt-1 flex items-center gap-2 text-xs font-extrabold text-white/90">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgba(52,211,153,.12)]" />
+                  Operação online
+                </span>
               </div>
             </>
           )}
-          <button
-            type="button"
-            onClick={signOut}
-            className={`group relative mt-2 flex w-full items-center rounded-md border border-white/20 py-1.5 text-xs font-semibold text-white hover:bg-white/10 ${collapsed ? "justify-center px-2" : "justify-center gap-2 px-3"}`}
-            title={collapsed ? "Sair" : undefined}
-          >
-            <LogOut className="h-4 w-4" />
-            {!collapsed && "Sair"}
-            {collapsed && <SidebarTooltip label="Sair" />}
-          </button>
+
+          {collapsed && (
+            <div className="mt-2 flex flex-col items-center gap-2">
+              <img
+                src={hotelLogo}
+                alt={companyName}
+                title={companyName}
+                className="h-7 w-7 rounded-md bg-white/90 object-contain p-0.5"
+              />
+              <span className="h-2 w-2 rounded-full bg-emerald-400" title="Operação online" />
+            </div>
+          )}
+        </div>
+
+        <nav className={`app-sidebar-nav flex-1 px-2 py-2 ${collapsed ? "overflow-visible" : "overflow-y-auto"}`}>
+          {GROUPS.map((group, groupIndex) => {
+            const items = visibleItems.filter((item) => item.group === group);
+            if (!items.length) return null;
+            return (
+              <section
+                key={group}
+                className={`${groupIndex > 0 ? "mt-2 border-t border-white/10 pt-2" : ""}`}
+              >
+                {!collapsed && (
+                  <h2 className="mb-1 px-2 text-[8px] font-black uppercase tracking-[0.18em] text-white/35">
+                    {group}
+                  </h2>
+                )}
+                <div className="space-y-0.5">
+                  {items.map((item) => (
+                    <NavigationLink
+                      key={item.to}
+                      item={item}
+                      active={path === item.to || path.startsWith(`${item.to}/`)}
+                      collapsed={collapsed}
+                      onNavigate={() => setMenuOpen(false)}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+        </nav>
+
+        <div className={`border-t border-white/10 ${collapsed ? "p-2" : "p-3"}`}>
+          {!collapsed ? (
+            <>
+              <Clock />
+              <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] p-2.5">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/12 text-xs font-black text-white">
+                  {(profile?.nome ?? user?.email ?? "U").slice(0, 1).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-extrabold text-white">{profile?.nome ?? user?.email}</div>
+                  <div className="truncate text-[9px] text-white/55">
+                    {platformAdmin.data
+                      ? "Administrador HospedaMais"
+                      : role
+                        ? ROLE_LABELS[role]
+                        : "Aguardando liberação"}
+                  </div>
+                  {role && <div className="text-[8px] text-white/35">{ROLE_SUBTITLES[role]}</div>}
+                </div>
+                <button
+                  type="button"
+                  onClick={signOut}
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/55 transition hover:bg-white/10 hover:text-white"
+                  title="Sair"
+                  aria-label="Sair"
+                >
+                  <LogOut className="h-4 w-4" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={signOut}
+              className="group relative grid w-full place-items-center rounded-md border border-white/20 py-2 text-white hover:bg-white/10"
+              title="Sair"
+            >
+              <LogOut className="h-4 w-4" />
+              <SidebarTooltip label="Sair" />
+            </button>
+          )}
         </div>
       </aside>
     );
@@ -484,6 +543,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       <SystemMonitor />
+
       <button
         type="button"
         className="fixed left-4 top-4 z-50 rounded-md bg-pine p-2 text-white shadow-lg xl:hidden"
@@ -502,13 +562,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
           className="fixed inset-0 z-50 bg-black/40 xl:hidden"
           onClick={() => setMenuOpen(false)}
         >
-          <div
-            className="h-full"
-            onClick={(event) => event.stopPropagation()}
-          >
+          <div className="h-full" onClick={(event) => event.stopPropagation()}>
             <button
               type="button"
-              className="absolute left-[min(15rem,84vw)] top-4 rounded-r-md bg-card p-2 shadow"
+              className="absolute left-[min(15rem,88vw)] top-4 rounded-r-md bg-card p-2 shadow"
               onClick={() => setMenuOpen(false)}
               aria-label="Fechar menu"
             >
@@ -521,7 +578,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       <main
         className={`app-main min-w-0 px-3 pb-24 pt-16 transition-[margin] duration-200 sm:px-5 md:px-7 xl:px-4 xl:pb-8 xl:pt-2 ${
-          sidebarCollapsed ? "xl:ml-[4.5rem]" : "xl:ml-[13.5rem]"
+          sidebarCollapsed ? "xl:ml-[4.5rem]" : "xl:ml-[15rem]"
         }`}
       >
         <div className="mx-auto w-full max-w-[1920px]">{children}</div>
@@ -539,9 +596,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
                     </span>
                     <div>
                       <strong className="block text-sm">HotelAI</strong>
-                      <span className="text-[10px] opacity-80">
-                        Análises exclusivas do proprietário
-                      </span>
+                      <span className="text-[10px] opacity-80">Análises exclusivas do proprietário</span>
                     </div>
                   </div>
                   <button
@@ -556,16 +611,14 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </div>
               <div className="space-y-3 p-3">
                 <div className="rounded-xl rounded-tl-sm bg-muted p-3 text-xs leading-relaxed text-foreground">
-                  Analiso ocupação, receita, despesas, reservas e oportunidades
-                  estratégicas do hotel.
+                  Analiso ocupação, receita, despesas, reservas e oportunidades estratégicas do hotel.
                 </div>
                 <Link
                   to="/assistente"
                   onClick={() => setAssistantOpen(false)}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-xs font-bold text-primary-foreground shadow-sm"
                 >
-                  <Sparkles className="h-4 w-4" />
-                  Abrir HotelAI
+                  <Sparkles className="h-4 w-4" /> Abrir HotelAI
                 </Link>
               </div>
             </div>
@@ -578,11 +631,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
             aria-expanded={assistantOpen}
           >
             <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card bg-sage" />
-            {assistantOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Bot className="h-5 w-5" />
-            )}
+            {assistantOpen ? <X className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
           </button>
         </div>
       )}
@@ -592,15 +641,13 @@ export function AppLayout({ children }: { children: ReactNode }) {
           <div className="grid grid-cols-4 gap-1">
             {mobileTabs.map((tab) => {
               const Icon = tab.icon;
-              const active = path.startsWith(tab.to);
+              const active = path === tab.to || path.startsWith(`${tab.to}/`);
               return (
                 <Link
                   key={tab.to}
                   to={tab.to}
                   className={`flex min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-[10px] font-semibold transition ${
-                    active
-                      ? "bg-pine text-white"
-                      : "text-pine-dark hover:bg-sage-bg"
+                    active ? "bg-pine text-white" : "text-pine-dark hover:bg-sage-bg"
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -660,9 +707,7 @@ function NavigationLink({
           : "text-white/65 hover:bg-white/[0.07] hover:text-white"
       }`}
     >
-      <Icon
-        className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-white/55"}`}
-      />
+      <Icon className={`h-4 w-4 shrink-0 ${active ? "text-white" : "text-white/55"}`} />
       {!collapsed && <span className="truncate">{item.label}</span>}
       {collapsed && <SidebarTooltip label={item.label} />}
     </Link>
@@ -685,10 +730,7 @@ export function PageHeader({
           {title}
         </h2>
         {subtitle && (
-          <p
-            className="max-w-3xl truncate text-[10px] text-muted-foreground"
-            title={subtitle}
-          >
+          <p className="max-w-3xl truncate text-[10px] text-muted-foreground" title={subtitle}>
             {subtitle}
           </p>
         )}
