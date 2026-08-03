@@ -1,0 +1,101 @@
+/* Ajustes finais do painel executivo: gráficos contidos e melhor uso do espaço. */
+.executive-readable-root [data-executive-donut-card="true"] {
+  overflow: hidden !important;
+}
+
+.executive-readable-root [data-executive-donut-layout="true"] {
+  min-height: 11.5rem !important;
+  grid-template-columns: minmax(9.5rem, 0.9fr) minmax(0, 1.1fr) !important;
+  gap: 0.25rem !important;
+  overflow: hidden !important;
+  align-items: center !important;
+}
+
+.executive-readable-root [data-executive-donut-chart="true"] {
+  width: 100% !important;
+  height: 11rem !important;
+  min-width: 9.5rem !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.executive-readable-root [data-executive-donut-chart="true"] svg,
+.executive-readable-root [data-executive-donut-chart="true"] .recharts-wrapper,
+.executive-readable-root [data-executive-donut-chart="true"] .recharts-surface {
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+
+.executive-readable-root [data-executive-donut-legend="true"] {
+  min-width: 0 !important;
+  gap: 0.32rem !important;
+  font-size: 0.65rem !important;
+}
+
+.executive-readable-root [data-executive-donut-value="true"] {
+  max-width: 5.75rem !important;
+  font-size: 0.65rem !important;
+}
+
+.executive-readable-root [data-executive-map-card="true"] {
+  overflow: hidden !important;
+}
+
+.executive-readable-root [data-executive-map-layout="true"] {
+  min-height: 19rem !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  align-items: start !important;
+  gap: 0.45rem !important;
+}
+
+.executive-readable-root [data-executive-map-layout="true"] > div:first-child {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.executive-readable-root [data-executive-brazil-map="true"] {
+  display: block !important;
+  width: 100% !important;
+  height: 14.75rem !important;
+  max-width: 28rem !important;
+  margin-inline: auto !important;
+  transform: scale(1.06);
+  transform-origin: center;
+}
+
+.executive-readable-root [data-executive-map-layout="true"] > div:last-child {
+  min-width: 0 !important;
+  width: 100% !important;
+  padding-top: 0.2rem !important;
+}
+
+.executive-readable-root [data-executive-map-layout="true"] > div:last-child > div {
+  column-gap: 0.45rem !important;
+}
+
+@media (max-width: 1279px) {
+  .executive-readable-root [data-executive-donut-layout="true"] {
+    grid-template-columns: minmax(9rem, 0.92fr) minmax(0, 1.08fr) !important;
+  }
+
+  .executive-readable-root [data-executive-donut-chart="true"] {
+    min-width: 9rem !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .executive-readable-root [data-executive-donut-layout="true"] {
+    grid-template-columns: 1fr !important;
+    min-height: 0 !important;
+  }
+
+  .executive-readable-root [data-executive-donut-chart="true"] {
+    min-width: 0 !important;
+    height: 10.5rem !important;
+  }
+
+  .executive-readable-root [data-executive-brazil-map="true"] {
+    height: 13rem !important;
+    transform: none;
+  }
+}
