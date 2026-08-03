@@ -8,7 +8,6 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BedDouble,
   Bot,
-  Brain,
   CalendarRange,
   ChartNoAxesCombined,
   ChevronLeft,
@@ -19,7 +18,6 @@ import {
   Droplets,
   FileCheck2,
   FileWarning,
-  Inbox,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -29,6 +27,7 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  TrendingUp,
   Users,
   X,
   type LucideIcon,
@@ -110,13 +109,6 @@ const NAV_ITEMS: NavigationItem[] = [
     group: "Operação",
   },
   {
-    to: "/caixa-entrada-hotel",
-    label: "Central de entradas",
-    icon: Inbox,
-    roles: ["dono", "recepcao"],
-    group: "Operação",
-  },
-  {
     to: "/clientes",
     label: "Hóspedes",
     icon: Users,
@@ -166,16 +158,9 @@ const NAV_ITEMS: NavigationItem[] = [
     group: "Relacionamento",
   },
   {
-    to: "/assistente",
-    label: "HotelAI — Análises",
-    icon: Bot,
-    roles: ["dono"],
-    group: "Inteligência",
-  },
-  {
-    to: "/memoria-ia",
-    label: "Memória do HotelAI",
-    icon: Brain,
+    to: "/dashboard-estrategico",
+    label: "Estratégia e previsão",
+    icon: TrendingUp,
     roles: ["dono"],
     group: "Inteligência",
   },
@@ -567,7 +552,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </main>
 
       {role === "dono" && !path.startsWith("/assistente") && (
-        <div className="fixed bottom-24 right-3 z-40 flex flex-col items-end gap-2 sm:bottom-auto sm:right-4 sm:top-1/2 sm:-translate-y-1/2">
+        <div className="fixed bottom-40 right-3 z-40 flex flex-col items-end gap-2 sm:bottom-auto sm:right-4 sm:top-1/2 sm:-translate-y-1/2">
           {assistantOpen && (
             <div className="w-[min(320px,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-primary/20 bg-card/95 shadow-2xl backdrop-blur">
               <div className="bg-[linear-gradient(135deg,var(--primary),var(--accent))] p-3 text-primary-foreground">
@@ -593,7 +578,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </div>
               <div className="space-y-3 p-3">
                 <div className="rounded-xl rounded-tl-sm bg-muted p-3 text-xs leading-relaxed text-foreground">
-                  Analiso ocupação, receita, despesas, reservas e oportunidades estratégicas do hotel.
+                  Analiso ocupação, receita, despesas, reservas, Booking, FNRH, clima e oportunidades estratégicas do hotel.
                 </div>
                 <Link
                   to="/assistente"
