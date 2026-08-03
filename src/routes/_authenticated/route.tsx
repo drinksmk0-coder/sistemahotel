@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { GlobalHistoryNavigation } from "@/components/GlobalHistoryNavigation";
 import { OwnerStrategicRedirect } from "@/components/OwnerStrategicRedirect";
 import { getValidAuth } from "@/lib/auth";
+import "@/components/app-floating-tools.css";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
