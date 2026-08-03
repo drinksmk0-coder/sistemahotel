@@ -211,18 +211,13 @@ export function SystemMonitor() {
     <Link
       to="/caixa-entrada-hotel"
       onClick={markFeedbacksSeen}
-      className="group fixed bottom-24 right-0 z-[78] flex items-center gap-2 rounded-l-xl border border-r-0 border-primary/25 bg-card/95 py-2 pl-2 pr-2.5 text-xs font-extrabold text-primary shadow-xl backdrop-blur transition hover:pr-4 sm:bottom-5"
+      className="fixed bottom-24 right-3 z-[78] grid h-11 w-11 place-items-center rounded-xl border border-primary/25 bg-card/95 text-primary shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:border-primary/45 sm:bottom-5 sm:right-4"
       aria-label={`${total} entrada(s) aguardando conferência: ${details}`}
       title={details}
     >
-      <span className="relative grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
-        <Inbox className="h-4 w-4" />
-        <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
-          {total > 99 ? "99+" : total}
-        </span>
-      </span>
-      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-200 group-hover:max-w-40 group-hover:opacity-100 sm:max-w-40 sm:opacity-100">
-        Conferir entradas
+      <Inbox className="h-5 w-5" />
+      <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
+        {total > 99 ? "99+" : total}
       </span>
     </Link>
   );
