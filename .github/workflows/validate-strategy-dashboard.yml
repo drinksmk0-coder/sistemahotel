@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agent/versao-escolhida-integrada-final
+  pull_request:
 
 permissions:
   contents: read
