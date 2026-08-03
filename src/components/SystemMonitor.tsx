@@ -1,30 +1,31 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BellRing } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRole, useSession } from "@/hooks/use-auth";
 import { useCurrentCompany } from "@/lib/data";
 import { BRAND_STORAGE_PREFIX } from "@/lib/brand";
-import { FeedbackAlert } from "@/components/FeedbackAlert";
 
 export function SystemMonitor() {
   const company = useCurrentCompany();
   const { user } = useSession();
   const { data: role } = useRole(user);
   const path = useRouterState({ select: (state) => state.location.pathname });
-  const canReviewCheckins = role === "dono" || role === "recepcao";
+  const canReview = role === "dono" || role === "recepcao";
+  const companyId = company.data?.id;
+  const feedbackSeenKey = `${BRAND_STORAGE_PREFIX}:feedback-seen:${companyId ?? "none"}:${user?.id ?? "anon"}`;
 
   const pendingCheckins = useQuery({
-    queryKey: ["guest-checkins-pending", company.data?.id],
-    enabled: Boolean(company.data?.id && canReviewCheckins),
+    queryKey: ["guest-checkins-pending", companyId],
+    enabled: Boolean(companyId && canReview),
     staleTime: 15_000,
     refetchInterval: 30_000,
     queryFn: async () => {
       const { count, error } = await (supabase as any)
         .from("guest_checkins")
         .select("id", { count: "exact", head: true })
-        .eq("company_id", company.data!.id)
+        .eq("company_id", companyId)
         .eq("status", "preenchido")
         .is("reviewed_at", null);
       if (error) throw error;
@@ -32,8 +33,52 @@ export function SystemMonitor() {
     },
   });
 
+  const pendingEmailEvents = useQuery({
+    queryKey: ["hotel-email-inbox-pending", companyId],
+    enabled: Boolean(companyId && canReview),
+    staleTime: 20_000,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const [booking, expenses] = await Promise.all([
+        (supabase as any)
+          .from("booking_email_events")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .in("status", ["needs_review", "error"]),
+        (supabase as any)
+          .from("expense_email_events")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .in("status", ["needs_review", "error"]),
+      ]);
+      if (booking.error) throw booking.error;
+      if (expenses.error) throw expenses.error;
+      return {
+        booking: booking.count ?? 0,
+        expenses: expenses.count ?? 0,
+      };
+    },
+  });
+
+  const pendingFeedbacks = useQuery({
+    queryKey: ["hotel-feedback-inbox-pending", companyId, user?.id],
+    enabled: Boolean(companyId && user?.id && canReview),
+    staleTime: 0,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    queryFn: async () => {
+      const seenAt = window.localStorage.getItem(feedbackSeenKey) ?? "1970-01-01T00:00:00.000Z";
+      const { count, error } = await (supabase as any)
+        .from("feedbacks")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .gt("created_at", seenAt);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
   useEffect(() => {
-    const companyId = company.data?.id;
     if (!companyId || !user?.id || !role) return;
 
     const sessionKey = `${BRAND_STORAGE_PREFIX}:session:${companyId}:${user.id}`;
@@ -68,10 +113,9 @@ export function SystemMonitor() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [company.data?.id, path, role, user?.id]);
+  }, [companyId, path, role, user?.id]);
 
   useEffect(() => {
-    const companyId = company.data?.id;
     if (!companyId) return;
     const recent = new Set<string>();
 
@@ -86,10 +130,7 @@ export function SystemMonitor() {
       code?: string;
       context?: Record<string, unknown>;
     }) => {
-      const signature = `${title}|${description}|${window.location.pathname}`.slice(
-        0,
-        500,
-      );
+      const signature = `${title}|${description}|${window.location.pathname}`.slice(0, 500);
       if (recent.has(signature) || description.includes("system_issues")) return;
       recent.add(signature);
       window.setTimeout(() => recent.delete(signature), 60_000);
@@ -131,10 +172,7 @@ export function SystemMonitor() {
       void capture({
         title: "Falha não tratada no sistema",
         description: reason,
-        code:
-          event.reason instanceof Error
-            ? event.reason.name
-            : "unhandled_rejection",
+        code: event.reason instanceof Error ? event.reason.name : "unhandled_rejection",
       });
     };
 
@@ -144,38 +182,43 @@ export function SystemMonitor() {
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
     };
-  }, [company.data?.id]);
+  }, [companyId]);
 
-  if (!canReviewCheckins || !company.data?.id) return null;
+  if (!canReview || !companyId) return null;
 
-  const pendingCount = pendingCheckins.data ?? 0;
+  const checkins = pendingCheckins.data ?? 0;
+  const booking = pendingEmailEvents.data?.booking ?? 0;
+  const expenses = pendingEmailEvents.data?.expenses ?? 0;
+  const feedbacks = pendingFeedbacks.data ?? 0;
+  const total = checkins + booking + expenses + feedbacks;
+
+  function markFeedbacksSeen() {
+    if (feedbacks <= 0) return;
+    window.localStorage.setItem(feedbackSeenKey, new Date().toISOString());
+    void pendingFeedbacks.refetch();
+  }
+
+  if (total <= 0 || path.startsWith("/caixa-entrada-hotel")) return null;
+
+  const details = [
+    booking ? `${booking} Booking` : "",
+    expenses ? `${expenses} conta(s)` : "",
+    feedbacks ? `${feedbacks} avaliação(ões)` : "",
+    checkins ? `${checkins} FNRH` : "",
+  ].filter(Boolean).join(" · ");
 
   return (
-    <>
-      <FeedbackAlert />
-      {pendingCount > 0 && (
-        <Link
-          to="/fichas-checkin"
-          className="fixed right-3 top-14 z-[80] flex w-[min(24rem,calc(100vw-1.5rem))] items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-emerald-950 shadow-2xl transition hover:-translate-y-0.5 sm:right-5 sm:top-4"
-          aria-label={`${pendingCount} ficha(s) de check-in aguardando conferência`}
-        >
-          <span className="relative mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-700 text-white">
-            <BellRing className="h-5 w-5" />
-            <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
-              {pendingCount > 99 ? "99+" : pendingCount}
-            </span>
-          </span>
-          <span className="min-w-0">
-            <strong className="block text-sm">
-              Nova ficha de check-in recebida
-            </strong>
-            <span className="mt-0.5 block text-xs leading-relaxed text-emerald-800">
-              {pendingCount} ficha(s) aguardando conferência. Clique para abrir os
-              dados e a assinatura.
-            </span>
-          </span>
-        </Link>
-      )}
-    </>
+    <Link
+      to="/caixa-entrada-hotel"
+      onClick={markFeedbacksSeen}
+      className="fixed bottom-24 right-3 z-[78] grid h-11 w-11 place-items-center rounded-xl border border-primary/25 bg-card/95 text-primary shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:border-primary/45 sm:bottom-5 sm:right-4"
+      aria-label={`${total} entrada(s) aguardando conferência: ${details}`}
+      title={details}
+    >
+      <Inbox className="h-5 w-5" />
+      <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
+        {total > 99 ? "99+" : total}
+      </span>
+    </Link>
   );
 }

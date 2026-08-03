@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
+import { GlobalHistoryNavigation } from "@/components/GlobalHistoryNavigation";
 import { OwnerStrategicRedirect } from "@/components/OwnerStrategicRedirect";
 import { getValidAuth } from "@/lib/auth";
 
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/_authenticated")({
   component: () => (
     <AppLayout>
       <OwnerStrategicRedirect />
+      <GlobalHistoryNavigation />
       <Outlet />
     </AppLayout>
   ),
