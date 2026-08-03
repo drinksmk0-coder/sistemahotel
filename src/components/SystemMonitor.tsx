@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BellRing } from "lucide-react";
+import { BellRing, Inbox } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRole, useSession } from "@/hooks/use-auth";
 import { useCurrentCompany } from "@/lib/data";
@@ -13,11 +13,11 @@ export function SystemMonitor() {
   const { user } = useSession();
   const { data: role } = useRole(user);
   const path = useRouterState({ select: (state) => state.location.pathname });
-  const canReviewCheckins = role === "dono" || role === "recepcao";
+  const canReview = role === "dono" || role === "recepcao";
 
   const pendingCheckins = useQuery({
     queryKey: ["guest-checkins-pending", company.data?.id],
-    enabled: Boolean(company.data?.id && canReviewCheckins),
+    enabled: Boolean(company.data?.id && canReview),
     staleTime: 15_000,
     refetchInterval: 30_000,
     queryFn: async () => {
@@ -29,6 +29,33 @@ export function SystemMonitor() {
         .is("reviewed_at", null);
       if (error) throw error;
       return count ?? 0;
+    },
+  });
+
+  const pendingEmailEvents = useQuery({
+    queryKey: ["hotel-email-inbox-pending", company.data?.id],
+    enabled: Boolean(company.data?.id && canReview),
+    staleTime: 20_000,
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const [booking, expenses] = await Promise.all([
+        (supabase as any)
+          .from("booking_email_events")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", company.data!.id)
+          .in("status", ["needs_review", "error"]),
+        (supabase as any)
+          .from("expense_email_events")
+          .select("id", { count: "exact", head: true })
+          .eq("company_id", company.data!.id)
+          .in("status", ["needs_review", "error"]),
+      ]);
+      if (booking.error) throw booking.error;
+      if (expenses.error) throw expenses.error;
+      return {
+        booking: booking.count ?? 0,
+        expenses: expenses.count ?? 0,
+      };
     },
   });
 
@@ -146,32 +173,52 @@ export function SystemMonitor() {
     };
   }, [company.data?.id]);
 
-  if (!canReviewCheckins || !company.data?.id) return null;
+  if (!canReview || !company.data?.id) return null;
 
-  const pendingCount = pendingCheckins.data ?? 0;
+  const checkins = pendingCheckins.data ?? 0;
+  const booking = pendingEmailEvents.data?.booking ?? 0;
+  const expenses = pendingEmailEvents.data?.expenses ?? 0;
+  const total = checkins + booking + expenses;
 
   return (
     <>
       <FeedbackAlert />
-      {pendingCount > 0 && (
+
+      <Link
+        to="/caixa-entrada-hotel"
+        className="fixed bottom-4 right-4 z-[78] flex items-center gap-2 rounded-full border border-primary/20 bg-card px-3 py-2 text-xs font-extrabold text-primary shadow-xl transition hover:-translate-y-0.5 hover:border-primary/40"
+        aria-label="Abrir Central de entradas do hotel"
+      >
+        <span className="relative grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground">
+          <Inbox className="h-4 w-4" />
+          {total > 0 && (
+            <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
+              {total > 99 ? "99+" : total}
+            </span>
+          )}
+        </span>
+        Central de entradas
+      </Link>
+
+      {total > 0 && path !== "/caixa-entrada-hotel" && (
         <Link
-          to="/fichas-checkin"
-          className="fixed right-3 top-14 z-[80] flex w-[min(24rem,calc(100vw-1.5rem))] items-start gap-3 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-emerald-950 shadow-2xl transition hover:-translate-y-0.5 sm:right-5 sm:top-4"
-          aria-label={`${pendingCount} ficha(s) de check-in aguardando conferência`}
+          to="/caixa-entrada-hotel"
+          className="fixed right-3 top-14 z-[80] flex w-[min(26rem,calc(100vw-1.5rem))] items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950 shadow-2xl transition hover:-translate-y-0.5 sm:right-5 sm:top-4"
+          aria-label={`${total} entrada(s) do hotel aguardando conferência`}
         >
-          <span className="relative mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-700 text-white">
+          <span className="relative mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-700 text-white">
             <BellRing className="h-5 w-5" />
             <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
-              {pendingCount > 99 ? "99+" : pendingCount}
+              {total > 99 ? "99+" : total}
             </span>
           </span>
           <span className="min-w-0">
-            <strong className="block text-sm">
-              Nova ficha de check-in recebida
-            </strong>
-            <span className="mt-0.5 block text-xs leading-relaxed text-emerald-800">
-              {pendingCount} ficha(s) aguardando conferência. Clique para abrir os
-              dados e a assinatura.
+            <strong className="block text-sm">Central do hotel precisa de atenção</strong>
+            <span className="mt-0.5 block text-xs leading-relaxed text-amber-800">
+              {booking > 0 ? `${booking} Booking · ` : ""}
+              {expenses > 0 ? `${expenses} conta(s) · ` : ""}
+              {checkins > 0 ? `${checkins} FNRH` : ""}
+              . Clique para conferir sem procurar em várias telas.
             </span>
           </span>
         </Link>
