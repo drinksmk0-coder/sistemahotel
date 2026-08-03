@@ -1,7 +1,5 @@
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Inbox } from "lucide-react";
+import { useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useRole, useSession } from "@/hooks/use-auth";
 import { useCurrentCompany } from "@/lib/data";
@@ -12,71 +10,7 @@ export function SystemMonitor() {
   const { user } = useSession();
   const { data: role } = useRole(user);
   const path = useRouterState({ select: (state) => state.location.pathname });
-  const canReview = role === "dono" || role === "recepcao";
   const companyId = company.data?.id;
-  const feedbackSeenKey = `${BRAND_STORAGE_PREFIX}:feedback-seen:${companyId ?? "none"}:${user?.id ?? "anon"}`;
-
-  const pendingCheckins = useQuery({
-    queryKey: ["guest-checkins-pending", companyId],
-    enabled: Boolean(companyId && canReview),
-    staleTime: 15_000,
-    refetchInterval: 30_000,
-    queryFn: async () => {
-      const { count, error } = await (supabase as any)
-        .from("guest_checkins")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("status", "preenchido")
-        .is("reviewed_at", null);
-      if (error) throw error;
-      return count ?? 0;
-    },
-  });
-
-  const pendingEmailEvents = useQuery({
-    queryKey: ["hotel-email-inbox-pending", companyId],
-    enabled: Boolean(companyId && canReview),
-    staleTime: 20_000,
-    refetchInterval: 60_000,
-    queryFn: async () => {
-      const [booking, expenses] = await Promise.all([
-        (supabase as any)
-          .from("booking_email_events")
-          .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId)
-          .in("status", ["needs_review", "error"]),
-        (supabase as any)
-          .from("expense_email_events")
-          .select("id", { count: "exact", head: true })
-          .eq("company_id", companyId)
-          .in("status", ["needs_review", "error"]),
-      ]);
-      if (booking.error) throw booking.error;
-      if (expenses.error) throw expenses.error;
-      return {
-        booking: booking.count ?? 0,
-        expenses: expenses.count ?? 0,
-      };
-    },
-  });
-
-  const pendingFeedbacks = useQuery({
-    queryKey: ["hotel-feedback-inbox-pending", companyId, user?.id],
-    enabled: Boolean(companyId && user?.id && canReview),
-    staleTime: 0,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
-    queryFn: async () => {
-      const seenAt = window.localStorage.getItem(feedbackSeenKey) ?? "1970-01-01T00:00:00.000Z";
-      const { count, error } = await (supabase as any)
-        .from("feedbacks")
-        .select("id", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .gt("created_at", seenAt);
-      if (error) throw error;
-      return count ?? 0;
-    },
-  });
 
   useEffect(() => {
     if (!companyId || !user?.id || !role) return;
@@ -184,41 +118,5 @@ export function SystemMonitor() {
     };
   }, [companyId]);
 
-  if (!canReview || !companyId) return null;
-
-  const checkins = pendingCheckins.data ?? 0;
-  const booking = pendingEmailEvents.data?.booking ?? 0;
-  const expenses = pendingEmailEvents.data?.expenses ?? 0;
-  const feedbacks = pendingFeedbacks.data ?? 0;
-  const total = checkins + booking + expenses + feedbacks;
-
-  function markFeedbacksSeen() {
-    if (feedbacks <= 0) return;
-    window.localStorage.setItem(feedbackSeenKey, new Date().toISOString());
-    void pendingFeedbacks.refetch();
-  }
-
-  if (total <= 0 || path.startsWith("/caixa-entrada-hotel")) return null;
-
-  const details = [
-    booking ? `${booking} Booking` : "",
-    expenses ? `${expenses} conta(s)` : "",
-    feedbacks ? `${feedbacks} avaliação(ões)` : "",
-    checkins ? `${checkins} FNRH` : "",
-  ].filter(Boolean).join(" · ");
-
-  return (
-    <Link
-      to="/caixa-entrada-hotel"
-      onClick={markFeedbacksSeen}
-      className="fixed bottom-24 right-3 z-[78] grid h-11 w-11 place-items-center rounded-xl border border-primary/25 bg-card/95 text-primary shadow-xl backdrop-blur transition hover:-translate-y-0.5 hover:border-primary/45 sm:bottom-5 sm:right-4"
-      aria-label={`${total} entrada(s) aguardando conferência: ${details}`}
-      title={details}
-    >
-      <Inbox className="h-5 w-5" />
-      <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
-        {total > 99 ? "99+" : total}
-      </span>
-    </Link>
-  );
+  return null;
 }
