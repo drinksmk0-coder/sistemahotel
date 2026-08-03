@@ -1,12 +1,11 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BellRing, Inbox } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useRole, useSession } from "@/hooks/use-auth";
 import { useCurrentCompany } from "@/lib/data";
 import { BRAND_STORAGE_PREFIX } from "@/lib/brand";
-import { FeedbackAlert } from "@/components/FeedbackAlert";
 
 export function SystemMonitor() {
   const company = useCurrentCompany();
@@ -14,17 +13,19 @@ export function SystemMonitor() {
   const { data: role } = useRole(user);
   const path = useRouterState({ select: (state) => state.location.pathname });
   const canReview = role === "dono" || role === "recepcao";
+  const companyId = company.data?.id;
+  const feedbackSeenKey = `${BRAND_STORAGE_PREFIX}:feedback-seen:${companyId ?? "none"}:${user?.id ?? "anon"}`;
 
   const pendingCheckins = useQuery({
-    queryKey: ["guest-checkins-pending", company.data?.id],
-    enabled: Boolean(company.data?.id && canReview),
+    queryKey: ["guest-checkins-pending", companyId],
+    enabled: Boolean(companyId && canReview),
     staleTime: 15_000,
     refetchInterval: 30_000,
     queryFn: async () => {
       const { count, error } = await (supabase as any)
         .from("guest_checkins")
         .select("id", { count: "exact", head: true })
-        .eq("company_id", company.data!.id)
+        .eq("company_id", companyId)
         .eq("status", "preenchido")
         .is("reviewed_at", null);
       if (error) throw error;
@@ -33,8 +34,8 @@ export function SystemMonitor() {
   });
 
   const pendingEmailEvents = useQuery({
-    queryKey: ["hotel-email-inbox-pending", company.data?.id],
-    enabled: Boolean(company.data?.id && canReview),
+    queryKey: ["hotel-email-inbox-pending", companyId],
+    enabled: Boolean(companyId && canReview),
     staleTime: 20_000,
     refetchInterval: 60_000,
     queryFn: async () => {
@@ -42,12 +43,12 @@ export function SystemMonitor() {
         (supabase as any)
           .from("booking_email_events")
           .select("id", { count: "exact", head: true })
-          .eq("company_id", company.data!.id)
+          .eq("company_id", companyId)
           .in("status", ["needs_review", "error"]),
         (supabase as any)
           .from("expense_email_events")
           .select("id", { count: "exact", head: true })
-          .eq("company_id", company.data!.id)
+          .eq("company_id", companyId)
           .in("status", ["needs_review", "error"]),
       ]);
       if (booking.error) throw booking.error;
@@ -59,8 +60,25 @@ export function SystemMonitor() {
     },
   });
 
+  const pendingFeedbacks = useQuery({
+    queryKey: ["hotel-feedback-inbox-pending", companyId, user?.id],
+    enabled: Boolean(companyId && user?.id && canReview),
+    staleTime: 0,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+    queryFn: async () => {
+      const seenAt = window.localStorage.getItem(feedbackSeenKey) ?? "1970-01-01T00:00:00.000Z";
+      const { count, error } = await (supabase as any)
+        .from("feedbacks")
+        .select("id", { count: "exact", head: true })
+        .eq("company_id", companyId)
+        .gt("created_at", seenAt);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
   useEffect(() => {
-    const companyId = company.data?.id;
     if (!companyId || !user?.id || !role) return;
 
     const sessionKey = `${BRAND_STORAGE_PREFIX}:session:${companyId}:${user.id}`;
@@ -95,10 +113,9 @@ export function SystemMonitor() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [company.data?.id, path, role, user?.id]);
+  }, [companyId, path, role, user?.id]);
 
   useEffect(() => {
-    const companyId = company.data?.id;
     if (!companyId) return;
     const recent = new Set<string>();
 
@@ -113,10 +130,7 @@ export function SystemMonitor() {
       code?: string;
       context?: Record<string, unknown>;
     }) => {
-      const signature = `${title}|${description}|${window.location.pathname}`.slice(
-        0,
-        500,
-      );
+      const signature = `${title}|${description}|${window.location.pathname}`.slice(0, 500);
       if (recent.has(signature) || description.includes("system_issues")) return;
       recent.add(signature);
       window.setTimeout(() => recent.delete(signature), 60_000);
@@ -158,10 +172,7 @@ export function SystemMonitor() {
       void capture({
         title: "Falha não tratada no sistema",
         description: reason,
-        code:
-          event.reason instanceof Error
-            ? event.reason.name
-            : "unhandled_rejection",
+        code: event.reason instanceof Error ? event.reason.name : "unhandled_rejection",
       });
     };
 
@@ -171,58 +182,48 @@ export function SystemMonitor() {
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
     };
-  }, [company.data?.id]);
+  }, [companyId]);
 
-  if (!canReview || !company.data?.id) return null;
+  if (!canReview || !companyId) return null;
 
   const checkins = pendingCheckins.data ?? 0;
   const booking = pendingEmailEvents.data?.booking ?? 0;
   const expenses = pendingEmailEvents.data?.expenses ?? 0;
-  const total = checkins + booking + expenses;
+  const feedbacks = pendingFeedbacks.data ?? 0;
+  const total = checkins + booking + expenses + feedbacks;
+
+  function markFeedbacksSeen() {
+    if (feedbacks <= 0) return;
+    window.localStorage.setItem(feedbackSeenKey, new Date().toISOString());
+    void pendingFeedbacks.refetch();
+  }
+
+  if (total <= 0 || path.startsWith("/caixa-entrada-hotel")) return null;
+
+  const details = [
+    booking ? `${booking} Booking` : "",
+    expenses ? `${expenses} conta(s)` : "",
+    feedbacks ? `${feedbacks} avaliação(ões)` : "",
+    checkins ? `${checkins} FNRH` : "",
+  ].filter(Boolean).join(" · ");
 
   return (
-    <>
-      <FeedbackAlert />
-
-      <Link
-        to="/caixa-entrada-hotel"
-        className="fixed bottom-4 right-4 z-[78] flex items-center gap-2 rounded-full border border-primary/20 bg-card px-3 py-2 text-xs font-extrabold text-primary shadow-xl transition hover:-translate-y-0.5 hover:border-primary/40"
-        aria-label="Abrir Central de entradas do hotel"
-      >
-        <span className="relative grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground">
-          <Inbox className="h-4 w-4" />
-          {total > 0 && (
-            <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
-              {total > 99 ? "99+" : total}
-            </span>
-          )}
+    <Link
+      to="/caixa-entrada-hotel"
+      onClick={markFeedbacksSeen}
+      className="group fixed bottom-24 right-0 z-[78] flex items-center gap-2 rounded-l-xl border border-r-0 border-primary/25 bg-card/95 py-2 pl-2 pr-2.5 text-xs font-extrabold text-primary shadow-xl backdrop-blur transition hover:pr-4 sm:bottom-5"
+      aria-label={`${total} entrada(s) aguardando conferência: ${details}`}
+      title={details}
+    >
+      <span className="relative grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
+        <Inbox className="h-4 w-4" />
+        <span className="absolute -left-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
+          {total > 99 ? "99+" : total}
         </span>
-        Central de entradas
-      </Link>
-
-      {total > 0 && path !== "/caixa-entrada-hotel" && (
-        <Link
-          to="/caixa-entrada-hotel"
-          className="fixed right-3 top-14 z-[80] flex w-[min(26rem,calc(100vw-1.5rem))] items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950 shadow-2xl transition hover:-translate-y-0.5 sm:right-5 sm:top-4"
-          aria-label={`${total} entrada(s) do hotel aguardando conferência`}
-        >
-          <span className="relative mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-amber-700 text-white">
-            <BellRing className="h-5 w-5" />
-            <span className="absolute -right-1.5 -top-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-brick px-1 text-[10px] font-black text-white">
-              {total > 99 ? "99+" : total}
-            </span>
-          </span>
-          <span className="min-w-0">
-            <strong className="block text-sm">Central do hotel precisa de atenção</strong>
-            <span className="mt-0.5 block text-xs leading-relaxed text-amber-800">
-              {booking > 0 ? `${booking} Booking · ` : ""}
-              {expenses > 0 ? `${expenses} conta(s) · ` : ""}
-              {checkins > 0 ? `${checkins} FNRH` : ""}
-              . Clique para conferir sem procurar em várias telas.
-            </span>
-          </span>
-        </Link>
-      )}
-    </>
+      </span>
+      <span className="max-w-0 overflow-hidden whitespace-nowrap opacity-0 transition-all duration-200 group-hover:max-w-40 group-hover:opacity-100 sm:max-w-40 sm:opacity-100">
+        Conferir entradas
+      </span>
+    </Link>
   );
 }
