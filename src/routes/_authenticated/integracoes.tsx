@@ -106,6 +106,22 @@ function Integracoes() {
         />
       </section>
 
+      <section className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
+        <div className="flex items-start gap-3">
+          <CalendarClock className="mt-0.5 h-5 w-5 text-primary" />
+          <div>
+            <h3 className="font-serif text-lg font-bold text-pine-dark">Portal de Eventos da Booking</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Consulte cada evento por empresa, com hóspede, quarto, check-in, checkout, código Booking, status e resultado do cancelamento.
+              O portal é somente leitura e não exclui reservas, hóspedes, pagamentos ou histórico.
+            </p>
+          </div>
+        </div>
+        <a href="/booking-eventos" className="btn-primary inline-flex items-center gap-1.5">
+          Abrir
+        </a>
+      </section>
+
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="card-surface p-4">
           <div className="mb-3 flex items-center gap-2">
