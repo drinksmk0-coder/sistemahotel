@@ -1,0 +1,48 @@
+name: Liberar copiar e colar
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+      - name: Liberar seleção, copiar e colar
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('src/styles.css')
+          text = path.read_text(encoding='utf-8')
+          block = '''
+
+/* Permite selecionar textos e usar copiar/colar e menu do botão direito. */
+html, body, #root, .app-main {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text !important;
+  user-select: text !important;
+  -webkit-touch-callout: default;
+}
+'''
+          if 'Permite selecionar textos e usar copiar/colar' not in text:
+              path.write_text(text + block, encoding='utf-8')
+      - name: Commitar ajuste
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/styles.css
+          git diff --cached --quiet && exit 0
+          git commit -m "libera copiar colar seleção e botão direito"
+          git push origin HEAD:agent/versao-escolhida-integrada-final
