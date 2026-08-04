@@ -12,11 +12,24 @@ import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/vendas")({ component: Vendas });
 
-type Product = { id: string; company_id: string; nome: string; categoria: string; preco: number; custo_unitario?: number | null; estoque_atual: number; estoque_total_recebido?: number | null; estoque_minimo: number; ativo: boolean };
+const UNIT_OPTIONS = ["unidade", "caixa", "pacote", "fardo", "garrafa", "lata", "quilo", "litro"];
+
+type Product = {
+  id: string;
+  company_id: string;
+  nome: string;
+  categoria: string;
+  unidade?: string | null;
+  preco: number;
+  custo_unitario?: number | null;
+  estoque_atual: number;
+  estoque_total_recebido?: number | null;
+  estoque_minimo: number;
+  ativo: boolean;
+};
 type Sale = { id: string; compra_id?: string | null; comprador_tipo?: string | null; comprador_nome?: string | null; cliente_id?: string | null; reserva_id?: string | null; quarto: number | null; data: string; item: string; categoria?: string | null; produto_id?: string | null; qtd: number; valor_unit: number; total: number; valor_pago?: number | null; pagamento: string; created_at: string };
 type Movement = { id: string; tipo: string; quantidade: number; estoque_anterior: number; estoque_posterior: number; motivo: string | null; created_at: string; produto?: { nome?: string | null } | null };
 type CartItem = { key: string; produto_id: string | null; item: string; categoria: string; qtd: number; valor_unit: number; estoque: number | null };
-
 type PurchaseInput = { buyerType: "hospede" | "funcionario"; room: number | null; employeeName: string; payment: string; amountPaid: number; items: CartItem[] };
 
 function Vendas() {
@@ -109,20 +122,35 @@ function Vendas() {
     toast.success(`Comanda salva com ${rows.length} item(ns).`);
   }
 
-  async function saveProduct(input: any) {
+  async function saveProduct(input: ProductFormInput) {
     if (!companyId) throw new Error("Empresa não encontrada.");
+    const base = {
+      nome: input.nome,
+      categoria: input.categoria,
+      unidade: input.unidade,
+      preco: input.preco,
+      custo_unitario: input.custo,
+      estoque_minimo: input.minimo,
+      ativo: input.ativo,
+      updated_at: new Date().toISOString(),
+    };
     if (editingProduct) {
-      const { error } = await (supabase as any).from("products").update({ nome: input.nome, categoria: input.categoria, preco: input.preco, custo_unitario: input.custo, estoque_minimo: input.minimo, ativo: input.ativo, updated_at: new Date().toISOString() }).eq("id", editingProduct.id).eq("company_id", companyId);
+      const { error } = await (supabase as any).from("products").update(base).eq("id", editingProduct.id).eq("company_id", companyId);
       if (error) throw error;
     } else {
-      const { data, error } = await (supabase as any).from("products").insert({ company_id: companyId, nome: input.nome, categoria: input.categoria, preco: input.preco, custo_unitario: input.custo, estoque_atual: 0, estoque_total_recebido: 0, estoque_minimo: input.minimo, ativo: input.ativo }).select("id").single();
+      const { data, error } = await (supabase as any).from("products").insert({
+        company_id: companyId, ...base, estoque_atual: 0, estoque_total_recebido: 0,
+      }).select("id").single();
       if (error) throw error;
       if (input.inicial > 0) {
-        const { error: rpcError } = await (supabase as any).rpc("register_stock_restock", { _company_id: companyId, _product_id: data.id, _quantity: input.inicial, _unit_cost: input.custo, _reason: "Estoque inicial do produto" });
+        const { error: rpcError } = await (supabase as any).rpc("register_stock_restock", {
+          _company_id: companyId, _product_id: data.id, _quantity: input.inicial,
+          _unit_cost: input.custo, _reason: `Estoque inicial: ${input.inicial} ${input.unidade}(s)`,
+        });
         if (rpcError) throw rpcError;
       }
     }
-    setProductOpen(false); setEditingProduct(null); await refresh(); toast.success("Produto salvo.");
+    setProductOpen(false); setEditingProduct(null); await refresh(); toast.success("Produto e estoque inicial salvos.");
   }
 
   async function saveStock(input: { quantity: number; cost: number; reason: string }) {
@@ -137,7 +165,7 @@ function Vendas() {
   }
 
   return <div>
-    <PageHeader title="Vendas e estoque" subtitle="Comandas com vários itens para hóspedes ou funcionários, com baixa, reposição e ajuste físico auditáveis." action={<div className="flex flex-wrap gap-2">
+    <PageHeader title="Vendas e estoque" subtitle="Cadastre a quantidade real de cada caixa ou pacote e acompanhe todas as entradas e saídas." action={<div className="flex flex-wrap gap-2">
       <button className="btn-ghost flex items-center gap-1.5" onClick={() => void refresh()}><RefreshCw className="h-4 w-4" /> Atualizar</button>
       <button className="btn-ghost flex items-center gap-1.5" onClick={() => setHistoryOpen(true)}><ClipboardList className="h-4 w-4" /> Movimentações</button>
       <button className="btn-ghost flex items-center gap-1.5" onClick={() => { setEditingProduct(null); setProductOpen(true); }}><PackagePlus className="h-4 w-4" /> Produto</button>
@@ -152,8 +180,8 @@ function Vendas() {
       <Stat label="Estoque baixo" value={String(lowStock.length)} icon={<RefreshCw />} alert={lowStock.length > 0} />
     </div>
 
-    <section className="card-surface mb-5 overflow-x-auto"><div className="border-b border-border p-4"><h3 className="font-serif text-lg font-bold">Estoque de produtos</h3><p className="text-sm text-muted-foreground">Reposições, vendas e diferenças da contagem ficam registradas.</p></div>
-      {products.length === 0 ? <EmptyState text="Nenhum produto cadastrado." /> : <table className="w-full min-w-[980px] text-sm"><thead><tr className="border-b border-border text-left text-xs uppercase text-muted-foreground"><th className="p-3">Produto</th><th className="p-3">Preço</th><th className="p-3">Custo</th><th className="p-3">Total recebido</th><th className="p-3">Atual</th><th className="p-3">Valor atual</th><th className="p-3">Ações</th></tr></thead><tbody>{products.map((p) => <tr key={p.id} className="border-b border-border/50"><td className="p-3"><strong>{p.nome}</strong><div className="text-xs text-muted-foreground">{p.categoria}</div></td><td className="p-3">{fmtBRL(p.preco)}</td><td className="p-3">{fmtBRL(p.custo_unitario ?? 0)}</td><td className="p-3">{p.estoque_total_recebido ?? p.estoque_atual}</td><td className={`p-3 font-bold ${p.estoque_atual <= p.estoque_minimo ? "text-brick" : "text-pine-dark"}`}>{p.estoque_atual}</td><td className="p-3 font-semibold">{fmtBRL(p.estoque_atual * Number(p.custo_unitario ?? 0))}</td><td className="p-3"><div className="flex gap-1.5"><button className="btn-ghost py-1 text-xs" onClick={() => { setStockProduct(p); setStockMode("reposicao"); }}>Repor</button><button className="btn-ghost py-1 text-xs" onClick={() => { setStockProduct(p); setStockMode("contagem"); }}>Contagem</button><button className="btn-ghost py-1 text-xs" onClick={() => { setEditingProduct(p); setProductOpen(true); }}><Pencil className="h-3.5 w-3.5" /></button></div></td></tr>)}</tbody></table>}
+    <section className="card-surface mb-5 overflow-x-auto"><div className="border-b border-border p-4"><h3 className="font-serif text-lg font-bold">Estoque de produtos</h3><p className="text-sm text-muted-foreground">A quantidade representa as unidades reais disponíveis para venda, mesmo quando vieram em caixa fechada.</p></div>
+      {products.length === 0 ? <EmptyState text="Nenhum produto cadastrado." /> : <table className="w-full min-w-[1060px] text-sm"><thead><tr className="border-b border-border text-left text-xs uppercase text-muted-foreground"><th className="p-3">Produto</th><th className="p-3">Unidade</th><th className="p-3">Preço</th><th className="p-3">Custo</th><th className="p-3">Total recebido</th><th className="p-3">Atual</th><th className="p-3">Valor atual</th><th className="p-3">Ações</th></tr></thead><tbody>{products.map((p) => <tr key={p.id} className="border-b border-border/50"><td className="p-3"><strong>{p.nome}</strong><div className="text-xs text-muted-foreground">{p.categoria}</div></td><td className="p-3 capitalize">{p.unidade ?? "unidade"}</td><td className="p-3">{fmtBRL(p.preco)}</td><td className="p-3">{fmtBRL(p.custo_unitario ?? 0)}</td><td className="p-3">{p.estoque_total_recebido ?? p.estoque_atual} {shortUnit(p.unidade)}</td><td className={`p-3 font-bold ${p.estoque_atual <= p.estoque_minimo ? "text-brick" : "text-pine-dark"}`}>{p.estoque_atual} {shortUnit(p.unidade)}</td><td className="p-3 font-semibold">{fmtBRL(p.estoque_atual * Number(p.custo_unitario ?? 0))}</td><td className="p-3"><div className="flex gap-1.5"><button className="btn-ghost py-1 text-xs" onClick={() => { setStockProduct(p); setStockMode("reposicao"); }}>Repor</button><button className="btn-ghost py-1 text-xs" onClick={() => { setStockProduct(p); setStockMode("contagem"); }}>Contagem</button><button className="btn-ghost py-1 text-xs" onClick={() => { setEditingProduct(p); setProductOpen(true); }}><Pencil className="h-3.5 w-3.5" /></button></div></td></tr>)}</tbody></table>}
     </section>
 
     <section className="card-surface overflow-x-auto"><div className="border-b border-border p-4"><h3 className="font-serif text-lg font-bold">Comandas registradas</h3><p className="text-sm text-muted-foreground">Vários itens aparecem juntos para o mesmo comprador.</p></div>
@@ -195,7 +223,7 @@ function PurchaseModal({ rooms, reservations, products, employees, onClose, onSa
     const price = product ? Number(product.preco) : Number(unit);
     if (!name || qty <= 0) return toast.error("Informe um item e uma quantidade válida.");
     const already = product ? cart.filter((i) => i.produto_id === product.id).reduce((s, i) => s + i.qtd, 0) : 0;
-    if (product && already + qty > product.estoque_atual) return toast.error(`Só existem ${product.estoque_atual} unidade(s) de ${product.nome}.`);
+    if (product && already + qty > product.estoque_atual) return toast.error(`Só existem ${product.estoque_atual} ${shortUnit(product.unidade)} de ${product.nome}.`);
     setCart((items) => [...items, { key: crypto.randomUUID(), produto_id: product?.id ?? null, item: name, categoria: itemCategory, qtd: qty, valor_unit: Math.max(0, price), estoque: product?.estoque_atual ?? null }]);
     setProductId(""); setManualItem(""); setCategory("Geral"); setQty(1); setUnit(0);
   }
@@ -203,21 +231,39 @@ function PurchaseModal({ rooms, reservations, products, employees, onClose, onSa
   return <Modal open onClose={onClose} title="Nova comanda"><form className="space-y-4" onSubmit={async (e) => { e.preventDefault(); setSaving(true); try { await onSave({ buyerType, room, employeeName, payment, amountPaid: effectivePaid, items: cart }); } finally { setSaving(false); } }}>
     <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1"><button type="button" className={buyerType === "hospede" ? "btn-primary" : "btn-ghost"} onClick={() => setBuyerType("hospede")}><UserRound className="h-4 w-4" /> Hóspede</button><button type="button" className={buyerType === "funcionario" ? "btn-primary" : "btn-ghost"} onClick={() => setBuyerType("funcionario")}><UsersRound className="h-4 w-4" /> Funcionário</button></div>
     {buyerType === "hospede" ? <><Field label="Quarto"><select className="field" value={room ?? ""} onChange={(e) => setRoom(Number(e.target.value))}>{rooms.map((r) => <option key={r.numero} value={r.numero}>Quarto {r.numero}</option>)}</select></Field><div className={`rounded-lg px-3 py-2 text-sm ${active ? "bg-sage-bg text-pine-dark" : "bg-brick-bg text-brick"}`}>{active ? `Compra de ${active.cliente_nome}` : "Este quarto não possui hospedagem ativa."}</div></> : <Field label="Funcionário"><input list="employees-list" className="field" value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder="Selecione ou digite o nome" required /><datalist id="employees-list">{employees.map((name) => <option key={name} value={name} />)}</datalist></Field>}
-    <div className="rounded-lg border border-border p-3"><Field label="Produto"><select className="field" value={productId} onChange={(e) => { setProductId(e.target.value); const p = products.find((row) => row.id === e.target.value); if (p) setUnit(Number(p.preco)); }}><option value="">Venda avulsa</option>{products.map((p) => <option key={p.id} value={p.id}>{p.nome} · estoque {p.estoque_atual} · {fmtBRL(p.preco)}</option>)}</select></Field>{!product && <div className="mt-3 grid grid-cols-2 gap-3"><Field label="Item avulso"><input className="field" value={manualItem} onChange={(e) => setManualItem(e.target.value)} /></Field><Field label="Categoria"><input className="field" value={category} onChange={(e) => setCategory(e.target.value)} /></Field></div>}<div className="mt-3 grid grid-cols-2 gap-3"><Field label="Quantidade"><input type="number" min={1} className="field" value={qty} onChange={(e) => setQty(Number(e.target.value))} /></Field><Field label="Valor unitário"><input type="number" min={0} step="0.01" className="field" value={product ? product.preco : unit} onChange={(e) => setUnit(Number(e.target.value))} disabled={!!product} /></Field></div><button type="button" className="btn-ghost mt-3 flex w-full justify-center gap-1.5" onClick={addItem}><Plus className="h-4 w-4" /> Adicionar à comanda</button></div>
+    <div className="rounded-lg border border-border p-3"><Field label="Produto"><select className="field" value={productId} onChange={(e) => { setProductId(e.target.value); const p = products.find((row) => row.id === e.target.value); if (p) setUnit(Number(p.preco)); }}><option value="">Venda avulsa</option>{products.map((p) => <option key={p.id} value={p.id}>{p.nome} · estoque {p.estoque_atual} {shortUnit(p.unidade)} · {fmtBRL(p.preco)}</option>)}</select></Field>{!product && <div className="mt-3 grid grid-cols-2 gap-3"><Field label="Item avulso"><input className="field" value={manualItem} onChange={(e) => setManualItem(e.target.value)} /></Field><Field label="Categoria"><input className="field" value={category} onChange={(e) => setCategory(e.target.value)} /></Field></div>}<div className="mt-3 grid grid-cols-2 gap-3"><Field label="Quantidade"><input type="number" min={1} className="field" value={qty} onChange={(e) => setQty(Number(e.target.value))} /></Field><Field label="Valor unitário"><input type="number" min={0} step="0.01" className="field" value={product ? product.preco : unit} onChange={(e) => setUnit(Number(e.target.value))} disabled={!!product} /></Field></div><button type="button" className="btn-ghost mt-3 flex w-full justify-center gap-1.5" onClick={addItem}><Plus className="h-4 w-4" /> Adicionar à comanda</button></div>
     {cart.length === 0 ? <div className="rounded-lg bg-muted p-3 text-center text-sm text-muted-foreground">Nenhum item adicionado.</div> : <div className="rounded-lg border border-border">{cart.map((item) => <div key={item.key} className="flex items-center justify-between border-b border-border/50 p-3 last:border-0"><div><strong>{item.qtd}× {item.item}</strong><p className="text-xs text-muted-foreground">{fmtBRL(item.valor_unit)} cada</p></div><div className="flex gap-2"><strong>{fmtBRL(item.qtd * item.valor_unit)}</strong><button type="button" className="text-xs font-bold text-brick" onClick={() => setCart((items) => items.filter((row) => row.key !== item.key))}>Remover</button></div></div>)}</div>}
     <div className="grid grid-cols-2 gap-3"><Field label="Pagamento"><select className="field" value={payment} onChange={(e) => setPayment(e.target.value)}>{PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}</select></Field><Field label="Valor pago agora"><input type="number" min={0} step="0.01" className="field" value={paid} placeholder={String(total)} onChange={(e) => setPaid(e.target.value === "" ? "" : Number(e.target.value))} /></Field></div>
     <div className="flex justify-between rounded-lg bg-muted px-3 py-2"><span className="text-sm text-muted-foreground">Pendente {fmtBRL(Math.max(0, total - effectivePaid))}</span><strong className="font-serif text-xl">{fmtBRL(total)}</strong></div><div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button><button type="submit" className="btn-primary" disabled={saving || !cart.length}>{saving ? "Salvando…" : "Salvar comanda"}</button></div>
   </form></Modal>;
 }
 
-function ProductModal({ editing, onClose, onSave }: { editing: Product | null; onClose: () => void; onSave: (input: any) => Promise<void> }) {
-  const [nome, setNome] = useState(editing?.nome ?? ""); const [categoria, setCategoria] = useState(editing?.categoria ?? "Geral"); const [preco, setPreco] = useState(Number(editing?.preco ?? 0)); const [custo, setCusto] = useState(Number(editing?.custo_unitario ?? 0)); const [minimo, setMinimo] = useState(Number(editing?.estoque_minimo ?? 0)); const [inicial, setInicial] = useState(0); const [ativo, setAtivo] = useState(editing?.ativo ?? true); const [saving, setSaving] = useState(false);
-  return <Modal open onClose={onClose} title={editing ? "Editar produto" : "Novo produto"}><form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); setSaving(true); try { await onSave({ nome: nome.trim(), categoria: categoria.trim() || "Geral", preco: Math.max(0, preco), custo: Math.max(0, custo), minimo: Math.max(0, minimo), inicial: Math.max(0, inicial), ativo }); } finally { setSaving(false); } }}><Field label="Produto"><input className="field" value={nome} onChange={(e) => setNome(e.target.value)} required /></Field><Field label="Categoria"><input className="field" value={categoria} onChange={(e) => setCategoria(e.target.value)} /></Field><div className="grid grid-cols-2 gap-3"><Field label="Preço de venda"><input type="number" min={0} step="0.01" className="field" value={preco} onChange={(e) => setPreco(Number(e.target.value))} /></Field><Field label="Custo unitário"><input type="number" min={0} step="0.01" className="field" value={custo} onChange={(e) => setCusto(Number(e.target.value))} /></Field></div><div className="grid grid-cols-2 gap-3"><Field label="Estoque mínimo"><input type="number" min={0} className="field" value={minimo} onChange={(e) => setMinimo(Number(e.target.value))} /></Field>{!editing && <Field label="Estoque inicial"><input type="number" min={0} className="field" value={inicial} onChange={(e) => setInicial(Number(e.target.value))} /></Field>}</div>{editing && <p className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">Altere o saldo somente por Repor ou Contagem para preservar o histórico.</p>}<label className="flex gap-2 text-sm"><input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} /> Produto ativo</label><div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button><button type="submit" className="btn-primary" disabled={saving}>Salvar</button></div></form></Modal>;
+type ProductFormInput = { nome: string; categoria: string; unidade: string; preco: number; custo: number; minimo: number; inicial: number; ativo: boolean };
+function ProductModal({ editing, onClose, onSave }: { editing: Product | null; onClose: () => void; onSave: (input: ProductFormInput) => Promise<void> }) {
+  const [nome, setNome] = useState(editing?.nome ?? "");
+  const [categoria, setCategoria] = useState(editing?.categoria ?? "Geral");
+  const [unidade, setUnidade] = useState(editing?.unidade ?? "unidade");
+  const [preco, setPreco] = useState(Number(editing?.preco ?? 0));
+  const [custo, setCusto] = useState(Number(editing?.custo_unitario ?? 0));
+  const [minimo, setMinimo] = useState(Number(editing?.estoque_minimo ?? 0));
+  const [inicial, setInicial] = useState(0);
+  const [ativo, setAtivo] = useState(editing?.ativo ?? true);
+  const [saving, setSaving] = useState(false);
+  const initialValue = inicial * custo;
+  const margin = preco > 0 ? ((preco - custo) / preco) * 100 : 0;
+
+  return <Modal open onClose={onClose} title={editing ? "Editar produto" : "Cadastrar produto e estoque inicial"}><form className="space-y-4" onSubmit={async (e) => { e.preventDefault(); setSaving(true); try { await onSave({ nome: nome.trim(), categoria: categoria.trim() || "Geral", unidade, preco: Math.max(0, preco), custo: Math.max(0, custo), minimo: Math.max(0, minimo), inicial: Math.max(0, inicial), ativo }); } finally { setSaving(false); } }}>
+    <section className="rounded-xl border border-border p-3"><h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-pine-dark">1. Produto</h3><div className="grid gap-3 sm:grid-cols-2"><Field label="Nome do produto"><input className="field" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Trident" required /></Field><Field label="Categoria"><input className="field" value={categoria} onChange={(e) => setCategoria(e.target.value)} placeholder="Ex.: Doces" /></Field></div></section>
+    <section className="rounded-xl border border-primary/30 bg-primary/5 p-3"><h3 className="mb-1 text-xs font-extrabold uppercase tracking-wide text-pine-dark">2. Embalagem e quantidade</h3><p className="mb-3 text-xs text-muted-foreground">Informe quantas unidades vieram dentro da caixa fechada. Exemplo: caixa de Trident com 21 unidades = quantidade inicial 21.</p><div className="grid gap-3 sm:grid-cols-2"><Field label="Unidade controlada"><select className="field" value={unidade} onChange={(e) => setUnidade(e.target.value)}>{UNIT_OPTIONS.map((item) => <option key={item} value={item}>{item[0].toUpperCase() + item.slice(1)}</option>)}</select></Field>{!editing ? <Field label="Quantidade inicial total"><input type="number" min={0} className="field text-lg font-bold" value={inicial} onChange={(e) => setInicial(Number(e.target.value))} placeholder="Ex.: 21" /><span className="mt-1 block text-[11px] text-muted-foreground">Essa quantidade vira o estoque atual e o total recebido.</span></Field> : <Field label="Estoque atual"><div className="field flex items-center bg-muted font-bold">{editing.estoque_atual} {shortUnit(unidade)}</div><span className="mt-1 block text-[11px] text-muted-foreground">Use Repor ou Contagem para alterar sem perder o histórico.</span></Field>}</div></section>
+    <section className="rounded-xl border border-border p-3"><h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-pine-dark">3. Custos, preço e segurança</h3><div className="grid gap-3 sm:grid-cols-3"><Field label={`Custo por ${unidade}`}><input type="number" min={0} step="0.01" className="field" value={custo} onChange={(e) => setCusto(Number(e.target.value))} /></Field><Field label="Preço de venda"><input type="number" min={0} step="0.01" className="field" value={preco} onChange={(e) => setPreco(Number(e.target.value))} /></Field><Field label="Estoque mínimo"><input type="number" min={0} className="field" value={minimo} onChange={(e) => setMinimo(Number(e.target.value))} /></Field></div></section>
+    {!editing && <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-3 text-center"><div><p className="text-[10px] uppercase text-muted-foreground">Estoque inicial</p><strong>{inicial} {shortUnit(unidade)}</strong></div><div><p className="text-[10px] uppercase text-muted-foreground">Valor do estoque</p><strong>{fmtBRL(initialValue)}</strong></div><div><p className="text-[10px] uppercase text-muted-foreground">Margem estimada</p><strong>{margin.toFixed(1)}%</strong></div></div>}
+    <label className="flex gap-2 text-sm"><input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} /> Produto ativo para venda</label><div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button><button type="submit" className="btn-primary" disabled={saving}>{saving ? "Salvando…" : "Salvar produto"}</button></div>
+  </form></Modal>;
 }
 
 function StockModal({ product, mode, onClose, onSave }: { product: Product; mode: "reposicao" | "contagem"; onClose: () => void; onSave: (input: { quantity: number; cost: number; reason: string }) => Promise<void> }) {
   const [quantity, setQuantity] = useState(mode === "contagem" ? product.estoque_atual : 1); const [cost, setCost] = useState(Number(product.custo_unitario ?? 0)); const [reason, setReason] = useState(mode === "contagem" ? "Contagem física" : "Reposição do proprietário"); const [saving, setSaving] = useState(false);
-  return <Modal open onClose={onClose} title={mode === "reposicao" ? `Repor ${product.nome}` : `Contagem de ${product.nome}`}><form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); setSaving(true); try { await onSave({ quantity: Math.max(0, quantity), cost: Math.max(0, cost), reason }); } finally { setSaving(false); } }}><div className="rounded-lg bg-muted p-3 text-sm">Saldo atual: <strong>{product.estoque_atual}</strong></div><Field label={mode === "reposicao" ? "Quantidade recebida" : "Quantidade encontrada"}><input type="number" min={mode === "reposicao" ? 1 : 0} className="field" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} /></Field>{mode === "reposicao" && <Field label="Custo unitário"><input type="number" min={0} step="0.01" className="field" value={cost} onChange={(e) => setCost(Number(e.target.value))} /></Field>}<Field label="Motivo"><input className="field" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>{mode === "contagem" && quantity !== product.estoque_atual && <p className="rounded-lg bg-brick-bg p-3 text-sm text-brick">Diferença de {Math.abs(quantity - product.estoque_atual)} unidade(s) será registrada.</p>}<div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button><button type="submit" className="btn-primary" disabled={saving}>Registrar</button></div></form></Modal>;
+  return <Modal open onClose={onClose} title={mode === "reposicao" ? `Repor ${product.nome}` : `Contagem de ${product.nome}`}><form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); setSaving(true); try { await onSave({ quantity: Math.max(0, quantity), cost: Math.max(0, cost), reason }); } finally { setSaving(false); } }}><div className="rounded-lg bg-muted p-3 text-sm">Saldo atual: <strong>{product.estoque_atual} {shortUnit(product.unidade)}</strong></div><Field label={mode === "reposicao" ? `Quantidade recebida (${shortUnit(product.unidade)})` : `Quantidade encontrada (${shortUnit(product.unidade)})`}><input type="number" min={mode === "reposicao" ? 1 : 0} className="field" value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} /></Field>{mode === "reposicao" && <Field label="Custo unitário"><input type="number" min={0} step="0.01" className="field" value={cost} onChange={(e) => setCost(Number(e.target.value))} /></Field>}<Field label="Motivo"><input className="field" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>{mode === "contagem" && quantity !== product.estoque_atual && <p className="rounded-lg bg-brick-bg p-3 text-sm text-brick">Diferença de {Math.abs(quantity - product.estoque_atual)} {shortUnit(product.unidade)} será registrada.</p>}<div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button><button type="submit" className="btn-primary" disabled={saving}>Registrar</button></div></form></Modal>;
 }
 
 function HistoryModal({ rows, loading, onClose }: { rows: Movement[]; loading: boolean; onClose: () => void }) {
@@ -233,5 +279,6 @@ function groupSales(sales: Sale[]) {
   }
   return [...map.values()].slice(0, 150);
 }
+function shortUnit(unit?: string | null) { return ({ unidade: "un.", caixa: "cx.", pacote: "pct.", fardo: "fardo", garrafa: "garrafas", lata: "latas", quilo: "kg", litro: "L" } as Record<string, string>)[unit ?? "unidade"] ?? unit ?? "un."; }
 function movementLabel(type: string) { return ({ reposicao: "Reposição", venda: "Venda", ajuste_positivo: "Ajuste positivo", ajuste_negativo: "Ajuste negativo", estoque_inicial: "Estoque inicial" } as Record<string, string>)[type] ?? type; }
 function money(value: number) { return Math.round((Number(value) + Number.EPSILON) * 100) / 100; }
