@@ -1,0 +1,149 @@
+name: Corrigir cadastro por embalagem
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+          fetch-depth: 0
+      - name: Ajustar tela de produtos
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/routes/_authenticated/vendas.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          text = text.replace(
+              'const UNIT_OPTIONS = ["unidade", "caixa", "pacote", "fardo", "garrafa", "lata", "quilo", "litro"];',
+              'const PACKAGING_OPTIONS = ["unidade", "fardo", "caixa", "pacote", "engradado", "bandeja", "outro"];'
+          )
+
+          text = text.replace(
+              '  unidade?: string | null;\n  preco: number;',
+              '  unidade?: string | null;\n  embalagem?: string | null;\n  unidades_por_embalagem?: number | null;\n  preco: number;'
+          )
+
+          text = text.replace(
+              '      unidade: input.unidade,\n      preco: input.preco,',
+              '      unidade: "unidade",\n      embalagem: input.embalagem,\n      unidades_por_embalagem: input.unidadesPorEmbalagem,\n      preco: input.preco,'
+          )
+
+          text = text.replace(
+              '      if (input.inicial > 0) {\n        const { error: rpcError } = await (supabase as any).rpc("register_stock_restock", {\n          _company_id: companyId, _product_id: data.id, _quantity: input.inicial,\n          _unit_cost: input.custo, _reason: `Estoque inicial: ${input.inicial} ${input.unidade}(s)`,\n        });',
+              '      if (input.totalInicial > 0) {\n        const { error: rpcError } = await (supabase as any).rpc("register_stock_restock", {\n          _company_id: companyId, _product_id: data.id, _quantity: input.totalInicial,\n          _unit_cost: input.custo, _reason: `Estoque inicial: ${input.quantidadeEmbalagens} ${input.embalagem}(s) × ${input.unidadesPorEmbalagem} unidade(s) = ${input.totalInicial} unidades`,\n        });'
+          )
+
+          start = text.index('type ProductFormInput =')
+          end = text.index('function StockModal', start)
+          replacement = r'''type ProductFormInput = {
+  nome: string;
+  categoria: string;
+  embalagem: string;
+  unidadesPorEmbalagem: number;
+  quantidadeEmbalagens: number;
+  totalInicial: number;
+  preco: number;
+  custo: number;
+  minimo: number;
+  ativo: boolean;
+};
+
+function ProductModal({ editing, onClose, onSave }: { editing: Product | null; onClose: () => void; onSave: (input: ProductFormInput) => Promise<void> }) {
+  const initialPackaging = editing?.embalagem ?? "unidade";
+  const knownPackaging = PACKAGING_OPTIONS.includes(initialPackaging) ? initialPackaging : "outro";
+  const [nome, setNome] = useState(editing?.nome ?? "");
+  const [categoria, setCategoria] = useState(editing?.categoria ?? "Geral");
+  const [embalagem, setEmbalagem] = useState(knownPackaging);
+  const [embalagemLivre, setEmbalagemLivre] = useState(knownPackaging === "outro" ? initialPackaging : "");
+  const [unidadesPorEmbalagem, setUnidadesPorEmbalagem] = useState(Number(editing?.unidades_por_embalagem ?? 1));
+  const [quantidadeEmbalagens, setQuantidadeEmbalagens] = useState(1);
+  const [preco, setPreco] = useState(Number(editing?.preco ?? 0));
+  const [custo, setCusto] = useState(Number(editing?.custo_unitario ?? 0));
+  const [minimo, setMinimo] = useState(Number(editing?.estoque_minimo ?? 0));
+  const [ativo, setAtivo] = useState(editing?.ativo ?? true);
+  const [saving, setSaving] = useState(false);
+
+  const embalagemFinal = (embalagem === "outro" ? embalagemLivre : embalagem).trim() || "unidade";
+  const totalInicial = Math.max(0, quantidadeEmbalagens) * Math.max(1, unidadesPorEmbalagem);
+  const initialValue = totalInicial * custo;
+  const margin = preco > 0 ? ((preco - custo) / preco) * 100 : 0;
+
+  return <Modal open onClose={onClose} title={editing ? "Editar produto" : "Cadastrar produto e estoque inicial"}><form className="space-y-4" onSubmit={async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await onSave({
+        nome: nome.trim(), categoria: categoria.trim() || "Geral", embalagem: embalagemFinal,
+        unidadesPorEmbalagem: Math.max(1, unidadesPorEmbalagem), quantidadeEmbalagens: Math.max(0, quantidadeEmbalagens),
+        totalInicial: editing ? 0 : totalInicial, preco: Math.max(0, preco), custo: Math.max(0, custo),
+        minimo: Math.max(0, minimo), ativo,
+      });
+    } finally { setSaving(false); }
+  }}>
+    <section className="rounded-xl border border-border p-3">
+      <h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-pine-dark">1. Produto</h3>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Nome do produto"><input className="field" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex.: Água 1,5 L" required /></Field>
+        <Field label="Categoria"><input className="field" value={categoria} onChange={(e) => setCategoria(e.target.value)} placeholder="Ex.: Bebidas" /></Field>
+      </div>
+    </section>
+
+    <section className="rounded-xl border border-primary/30 bg-primary/5 p-3">
+      <h3 className="mb-1 text-xs font-extrabold uppercase tracking-wide text-pine-dark">2. Embalagem de compra</h3>
+      <p className="mb-3 text-xs text-muted-foreground">Exemplo: 5 fardos com 12 águas em cada fardo = 60 unidades no estoque.</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Tipo de embalagem">
+          <select className="field" value={embalagem} onChange={(e) => setEmbalagem(e.target.value)}>
+            {PACKAGING_OPTIONS.map((item) => <option key={item} value={item}>{item[0].toUpperCase() + item.slice(1)}</option>)}
+          </select>
+        </Field>
+        {embalagem === "outro" && <Field label="Nome da embalagem"><input className="field" value={embalagemLivre} onChange={(e) => setEmbalagemLivre(e.target.value)} placeholder="Ex.: display, saco, pote" required /></Field>}
+        <Field label="Unidades por embalagem"><input type="number" min={1} className="field text-lg font-bold" value={unidadesPorEmbalagem} onChange={(e) => setUnidadesPorEmbalagem(Number(e.target.value))} /></Field>
+        {!editing && <Field label={`Quantidade de ${embalagemFinal}(s)`}><input type="number" min={0} className="field text-lg font-bold" value={quantidadeEmbalagens} onChange={(e) => setQuantidadeEmbalagens(Number(e.target.value))} /></Field>}
+      </div>
+      {editing ? <div className="mt-3 rounded-lg bg-muted p-3 text-sm">Estoque atual: <strong>{editing.estoque_atual} unidades</strong>. Alterar embalagem não modifica o saldo.</div> : <div className="mt-3 rounded-lg bg-white/70 p-3 text-sm"><strong>Total calculado: {quantidadeEmbalagens} × {unidadesPorEmbalagem} = {totalInicial} unidades</strong></div>}
+    </section>
+
+    <section className="rounded-xl border border-border p-3">
+      <h3 className="mb-3 text-xs font-extrabold uppercase tracking-wide text-pine-dark">3. Custos, preço e segurança</h3>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Custo por unidade"><input type="number" min={0} step="0.01" className="field" value={custo} onChange={(e) => setCusto(Number(e.target.value))} /></Field>
+        <Field label="Preço de venda por unidade"><input type="number" min={0} step="0.01" className="field" value={preco} onChange={(e) => setPreco(Number(e.target.value))} /></Field>
+        <Field label="Estoque mínimo em unidades"><input type="number" min={0} className="field" value={minimo} onChange={(e) => setMinimo(Number(e.target.value))} /></Field>
+      </div>
+    </section>
+
+    {!editing && <div className="grid grid-cols-3 gap-2 rounded-xl bg-muted p-3 text-center">
+      <div><p className="text-[10px] uppercase text-muted-foreground">Embalagens</p><strong>{quantidadeEmbalagens} {embalagemFinal}(s)</strong></div>
+      <div><p className="text-[10px] uppercase text-muted-foreground">Estoque inicial</p><strong>{totalInicial} un.</strong></div>
+      <div><p className="text-[10px] uppercase text-muted-foreground">Valor do estoque</p><strong>{fmtBRL(initialValue)}</strong></div>
+    </div>}
+    {!editing && <p className="text-center text-xs text-muted-foreground">Margem estimada: <strong>{margin.toFixed(1)}%</strong></p>}
+    <label className="flex gap-2 text-sm"><input type="checkbox" checked={ativo} onChange={(e) => setAtivo(e.target.checked)} /> Produto ativo para venda</label>
+    <div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button><button type="submit" className="btn-primary" disabled={saving}>{saving ? "Salvando…" : "Salvar produto"}</button></div>
+  </form></Modal>;
+}
+
+'''
+          text = text[:start] + replacement + text[end:]
+          path.write_text(text, encoding='utf-8')
+      - name: Commitar correção
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/_authenticated/vendas.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "corrige cadastro por fardo caixa e embalagem"
+          git push origin HEAD:agent/versao-escolhida-integrada-final
