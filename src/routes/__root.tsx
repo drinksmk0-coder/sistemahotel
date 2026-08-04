@@ -41,31 +41,64 @@ function NotFoundComponent() {
   );
 }
 
+function isOutdatedBundleError(error: Error) {
+  const text = `${error.name} ${error.message} ${error.stack ?? ""}`.toLowerCase();
+  return [
+    "failed to fetch dynamically imported module",
+    "importing a module script failed",
+    "error loading dynamically imported module",
+    "chunkloaderror",
+    "loading chunk",
+    "preload",
+  ].some((fragment) => text.includes(fragment));
+}
+
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const outdatedBundle = isOutdatedBundleError(error);
+
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
+    reportLovableError(error, {
+      boundary: "tanstack_root_error_component",
+      outdated_bundle: outdatedBundle,
+      page_url: typeof window !== "undefined" ? window.location.href : null,
+    });
+
+    if (!outdatedBundle || typeof window === "undefined") return;
+    const reloadKey = `hospedamais:bundle-reload:${window.location.pathname}`;
+    if (window.sessionStorage.getItem(reloadKey) === "1") return;
+    window.sessionStorage.setItem(reloadKey, "1");
+    window.location.reload();
+  }, [error, outdatedBundle]);
+
+  function reloadApplication() {
+    if (typeof window === "undefined") {
+      router.invalidate();
+      reset();
+      return;
+    }
+    window.sessionStorage.removeItem(`hospedamais:bundle-reload:${window.location.pathname}`);
+    window.location.reload();
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          Esta página não carregou
+          {outdatedBundle ? "O sistema recebeu uma atualização" : "Esta página não carregou"}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Algo deu errado. Tente atualizar a página ou voltar para o início.
+          {outdatedBundle
+            ? "Atualize para carregar a versão mais recente e continuar trabalhando. Seus dados não serão apagados."
+            : "Algo deu errado ao abrir esta página. Atualize o sistema ou volte para o início."}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
+            onClick={reloadApplication}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Tentar novamente
+            Atualizar sistema
           </button>
           <a
             href="/"
@@ -74,6 +107,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             Ir para casa
           </a>
         </div>
+        {!outdatedBundle && (
+          <p className="mt-4 text-xs text-muted-foreground">
+            Caso o problema continue, informe à administração qual página estava sendo aberta.
+          </p>
+        )}
       </div>
     </div>
   );
