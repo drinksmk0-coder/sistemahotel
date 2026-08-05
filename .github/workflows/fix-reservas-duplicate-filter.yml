@@ -1,0 +1,42 @@
+name: Fix reservation duplicate filter
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+    paths:
+      - scripts/fix-reservas-duplicate-filter.mjs
+      - .github/workflows/fix-reservas-duplicate-filter.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+          fetch-depth: 0
+
+      - name: Remove duplicated reservation filters
+        run: node scripts/fix-reservas-duplicate-filter.mjs
+
+      - name: Verify project
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit correction
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/_authenticated/reservas.tsx
+          git commit -m "remove duplicações do filtro de reservas"
+          git push origin HEAD:agent/versao-escolhida-integrada-final
