@@ -27,7 +27,6 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
-  TrendingUp,
   Users,
   X,
   type LucideIcon,
@@ -156,13 +155,6 @@ const NAV_ITEMS: NavigationItem[] = [
     icon: MessagesSquare,
     roles: ["dono", "recepcao"],
     group: "Relacionamento",
-  },
-  {
-    to: "/dashboard-estrategico",
-    label: "Estratégia e previsão",
-    icon: TrendingUp,
-    roles: ["dono"],
-    group: "Inteligência",
   },
   {
     to: "/relatorio-consumo-agua",
