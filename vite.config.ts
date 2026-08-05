@@ -6,6 +6,7 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import "./scripts/apply-final-workflow-fixes.mjs";
 import "./scripts/fix-preview-regressions.mjs";
+import "./scripts/fix-sales-legacy-schema.mjs";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
