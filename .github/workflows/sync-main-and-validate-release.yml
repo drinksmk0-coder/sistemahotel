@@ -31,6 +31,9 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
           git merge --no-edit -X ours origin/main
+          git checkout HEAD^1 -- src/routes/_authenticated/vendas.tsx
+          git add src/routes/_authenticated/vendas.tsx
+          git commit --amend --no-edit
 
       - name: Install dependencies
         run: npm ci
