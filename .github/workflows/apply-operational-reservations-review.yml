@@ -1,0 +1,43 @@
+name: Apply operational reservations review
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+    paths:
+      - scripts/apply-operational-reservations-review.mjs
+      - .github/workflows/apply-operational-reservations-review.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout final branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+          fetch-depth: 0
+
+      - name: Apply targeted updates
+        run: node scripts/apply-operational-reservations-review.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify project
+        run: npm run build
+
+      - name: Commit generated changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/_authenticated/reservas.tsx
+          git commit -m "corrige filtro, check-in e cancelamento de reservas"
+          git push origin HEAD:agent/versao-escolhida-integrada-final
