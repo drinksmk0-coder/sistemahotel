@@ -668,6 +668,7 @@ function RoomDetailModal({
             )}
           </div>
           <div className="flex flex-wrap gap-2">
+            
             {stay && (
               <a
                 className="btn-ghost inline-flex items-center gap-1"
