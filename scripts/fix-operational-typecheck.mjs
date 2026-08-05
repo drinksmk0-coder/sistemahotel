@@ -50,6 +50,13 @@ replace(
 
 replace(
   files.booking,
+  '        const { data: reservationData, error: reservationError } = await supabase\n          .from("reservations")',
+  '        const { data: reservationData, error: reservationError } = await (supabase as any)\n          .from("reservations")',
+  'consulta tipada de reservas no portal Booking',
+);
+
+replace(
+  files.booking,
   '        reservations = (reservationData ?? []) as ReservationSummary[];',
   '        reservations = (reservationData ?? []) as unknown as ReservationSummary[];',
   'conversão explícita do resumo de reservas',
@@ -63,4 +70,4 @@ replace(
 );
 
 console.log('Correções de typecheck operacional aplicadas.');
-// retrigger 2026-08-05T15:33-03:00
+// retrigger 2026-08-05T15:35-03:00
