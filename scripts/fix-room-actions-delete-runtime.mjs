@@ -2,11 +2,25 @@ import fs from "node:fs";
 
 const mapPath = "src/components/MapaQuartos.tsx";
 let map = fs.readFileSync(mapPath, "utf8");
-const duplicateBlock = `            {stay && (\n              <a\n                className="btn-ghost inline-flex items-center gap-1"\n                href={\`/vendas?quarto=\${room.numero}\`}\n                title={\`Lançar venda para \${stay.cliente_nome} no quarto \${room.numero}\`}\n              >\n                <ShoppingCart className="h-4 w-4" /> Lançar venda\n              </a>\n            )}\n            {stay && (\n              <a className="btn-ghost" href={\`/reservas?editar=\${stay.id}\`}>Editar hospedagem</a>\n            )}\n`;
-if (!map.includes(duplicateBlock)) throw new Error("Bloco duplicado não encontrado no mapa");
-map = map.replace(duplicateBlock, "");
-if ((map.match(/Editar hospedagem/g) ?? []).length !== 1) throw new Error("Editar hospedagem não ficou único");
-if ((map.match(/Lançar venda/g) ?? []).length !== 1) throw new Error("Lançar venda não ficou único");
+
+const duplicateSaleStart = `            {stay && (\n              <a\n                className="btn-ghost inline-flex items-center gap-1"\n                href={\`/vendas?quarto=\${room.numero}\`}`;
+const duplicateEdit = `            {stay && (\n              <a className="btn-ghost" href={\`/reservas?editar=\${stay.id}\`}>Editar hospedagem</a>\n            )}`;
+
+const saleStart = map.indexOf(duplicateSaleStart);
+if (saleStart < 0) throw new Error("Ação antiga de venda não encontrada");
+const saleEnd = map.indexOf("            )}", saleStart) + "            )}".length;
+map = map.slice(0, saleStart) + map.slice(saleEnd);
+
+const editStart = map.indexOf(duplicateEdit);
+if (editStart < 0) throw new Error("Ação duplicada de edição não encontrada");
+map = map.slice(0, editStart) + map.slice(editStart + duplicateEdit.length);
+
+const linkedSaleCount = (map.match(/href=\{`\/vendas\?quarto=\$\{room\.numero\}&reserva=\$\{stay\.id\}`\}/g) ?? []).length;
+const editCount = (map.match(/href=\{`\/reservas\?editar=\$\{stay\.id\}`\}/g) ?? []).length;
+const oldSaleCount = (map.match(/href=\{`\/vendas\?quarto=\$\{room\.numero\}`\}/g) ?? []).length;
+if (linkedSaleCount !== 1 || editCount !== 1 || oldSaleCount !== 0) {
+  throw new Error(`Validação falhou: venda=${linkedSaleCount}, editar=${editCount}, venda_antiga=${oldSaleCount}`);
+}
 fs.writeFileSync(mapPath, map);
 
 const salesPath = "src/routes/_authenticated/vendas.tsx";
@@ -35,6 +49,7 @@ sales = sales.slice(0, start) + replacement + sales.slice(end);
 const oldButton = `onClick={() => void cancelSaleGroup(g)}`;
 const safeButton = `onClick={() => { void cancelSaleGroup(g).catch((error) => toast.error(error instanceof Error ? error.message : "Não foi possível excluir a comanda.")); }}`;
 if (sales.includes(oldButton)) sales = sales.replace(oldButton, safeButton);
+if (!sales.includes(safeButton)) throw new Error("Tratamento de erro do botão excluir não encontrado");
 fs.writeFileSync(salesPath, sales);
 
-console.log("Ações únicas e cancelamento atômico aplicados.");
+console.log("Ações únicas confirmadas e cancelamento atômico aplicado.");
