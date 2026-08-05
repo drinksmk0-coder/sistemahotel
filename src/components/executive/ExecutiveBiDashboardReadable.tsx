@@ -11,6 +11,7 @@ import "@/components/executive/executive-dashboard-responsive.css";
 import "@/components/executive/executive-dashboard-financial-map.css";
 import "@/components/executive/executive-dashboard-donut-legend.css";
 import "@/components/executive/executive-dashboard-final-polish.css";
+import "@/components/executive/executive-dashboard-desktop-compact.css";
 
 export function ExecutiveBiDashboardReadable() {
   return (
