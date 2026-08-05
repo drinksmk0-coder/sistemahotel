@@ -6,25 +6,6 @@ function patchFile(path, transform) {
   if (after !== before) fs.writeFileSync(path, after);
 }
 
-patchFile("src/routes/_authenticated/vendas.tsx", (source) => {
-  source = source.replace(
-    'import { useMemo, useState } from "react";',
-    'import { useEffect, useMemo, useState } from "react";',
-  );
-
-  source = source.replace(
-    '  const initialRoom = typeof window !== "undefined" ? Number(new URLSearchParams(window.location.search).get("quarto")) || null : null;\n  const [purchaseOpen, setPurchaseOpen] = useState(initialRoom != null);',
-    '  const [initialRoom, setInitialRoom] = useState<number | null>(null);\n  const [purchaseOpen, setPurchaseOpen] = useState(false);\n\n  useEffect(() => {\n    const rawRoom = new URLSearchParams(window.location.search).get("quarto");\n    const parsedRoom = rawRoom ? Number(rawRoom) : null;\n    if (parsedRoom && Number.isFinite(parsedRoom)) {\n      setInitialRoom(parsedRoom);\n      setPurchaseOpen(true);\n    }\n  }, []);',
-  );
-
-  source = source.replace(
-    '  const [room, setRoom] = useState<number | null>(initialRoom ?? rooms[0]?.numero ?? null);',
-    '  const [room, setRoom] = useState<number | null>(initialRoom ?? rooms[0]?.numero ?? null);\n\n  useEffect(() => {\n    if (initialRoom != null) setRoom(initialRoom);\n  }, [initialRoom]);',
-  );
-
-  return source;
-});
-
 patchFile("src/routes/_authenticated/reservas.tsx", (source) => {
   source = source.replace(
     'import { useMemo, useRef, useState } from "react";',
@@ -33,10 +14,7 @@ patchFile("src/routes/_authenticated/reservas.tsx", (source) => {
 
   const marker = '  const [search, setSearch] = useState("");';
   const addition = `${marker}\n\n  useEffect(() => {\n    const reservationId = new URLSearchParams(window.location.search).get("editar");\n    if (!reservationId || !reservations.length) return;\n    const reservation = reservations.find((item) => item.id === reservationId);\n    if (!reservation) return;\n    setEditing(reservation);\n    window.history.replaceState({}, "", window.location.pathname);\n  }, [reservations]);`;
-  if (!source.includes(addition) && source.includes(marker)) {
-    source = source.replace(marker, addition);
-  }
-
+  if (!source.includes(addition) && source.includes(marker)) source = source.replace(marker, addition);
   return source;
 });
 
