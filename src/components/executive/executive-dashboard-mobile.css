@@ -1,0 +1,119 @@
+/* Layout operacional dedicado para celulares. */
+@media (max-width: 639px) {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  [data-executive-dashboard],
+  .executive-readable-root {
+    height: auto !important;
+    min-height: 100dvh !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)) !important;
+    touch-action: pan-y;
+  }
+
+  .executive-readable-root > div:first-child {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100dvh;
+    overflow: visible !important;
+  }
+
+  .executive-readable-root header {
+    position: relative;
+    gap: 0.55rem !important;
+    padding: 0.65rem !important;
+  }
+
+  .executive-readable-root header h1 {
+    font-size: 1rem !important;
+    line-height: 1.2 !important;
+  }
+
+  .executive-readable-root header p {
+    font-size: 0.65rem !important;
+    line-height: 1rem !important;
+  }
+
+  .executive-readable-root header > div:first-child > div:first-child {
+    width: 2.1rem !important;
+    height: 2.1rem !important;
+  }
+
+  .executive-readable-root header > div:last-child {
+    gap: 0.4rem !important;
+  }
+
+  .executive-readable-root header button,
+  .executive-control-button {
+    min-height: 2.4rem;
+  }
+
+  /* Indicadores principais: leitura rápida e sem cortes. */
+  .executive-readable-root > div:first-child > section:first-of-type {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article {
+    min-height: 5rem !important;
+    padding: 0.55rem !important;
+  }
+
+  /* Direção estratégica: cartões resumidos e empilhados. */
+  [data-strategy-scorecard],
+  .executive-strategy-scorecard {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0.5rem !important;
+  }
+
+  [data-strategy-scorecard] article,
+  .executive-strategy-scorecard article {
+    min-height: auto !important;
+    padding: 0.65rem !important;
+  }
+
+  /* Gráficos e cartões detalhados ficam em uma coluna. */
+  .executive-readable-root > div:first-child > section:nth-of-type(n + 2) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .executive-readable-root article {
+    overflow: visible !important;
+  }
+
+  /* Rolagem horizontal somente dentro de gráficos temporais largos. */
+  .executive-readable-root [data-mobile-chart-scroll] {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Elementos flutuantes não podem bloquear conteúdo ou gestos. */
+  .executive-help-tooltip,
+  .executive-floating-insights {
+    display: none !important;
+  }
+
+  .executive-control-popover {
+    z-index: 80;
+  }
+}
+
+@media (max-width: 380px) {
+  .executive-readable-root > div:first-child > section:first-of-type {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
