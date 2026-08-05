@@ -26,8 +26,8 @@ if (source.includes(marker) && !source.includes('data-mobile-product-cards')) {
           <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
             <MobileMetric label="Preço de venda" value={fmtBRL(p.preco)} />
             <MobileMetric label="Custo unitário" value={fmtBRL(p.custo_unitario ?? 0)} />
-            <MobileMetric label="Total recebido" value={\`${p.estoque_total_recebido ?? p.estoque_atual} \${shortUnit(p.unidade)}\`} />
-            <MobileMetric label="Estoque mínimo" value={\`${p.estoque_minimo} \${shortUnit(p.unidade)}\`} />
+            <MobileMetric label="Total recebido" value={\`\${p.estoque_total_recebido ?? p.estoque_atual} \${shortUnit(p.unidade)}\`} />
+            <MobileMetric label="Estoque mínimo" value={\`\${p.estoque_minimo} \${shortUnit(p.unidade)}\`} />
             <MobileMetric label="Valor em estoque" value={fmtBRL(p.estoque_atual * Number(p.custo_unitario ?? 0))} wide />
           </div>
 
