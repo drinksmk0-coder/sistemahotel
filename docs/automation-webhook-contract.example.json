@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "company_id": "uuid-da-empresa",
+  "channel": "whatsapp",
+  "external_message_id": "wamid-unico",
+  "event_type": "inbound_message",
+  "received_at": "2026-08-05T11:00:00.000Z",
+  "contact": {
+    "name": "Nome informado",
+    "phone": "+55...",
+    "email": null,
+    "opt_in": true
+  },
+  "message": {
+    "text": "Gostaria de reservar para duas pessoas",
+    "attachments": []
+  },
+  "context": {
+    "requested_checkin": null,
+    "requested_checkout": null,
+    "guests": 2,
+    "source_campaign": null
+  },
+  "automation_policy": {
+    "allow_read_availability": true,
+    "allow_create_lead": true,
+    "allow_create_draft_reservation": true,
+    "require_human_confirmation": [
+      "confirm_reservation",
+      "cancel_reservation",
+      "change_dates",
+      "change_room",
+      "change_price",
+      "register_payment",
+      "delete_any_record"
+    ]
+  }
+}
