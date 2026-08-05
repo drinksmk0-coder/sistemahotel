@@ -1,0 +1,46 @@
+name: Fix sales and room actions
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+    paths:
+      - scripts/fix-sales-room-actions.mjs
+      - src/components/ui-kit.tsx
+      - .github/workflows/fix-sales-room-actions.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Apply focused fixes
+        run: node scripts/fix-sales-room-actions.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Commit generated changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/MapaQuartos.tsx src/routes/_authenticated/vendas.tsx
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+            exit 0
+          fi
+          git commit -m "corrige exclusão de vendas, ações duplicadas e modais"
+          git pull --rebase origin agent/versao-escolhida-integrada-final
+          git push origin HEAD:agent/versao-escolhida-integrada-final
