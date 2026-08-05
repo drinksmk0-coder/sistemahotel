@@ -18,26 +18,47 @@ export function Modal({
     if (!open) return;
     const h = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", h);
+      document.body.style.overflow = previousOverflow;
+    };
   }, [open, onClose]);
 
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 py-10"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
       onClick={onClose}
+      role="presentation"
     >
       <div
-        className={`card-surface w-full ${wide ? "max-w-3xl" : "max-w-lg"} p-5`}
+        className={`flex max-h-[92dvh] w-full flex-col overflow-hidden border border-border/80 bg-card shadow-2xl sm:rounded-2xl ${
+          wide ? "sm:max-w-4xl" : "sm:max-w-lg"
+        } rounded-t-2xl`}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="section-title text-lg">{title}</h3>
-          <button onClick={onClose} className="rounded-md p-1 text-muted-foreground hover:bg-muted">
-            <X className="h-5 w-5" />
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/70 bg-card/95 px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <span className="mb-1 block h-1 w-10 rounded-full bg-border sm:hidden" />
+            <h3 className="truncate text-base font-extrabold text-pine-dark sm:text-lg">{title}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            aria-label="Fechar janela"
+          >
+            <X className="h-4 w-4" />
           </button>
         </div>
-        {children}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+          {children}
+        </div>
       </div>
     </div>
   );
