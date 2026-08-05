@@ -14,21 +14,21 @@ map = replaceOnce(
             {stay && (
               <a
                 className="btn-ghost inline-flex items-center gap-1"
-                href={\`/vendas?quarto=${room.numero}\`}
-                title={\`Lançar venda para ${stay.cliente_nome} no quarto ${room.numero}\`}
+                href={\`/vendas?quarto=\${room.numero}\`}
+                title={\`Lançar venda para \${stay.cliente_nome} no quarto \${room.numero}\`}
               >
                 <ShoppingCart className="h-4 w-4" /> Lançar venda
               </a>
             )}
             {stay && (
-              <a className="btn-ghost" href={\`/reservas?editar=${stay.id}\`}>Editar hospedagem</a>
+              <a className="btn-ghost" href={\`/reservas?editar=\${stay.id}\`}>Editar hospedagem</a>
             )}
             {whatsapp && (`,
 `          <div className="flex flex-wrap gap-2">
             {stay && (
               <a
                 className="btn-ghost"
-                href={\`/reservas?editar=${stay.id}\`}
+                href={\`/reservas?editar=\${stay.id}\`}
               >
                 Editar hospedagem
               </a>
@@ -36,8 +36,8 @@ map = replaceOnce(
             {stay && (
               <a
                 className="btn-primary inline-flex items-center gap-1"
-                href={\`/vendas?quarto=${room.numero}&reserva=${stay.id}\`}
-                title={\`Lançar venda para ${stay.cliente_nome} no quarto ${room.numero}\`}
+                href={\`/vendas?quarto=\${room.numero}&reserva=\${stay.id}\`}
+                title={\`Lançar venda para \${stay.cliente_nome} no quarto \${room.numero}\`}
               >
                 <ShoppingCart className="h-4 w-4" /> Lançar venda
               </a>
@@ -53,7 +53,7 @@ map = replaceOnce(
                   type="button"
                   className="btn-ghost"
                   onClick={() => {
-                    window.location.href = \`/reservas?editar=${stay.id}\`;
+                    window.location.href = \`/reservas?editar=\${stay.id}\`;
                   }}
                 >
                   Editar hospedagem
@@ -62,7 +62,7 @@ map = replaceOnce(
                   type="button"
                   className="btn-primary"
                   onClick={() => {
-                    window.location.href = \`/vendas?quarto=${room.numero}&reserva=${stay.id}\`;
+                    window.location.href = \`/vendas?quarto=\${room.numero}&reserva=\${stay.id}\`;
                   }}
                 >
                   Lançar venda
@@ -88,8 +88,8 @@ sales = replaceOnce(
 );
 sales = replaceOnce(
   sales,
-' type Sale = { id: string; compra_id?: string | null; comprador_tipo?: string | null; comprador_nome?: string | null; cliente_id?: string | null; reserva_id?: string | null; quarto: number | null; data: string; item: string; categoria?: string | null; produto_id?: string | null; qtd: number; valor_unit: number; total: number; valor_pago?: number | null; pagamento: string; created_at: string };',
-' type Sale = { id: string; compra_id?: string | null; comprador_tipo?: string | null; comprador_nome?: string | null; cliente_id?: string | null; reserva_id?: string | null; quarto: number | null; data: string; item: string; categoria?: string | null; produto_id?: string | null; qtd: number; valor_unit: number; total: number; valor_pago?: number | null; pagamento: string; status?: string | null; created_at: string };',
+'type Sale = { id: string; compra_id?: string | null; comprador_tipo?: string | null; comprador_nome?: string | null; cliente_id?: string | null; reserva_id?: string | null; quarto: number | null; data: string; item: string; categoria?: string | null; produto_id?: string | null; qtd: number; valor_unit: number; total: number; valor_pago?: number | null; pagamento: string; created_at: string };',
+'type Sale = { id: string; compra_id?: string | null; comprador_tipo?: string | null; comprador_nome?: string | null; cliente_id?: string | null; reserva_id?: string | null; quarto: number | null; data: string; item: string; categoria?: string | null; produto_id?: string | null; qtd: number; valor_unit: number; total: number; valor_pago?: number | null; pagamento: string; status?: string | null; created_at: string };',
   'status da venda',
 );
 sales = replaceOnce(
@@ -100,10 +100,10 @@ sales = replaceOnce(
 );
 sales = replaceOnce(
   sales,
-`  async function saveProduct(input: ProductFormInput) {`,
+'  async function saveProduct(input: ProductFormInput) {',
 `  async function cancelSaleGroup(group: { id: string; itens: Sale[]; comprador: string; total: number }) {
     const confirmed = window.confirm(
-      \`Excluir a comanda de ${group.comprador} no valor de ${fmtBRL(group.total)}? O estoque será devolvido e o histórico ficará preservado como cancelado.\`,
+      \`Excluir a comanda de \${group.comprador} no valor de \${fmtBRL(group.total)}? O estoque será devolvido e o histórico ficará preservado como cancelado.\`,
     );
     if (!confirmed) return;
 
@@ -143,8 +143,8 @@ sales = replaceOnce(
 );
 sales = replaceOnce(
   sales,
-`<td className={\`p-3 font-semibold ${g.total > g.pago ? "text-brick" : "text-muted-foreground"}\`}>{fmtBRL(Math.max(0, g.total - g.pago))}</td></tr>)}`,
-`<td className={\`p-3 font-semibold ${g.total > g.pago ? "text-brick" : "text-muted-foreground"}\`}>{fmtBRL(Math.max(0, g.total - g.pago))}</td><td className="p-3 text-right"><button type="button" className="inline-flex items-center gap-1 rounded-lg border border-brick/30 bg-brick-bg/40 px-2.5 py-1.5 text-xs font-bold text-brick transition hover:bg-brick-bg" onClick={() => void cancelSaleGroup(g)}><Trash2 className="h-3.5 w-3.5" /> Excluir</button></td></tr>)}`,
+`<td className={\`p-3 font-semibold \${g.total > g.pago ? "text-brick" : "text-muted-foreground"}\`}>{fmtBRL(Math.max(0, g.total - g.pago))}</td></tr>)}`,
+`<td className={\`p-3 font-semibold \${g.total > g.pago ? "text-brick" : "text-muted-foreground"}\`}>{fmtBRL(Math.max(0, g.total - g.pago))}</td><td className="p-3 text-right"><button type="button" className="inline-flex items-center gap-1 rounded-lg border border-brick/30 bg-brick-bg/40 px-2.5 py-1.5 text-xs font-bold text-brick transition hover:bg-brick-bg" onClick={() => void cancelSaleGroup(g)}><Trash2 className="h-3.5 w-3.5" /> Excluir</button></td></tr>)}`,
   'botão excluir comanda',
 );
 sales = sales.replace('return <Modal open onClose={onClose} title="Nova comanda"><form className="space-y-4"', 'return <Modal open onClose={onClose} title="Nova comanda"><form className="space-y-3"');
