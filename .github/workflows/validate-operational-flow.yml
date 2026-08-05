@@ -1,0 +1,36 @@
+name: Validate operational flow
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+    paths:
+      - scripts/validate-operational-flow.mjs
+      - src/routes/_authenticated/reservas.tsx
+      - src/routes/_authenticated/vendas.tsx
+      - src/components/MapaQuartos.tsx
+      - src/lib/guest-account.ts
+      - .github/workflows/validate-operational-flow.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  operational-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate operational invariants
+        run: node scripts/validate-operational-flow.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
