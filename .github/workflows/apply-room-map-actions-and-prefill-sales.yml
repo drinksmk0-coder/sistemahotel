@@ -1,0 +1,40 @@
+name: Apply room map actions and prefill sales
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+    paths:
+      - scripts/patch-room-map-actions-and-prefill-sales.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/patch-room-map-actions-and-prefill-sales.mjs
+      - run: npm run build
+      - name: Commit validated changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/MapaQuartos.tsx src/routes/_authenticated/vendas.tsx
+          git commit -m "restaura editar hospedagem e lançar venda no mapa"
+          git push origin HEAD:agent/versao-escolhida-integrada-final

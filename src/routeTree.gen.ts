@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ImprimirRouteImport } from './routes/imprimir'
+import { Route as CheckinPrintRouteImport } from './routes/checkin-print'
 import { Route as CheckinOnlineRouteImport } from './routes/checkin-online'
 import { Route as CadastroEmpresaRouteImport } from './routes/cadastro-empresa'
 import { Route as AvaliarRouteImport } from './routes/avaliar'
@@ -25,11 +26,13 @@ import { Route as AuthenticatedReservasRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedRelatorioConsumoAguaRouteImport } from './routes/_authenticated/relatorio-consumo-agua'
 import { Route as AuthenticatedReclamacoesRouteImport } from './routes/_authenticated/reclamacoes'
 import { Route as AuthenticatedQrcodesRouteImport } from './routes/_authenticated/qrcodes'
+import { Route as AuthenticatedPainelExecutivoRouteImport } from './routes/_authenticated/painel-executivo'
 import { Route as AuthenticatedPainelRouteImport } from './routes/_authenticated/painel'
 import { Route as AuthenticatedMensagensRouteImport } from './routes/_authenticated/mensagens'
 import { Route as AuthenticatedMemoriaIaRouteImport } from './routes/_authenticated/memoria-ia'
 import { Route as AuthenticatedMapaRouteImport } from './routes/_authenticated/mapa'
 import { Route as AuthenticatedIntegracoesRouteImport } from './routes/_authenticated/integracoes'
+import { Route as AuthenticatedFnrhRouteImport } from './routes/_authenticated/fnrh'
 import { Route as AuthenticatedFinanceiroRouteImport } from './routes/_authenticated/financeiro'
 import { Route as AuthenticatedFichasCheckinRouteImport } from './routes/_authenticated/fichas-checkin'
 import { Route as AuthenticatedEquipeRouteImport } from './routes/_authenticated/equipe'
@@ -37,10 +40,12 @@ import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedDespesasRouteImport } from './routes/_authenticated/despesas'
 import { Route as AuthenticatedDecisoesRouteImport } from './routes/_authenticated/decisoes'
 import { Route as AuthenticatedDashboardQuartosRouteImport } from './routes/_authenticated/dashboard-quartos'
-import { Route as AuthenticatedDashboardEstrategicoRouteImport } from './routes/_authenticated/dashboard-estrategico'
 import { Route as AuthenticatedClientesRouteImport } from './routes/_authenticated/clientes'
 import { Route as AuthenticatedCentralEstrategicaRouteImport } from './routes/_authenticated/central-estrategica'
+import { Route as AuthenticatedCaixaEntradaHotelRouteImport } from './routes/_authenticated/caixa-entrada-hotel'
+import { Route as AuthenticatedBookingEventosRouteImport } from './routes/_authenticated/booking-eventos'
 import { Route as AuthenticatedAvaliacoesRouteImport } from './routes/_authenticated/avaliacoes'
+import { Route as AuthenticatedAutomacoesIaRouteImport } from './routes/_authenticated/automacoes-ia'
 import { Route as AuthenticatedAssistenteRouteImport } from './routes/_authenticated/assistente'
 import { Route as AuthenticatedAjudaSistemaRouteImport } from './routes/_authenticated/ajuda-sistema'
 import { Route as AuthenticatedAdminPlataformaRouteImport } from './routes/_authenticated/admin-plataforma'
@@ -53,6 +58,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const ImprimirRoute = ImprimirRouteImport.update({
   id: '/imprimir',
   path: '/imprimir',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckinPrintRoute = CheckinPrintRouteImport.update({
+  id: '/checkin-print',
+  path: '/checkin-print',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CheckinOnlineRoute = CheckinOnlineRouteImport.update({
@@ -127,6 +137,12 @@ const AuthenticatedQrcodesRoute = AuthenticatedQrcodesRouteImport.update({
   path: '/qrcodes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPainelExecutivoRoute =
+  AuthenticatedPainelExecutivoRouteImport.update({
+    id: '/painel-executivo',
+    path: '/painel-executivo',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedPainelRoute = AuthenticatedPainelRouteImport.update({
   id: '/painel',
   path: '/painel',
@@ -153,6 +169,11 @@ const AuthenticatedIntegracoesRoute =
     path: '/integracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFnrhRoute = AuthenticatedFnrhRouteImport.update({
+  id: '/fnrh',
+  path: '/fnrh',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedFinanceiroRoute = AuthenticatedFinanceiroRouteImport.update({
   id: '/financeiro',
   path: '/financeiro',
@@ -190,12 +211,6 @@ const AuthenticatedDashboardQuartosRoute =
     path: '/dashboard-quartos',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
-const AuthenticatedDashboardEstrategicoRoute =
-  AuthenticatedDashboardEstrategicoRouteImport.update({
-    id: '/dashboard-estrategico',
-    path: '/dashboard-estrategico',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedClientesRoute = AuthenticatedClientesRouteImport.update({
   id: '/clientes',
   path: '/clientes',
@@ -207,11 +222,29 @@ const AuthenticatedCentralEstrategicaRoute =
     path: '/central-estrategica',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedCaixaEntradaHotelRoute =
+  AuthenticatedCaixaEntradaHotelRouteImport.update({
+    id: '/caixa-entrada-hotel',
+    path: '/caixa-entrada-hotel',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedBookingEventosRoute =
+  AuthenticatedBookingEventosRouteImport.update({
+    id: '/booking-eventos',
+    path: '/booking-eventos',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAvaliacoesRoute = AuthenticatedAvaliacoesRouteImport.update({
   id: '/avaliacoes',
   path: '/avaliacoes',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAutomacoesIaRoute =
+  AuthenticatedAutomacoesIaRouteImport.update({
+    id: '/automacoes-ia',
+    path: '/automacoes-ia',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedAssistenteRoute = AuthenticatedAssistenteRouteImport.update({
   id: '/assistente',
   path: '/assistente',
@@ -236,15 +269,18 @@ export interface FileRoutesByFullPath {
   '/avaliar': typeof AvaliarRoute
   '/cadastro-empresa': typeof CadastroEmpresaRoute
   '/checkin-online': typeof CheckinOnlineRoute
+  '/checkin-print': typeof CheckinPrintRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin-plataforma': typeof AuthenticatedAdminPlataformaRoute
   '/ajuda-sistema': typeof AuthenticatedAjudaSistemaRoute
   '/assistente': typeof AuthenticatedAssistenteRoute
+  '/automacoes-ia': typeof AuthenticatedAutomacoesIaRoute
   '/avaliacoes': typeof AuthenticatedAvaliacoesRoute
+  '/booking-eventos': typeof AuthenticatedBookingEventosRoute
+  '/caixa-entrada-hotel': typeof AuthenticatedCaixaEntradaHotelRoute
   '/central-estrategica': typeof AuthenticatedCentralEstrategicaRoute
   '/clientes': typeof AuthenticatedClientesRoute
-  '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
   '/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
   '/decisoes': typeof AuthenticatedDecisoesRoute
   '/despesas': typeof AuthenticatedDespesasRoute
@@ -252,11 +288,13 @@ export interface FileRoutesByFullPath {
   '/equipe': typeof AuthenticatedEquipeRoute
   '/fichas-checkin': typeof AuthenticatedFichasCheckinRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/fnrh': typeof AuthenticatedFnrhRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/memoria-ia': typeof AuthenticatedMemoriaIaRoute
   '/mensagens': typeof AuthenticatedMensagensRoute
   '/painel': typeof AuthenticatedPainelRoute
+  '/painel-executivo': typeof AuthenticatedPainelExecutivoRoute
   '/qrcodes': typeof AuthenticatedQrcodesRoute
   '/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/relatorio-consumo-agua': typeof AuthenticatedRelatorioConsumoAguaRoute
@@ -272,15 +310,18 @@ export interface FileRoutesByTo {
   '/avaliar': typeof AvaliarRoute
   '/cadastro-empresa': typeof CadastroEmpresaRoute
   '/checkin-online': typeof CheckinOnlineRoute
+  '/checkin-print': typeof CheckinPrintRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin-plataforma': typeof AuthenticatedAdminPlataformaRoute
   '/ajuda-sistema': typeof AuthenticatedAjudaSistemaRoute
   '/assistente': typeof AuthenticatedAssistenteRoute
+  '/automacoes-ia': typeof AuthenticatedAutomacoesIaRoute
   '/avaliacoes': typeof AuthenticatedAvaliacoesRoute
+  '/booking-eventos': typeof AuthenticatedBookingEventosRoute
+  '/caixa-entrada-hotel': typeof AuthenticatedCaixaEntradaHotelRoute
   '/central-estrategica': typeof AuthenticatedCentralEstrategicaRoute
   '/clientes': typeof AuthenticatedClientesRoute
-  '/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
   '/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
   '/decisoes': typeof AuthenticatedDecisoesRoute
   '/despesas': typeof AuthenticatedDespesasRoute
@@ -288,11 +329,13 @@ export interface FileRoutesByTo {
   '/equipe': typeof AuthenticatedEquipeRoute
   '/fichas-checkin': typeof AuthenticatedFichasCheckinRoute
   '/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/fnrh': typeof AuthenticatedFnrhRoute
   '/integracoes': typeof AuthenticatedIntegracoesRoute
   '/mapa': typeof AuthenticatedMapaRoute
   '/memoria-ia': typeof AuthenticatedMemoriaIaRoute
   '/mensagens': typeof AuthenticatedMensagensRoute
   '/painel': typeof AuthenticatedPainelRoute
+  '/painel-executivo': typeof AuthenticatedPainelExecutivoRoute
   '/qrcodes': typeof AuthenticatedQrcodesRoute
   '/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/relatorio-consumo-agua': typeof AuthenticatedRelatorioConsumoAguaRoute
@@ -310,15 +353,18 @@ export interface FileRoutesById {
   '/avaliar': typeof AvaliarRoute
   '/cadastro-empresa': typeof CadastroEmpresaRoute
   '/checkin-online': typeof CheckinOnlineRoute
+  '/checkin-print': typeof CheckinPrintRoute
   '/imprimir': typeof ImprimirRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/admin-plataforma': typeof AuthenticatedAdminPlataformaRoute
   '/_authenticated/ajuda-sistema': typeof AuthenticatedAjudaSistemaRoute
   '/_authenticated/assistente': typeof AuthenticatedAssistenteRoute
+  '/_authenticated/automacoes-ia': typeof AuthenticatedAutomacoesIaRoute
   '/_authenticated/avaliacoes': typeof AuthenticatedAvaliacoesRoute
+  '/_authenticated/booking-eventos': typeof AuthenticatedBookingEventosRoute
+  '/_authenticated/caixa-entrada-hotel': typeof AuthenticatedCaixaEntradaHotelRoute
   '/_authenticated/central-estrategica': typeof AuthenticatedCentralEstrategicaRoute
   '/_authenticated/clientes': typeof AuthenticatedClientesRoute
-  '/_authenticated/dashboard-estrategico': typeof AuthenticatedDashboardEstrategicoRoute
   '/_authenticated/dashboard-quartos': typeof AuthenticatedDashboardQuartosRoute
   '/_authenticated/decisoes': typeof AuthenticatedDecisoesRoute
   '/_authenticated/despesas': typeof AuthenticatedDespesasRoute
@@ -326,11 +372,13 @@ export interface FileRoutesById {
   '/_authenticated/equipe': typeof AuthenticatedEquipeRoute
   '/_authenticated/fichas-checkin': typeof AuthenticatedFichasCheckinRoute
   '/_authenticated/financeiro': typeof AuthenticatedFinanceiroRoute
+  '/_authenticated/fnrh': typeof AuthenticatedFnrhRoute
   '/_authenticated/integracoes': typeof AuthenticatedIntegracoesRoute
   '/_authenticated/mapa': typeof AuthenticatedMapaRoute
   '/_authenticated/memoria-ia': typeof AuthenticatedMemoriaIaRoute
   '/_authenticated/mensagens': typeof AuthenticatedMensagensRoute
   '/_authenticated/painel': typeof AuthenticatedPainelRoute
+  '/_authenticated/painel-executivo': typeof AuthenticatedPainelExecutivoRoute
   '/_authenticated/qrcodes': typeof AuthenticatedQrcodesRoute
   '/_authenticated/reclamacoes': typeof AuthenticatedReclamacoesRoute
   '/_authenticated/relatorio-consumo-agua': typeof AuthenticatedRelatorioConsumoAguaRoute
@@ -348,15 +396,18 @@ export interface FileRouteTypes {
     | '/avaliar'
     | '/cadastro-empresa'
     | '/checkin-online'
+    | '/checkin-print'
     | '/imprimir'
     | '/sitemap.xml'
     | '/admin-plataforma'
     | '/ajuda-sistema'
     | '/assistente'
+    | '/automacoes-ia'
     | '/avaliacoes'
+    | '/booking-eventos'
+    | '/caixa-entrada-hotel'
     | '/central-estrategica'
     | '/clientes'
-    | '/dashboard-estrategico'
     | '/dashboard-quartos'
     | '/decisoes'
     | '/despesas'
@@ -364,11 +415,13 @@ export interface FileRouteTypes {
     | '/equipe'
     | '/fichas-checkin'
     | '/financeiro'
+    | '/fnrh'
     | '/integracoes'
     | '/mapa'
     | '/memoria-ia'
     | '/mensagens'
     | '/painel'
+    | '/painel-executivo'
     | '/qrcodes'
     | '/reclamacoes'
     | '/relatorio-consumo-agua'
@@ -384,15 +437,18 @@ export interface FileRouteTypes {
     | '/avaliar'
     | '/cadastro-empresa'
     | '/checkin-online'
+    | '/checkin-print'
     | '/imprimir'
     | '/sitemap.xml'
     | '/admin-plataforma'
     | '/ajuda-sistema'
     | '/assistente'
+    | '/automacoes-ia'
     | '/avaliacoes'
+    | '/booking-eventos'
+    | '/caixa-entrada-hotel'
     | '/central-estrategica'
     | '/clientes'
-    | '/dashboard-estrategico'
     | '/dashboard-quartos'
     | '/decisoes'
     | '/despesas'
@@ -400,11 +456,13 @@ export interface FileRouteTypes {
     | '/equipe'
     | '/fichas-checkin'
     | '/financeiro'
+    | '/fnrh'
     | '/integracoes'
     | '/mapa'
     | '/memoria-ia'
     | '/mensagens'
     | '/painel'
+    | '/painel-executivo'
     | '/qrcodes'
     | '/reclamacoes'
     | '/relatorio-consumo-agua'
@@ -421,15 +479,18 @@ export interface FileRouteTypes {
     | '/avaliar'
     | '/cadastro-empresa'
     | '/checkin-online'
+    | '/checkin-print'
     | '/imprimir'
     | '/sitemap.xml'
     | '/_authenticated/admin-plataforma'
     | '/_authenticated/ajuda-sistema'
     | '/_authenticated/assistente'
+    | '/_authenticated/automacoes-ia'
     | '/_authenticated/avaliacoes'
+    | '/_authenticated/booking-eventos'
+    | '/_authenticated/caixa-entrada-hotel'
     | '/_authenticated/central-estrategica'
     | '/_authenticated/clientes'
-    | '/_authenticated/dashboard-estrategico'
     | '/_authenticated/dashboard-quartos'
     | '/_authenticated/decisoes'
     | '/_authenticated/despesas'
@@ -437,11 +498,13 @@ export interface FileRouteTypes {
     | '/_authenticated/equipe'
     | '/_authenticated/fichas-checkin'
     | '/_authenticated/financeiro'
+    | '/_authenticated/fnrh'
     | '/_authenticated/integracoes'
     | '/_authenticated/mapa'
     | '/_authenticated/memoria-ia'
     | '/_authenticated/mensagens'
     | '/_authenticated/painel'
+    | '/_authenticated/painel-executivo'
     | '/_authenticated/qrcodes'
     | '/_authenticated/reclamacoes'
     | '/_authenticated/relatorio-consumo-agua'
@@ -459,6 +522,7 @@ export interface RootRouteChildren {
   AvaliarRoute: typeof AvaliarRoute
   CadastroEmpresaRoute: typeof CadastroEmpresaRoute
   CheckinOnlineRoute: typeof CheckinOnlineRoute
+  CheckinPrintRoute: typeof CheckinPrintRoute
   ImprimirRoute: typeof ImprimirRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -478,6 +542,13 @@ declare module '@tanstack/react-router' {
       path: '/imprimir'
       fullPath: '/imprimir'
       preLoaderRoute: typeof ImprimirRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkin-print': {
+      id: '/checkin-print'
+      path: '/checkin-print'
+      fullPath: '/checkin-print'
+      preLoaderRoute: typeof CheckinPrintRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checkin-online': {
@@ -578,6 +649,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedQrcodesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/painel-executivo': {
+      id: '/_authenticated/painel-executivo'
+      path: '/painel-executivo'
+      fullPath: '/painel-executivo'
+      preLoaderRoute: typeof AuthenticatedPainelExecutivoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/painel': {
       id: '/_authenticated/painel'
       path: '/painel'
@@ -611,6 +689,13 @@ declare module '@tanstack/react-router' {
       path: '/integracoes'
       fullPath: '/integracoes'
       preLoaderRoute: typeof AuthenticatedIntegracoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/fnrh': {
+      id: '/_authenticated/fnrh'
+      path: '/fnrh'
+      fullPath: '/fnrh'
+      preLoaderRoute: typeof AuthenticatedFnrhRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/financeiro': {
@@ -662,13 +747,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardQuartosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/dashboard-estrategico': {
-      id: '/_authenticated/dashboard-estrategico'
-      path: '/dashboard-estrategico'
-      fullPath: '/dashboard-estrategico'
-      preLoaderRoute: typeof AuthenticatedDashboardEstrategicoRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/clientes': {
       id: '/_authenticated/clientes'
       path: '/clientes'
@@ -683,11 +761,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCentralEstrategicaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/caixa-entrada-hotel': {
+      id: '/_authenticated/caixa-entrada-hotel'
+      path: '/caixa-entrada-hotel'
+      fullPath: '/caixa-entrada-hotel'
+      preLoaderRoute: typeof AuthenticatedCaixaEntradaHotelRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/booking-eventos': {
+      id: '/_authenticated/booking-eventos'
+      path: '/booking-eventos'
+      fullPath: '/booking-eventos'
+      preLoaderRoute: typeof AuthenticatedBookingEventosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/avaliacoes': {
       id: '/_authenticated/avaliacoes'
       path: '/avaliacoes'
       fullPath: '/avaliacoes'
       preLoaderRoute: typeof AuthenticatedAvaliacoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/automacoes-ia': {
+      id: '/_authenticated/automacoes-ia'
+      path: '/automacoes-ia'
+      fullPath: '/automacoes-ia'
+      preLoaderRoute: typeof AuthenticatedAutomacoesIaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/assistente': {
@@ -718,10 +817,12 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminPlataformaRoute: typeof AuthenticatedAdminPlataformaRoute
   AuthenticatedAjudaSistemaRoute: typeof AuthenticatedAjudaSistemaRoute
   AuthenticatedAssistenteRoute: typeof AuthenticatedAssistenteRoute
+  AuthenticatedAutomacoesIaRoute: typeof AuthenticatedAutomacoesIaRoute
   AuthenticatedAvaliacoesRoute: typeof AuthenticatedAvaliacoesRoute
+  AuthenticatedBookingEventosRoute: typeof AuthenticatedBookingEventosRoute
+  AuthenticatedCaixaEntradaHotelRoute: typeof AuthenticatedCaixaEntradaHotelRoute
   AuthenticatedCentralEstrategicaRoute: typeof AuthenticatedCentralEstrategicaRoute
   AuthenticatedClientesRoute: typeof AuthenticatedClientesRoute
-  AuthenticatedDashboardEstrategicoRoute: typeof AuthenticatedDashboardEstrategicoRoute
   AuthenticatedDashboardQuartosRoute: typeof AuthenticatedDashboardQuartosRoute
   AuthenticatedDecisoesRoute: typeof AuthenticatedDecisoesRoute
   AuthenticatedDespesasRoute: typeof AuthenticatedDespesasRoute
@@ -729,11 +830,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedEquipeRoute: typeof AuthenticatedEquipeRoute
   AuthenticatedFichasCheckinRoute: typeof AuthenticatedFichasCheckinRoute
   AuthenticatedFinanceiroRoute: typeof AuthenticatedFinanceiroRoute
+  AuthenticatedFnrhRoute: typeof AuthenticatedFnrhRoute
   AuthenticatedIntegracoesRoute: typeof AuthenticatedIntegracoesRoute
   AuthenticatedMapaRoute: typeof AuthenticatedMapaRoute
   AuthenticatedMemoriaIaRoute: typeof AuthenticatedMemoriaIaRoute
   AuthenticatedMensagensRoute: typeof AuthenticatedMensagensRoute
   AuthenticatedPainelRoute: typeof AuthenticatedPainelRoute
+  AuthenticatedPainelExecutivoRoute: typeof AuthenticatedPainelExecutivoRoute
   AuthenticatedQrcodesRoute: typeof AuthenticatedQrcodesRoute
   AuthenticatedReclamacoesRoute: typeof AuthenticatedReclamacoesRoute
   AuthenticatedRelatorioConsumoAguaRoute: typeof AuthenticatedRelatorioConsumoAguaRoute
@@ -747,11 +850,12 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminPlataformaRoute: AuthenticatedAdminPlataformaRoute,
   AuthenticatedAjudaSistemaRoute: AuthenticatedAjudaSistemaRoute,
   AuthenticatedAssistenteRoute: AuthenticatedAssistenteRoute,
+  AuthenticatedAutomacoesIaRoute: AuthenticatedAutomacoesIaRoute,
   AuthenticatedAvaliacoesRoute: AuthenticatedAvaliacoesRoute,
+  AuthenticatedBookingEventosRoute: AuthenticatedBookingEventosRoute,
+  AuthenticatedCaixaEntradaHotelRoute: AuthenticatedCaixaEntradaHotelRoute,
   AuthenticatedCentralEstrategicaRoute: AuthenticatedCentralEstrategicaRoute,
   AuthenticatedClientesRoute: AuthenticatedClientesRoute,
-  AuthenticatedDashboardEstrategicoRoute:
-    AuthenticatedDashboardEstrategicoRoute,
   AuthenticatedDashboardQuartosRoute: AuthenticatedDashboardQuartosRoute,
   AuthenticatedDecisoesRoute: AuthenticatedDecisoesRoute,
   AuthenticatedDespesasRoute: AuthenticatedDespesasRoute,
@@ -759,11 +863,13 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedEquipeRoute: AuthenticatedEquipeRoute,
   AuthenticatedFichasCheckinRoute: AuthenticatedFichasCheckinRoute,
   AuthenticatedFinanceiroRoute: AuthenticatedFinanceiroRoute,
+  AuthenticatedFnrhRoute: AuthenticatedFnrhRoute,
   AuthenticatedIntegracoesRoute: AuthenticatedIntegracoesRoute,
   AuthenticatedMapaRoute: AuthenticatedMapaRoute,
   AuthenticatedMemoriaIaRoute: AuthenticatedMemoriaIaRoute,
   AuthenticatedMensagensRoute: AuthenticatedMensagensRoute,
   AuthenticatedPainelRoute: AuthenticatedPainelRoute,
+  AuthenticatedPainelExecutivoRoute: AuthenticatedPainelExecutivoRoute,
   AuthenticatedQrcodesRoute: AuthenticatedQrcodesRoute,
   AuthenticatedReclamacoesRoute: AuthenticatedReclamacoesRoute,
   AuthenticatedRelatorioConsumoAguaRoute:
@@ -784,6 +890,7 @@ const rootRouteChildren: RootRouteChildren = {
   AvaliarRoute: AvaliarRoute,
   CadastroEmpresaRoute: CadastroEmpresaRoute,
   CheckinOnlineRoute: CheckinOnlineRoute,
+  CheckinPrintRoute: CheckinPrintRoute,
   ImprimirRoute: ImprimirRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   ApiChatRoute: ApiChatRoute,

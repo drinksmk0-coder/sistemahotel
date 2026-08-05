@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -93,6 +93,17 @@ function Reservas() {
   const [moving, setMoving] = useState<Reservation | null>(null);
   const [filter, setFilter] = useState("ativas");
   const [search, setSearch] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
+
+  useEffect(() => {
+    const reservationId = new URLSearchParams(window.location.search).get("editar");
+    if (!reservationId || !reservations.length) return;
+    const reservation = reservations.find((item) => item.id === reservationId);
+    if (!reservation) return;
+    setEditing(reservation);
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [reservations]);
+
   const overdueDepartures = reservations.filter(
     (reservation) =>
       reservation.status === "saida_pendente" ||
@@ -120,6 +131,14 @@ function Reservas() {
     else if (filter === "todas") filteredRows = reservations;
     else filteredRows = reservations.filter((r) => r.status === filter);
 
+    if (dateFilter) {
+      filteredRows = filteredRows.filter(
+        (reservation) =>
+          reservation.checkin <= dateFilter && reservation.checkout >= dateFilter,
+      );
+    }
+
+
     const term = search.trim().toLocaleLowerCase("pt-BR");
     if (!term) return filteredRows;
     return filteredRows.filter((reservation) =>
@@ -132,7 +151,7 @@ function Reservas() {
         reservation.billing_company_name,
       ].some((value) => String(value ?? "").toLocaleLowerCase("pt-BR").includes(term)),
     );
-  }, [reservations, sales, filter, search]);
+  }, [reservations, sales, filter, search, dateFilter]);
 
   function exportCSV(scope: ExportScope) {
     const exportedReservations =
@@ -400,6 +419,25 @@ function Reservas() {
             className="field h-9 bg-muted/45 pl-9"
             placeholder="Buscar por hóspede, código, quarto ou canal..."
           />
+        </label>
+        <label className="flex min-w-[170px] items-center gap-2 rounded-lg border border-border bg-background px-2 text-xs font-semibold text-muted-foreground">
+          <span>Data</span>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={(event) => setDateFilter(event.target.value)}
+            className="h-8 min-w-0 flex-1 bg-transparent text-foreground outline-none"
+          />
+          {dateFilter && (
+            <button
+              type="button"
+              onClick={() => setDateFilter("")}
+              className="rounded px-1 text-muted-foreground hover:text-foreground"
+              title="Limpar data"
+            >
+              ×
+            </button>
+          )}
         </label>
         <div className="flex flex-wrap gap-1 text-xs">
           {["ativas", "saidas", "pendencias", "reservado", "ocupado", "finalizado", "todas"].map((f) => (
@@ -763,12 +801,20 @@ function RowActions({
                 },
               },
               {
-                onSuccess: () =>
+                onSuccess: () => {
+                  updateRoom.mutate(
+                    { id: reservation.quarto, patch: { situacao: "ocupado" } },
+                    {
+                      onError: (e: Error) =>
+                        toast.error(`Check-in feito, mas falhou ao atualizar o quarto: ${e.message}`),
+                    },
+                  );
                   toast.success(
                     balance > 0
                       ? `Check-in realizado com saldo pendente de ${fmtBRL(balance)}.`
                       : "Check-in realizado",
-                  ),
+                  );
+                },
                 onError: (e: Error) => toast.error(e.message),
               },
             )
@@ -880,30 +926,32 @@ function RowActions({
           <Star className="h-3.5 w-3.5" />
         </button>
       )}
-      <button
-        className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
-        onClick={() => {
-          if (
-            !window.confirm(
-              `Cancelar a reserva de ${reservation.cliente_nome}? O registro será mantido no histórico.`,
+      {!done && (
+        <button
+          className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
+          onClick={() => {
+            if (
+              !window.confirm(
+                `Cancelar a reserva de ${reservation.cliente_nome}? O registro será mantido no histórico.`,
+              )
             )
-          )
-            return;
-          update.mutate(
-            {
-              id: reservation.id,
-              patch: { status: "cancelado" },
-            },
-            {
-              onSuccess: () => toast.success("Reserva cancelada"),
-              onError: (e: Error) => toast.error(e.message),
-            },
-          );
-        }}
-        title="Cancelar reserva"
-      >
-        <Ban className="h-3.5 w-3.5" />
-      </button>
+              return;
+            update.mutate(
+              {
+                id: reservation.id,
+                patch: { status: "cancelado" },
+              },
+              {
+                onSuccess: () => toast.success("Reserva cancelada"),
+                onError: (e: Error) => toast.error(e.message),
+              },
+            );
+          }}
+          title="Cancelar reserva"
+        >
+          <Ban className="h-3.5 w-3.5" />
+        </button>
+      )}
       <button
         className="rounded-md bg-brick-bg px-2 py-1 text-xs font-semibold text-brick"
         onClick={() => {

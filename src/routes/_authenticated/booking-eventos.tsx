@@ -26,7 +26,7 @@ type BookingEmailEvent = {
 type ReservationSummary = {
   id: string;
   cliente_nome: string;
-  quarto: string;
+  quarto: number | string;
   checkin: string;
   checkout: string;
   status: string;
@@ -41,8 +41,8 @@ function BookingEventos() {
     enabled: !!current.data?.id,
     queryFn: async (): Promise<PortalRow[]> => {
       const companyId = current.data!.id;
-      const { data: eventData, error: eventError } = await supabase
-        .from("booking_email_events" as never)
+      const { data: eventData, error: eventError } = await (supabase as any)
+        .from("booking_email_events")
         .select("id,booking_code,status,reservation_id,previous_status,new_status,error,received_at,created_at")
         .eq("company_id", companyId)
         .order("created_at", { ascending: false });
@@ -53,13 +53,13 @@ function BookingEventos() {
       let reservations: ReservationSummary[] = [];
 
       if (reservationIds.length > 0) {
-        const { data: reservationData, error: reservationError } = await supabase
+        const { data: reservationData, error: reservationError } = await (supabase as any)
           .from("reservations")
           .select("id,cliente_nome,quarto,checkin,checkout,status")
           .eq("company_id", companyId)
           .in("id", reservationIds);
         if (reservationError) throw reservationError;
-        reservations = (reservationData ?? []) as ReservationSummary[];
+        reservations = (reservationData ?? []) as unknown as ReservationSummary[];
       }
 
       const byId = new Map(reservations.map((reservation) => [reservation.id, reservation]));

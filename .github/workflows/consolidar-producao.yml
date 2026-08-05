@@ -1,0 +1,69 @@
+name: Consolidar versão atual em produção
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+    paths:
+      - .github/workflows/consolidar-producao.yml
+
+permissions:
+  contents: write
+
+jobs:
+  consolidar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Remover dashboard estratégico duplicado
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          layout = Path('src/components/AppLayout.tsx')
+          text = layout.read_text(encoding='utf-8')
+          text = text.replace('  TrendingUp,\n', '')
+          text = re.sub(
+              r'\n  \{\n    to: "/dashboard-estrategico",\n    label: "Estratégia e previsão",\n    icon: TrendingUp,\n    roles: \["dono"\],\n    group: "Inteligência",\n  \},',
+              '',
+              text,
+              count=1,
+          )
+          layout.write_text(text, encoding='utf-8')
+
+          route = Path('src/routes/_authenticated/dashboard-estrategico.tsx')
+          if route.exists():
+              route.unlink()
+          PY
+
+      - name: Instalar e validar
+        run: |
+          npm ci
+          npm run build
+
+      - name: Gravar consolidação
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/AppLayout.tsx src/routes/_authenticated/dashboard-estrategico.tsx
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração pendente."
+          else
+            git commit -m "remove dashboard estratégico duplicado"
+            git push origin HEAD:agent/versao-escolhida-integrada-final
+          fi
+
+      - name: Sincronizar produção
+        run: |
+          git fetch origin main
+          git push origin HEAD:main

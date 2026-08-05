@@ -6,19 +6,24 @@ import { ExecutiveDashboardUiGuard } from "@/components/executive/ExecutiveDashb
 import { ExecutiveDonutLegendStandardizer } from "@/components/executive/ExecutiveDonutLegendStandardizer";
 import { ExecutiveExpenseCategoryFrequency } from "@/components/executive/ExecutiveExpenseCategoryFrequency";
 import { ExecutiveRevenueExpenseGopChart } from "@/components/executive/ExecutiveRevenueExpenseGopChart";
+import { ExecutiveStrategyScorecardPortal } from "@/components/executive/ExecutiveStrategyScorecardPortal";
 import "@/components/executive/executive-dashboard-reference-enhancements.css";
 import "@/components/executive/executive-dashboard-responsive.css";
+import "@/components/executive/executive-dashboard-mobile.css";
+import "@/components/executive/executive-dashboard-print-a4.css";
 import "@/components/executive/executive-dashboard-financial-map.css";
 import "@/components/executive/executive-dashboard-donut-legend.css";
 import "@/components/executive/executive-dashboard-final-polish.css";
+import "@/components/executive/executive-dashboard-desktop-compact.css";
 
 export function ExecutiveBiDashboardReadable() {
   return (
     <div
-      className="executive-readable-root h-full min-h-0 overflow-hidden"
+      className="executive-readable-root h-full min-h-0 overflow-x-hidden overflow-y-auto"
       data-executive-dashboard
     >
       <ExecutiveDashboardReference />
+      <ExecutiveStrategyScorecardPortal />
       <ExecutiveDashboardInteractions />
       <ExecutiveRevenueExpenseGopChart />
       <ExecutiveCancellationImpact />

@@ -1,0 +1,51 @@
+name: Regenerate TanStack route tree
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+    paths:
+      - 'src/routes/**'
+      - 'src/routeTree.gen.ts'
+      - '.github/workflows/regenerate-route-tree.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate route tree through production build
+        run: npm run build
+
+      - name: Commit generated route tree
+        run: |
+          if git diff --quiet -- src/routeTree.gen.ts; then
+            echo "Route tree already synchronized"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add src/routeTree.gen.ts
+            git commit -m "sincroniza route tree com rotas atuais"
+            git push origin HEAD:agent/versao-escolhida-integrada-final
+          fi
+
+      - name: Report remaining TypeScript errors
+        continue-on-error: true
+        run: npm run typecheck

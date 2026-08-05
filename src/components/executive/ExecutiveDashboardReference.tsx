@@ -498,7 +498,7 @@ function StateRevenueMap({ rows }: { rows: StateValue[] }) {
     <div className="grid min-h-60 items-center gap-3 sm:grid-cols-[1.1fr_0.9fr]">
       <div>
         <svg viewBox={brazil.viewBox} className="mx-auto h-52 w-full" role="img" aria-label="Mapa do Brasil por receita">
-          {brazil.locations.map((location) => {
+          {brazil.locations.map((location: { id: string; path: string; name: string }) => {
             const row = values.get(stateCode(location.id));
             const opacity = row?.revenue ? 0.2 + (row.revenue / maxRevenue) * 0.8 : 0.08;
             return <path key={location.id} d={location.path} fill={BLUE} fillOpacity={opacity} stroke="white" strokeWidth="1.2"><title>{location.name}: {row?.guests ?? 0} hóspedes · {fmtBRL(row?.revenue ?? 0)}</title></path>;

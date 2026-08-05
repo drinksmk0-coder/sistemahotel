@@ -1,0 +1,46 @@
+name: Fix operational typecheck
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+    paths:
+      - scripts/fix-operational-typecheck.mjs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply focused type fixes
+        run: node scripts/fix-operational-typecheck.mjs
+      - name: Validate operational invariants
+        run: node scripts/validate-operational-flow.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Commit validated fixes
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/executive/ExecutiveBiDashboard.tsx src/components/executive/ExecutiveDashboardReference.tsx src/routes/_authenticated/booking-eventos.tsx src/routes/_authenticated/vendas.tsx
+          git commit -m "corrige typecheck do fluxo operacional"
+          git push origin HEAD:agent/versao-escolhida-integrada-final
