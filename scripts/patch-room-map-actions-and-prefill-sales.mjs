@@ -44,3 +44,4 @@ sales = sales.replace(
 fs.writeFileSync(mapPath, map);
 fs.writeFileSync(salesPath, sales);
 console.log('Mapa de quartos e vendas atualizados com ações operacionais.');
+// workflow retrigger 2026-08-05
