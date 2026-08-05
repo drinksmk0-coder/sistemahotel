@@ -1,0 +1,137 @@
+/* Ajustes exclusivos para o painel executivo em computador. */
+
+.executive-readable-root .executive-help-tooltip,
+.executive-readable-root .recharts-tooltip-wrapper {
+  display: none !important;
+}
+
+@media (min-width: 1024px) {
+  body:has([data-executive-dashboard]) nav.fixed.bottom-0,
+  body:has([data-executive-dashboard]) [class*="fixed"][class*="bottom-0"][role="navigation"] {
+    display: none !important;
+  }
+
+  .executive-readable-root {
+    overflow: visible !important;
+  }
+
+  .executive-readable-root > div:first-child {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0.35rem 0.65rem 0.75rem !important;
+  }
+
+  .executive-readable-root > div:first-child > * + * {
+    margin-top: 0.45rem !important;
+  }
+
+  .executive-readable-root header {
+    min-height: 0 !important;
+    padding: 0.6rem 0.85rem !important;
+    gap: 0.55rem !important;
+    border-radius: 0.9rem !important;
+  }
+
+  .executive-readable-root header h1 {
+    font-size: 1.05rem !important;
+    line-height: 1.2rem !important;
+  }
+
+  .executive-readable-root header p {
+    font-size: 0.68rem !important;
+    line-height: 0.9rem !important;
+  }
+
+  .executive-readable-root header > div:first-child > div:first-child {
+    width: 2.15rem !important;
+    height: 2.15rem !important;
+  }
+
+  .executive-readable-root header input[type="date"] {
+    height: 2rem !important;
+    width: 6.8rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .executive-readable-root header button,
+  .executive-readable-root header > div:last-child > div,
+  .executive-dashboard-controls-host,
+  .executive-control-button {
+    min-height: 2rem !important;
+    height: 2rem !important;
+    padding-inline: 0.6rem !important;
+    font-size: 0.68rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type {
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+    gap: 0.4rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article {
+    min-height: 4.55rem !important;
+    padding: 0.5rem 0.6rem !important;
+    gap: 0.45rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article > div:first-child {
+    width: 2rem !important;
+    height: 2rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article strong {
+    font-size: 0.9rem !important;
+    line-height: 1rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:first-of-type article p,
+  .executive-readable-root > div:first-child > section:first-of-type article span {
+    font-size: 0.58rem !important;
+    line-height: 0.76rem !important;
+  }
+
+  .executive-readable-root > div:first-child > section:nth-of-type(2),
+  .executive-readable-root > div:first-child > section:nth-of-type(3) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .executive-readable-root article {
+    padding: 0.65rem !important;
+    border-radius: 0.85rem !important;
+  }
+
+  .executive-readable-root article h2 {
+    margin-bottom: 0.35rem !important;
+    font-size: 0.78rem !important;
+    line-height: 1rem !important;
+  }
+
+  .executive-readable-root .h-52 {
+    height: 10.5rem !important;
+  }
+
+  .executive-readable-root .h-48 {
+    height: 9.8rem !important;
+  }
+
+  .executive-readable-root .min-h-52,
+  .executive-readable-root .min-h-60 {
+    min-height: 10.5rem !important;
+  }
+
+  .executive-readable-root > div:first-child > article [class~="h-[300px]"] {
+    height: 14.5rem !important;
+  }
+
+  .executive-readable-root footer {
+    padding-block: 0.15rem !important;
+    font-size: 0.6rem !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .executive-readable-root > div:first-child {
+    padding-inline: 0.9rem !important;
+  }
+}
