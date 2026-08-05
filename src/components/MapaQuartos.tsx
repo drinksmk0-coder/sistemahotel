@@ -6,6 +6,7 @@ import {
   Plus,
   Rows3,
   SlidersHorizontal,
+  ShoppingCart,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -667,6 +668,18 @@ function RoomDetailModal({
             )}
           </div>
           <div className="flex flex-wrap gap-2">
+            {stay && (
+              <a
+                className="btn-ghost inline-flex items-center gap-1"
+                href={`/vendas?quarto=${room.numero}`}
+                title={`Lançar venda para ${stay.cliente_nome} no quarto ${room.numero}`}
+              >
+                <ShoppingCart className="h-4 w-4" /> Lançar venda
+              </a>
+            )}
+            {stay && (
+              <a className="btn-ghost" href={`/reservas?editar=${stay.id}`}>Editar hospedagem</a>
+            )}
             {whatsapp && (
               <a
                 className="btn-ghost inline-flex items-center gap-1"
@@ -676,6 +689,28 @@ function RoomDetailModal({
               >
                 <MessageCircle className="h-4 w-4" /> WhatsApp
               </a>
+            )}
+            {stay && (
+              <>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => {
+                    window.location.href = `/reservas?editar=${stay.id}`;
+                  }}
+                >
+                  Editar hospedagem
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => {
+                    window.location.href = `/vendas?quarto=${room.numero}&reserva=${stay.id}`;
+                  }}
+                >
+                  Lançar venda
+                </button>
+              </>
             )}
             <button
               type="button"
