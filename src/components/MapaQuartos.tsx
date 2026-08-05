@@ -685,6 +685,8 @@ function RoomDetailModal({
                 <ShoppingCart className="h-4 w-4" /> Lançar venda
               </a>
             )}
+
+
             {stay && (
               <a
                 className="btn-ghost inline-flex items-center gap-1"

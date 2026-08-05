@@ -170,31 +170,17 @@ function Vendas() {
   }
 
   async function cancelSaleGroup(group: { id: string; itens: Sale[]; comprador: string; total: number }) {
+    if (!companyId) throw new Error("Empresa não encontrada.");
     const confirmed = window.confirm(
       `Excluir a comanda de ${group.comprador} no valor de ${fmtBRL(group.total)}? O estoque será devolvido e o histórico ficará preservado como cancelado.`,
     );
     if (!confirmed) return;
 
-    for (const item of group.itens) {
-      if (item.produto_id) {
-        const product = products.find((row) => row.id === item.produto_id);
-        if (product) {
-          const restored = Number(product.estoque_atual ?? 0) + Number(item.qtd ?? 0);
-          const stockResult = await (supabase as any)
-            .from("products")
-            .update({ estoque_atual: restored })
-            .eq("id", product.id)
-            .eq("company_id", companyId);
-          if (stockResult.error) throw stockResult.error;
-        }
-      }
-
-      const cancelResult = await (supabase as any)
-        .from("sales")
-        .update({ status: "cancelado", valor_pago: 0 })
-        .eq("id", item.id);
-      if (cancelResult.error) throw cancelResult.error;
-    }
+    const { error } = await (supabase as any).rpc("cancel_sale_group", {
+      _company_id: companyId,
+      _sale_ids: group.itens.map((item) => item.id),
+    });
+    if (error) throw error;
 
     await refresh();
     toast.success("Comanda excluída, estoque devolvido e histórico preservado.");
