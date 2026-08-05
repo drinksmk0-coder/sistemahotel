@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - name: Apply focused fixes
@@ -42,5 +42,7 @@ jobs:
             exit 0
           fi
           git commit -m "corrige exclusão de vendas, ações duplicadas e modais"
-          git pull --rebase origin agent/versao-escolhida-integrada-final
+          git reset --hard HEAD
+          git fetch origin agent/versao-escolhida-integrada-final
+          git rebase origin/agent/versao-escolhida-integrada-final
           git push origin HEAD:agent/versao-escolhida-integrada-final
