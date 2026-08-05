@@ -164,6 +164,13 @@ const NAV_ITEMS: NavigationItem[] = [
     group: "Inteligência",
   },
   {
+    to: "/automacoes-ia",
+    label: "Automações com IA",
+    icon: Bot,
+    roles: ["dono"],
+    group: "Inteligência",
+  },
+  {
     to: "/integracoes",
     label: "Integrações",
     icon: Settings,
