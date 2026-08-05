@@ -6,6 +6,7 @@ import { ExecutiveDashboardUiGuard } from "@/components/executive/ExecutiveDashb
 import { ExecutiveDonutLegendStandardizer } from "@/components/executive/ExecutiveDonutLegendStandardizer";
 import { ExecutiveExpenseCategoryFrequency } from "@/components/executive/ExecutiveExpenseCategoryFrequency";
 import { ExecutiveRevenueExpenseGopChart } from "@/components/executive/ExecutiveRevenueExpenseGopChart";
+import { ExecutiveStrategyScorecardPortal } from "@/components/executive/ExecutiveStrategyScorecardPortal";
 import "@/components/executive/executive-dashboard-reference-enhancements.css";
 import "@/components/executive/executive-dashboard-responsive.css";
 import "@/components/executive/executive-dashboard-financial-map.css";
@@ -20,6 +21,7 @@ export function ExecutiveBiDashboardReadable() {
       data-executive-dashboard
     >
       <ExecutiveDashboardReference />
+      <ExecutiveStrategyScorecardPortal />
       <ExecutiveDashboardInteractions />
       <ExecutiveRevenueExpenseGopChart />
       <ExecutiveCancellationImpact />
