@@ -25,17 +25,26 @@ patchFile("src/routes/_authenticated/vendas.tsx", (source) => {
   return source;
 });
 
+patchFile("src/routes/_authenticated/reservas.tsx", (source) => {
+  source = source.replace(
+    'import { useMemo, useRef, useState } from "react";',
+    'import { useEffect, useMemo, useRef, useState } from "react";',
+  );
+
+  const marker = '  const [search, setSearch] = useState("");';
+  const addition = `${marker}\n\n  useEffect(() => {\n    const reservationId = new URLSearchParams(window.location.search).get("editar");\n    if (!reservationId || !reservations.length) return;\n    const reservation = reservations.find((item) => item.id === reservationId);\n    if (!reservation) return;\n    setEditing(reservation);\n    window.history.replaceState({}, "", window.location.pathname);\n  }, [reservations]);`;
+  if (!source.includes(addition) && source.includes(marker)) {
+    source = source.replace(marker, addition);
+  }
+
+  return source;
+});
+
 patchFile("src/routes/_authenticated/fichas-checkin.tsx", (source) => {
   source = source.replace(
     /    const guestsDelete = await \(supabase as any\)[\s\S]*?    if \(guestsDelete\.error\) \{[\s\S]*?      return;\n    \}\n/,
-    '',
+    "",
   );
-
-  source = source.replace(
-    '    const result = await (supabase as any)\n      .from("guest_checkins")',
-    '    const result = await (supabase as any)\n      .from("guest_checkins")',
-  );
-
   return source;
 });
 
