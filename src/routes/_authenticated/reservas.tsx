@@ -93,6 +93,7 @@ function Reservas() {
   const [moving, setMoving] = useState<Reservation | null>(null);
   const [filter, setFilter] = useState("ativas");
   const [search, setSearch] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
 
   useEffect(() => {
     const reservationId = new URLSearchParams(window.location.search).get("editar");
@@ -102,7 +103,7 @@ function Reservas() {
     setEditing(reservation);
     window.history.replaceState({}, "", window.location.pathname);
   }, [reservations]);
-  const [dateFilter, setDateFilter] = useState("");
+
   const overdueDepartures = reservations.filter(
     (reservation) =>
       reservation.status === "saida_pendente" ||
@@ -132,16 +133,11 @@ function Reservas() {
 
     if (dateFilter) {
       filteredRows = filteredRows.filter(
-        (reservation) => reservation.checkin <= dateFilter && reservation.checkout >= dateFilter,
-      );
-    }
-
-    if (dateFilter) {
-      filteredRows = filteredRows.filter(
         (reservation) =>
           reservation.checkin <= dateFilter && reservation.checkout >= dateFilter,
       );
     }
+
 
     const term = search.trim().toLocaleLowerCase("pt-BR");
     if (!term) return filteredRows;
@@ -443,21 +439,7 @@ function Reservas() {
             </button>
           )}
         </label>
-        <div className="flex flex-wrap items-center gap-1 text-xs">
-          <label className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1">
-            <span className="font-semibold text-muted-foreground">Na data</span>
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(event) => setDateFilter(event.target.value)}
-              className="bg-transparent text-xs outline-none"
-            />
-          </label>
-          {dateFilter && (
-            <button type="button" className="rounded-full bg-muted px-2.5 py-1.5 font-semibold" onClick={() => setDateFilter("")}>
-              Limpar data
-            </button>
-          )}
+        <div className="flex flex-wrap gap-1 text-xs">
           {["ativas", "saidas", "pendencias", "reservado", "ocupado", "finalizado", "todas"].map((f) => (
             <button
               key={f}
