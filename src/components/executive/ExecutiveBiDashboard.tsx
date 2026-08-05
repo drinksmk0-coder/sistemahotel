@@ -472,7 +472,7 @@ function BrazilStateMap({ rows }: { rows: StateRow[] }) {
   return (
     <div className="grid items-center gap-3 sm:grid-cols-[1.15fr_0.85fr]">
       <svg viewBox={brazil.viewBox} className="mx-auto h-64 w-full" role="img" aria-label="Mapa do Brasil com receita por estado">
-        {brazil.locations.map((location) => {
+        {brazil.locations.map((location: { id: string; path: string; name: string }) => {
           const row = values.get(stateCode(location.id));
           const opacity = row?.revenue ? 0.18 + (row.revenue / maxRevenue) * 0.82 : 0.06;
           return (

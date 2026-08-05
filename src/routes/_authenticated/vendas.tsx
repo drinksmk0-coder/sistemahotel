@@ -317,7 +317,7 @@ function PurchaseModal({ initialRoom, rooms, reservations, products, employees, 
   const [buyerType, setBuyerType] = useState<"hospede" | "funcionario">("hospede");
   const [room, setRoom] = useState<number | null>(initialRoom ?? rooms[0]?.numero ?? null);
   const [employeeName, setEmployeeName] = useState("");
-  const [payment, setPayment] = useState(PAYMENT_METHODS[0]);
+  const [payment, setPayment] = useState<string>(PAYMENT_METHODS[0]);
   const [paid, setPaid] = useState<number | "">("");
   const [productId, setProductId] = useState("");
   const [manualItem, setManualItem] = useState("");
