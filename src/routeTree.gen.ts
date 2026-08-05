@@ -19,6 +19,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as AuthenticatedWhatsappZapiRouteImport } from './routes/_authenticated/whatsapp-zapi'
 import { Route as AuthenticatedVendasProdutosRouteImport } from './routes/_authenticated/vendas-produtos'
 import { Route as AuthenticatedVendasRouteImport } from './routes/_authenticated/vendas'
 import { Route as AuthenticatedTarifarioRouteImport } from './routes/_authenticated/tarifario'
@@ -99,6 +100,12 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedWhatsappZapiRoute =
+  AuthenticatedWhatsappZapiRouteImport.update({
+    id: '/whatsapp-zapi',
+    path: '/whatsapp-zapi',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedVendasProdutosRoute =
   AuthenticatedVendasProdutosRouteImport.update({
     id: '/vendas-produtos',
@@ -302,6 +309,7 @@ export interface FileRoutesByFullPath {
   '/tarifario': typeof AuthenticatedTarifarioRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
+  '/whatsapp-zapi': typeof AuthenticatedWhatsappZapiRoute
   '/api/chat': typeof ApiChatRoute
 }
 export interface FileRoutesByTo {
@@ -343,6 +351,7 @@ export interface FileRoutesByTo {
   '/tarifario': typeof AuthenticatedTarifarioRoute
   '/vendas': typeof AuthenticatedVendasRoute
   '/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
+  '/whatsapp-zapi': typeof AuthenticatedWhatsappZapiRoute
   '/api/chat': typeof ApiChatRoute
 }
 export interface FileRoutesById {
@@ -386,6 +395,7 @@ export interface FileRoutesById {
   '/_authenticated/tarifario': typeof AuthenticatedTarifarioRoute
   '/_authenticated/vendas': typeof AuthenticatedVendasRoute
   '/_authenticated/vendas-produtos': typeof AuthenticatedVendasProdutosRoute
+  '/_authenticated/whatsapp-zapi': typeof AuthenticatedWhatsappZapiRoute
   '/api/chat': typeof ApiChatRoute
 }
 export interface FileRouteTypes {
@@ -429,6 +439,7 @@ export interface FileRouteTypes {
     | '/tarifario'
     | '/vendas'
     | '/vendas-produtos'
+    | '/whatsapp-zapi'
     | '/api/chat'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -470,6 +481,7 @@ export interface FileRouteTypes {
     | '/tarifario'
     | '/vendas'
     | '/vendas-produtos'
+    | '/whatsapp-zapi'
     | '/api/chat'
   id:
     | '__root__'
@@ -512,6 +524,7 @@ export interface FileRouteTypes {
     | '/_authenticated/tarifario'
     | '/_authenticated/vendas'
     | '/_authenticated/vendas-produtos'
+    | '/_authenticated/whatsapp-zapi'
     | '/api/chat'
   fileRoutesById: FileRoutesById
 }
@@ -599,6 +612,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/whatsapp-zapi': {
+      id: '/_authenticated/whatsapp-zapi'
+      path: '/whatsapp-zapi'
+      fullPath: '/whatsapp-zapi'
+      preLoaderRoute: typeof AuthenticatedWhatsappZapiRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/vendas-produtos': {
       id: '/_authenticated/vendas-produtos'
@@ -844,6 +864,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedTarifarioRoute: typeof AuthenticatedTarifarioRoute
   AuthenticatedVendasRoute: typeof AuthenticatedVendasRoute
   AuthenticatedVendasProdutosRoute: typeof AuthenticatedVendasProdutosRoute
+  AuthenticatedWhatsappZapiRoute: typeof AuthenticatedWhatsappZapiRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -878,6 +899,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedTarifarioRoute: AuthenticatedTarifarioRoute,
   AuthenticatedVendasRoute: AuthenticatedVendasRoute,
   AuthenticatedVendasProdutosRoute: AuthenticatedVendasProdutosRoute,
+  AuthenticatedWhatsappZapiRoute: AuthenticatedWhatsappZapiRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
