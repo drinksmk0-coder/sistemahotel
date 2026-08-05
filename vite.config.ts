@@ -7,6 +7,7 @@
 import "./scripts/apply-final-workflow-fixes.mjs";
 import "./scripts/fix-preview-regressions.mjs";
 import "./scripts/fix-sales-legacy-schema.mjs";
+import "./scripts/fix-room-map-actions.mjs";
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
