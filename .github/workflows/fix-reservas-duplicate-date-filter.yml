@@ -1,0 +1,42 @@
+name: Fix reservation date filter duplication
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+    paths:
+      - scripts/fix-reservas-duplicate-date-filter.mjs
+      - .github/workflows/fix-reservas-duplicate-date-filter.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+          fetch-depth: 0
+
+      - name: Apply fix
+        run: node scripts/fix-reservas-duplicate-date-filter.mjs
+
+      - name: Verify build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Commit changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/_authenticated/reservas.tsx
+          git commit -m "remove duplicação do filtro de data em reservas"
+          git push origin HEAD:agent/versao-escolhida-integrada-final
