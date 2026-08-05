@@ -630,7 +630,7 @@ function RoomDetailModal({
       title={`Quarto ${room.numero} — ${room.andar}º andar`}
       wide
     >
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap gap-2">
             <button
@@ -668,7 +668,25 @@ function RoomDetailModal({
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            
+            {stay && (
+              <a
+                className="btn-ghost"
+                href={`/reservas?editar=${stay.id}`}
+              >
+                Editar hospedagem
+              </a>
+            )}
+            {stay && (
+              <a
+                className="btn-primary inline-flex items-center gap-1"
+                href={`/vendas?quarto=${room.numero}&reserva=${stay.id}`}
+                title={`Lançar venda para ${stay.cliente_nome} no quarto ${room.numero}`}
+              >
+                <ShoppingCart className="h-4 w-4" /> Lançar venda
+              </a>
+            )}
+
+
             {stay && (
               <a
                 className="btn-ghost inline-flex items-center gap-1"
@@ -691,28 +709,6 @@ function RoomDetailModal({
                 <MessageCircle className="h-4 w-4" /> WhatsApp
               </a>
             )}
-            {stay && (
-              <>
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={() => {
-                    window.location.href = `/reservas?editar=${stay.id}`;
-                  }}
-                >
-                  Editar hospedagem
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => {
-                    window.location.href = `/vendas?quarto=${room.numero}&reserva=${stay.id}`;
-                  }}
-                >
-                  Lançar venda
-                </button>
-              </>
-            )}
             <button
               type="button"
               className="btn-primary inline-flex items-center gap-1"
@@ -729,8 +725,8 @@ function RoomDetailModal({
           onSave={onSaveFeatures}
         />
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <section className="rounded-xl border border-border p-3">
+        <div className="grid gap-3 md:grid-cols-2">
+          <section className="rounded-xl border border-border bg-background/40 p-3 shadow-sm">
             <h4 className="font-semibold text-pine-dark">
               Hospedagem em {fmtDate(viewDate)}
             </h4>
@@ -798,7 +794,7 @@ function RoomDetailModal({
             )}
           </section>
 
-          <section className="rounded-xl border border-border p-3">
+          <section className="rounded-xl border border-border bg-background/40 p-3 shadow-sm">
             <div className="flex items-center justify-between gap-2">
               <h4 className="font-semibold text-pine-dark">
                 Ocorrências ativas

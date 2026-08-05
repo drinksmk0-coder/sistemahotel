@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ClipboardList, PackagePlus, Pencil, Plus, RefreshCw, ShoppingCart, UserRound, UsersRound, Warehouse } from "lucide-react";
+import { ClipboardList, PackagePlus, Pencil, Plus, RefreshCw, ShoppingCart, Trash2, UserRound, UsersRound, Warehouse } from "lucide-react";
 import { activeReservationForRoom, useCurrentCompany, useProducts, useReservations, useRooms, useSales } from "@/lib/data";
 import { PAYMENT_METHODS } from "@/lib/constants";
 import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
@@ -27,7 +27,7 @@ type Product = {
   estoque_minimo: number;
   ativo: boolean;
 };
-type Sale = { id: string; compra_id?: string | null; comprador_tipo?: string | null; comprador_nome?: string | null; cliente_id?: string | null; reserva_id?: string | null; quarto: number | null; data: string; item: string; categoria?: string | null; produto_id?: string | null; qtd: number; valor_unit: number; total: number; valor_pago?: number | null; pagamento: string; created_at: string };
+type Sale = { id: string; compra_id?: string | null; comprador_tipo?: string | null; comprador_nome?: string | null; cliente_id?: string | null; reserva_id?: string | null; quarto: number | null; data: string; item: string; categoria?: string | null; produto_id?: string | null; qtd: number; valor_unit: number; total: number; valor_pago?: number | null; pagamento: string; status?: string | null; created_at: string };
 type Movement = { id: string; tipo: string; quantidade: number; estoque_anterior: number; estoque_posterior: number; motivo: string | null; created_at: string; produto?: { nome?: string | null } | null };
 type CartItem = { key: string; produto_id: string | null; item: string; categoria: string; qtd: number; valor_unit: number; estoque: number | null };
 type PurchaseInput = { buyerType: "hospede" | "funcionario"; room: number | null; employeeName: string; payment: string; amountPaid: number; items: CartItem[] };
@@ -40,7 +40,7 @@ function Vendas() {
   const { data: productRows = [] } = useProducts();
   const { data: saleRows = [] } = useSales();
   const products = productRows as unknown as Product[];
-  const sales = saleRows as unknown as Sale[];
+  const sales = (saleRows as unknown as Sale[]).filter((sale) => sale.status !== "cancelado");
   const qc = useQueryClient();
   const initialRoom = typeof window !== "undefined" ? Number(new URLSearchParams(window.location.search).get("quarto")) || null : null;
   const [purchaseOpen, setPurchaseOpen] = useState(initialRoom != null);
@@ -169,6 +169,23 @@ function Vendas() {
     toast.success(`Comanda salva com ${rows.length} item(ns).`);
   }
 
+  async function cancelSaleGroup(group: { id: string; itens: Sale[]; comprador: string; total: number }) {
+    if (!companyId) throw new Error("Empresa não encontrada.");
+    const confirmed = window.confirm(
+      `Excluir a comanda de ${group.comprador} no valor de ${fmtBRL(group.total)}? O estoque será devolvido e o histórico ficará preservado como cancelado.`,
+    );
+    if (!confirmed) return;
+
+    const { error } = await (supabase as any).rpc("cancel_sale_group", {
+      _company_id: companyId,
+      _sale_ids: group.itens.map((item) => item.id),
+    });
+    if (error) throw error;
+
+    await refresh();
+    toast.success("Comanda excluída, estoque devolvido e histórico preservado.");
+  }
+
   async function saveProduct(input: ProductFormInput) {
     if (!companyId) throw new Error("Empresa não encontrada.");
     const base = {
@@ -290,7 +307,7 @@ function Vendas() {
     </section>
 
     <section className="card-surface overflow-x-auto"><div className="border-b border-border p-4"><h3 className="font-serif text-lg font-bold">Comandas registradas</h3><p className="text-sm text-muted-foreground">Vários itens aparecem juntos para o mesmo comprador.</p></div>
-      {groups.length === 0 ? <EmptyState text="Nenhuma venda registrada." /> : <table className="w-full min-w-[980px] text-sm"><thead><tr className="border-b border-border text-left text-xs uppercase text-muted-foreground"><th className="p-3">Data</th><th className="p-3">Comprador</th><th className="p-3">Tipo</th><th className="p-3">Quarto</th><th className="p-3">Itens</th><th className="p-3">Total</th><th className="p-3">Pago</th><th className="p-3">Pendente</th></tr></thead><tbody>{groups.map((g) => <tr key={g.id} className="border-b border-border/50 align-top"><td className="p-3">{fmtDate(g.data)}</td><td className="p-3 font-semibold">{g.comprador}</td><td className="p-3"><span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs font-semibold">{g.tipo === "funcionario" ? <UsersRound className="h-3.5 w-3.5" /> : <UserRound className="h-3.5 w-3.5" />}{g.tipo === "funcionario" ? "Funcionário" : "Hóspede"}</span></td><td className="p-3">{g.quarto ?? "Não se aplica"}</td><td className="max-w-[360px] p-3 text-muted-foreground">{g.itens.map((i: Sale) => `${i.qtd}× ${i.item}`).join(" · ")}</td><td className="p-3 font-semibold">{fmtBRL(g.total)}</td><td className="p-3">{fmtBRL(g.pago)}</td><td className={`p-3 font-semibold ${g.total > g.pago ? "text-brick" : "text-muted-foreground"}`}>{fmtBRL(Math.max(0, g.total - g.pago))}</td></tr>)}</tbody></table>}
+      {groups.length === 0 ? <EmptyState text="Nenhuma venda registrada." /> : <table className="w-full min-w-[980px] text-sm"><thead><tr className="border-b border-border text-left text-xs uppercase text-muted-foreground"><th className="p-3">Data</th><th className="p-3">Comprador</th><th className="p-3">Tipo</th><th className="p-3">Quarto</th><th className="p-3">Itens</th><th className="p-3">Total</th><th className="p-3">Pago</th><th className="p-3">Pendente</th><th className="p-3 text-right">Ações</th></tr></thead><tbody>{groups.map((g) => <tr key={g.id} className="border-b border-border/50 align-top"><td className="p-3">{fmtDate(g.data)}</td><td className="p-3 font-semibold">{g.comprador}</td><td className="p-3"><span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-xs font-semibold">{g.tipo === "funcionario" ? <UsersRound className="h-3.5 w-3.5" /> : <UserRound className="h-3.5 w-3.5" />}{g.tipo === "funcionario" ? "Funcionário" : "Hóspede"}</span></td><td className="p-3">{g.quarto ?? "Não se aplica"}</td><td className="max-w-[360px] p-3 text-muted-foreground">{g.itens.map((i: Sale) => `${i.qtd}× ${i.item}`).join(" · ")}</td><td className="p-3 font-semibold">{fmtBRL(g.total)}</td><td className="p-3">{fmtBRL(g.pago)}</td><td className={`p-3 font-semibold ${g.total > g.pago ? "text-brick" : "text-muted-foreground"}`}>{fmtBRL(Math.max(0, g.total - g.pago))}</td><td className="p-3 text-right"><button type="button" className="inline-flex items-center gap-1 rounded-lg border border-brick/30 bg-brick-bg/40 px-2.5 py-1.5 text-xs font-bold text-brick transition hover:bg-brick-bg" onClick={() => { void cancelSaleGroup(g).catch((error) => toast.error(error instanceof Error ? error.message : "Não foi possível excluir a comanda.")); }}><Trash2 className="h-3.5 w-3.5" /> Excluir</button></td></tr>)}</tbody></table>}
     </section>
 
     {purchaseOpen && <PurchaseModal initialRoom={initialRoomFromQuery} rooms={rooms as any[]} reservations={reservations as any[]} products={activeProducts} employees={employees.data ?? []} onClose={() => setPurchaseOpen(false)} onSave={async (input) => { try { await savePurchase(input); setPurchaseOpen(false); } catch (e) { toast.error(e instanceof Error ? e.message : "Erro ao salvar comanda."); } }} />}
@@ -342,10 +359,10 @@ function PurchaseModal({ initialRoom, rooms, reservations, products, employees, 
     setProductId(""); setManualItem(""); setCategory("Geral"); setQty(1); setUnit(0);
   }
 
-  return <Modal open onClose={onClose} title="Nova comanda"><form className="space-y-4" onSubmit={async (e) => { e.preventDefault(); setSaving(true); try { await onSave({ buyerType, room, employeeName, payment, amountPaid: effectivePaid, items: cart }); } finally { setSaving(false); } }}>
+  return <Modal open onClose={onClose} title="Nova comanda"><form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); setSaving(true); try { await onSave({ buyerType, room, employeeName, payment, amountPaid: effectivePaid, items: cart }); } finally { setSaving(false); } }}>
     <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted p-1"><button type="button" className={buyerType === "hospede" ? "btn-primary" : "btn-ghost"} onClick={() => setBuyerType("hospede")}><UserRound className="h-4 w-4" /> Hóspede</button><button type="button" className={buyerType === "funcionario" ? "btn-primary" : "btn-ghost"} onClick={() => setBuyerType("funcionario")}><UsersRound className="h-4 w-4" /> Funcionário</button></div>
     {buyerType === "hospede" ? <><Field label="Quarto"><select className="field" value={room ?? ""} onChange={(e) => setRoom(Number(e.target.value))}>{rooms.map((r) => <option key={r.numero} value={r.numero}>Quarto {r.numero}</option>)}</select></Field><div className={`rounded-lg px-3 py-2 text-sm ${active ? "bg-sage-bg text-pine-dark" : "bg-brick-bg text-brick"}`}>{active ? `Compra de ${active.cliente_nome}` : "Este quarto não possui hospedagem ativa."}</div></> : <Field label="Funcionário"><input list="employees-list" className="field" value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder="Selecione ou digite o nome" required /><datalist id="employees-list">{employees.map((name) => <option key={name} value={name} />)}</datalist></Field>}
-    <div className="rounded-lg border border-border p-3"><Field label="Produto"><select className="field" value={productId} onChange={(e) => { setProductId(e.target.value); const p = products.find((row) => row.id === e.target.value); if (p) setUnit(Number(p.preco)); }}><option value="">Venda avulsa</option>{products.map((p) => <option key={p.id} value={p.id}>{p.nome} · estoque {p.estoque_atual} {shortUnit(p.unidade)} · {fmtBRL(p.preco)}</option>)}</select></Field>{!product && <div className="mt-3 grid grid-cols-2 gap-3"><Field label="Item avulso"><input className="field" value={manualItem} onChange={(e) => setManualItem(e.target.value)} /></Field><Field label="Categoria"><input className="field" value={category} onChange={(e) => setCategory(e.target.value)} /></Field></div>}<div className="mt-3 grid grid-cols-2 gap-3"><Field label="Quantidade"><input type="number" min={1} className="field" value={qty} onChange={(e) => setQty(Number(e.target.value))} /></Field><Field label="Valor unitário"><input type="number" min={0} step="0.01" className="field" value={product ? product.preco : unit} onChange={(e) => setUnit(Number(e.target.value))} disabled={!!product} /></Field></div><button type="button" className="btn-ghost mt-3 flex w-full justify-center gap-1.5" onClick={addItem}><Plus className="h-4 w-4" /> Adicionar à comanda</button></div>
+    <div className="rounded-xl border border-border bg-background/40 p-3 shadow-sm"><Field label="Produto"><select className="field" value={productId} onChange={(e) => { setProductId(e.target.value); const p = products.find((row) => row.id === e.target.value); if (p) setUnit(Number(p.preco)); }}><option value="">Venda avulsa</option>{products.map((p) => <option key={p.id} value={p.id}>{p.nome} · estoque {p.estoque_atual} {shortUnit(p.unidade)} · {fmtBRL(p.preco)}</option>)}</select></Field>{!product && <div className="mt-3 grid grid-cols-2 gap-3"><Field label="Item avulso"><input className="field" value={manualItem} onChange={(e) => setManualItem(e.target.value)} /></Field><Field label="Categoria"><input className="field" value={category} onChange={(e) => setCategory(e.target.value)} /></Field></div>}<div className="mt-3 grid grid-cols-2 gap-3"><Field label="Quantidade"><input type="number" min={1} className="field" value={qty} onChange={(e) => setQty(Number(e.target.value))} /></Field><Field label="Valor unitário"><input type="number" min={0} step="0.01" className="field" value={product ? product.preco : unit} onChange={(e) => setUnit(Number(e.target.value))} disabled={!!product} /></Field></div><button type="button" className="btn-ghost mt-3 flex w-full justify-center gap-1.5" onClick={addItem}><Plus className="h-4 w-4" /> Adicionar à comanda</button></div>
     {cart.length === 0 ? <div className="rounded-lg bg-muted p-3 text-center text-sm text-muted-foreground">Nenhum item adicionado.</div> : <div className="rounded-lg border border-border">{cart.map((item) => <div key={item.key} className="flex items-center justify-between border-b border-border/50 p-3 last:border-0"><div><strong>{item.qtd}× {item.item}</strong><p className="text-xs text-muted-foreground">{fmtBRL(item.valor_unit)} cada</p></div><div className="flex gap-2"><strong>{fmtBRL(item.qtd * item.valor_unit)}</strong><button type="button" className="text-xs font-bold text-brick" onClick={() => setCart((items) => items.filter((row) => row.key !== item.key))}>Remover</button></div></div>)}</div>}
     <div className="grid grid-cols-2 gap-3"><Field label="Pagamento"><select className="field" value={payment} onChange={(e) => setPayment(e.target.value)}>{PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}</select></Field><Field label="Valor pago agora"><input type="number" min={0} step="0.01" className="field" value={paid} placeholder={String(total)} onChange={(e) => setPaid(e.target.value === "" ? "" : Number(e.target.value))} /></Field></div>
     <div className="flex justify-between rounded-lg bg-muted px-3 py-2"><span className="text-sm text-muted-foreground">Pendente {fmtBRL(Math.max(0, total - effectivePaid))}</span><strong className="font-serif text-xl">{fmtBRL(total)}</strong></div><div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button><button type="submit" className="btn-primary" disabled={saving || !cart.length}>{saving ? "Salvando…" : "Salvar comanda"}</button></div>

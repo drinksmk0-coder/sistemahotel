@@ -1,0 +1,25 @@
+services:
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: hospedamais-waha
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file:
+      - .env
+    environment:
+      WAHA_LOCAL_STORE_BASE_DIR: /app/.sessions
+      WHATSAPP_FILES_FOLDER: /app/.media
+    volumes:
+      - waha_sessions:/app/.sessions
+      - waha_media:/app/.media
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/server/status >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  waha_sessions:
+  waha_media:
