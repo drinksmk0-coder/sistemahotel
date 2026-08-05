@@ -44,13 +44,13 @@ jobs:
         run: npm run build
       - name: Commit validated fixes
         run: |
-          if git diff --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/components/executive/ExecutiveBiDashboard.tsx src/components/executive/ExecutiveDashboardReference.tsx src/routes/_authenticated/booking-eventos.tsx src/routes/_authenticated/vendas.tsx
+          if git diff --cached --quiet; then
+            echo "No targeted changes to commit"
+            exit 0
+          fi
           git commit -m "corrige typecheck do fluxo operacional"
-          git pull --rebase origin agent/versao-escolhida-integrada-final
+          git pull --rebase --autostash origin agent/versao-escolhida-integrada-final
           git push origin HEAD:agent/versao-escolhida-integrada-final
