@@ -1,0 +1,49 @@
+name: Fix room names and inventory totals
+
+on:
+  push:
+    branches:
+      - fix/vendas-exclusao-estoque-busca
+    paths:
+      - .github/workflows/fix-room-names-inline-stock.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/vendas-exclusao-estoque-busca
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply focused corrections
+        shell: bash
+        run: |
+          echo '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' | base64 --decode | gzip --decompress > /tmp/fix-room-names-inline-stock.mjs
+          node /tmp/fix-room-names-inline-stock.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Commit validated files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/data.ts src/components/MapaQuartos.tsx src/routes/_authenticated/clientes.tsx src/routes/_authenticated/vendas.tsx
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+            exit 0
+          fi
+          git commit -m "corrige nomes do mapa e totais de estoque"
+          git fetch origin fix/vendas-exclusao-estoque-busca
+          git rebase origin/fix/vendas-exclusao-estoque-busca
+          git push origin HEAD:fix/vendas-exclusao-estoque-busca
