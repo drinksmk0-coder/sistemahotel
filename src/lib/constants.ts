@@ -44,10 +44,14 @@ export function complaintLabel(v: string): string {
 }
 
 export const COMPLAINT_SEVERITY = [
-  { value: "baixa", label: "Baixa" },
-  { value: "media", label: "Média" },
-  { value: "alta", label: "Alta" },
+  { value: "baixa", label: "Monitorar" },
+  { value: "media", label: "Relevante" },
+  { value: "alta", label: "Urgente" },
 ] as const;
+
+export function complaintSeverityLabel(v: string): string {
+  return COMPLAINT_SEVERITY.find((severity) => severity.value === v)?.label ?? v;
+}
 
 export const WIFI_DEVICES = [
   "Celular Android",
