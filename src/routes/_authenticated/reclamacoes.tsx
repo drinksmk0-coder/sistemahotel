@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Plus } from "lucide-react";
-import { useRooms, useComplaints, useInsert, useUpdate } from "@/lib/data";
+import { MessageCircle, Plus } from "lucide-react";
+import { useRooms, useComplaints, useCurrentCompany, useInsert, useUpdate } from "@/lib/data";
 import { fmtDate, todayISO, downloadExcel } from "@/lib/format";
-import { COMPLAINT_CATEGORIES, COMPLAINT_SEVERITY, COMPLAINT_STATUS, WIFI_DEVICES, complaintLabel, complaintStatusLabel } from "@/lib/constants";
+import { COMPLAINT_CATEGORIES, COMPLAINT_SEVERITY, COMPLAINT_STATUS, WIFI_DEVICES, complaintLabel, complaintSeverityLabel, complaintStatusLabel } from "@/lib/constants";
 import { PageHeader } from "@/components/AppLayout";
 import { Modal, Field, Badge, EmptyState } from "@/components/ui-kit";
 import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
@@ -24,6 +24,7 @@ const STOP_WORDS = new Set([
 function Reclamacoes() {
   const { data: rooms = [] } = useRooms();
   const { data: complaints = [] } = useComplaints();
+  const currentCompany = useCurrentCompany();
   const insert = useInsert("complaints", ["complaints"]);
   const update = useUpdate("complaints", ["complaints"]);
   const [open, setOpen] = useState(false);
@@ -92,8 +93,8 @@ function Reclamacoes() {
   return (
     <div>
       <PageHeader
-        title="Reclamações"
-        subtitle="Registre e acompanhe problemas por quarto. Para Wi-Fi, guarde o aparelho para saber se é do quarto ou do hóspede."
+        title="Ocorrências e reclamações"
+        subtitle="Notas 1 e 2 geram ocorrências automáticas; nota 3 permanece neutra para acompanhamento de tendência."
         action={
           <div className="flex gap-2">
             <ExportPeriodButton onExport={exportCSV} />
@@ -157,7 +158,7 @@ function Reclamacoes() {
                     {c.quarto ? `Quarto ${c.quarto}` : "Sem quarto"}
                   </span>
                   <Badge tone="slate">{complaintLabel(c.categoria)}</Badge>
-                  <Badge tone={sevTone[c.gravidade]}>{c.gravidade}</Badge>
+                  <Badge tone={sevTone[c.gravidade]}>{complaintSeverityLabel(c.gravidade)}</Badge>
                   <Badge tone={c.origem === "qrcode" ? "brass" : "sage"}>{c.origem}</Badge>
                   <Badge tone={c.status === "resolvido" ? "sage" : c.status === "em_andamento" ? "brass" : "brick"}>
                     {complaintStatusLabel(c.status)}
@@ -171,6 +172,18 @@ function Reclamacoes() {
                 </p>
               </div>
               <div className="flex gap-1.5">
+                {currentCompany.data?.whatsapp && (
+                  <a
+                    href={complaintWhatsappUrl(currentCompany.data.whatsapp, c)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary"
+                    title="Abrir mensagem pronta no WhatsApp"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    Avisar no WhatsApp
+                  </a>
+                )}
                 {c.status === "aberto" && (
                   <button
                     className="rounded-md bg-brass-bg px-2.5 py-1 text-xs font-semibold text-[oklch(0.4_0.06_74)]"
@@ -221,6 +234,28 @@ function Reclamacoes() {
   );
 }
 
+function complaintWhatsappUrl(
+  phone: string,
+  complaint: {
+    quarto: number | null;
+    categoria: string;
+    gravidade: string;
+    descricao: string | null;
+  },
+) {
+  const localDigits = phone.replace(/\D/g, "").replace(/^0+/, "");
+  const destination = localDigits.startsWith("55") ? localDigits : `55${localDigits}`;
+  const message = [
+    `⚠️ Ocorrência ${complaintSeverityLabel(complaint.gravidade)}`,
+    complaint.quarto ? `Quarto ${complaint.quarto}` : "Sem quarto informado",
+    complaintLabel(complaint.categoria),
+    complaint.descricao,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  return `https://wa.me/${destination}?text=${encodeURIComponent(message)}`;
+}
+
 function ComplaintWordHeatmap({
   rows,
 }: {
@@ -269,7 +304,7 @@ function ComplaintSeverityHeatmap({
     <div className="mt-3 overflow-x-auto">
       <div className="grid min-w-[390px] grid-cols-[minmax(130px,1fr)_repeat(3,72px)] gap-1.5 text-[10px]">
         <span />
-        {["Baixa", "Média", "Alta"].map((label) => (
+        {["Monitorar", "Relevante", "Urgente"].map((label) => (
           <strong key={label} className="py-1 text-center text-muted-foreground">
             {label}
           </strong>
@@ -293,7 +328,7 @@ function ComplaintSeverityHeatmap({
                       : "var(--muted)",
                     color: value && intensity >= 0.45 ? "white" : "var(--pine-dark)",
                   }}
-                  title={`${row.label} · ${["baixa", "média", "alta"][index]}: ${value}`}
+                  title={`${row.label} · ${["monitorar", "relevante", "urgente"][index]}: ${value}`}
                 >
                   {value}
                 </div>
