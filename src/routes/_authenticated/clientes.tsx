@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   CalendarDays,
@@ -64,6 +64,15 @@ function Clientes() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<"ativos" | "desativados" | "todos">("ativos");
   const [profileClientId, setProfileClientId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const clientId = new URLSearchParams(window.location.search).get("editar");
+    if (!clientId || !clients.length) return;
+    const client = clients.find((item) => item.id === clientId);
+    if (!client) return;
+    setEditing(client);
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [clients]);
 
   const insights = useMemo(
     () => buildClientInsights(clients, reservations, sales),
