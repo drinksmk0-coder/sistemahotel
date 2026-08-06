@@ -27,7 +27,7 @@ import {
   useSales,
   useUpdate,
 } from "@/lib/data";
-import { fmtBRL, fmtDate, fmtTime, todayISO } from "@/lib/format";
+import { fmtBRL, fmtDate, fmtTime, hotelLocalTime, todayISO } from "@/lib/format";
 import { buildGuestAccount } from "@/lib/guest-account";
 import { ReservaForm, type ReservaRow } from "@/components/ReservaForm";
 import { RoomTimeline } from "@/components/RoomTimeline";
@@ -88,6 +88,7 @@ export function MapaQuartos() {
   const insertReservation = useInsert("reservations", ["reservations"]);
   const insertClient = useInsert("clients", ["clients"]);
   const updateRoom = useUpdate("rooms", ["rooms"]);
+  const updateReservation = useUpdate("reservations", ["reservations"]);
 
   const [selected, setSelected] = useState<Room | null>(null);
   const [newFor, setNewFor] = useState<number | null>(null);
@@ -247,6 +248,53 @@ export function MapaQuartos() {
           cliente_nome: created[0].nome,
         }
       : cleanRow;
+  }
+
+  function checkInReservation(stay: Reservation) {
+    updateReservation.mutate(
+      {
+        id: stay.id,
+        patch: {
+          status: "ocupado",
+          checkin_at: stay.checkin_at ?? new Date().toISOString(),
+          horario_checkin: stay.horario_checkin ?? hotelLocalTime(),
+        },
+      },
+      {
+        onSuccess: () => {
+          updateRoom.mutate({ id: stay.quarto, patch: { situacao: "ocupado" } });
+          toast.success(`Check-in de ${stay.cliente_nome} realizado`);
+        },
+        onError: (error) => toast.error(error.message),
+      },
+    );
+  }
+
+  function checkOutReservation(stay: Reservation) {
+    const account = buildGuestAccount(stay, sales);
+    if (account.balance > 0) {
+      toast.error(
+        `Check-out bloqueado: faltam ${fmtBRL(account.balance)}. Receba a conta antes de concluir.`,
+      );
+      return;
+    }
+    updateReservation.mutate(
+      {
+        id: stay.id,
+        patch: {
+          status: "finalizado",
+          checkout_at: new Date().toISOString(),
+          horario_checkout: stay.horario_checkout ?? hotelLocalTime(),
+        },
+      },
+      {
+        onSuccess: () => {
+          updateRoom.mutate({ id: stay.quarto, patch: { situacao: "limpeza" } });
+          toast.success(`Check-out de ${stay.cliente_nome} realizado`);
+        },
+        onError: (error) => toast.error(error.message),
+      },
+    );
   }
 
   function saveFeatures(room: Room, patch: RoomFeaturePatch) {
@@ -520,6 +568,8 @@ export function MapaQuartos() {
           viewDate={viewDate}
           savingFeatures={updateRoom.isPending}
           onSaveFeatures={(patch) => saveFeatures(selected, patch)}
+          onCheckIn={checkInReservation}
+          onCheckOut={checkOutReservation}
           onSituacao={(situacao) =>
             updateRoom.mutate(
               { id: selected.numero, patch: { situacao } },
@@ -582,6 +632,8 @@ function RoomDetailModal({
   viewDate,
   savingFeatures,
   onSaveFeatures,
+  onCheckIn,
+  onCheckOut,
   onSituacao,
   onNew,
   onClose,
@@ -602,6 +654,8 @@ function RoomDetailModal({
   viewDate: string;
   savingFeatures: boolean;
   onSaveFeatures: (patch: RoomFeaturePatch) => void;
+  onCheckIn: (reservation: Reservation) => void;
+  onCheckOut: (reservation: Reservation) => void;
   onSituacao: (value: string | null) => void;
   onNew: () => void;
   onClose: () => void;
@@ -612,9 +666,11 @@ function RoomDetailModal({
   const client = stay?.cliente_id
     ? clients.find((item) => item.id === stay.cliente_id)
     : undefined;
+  const guestName =
+    client?.nome?.trim() || stay?.cliente_nome?.trim() || "Hóspede não identificado";
   const whatsapp =
     stay && client?.telefone
-      ? whatsappRoomUrl(stay, client.telefone, room.numero)
+      ? whatsappRoomUrl({ ...stay, cliente_nome: guestName }, client.telefone, room.numero)
       : "";
   const activeComplaints = complaints.filter(
     (complaint) => complaint.status !== "resolvido",
@@ -668,36 +724,42 @@ function RoomDetailModal({
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            {stay && (
-              <a
-                className="btn-ghost"
-                href={`/reservas?editar=${stay.id}`}
+            {stay?.status === "reservado" && (
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => onCheckIn(stay)}
               >
-                Editar hospedagem
-              </a>
+                Check-in
+              </button>
+            )}
+            {stay && ["ocupado", "saida_pendente"].includes(stay.status) && (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => onCheckOut(stay)}
+              >
+                Check-out
+              </button>
             )}
             {stay && (
               <a
                 className="btn-primary inline-flex items-center gap-1"
                 href={`/vendas?quarto=${room.numero}&reserva=${stay.id}`}
-                title={`Lançar venda para ${stay.cliente_nome} no quarto ${room.numero}`}
+                title={`Lançar venda para ${guestName} no quarto ${room.numero}`}
               >
-                <ShoppingCart className="h-4 w-4" /> Lançar venda
-              </a>
-            )}
-
-
-            {stay && (
-              <a
-                className="btn-ghost inline-flex items-center gap-1"
-                href={`/vendas?quarto=${room.numero}`}
-                title={`Lançar venda para ${stay.cliente_nome} no quarto ${room.numero}`}
-              >
-                <ShoppingCart className="h-4 w-4" /> Lançar venda
+                <ShoppingCart className="h-4 w-4" /> Vendas
               </a>
             )}
             {stay && (
-              <a className="btn-ghost" href={`/reservas?editar=${stay.id}`}>Editar hospedagem</a>
+              <a className="btn-ghost" href={`/reservas?editar=${stay.id}`}>
+                Editar hospedagem
+              </a>
+            )}
+            {stay && client && (
+              <a className="btn-ghost" href={`/clientes?editar=${client.id}`}>
+                Editar hóspede
+              </a>
             )}
             {whatsapp && (
               <a
@@ -732,7 +794,7 @@ function RoomDetailModal({
             </h4>
             {stay ? (
               <div className="mt-2 space-y-1 text-sm">
-                <p className="font-semibold">{stay.cliente_nome}</p>
+                <p className="font-semibold">{guestName}</p>
                 <p className="text-muted-foreground">
                   {fmtDate(stay.checkin)} {fmtTime(stay.horario_checkin)} →{" "}
                   {fmtDate(stay.checkout)} {fmtTime(stay.horario_checkout)}
