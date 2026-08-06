@@ -1,0 +1,62 @@
+name: Finalize room action cleanup
+
+on:
+  push:
+    branches:
+      - fix/vendas-exclusao-estoque-busca
+    paths:
+      - .github/workflows/finalize-room-action-cleanup.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch-commit-validate-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/vendas-exclusao-estoque-busca
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Remove obsolete duplicated actions
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('src/components/MapaQuartos.tsx')
+          source = path.read_text()
+          pattern = re.compile(
+              r'''\n\s*\{stay && \(\n\s*<a\n\s*className="btn-ghost inline-flex items-center gap-1"\n\s*href=\{`/vendas\?quarto=\$\{room\.numero\}`\}\n\s*title=\{`Lançar venda para \$\{stay\.cliente_nome\} no quarto \$\{room\.numero\}`\}\n\s*>\n\s*<ShoppingCart className="h-4 w-4" /> Lançar venda\n\s*</a>\n\s*\)\}\n\s*\{stay && \(\n\s*<a className="btn-ghost" href=\{`/reservas\?editar=\$\{stay\.id\}`\}>Editar hospedagem</a>\n\s*\)\}''',
+              re.MULTILINE,
+          )
+          updated, count = pattern.subn('', source, count=1)
+          if count != 1:
+              raise SystemExit(f'Esperava remover 1 bloco duplicado, removidos: {count}')
+          path.write_text(updated)
+          print('Ações duplicadas antigas removidas.')
+          PY
+      - name: Typecheck patched source
+        run: npm run typecheck
+      - name: Commit patched source before build hooks
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/MapaQuartos.tsx
+          git commit -m "remove duplicidade final das acoes do quarto"
+      - name: Compile committed application
+        run: npx vite build
+      - name: Restore build-time source mutations and push validated commit
+        shell: bash
+        run: |
+          git reset --hard HEAD
+          git clean -fd .vercel node_modules/.nitro
+          git push origin HEAD:fix/vendas-exclusao-estoque-busca
