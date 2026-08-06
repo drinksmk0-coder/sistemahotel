@@ -19,6 +19,8 @@ import {
 } from "@/components/RoomFeatures";
 import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
 
+type TimelineRange = 7 | 14 | 30 | 60;
+
 export function RoomTimeline({
   rooms,
   reservations,
@@ -34,7 +36,7 @@ export function RoomTimeline({
   onRoomClick: (room: Room) => void;
   onCreateReservation: (room: Room, date: string) => void;
 }) {
-  const [daysVisible, setDaysVisible] = useState<7 | 14 | 21>(7);
+  const [daysVisible, setDaysVisible] = useState<TimelineRange>(30);
   const updateRoomSituation = useUpdate("rooms", ["rooms"]);
   const today = todayISO();
   const dates = useMemo(
@@ -119,7 +121,7 @@ export function RoomTimeline({
   );
 
   const roomColumnWidth = 260;
-  const dayWidth = 80;
+  const dayWidth = daysVisible >= 60 ? 56 : daysVisible >= 30 ? 64 : 80;
   const rowHeight = 46;
   const gridTemplateColumns = `${roomColumnWidth}px repeat(${daysVisible}, minmax(${dayWidth}px, 1fr))`;
   const minimumWidth = roomColumnWidth + daysVisible * dayWidth;
@@ -150,7 +152,7 @@ export function RoomTimeline({
               />
             </label>
             <span className="text-[10px] font-medium text-muted-foreground">
-              Clique na data para consultar outro período.
+              Reservas futuras aparecem no período selecionado.
             </span>
           </div>
 
@@ -186,7 +188,7 @@ export function RoomTimeline({
             </div>
 
             <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 font-bold">
-              {[7, 14, 21].map((days) => (
+              {([7, 14, 30, 60] as TimelineRange[]).map((days) => (
                 <button
                   key={days}
                   type="button"
@@ -195,7 +197,7 @@ export function RoomTimeline({
                       ? "bg-primary text-primary-foreground shadow-sm"
                       : "text-muted-foreground hover:bg-card"
                   }`}
-                  onClick={() => setDaysVisible(days as 7 | 14 | 21)}
+                  onClick={() => setDaysVisible(days)}
                 >
                   {days} dias
                 </button>
