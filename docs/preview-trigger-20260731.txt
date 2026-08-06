@@ -1,2 +1,3 @@
-Commit técnico para solicitar um novo Preview da versão final do PR #25.
+Commit técnico para solicitar novo deployment após configurar as variáveis de ambiente do Supabase na Vercel.
 Não altera o funcionamento do sistema.
+Data: 2026-08-06
