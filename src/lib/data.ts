@@ -280,7 +280,43 @@ export function useClients() {
 }
 
 export function useReservations() {
-  return useTenantQuery<Reservation>("reservations", "created_at", { ascending: false });
+  const company = useCurrentCompany();
+  return useQuery({
+    queryKey: ["reservations", company.data?.id],
+    enabled: !!company.data,
+    queryFn: async () => {
+      const companyId = company.data!.id;
+      const [reservationResult, clientResult] = await Promise.all([
+        (supabase.from("reservations" as never) as any)
+          .select("*")
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false }),
+        (supabase.from("clients" as never) as any)
+          .select("id,nome")
+          .eq("company_id", companyId),
+      ]);
+      if (reservationResult.error) throw reservationResult.error;
+      if (clientResult.error) throw clientResult.error;
+
+      const clientNames = new Map<string, string>(
+        (clientResult.data ?? []).map((client: { id: string; nome: string | null }) => [
+          client.id,
+          String(client.nome ?? "").trim(),
+        ]),
+      );
+
+      return ((reservationResult.data ?? []) as Reservation[]).map((reservation) => {
+        const linkedName = reservation.cliente_id
+          ? clientNames.get(reservation.cliente_id)
+          : undefined;
+        const storedName = String(reservation.cliente_nome ?? "").trim();
+        return {
+          ...reservation,
+          cliente_nome: linkedName || storedName || "Hóspede não identificado",
+        };
+      });
+    },
+  });
 }
 
 export function useSales() {

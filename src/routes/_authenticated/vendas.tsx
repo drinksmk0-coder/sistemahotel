@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ClipboardList, PackagePlus, Pencil, Plus, RefreshCw, ShoppingCart, Trash2, UserRound, UsersRound, Warehouse } from "lucide-react";
+import { ClipboardList, PackagePlus, Plus, RefreshCw, ShoppingCart, Trash2, UserRound, UsersRound, Warehouse } from "lucide-react";
 import { activeReservationForRoom, useCurrentCompany, useProducts, useReservations, useRooms, useSales } from "@/lib/data";
 import { PAYMENT_METHODS } from "@/lib/constants";
 import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
@@ -91,7 +91,14 @@ function Vendas() {
   const lowStock = activeProducts.filter((p) => p.estoque_atual <= p.estoque_minimo);
   const received = products.reduce((sum, p) => sum + Number(p.estoque_total_recebido ?? p.estoque_atual), 0);
   const currentQty = products.reduce((sum, p) => sum + Number(p.estoque_atual), 0);
-  const inventoryValue = products.reduce((sum, p) => sum + Number(p.estoque_atual) * Number(p.custo_unitario ?? 0), 0);
+  const inventoryCostValue = activeProducts.reduce(
+    (sum, p) => sum + Number(p.estoque_atual) * Number(p.custo_unitario ?? 0),
+    0,
+  );
+  const inventorySaleValue = activeProducts.reduce(
+    (sum, p) => sum + Number(p.estoque_atual) * Number(p.preco ?? 0),
+    0,
+  );
   const salesToday = sales.filter((s) => s.data === todayISO()).reduce((sum, s) => sum + Number(s.total), 0);
   const groups = useMemo(() => groupSales(sales), [sales]);
 
@@ -242,10 +249,29 @@ function Vendas() {
       const nextStock = stockMode === "reposicao"
         ? currentStock + Number(input.quantity)
         : Number(input.quantity);
+      const previousReceived = Number(
+        stockProduct.estoque_total_recebido ?? stockProduct.estoque_atual ?? 0,
+      );
+      const fallbackPatch =
+        stockMode === "reposicao"
+          ? {
+              estoque_atual: Math.max(0, nextStock),
+              estoque_total_recebido: previousReceived + Number(input.quantity),
+              custo_unitario:
+                Number(input.cost) > 0
+                  ? Number(input.cost)
+                  : Number(stockProduct.custo_unitario ?? 0),
+              updated_at: new Date().toISOString(),
+            }
+          : {
+              estoque_atual: Math.max(0, nextStock),
+              updated_at: new Date().toISOString(),
+            };
       const fallback = await (supabase as any)
         .from("products")
-        .update({ estoque_atual: Math.max(0, nextStock) })
-        .eq("id", stockProduct.id);
+        .update(fallbackPatch)
+        .eq("id", stockProduct.id)
+        .eq("company_id", companyId);
       error = fallback.error;
     }
     if (error) throw error;
@@ -260,25 +286,26 @@ function Vendas() {
       <button className="btn-primary flex items-center gap-1.5" onClick={() => setPurchaseOpen(true)}><ShoppingCart className="h-4 w-4" /> Nova comanda</button>
     </div>} />
 
-    <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-5">
+    <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
       <Stat label="Vendas hoje" value={fmtBRL(salesToday)} icon={<ShoppingCart />} />
       <Stat label="Total recebido" value={String(received)} icon={<PackagePlus />} />
       <Stat label="Em estoque" value={String(currentQty)} icon={<Warehouse />} />
-      <Stat label="Valor do estoque" value={fmtBRL(inventoryValue)} icon={<Warehouse />} />
+      <Stat label="Capital em estoque" value={fmtBRL(inventoryCostValue)} icon={<Warehouse />} />
+      <Stat label="Valor de venda do estoque" value={fmtBRL(inventorySaleValue)} icon={<Warehouse />} />
       <Stat label="Estoque baixo" value={String(lowStock.length)} icon={<RefreshCw />} alert={lowStock.length > 0} />
     </div>
 
     <section data-mobile-product-cards className="mb-5 space-y-3 md:hidden">
       <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
         <h3 className="font-serif text-lg font-bold">Estoque de produtos</h3>
-        <p className="mt-1 text-sm text-muted-foreground">Informações completas e ações de estoque no celular.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Toque no nome, preço, custo ou demais dados para alterar. Use Repor e Contagem somente para movimentar o estoque.</p>
       </div>
       {products.length === 0 ? <EmptyState text="Nenhum produto cadastrado." /> : products.map((p) => (
         <article key={p.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h4 className="truncate text-base font-bold text-foreground">{p.nome}</h4>
-              <p className="text-xs text-muted-foreground">{p.categoria} · {p.unidade ?? "unidade"}</p>
+              <button type="button" className="block w-full truncate text-left text-base font-bold text-foreground hover:text-primary" onClick={() => { setEditingProduct(p); setProductOpen(true); }} title="Clique para alterar este produto">{p.nome}</button>
+              <button type="button" className="text-left text-xs text-muted-foreground hover:text-primary" onClick={() => { setEditingProduct(p); setProductOpen(true); }} title="Clique para alterar categoria ou unidade">{p.categoria} · {p.unidade ?? "unidade"}</button>
             </div>
             <span className={`rounded-full px-2 py-1 text-xs font-bold ${p.estoque_atual <= p.estoque_minimo ? "bg-brick-bg text-brick" : "bg-sage-bg text-pine-dark"}`}>
               {p.estoque_atual} {shortUnit(p.unidade)}
@@ -286,24 +313,85 @@ function Vendas() {
           </div>
 
           <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-            <MobileMetric label="Preço de venda" value={fmtBRL(p.preco)} />
-            <MobileMetric label="Custo unitário" value={fmtBRL(p.custo_unitario ?? 0)} />
+            <MobileMetric label="Preço de venda" value={fmtBRL(p.preco)} onClick={() => { setEditingProduct(p); setProductOpen(true); }} />
+            <MobileMetric label="Custo unitário" value={fmtBRL(p.custo_unitario ?? 0)} onClick={() => { setEditingProduct(p); setProductOpen(true); }} />
             <MobileMetric label="Total recebido" value={`${p.estoque_total_recebido ?? p.estoque_atual} ${shortUnit(p.unidade)}`} />
-            <MobileMetric label="Estoque mínimo" value={`${p.estoque_minimo} ${shortUnit(p.unidade)}`} />
-            <MobileMetric label="Valor em estoque" value={fmtBRL(p.estoque_atual * Number(p.custo_unitario ?? 0))} wide />
+            <MobileMetric label="Estoque mínimo" value={`${p.estoque_minimo} ${shortUnit(p.unidade)}`} onClick={() => { setEditingProduct(p); setProductOpen(true); }} />
+            <MobileMetric label="Capital em estoque" value={fmtBRL(p.estoque_atual * Number(p.custo_unitario ?? 0))} />
+            <MobileMetric label="Valor de venda" value={fmtBRL(p.estoque_atual * Number(p.preco ?? 0))} />
           </div>
 
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="mt-4 grid grid-cols-2 gap-2">
             <button className="btn-ghost min-h-11 text-xs" onClick={() => { setStockProduct(p); setStockMode("reposicao"); }}>Repor</button>
             <button className="btn-ghost min-h-11 text-xs" onClick={() => { setStockProduct(p); setStockMode("contagem"); }}>Contagem</button>
-            <button className="btn-ghost min-h-11 text-xs" onClick={() => { setEditingProduct(p); setProductOpen(true); }}><Pencil className="mx-auto h-4 w-4" /><span className="sr-only">Editar</span></button>
           </div>
         </article>
       ))}
     </section>
 
-    <section className="card-surface mb-5 hidden overflow-x-auto md:block"><div className="border-b border-border p-4"><h3 className="font-serif text-lg font-bold">Estoque de produtos</h3><p className="text-sm text-muted-foreground">A quantidade representa as unidades reais disponíveis para venda, mesmo quando vieram em caixa fechada.</p></div>
-      {products.length === 0 ? <EmptyState text="Nenhum produto cadastrado." /> : <table className="w-full min-w-[1060px] text-sm"><thead><tr className="border-b border-border text-left text-xs uppercase text-muted-foreground"><th className="p-3">Produto</th><th className="p-3">Unidade</th><th className="p-3">Preço</th><th className="p-3">Custo</th><th className="p-3">Total recebido</th><th className="p-3">Atual</th><th className="p-3">Valor atual</th><th className="p-3">Ações</th></tr></thead><tbody>{products.map((p) => <tr key={p.id} className="border-b border-border/50"><td className="p-3"><strong>{p.nome}</strong><div className="text-xs text-muted-foreground">{p.categoria}</div></td><td className="p-3 capitalize">{p.unidade ?? "unidade"}</td><td className="p-3">{fmtBRL(p.preco)}</td><td className="p-3">{fmtBRL(p.custo_unitario ?? 0)}</td><td className="p-3">{p.estoque_total_recebido ?? p.estoque_atual} {shortUnit(p.unidade)}</td><td className={`p-3 font-bold ${p.estoque_atual <= p.estoque_minimo ? "text-brick" : "text-pine-dark"}`}>{p.estoque_atual} {shortUnit(p.unidade)}</td><td className="p-3 font-semibold">{fmtBRL(p.estoque_atual * Number(p.custo_unitario ?? 0))}</td><td className="p-3"><div className="flex gap-1.5"><button className="btn-ghost py-1 text-xs" onClick={() => { setStockProduct(p); setStockMode("reposicao"); }}>Repor</button><button className="btn-ghost py-1 text-xs" onClick={() => { setStockProduct(p); setStockMode("contagem"); }}>Contagem</button><button className="btn-ghost py-1 text-xs" onClick={() => { setEditingProduct(p); setProductOpen(true); }}><Pencil className="h-3.5 w-3.5" /></button></div></td></tr>)}</tbody></table>}
+    <section className="card-surface mb-5 hidden overflow-x-auto md:block">
+      <div className="border-b border-border p-4">
+        <h3 className="font-serif text-lg font-bold">Estoque de produtos</h3>
+        <p className="text-sm text-muted-foreground">
+          Clique diretamente no nome, unidade, preço, custo ou mínimo para alterar os dados.
+        </p>
+      </div>
+      {products.length === 0 ? (
+        <EmptyState text="Nenhum produto cadastrado." />
+      ) : (
+        <table className="w-full min-w-[1160px] text-sm">
+          <thead>
+            <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
+              <th className="p-3">Produto</th>
+              <th className="p-3">Unidade</th>
+              <th className="p-3">Preço</th>
+              <th className="p-3">Custo</th>
+              <th className="p-3">Total recebido</th>
+              <th className="p-3">Atual</th>
+              <th className="p-3">Capital</th>
+              <th className="p-3">Valor de venda</th>
+              <th className="p-3">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((p) => {
+              const edit = () => {
+                setEditingProduct(p);
+                setProductOpen(true);
+              };
+              return (
+                <tr key={p.id} className="border-b border-border/50">
+                  <td className="p-3">
+                    <button type="button" className="text-left hover:text-primary" onClick={edit}>
+                      <strong>{p.nome}</strong>
+                      <span className="block text-xs text-muted-foreground">{p.categoria}</span>
+                    </button>
+                  </td>
+                  <td className="p-3 capitalize">
+                    <button type="button" className="hover:text-primary" onClick={edit}>{p.unidade ?? "unidade"}</button>
+                  </td>
+                  <td className="p-3"><button type="button" className="hover:text-primary" onClick={edit}>{fmtBRL(p.preco)}</button></td>
+                  <td className="p-3"><button type="button" className="hover:text-primary" onClick={edit}>{fmtBRL(p.custo_unitario ?? 0)}</button></td>
+                  <td className="p-3">{p.estoque_total_recebido ?? p.estoque_atual} {shortUnit(p.unidade)}</td>
+                  <td className={`p-3 font-bold ${p.estoque_atual <= p.estoque_minimo ? "text-brick" : "text-pine-dark"}`}>
+                    <button type="button" className="font-bold" onClick={() => { setStockProduct(p); setStockMode("contagem"); }} title="Clique para informar a contagem real">
+                      {p.estoque_atual} {shortUnit(p.unidade)}
+                    </button>
+                  </td>
+                  <td className="p-3 font-semibold">{fmtBRL(p.estoque_atual * Number(p.custo_unitario ?? 0))}</td>
+                  <td className="p-3 font-semibold text-primary">{fmtBRL(p.estoque_atual * Number(p.preco ?? 0))}</td>
+                  <td className="p-3">
+                    <div className="flex gap-1.5">
+                      <button className="btn-ghost py-1 text-xs" onClick={() => { setStockProduct(p); setStockMode("reposicao"); }}>Repor</button>
+                      <button className="btn-ghost py-1 text-xs" onClick={() => { setStockProduct(p); setStockMode("contagem"); }}>Contagem</button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
     </section>
 
     <section className="card-surface overflow-x-auto"><div className="border-b border-border p-4"><h3 className="font-serif text-lg font-bold">Comandas registradas</h3><p className="text-sm text-muted-foreground">Vários itens aparecem juntos para o mesmo comprador.</p></div>
@@ -317,12 +405,19 @@ function Vendas() {
   </div>;
 }
 
-function MobileMetric({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
-  return (
-    <div className={`rounded-lg bg-muted/40 p-2.5 ${wide ? "col-span-2" : ""}`}>
+function MobileMetric({ label, value, wide = false, onClick }: { label: string; value: string; wide?: boolean; onClick?: () => void }) {
+  const content = (
+    <>
       <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="mt-1 font-semibold text-foreground">{value}</p>
-    </div>
+    </>
+  );
+  return onClick ? (
+    <button type="button" className={`rounded-lg bg-muted/40 p-2.5 text-left transition hover:bg-muted ${wide ? "col-span-2" : ""}`} onClick={onClick} title="Clique para alterar">
+      {content}
+    </button>
+  ) : (
+    <div className={`rounded-lg bg-muted/40 p-2.5 ${wide ? "col-span-2" : ""}`}>{content}</div>
   );
 }
 
