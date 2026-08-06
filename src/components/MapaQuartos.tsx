@@ -761,18 +761,6 @@ function RoomDetailModal({
                 Editar hóspede
               </a>
             )}
-            {stay && (
-              <a
-                className="btn-ghost inline-flex items-center gap-1"
-                href={`/vendas?quarto=${room.numero}`}
-                title={`Lançar venda para ${stay.cliente_nome} no quarto ${room.numero}`}
-              >
-                <ShoppingCart className="h-4 w-4" /> Lançar venda
-              </a>
-            )}
-            {stay && (
-              <a className="btn-ghost" href={`/reservas?editar=${stay.id}`}>Editar hospedagem</a>
-            )}
             {whatsapp && (
               <a
                 className="btn-ghost inline-flex items-center gap-1"
