@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HospedaMais Booking</title>
+  <style>
+    body{font-family:Arial,sans-serif;width:360px;margin:0;padding:16px;background:#f6f8f7;color:#17352d}h1{font-size:17px;margin:0 0 8px}.muted{font-size:12px;color:#61706a}.card{background:white;border:1px solid #dce4e0;border-radius:12px;padding:12px;margin-top:12px}.row{margin:7px 0;font-size:13px}.row b{display:block;font-size:11px;text-transform:uppercase;color:#6a7772;margin-bottom:2px}button{width:100%;border:0;border-radius:9px;padding:10px;font-weight:700;cursor:pointer;margin-top:10px}.primary{background:#1f6d57;color:white}.secondary{background:#e8efec;color:#17352d}input{width:100%;box-sizing:border-box;border:1px solid #ccd7d2;border-radius:8px;padding:8px;margin-top:5px}.error{color:#a33}.ok{color:#176b47}
+  </style>
+</head>
+<body>
+  <h1>HospedaMais Booking Connector</h1>
+  <p class="muted">Abra uma reserva na Extranet da Booking, confira os dados abaixo e envie ao sistema.</p>
+  <div id="status" class="muted">Lendo página…</div>
+  <div id="preview" class="card" hidden></div>
+  <button id="capture" class="secondary">Ler página novamente</button>
+  <button id="send" class="primary" disabled>Enviar para conferência</button>
+  <details class="card">
+    <summary>Configuração</summary>
+    <label class="row"><b>Endpoint da função</b><input id="endpoint" placeholder="https://...supabase.co/functions/v1/booking-browser-ingest" /></label>
+    <label class="row"><b>Token do conector</b><input id="token" type="password" placeholder="Token configurado no Supabase" /></label>
+    <label class="row"><b>ID da empresa</b><input id="company" placeholder="UUID da empresa" /></label>
+    <button id="save" class="secondary">Salvar configuração</button>
+  </details>
+  <script src="popup.js"></script>
+</body>
+</html>

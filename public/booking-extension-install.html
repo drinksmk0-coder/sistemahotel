@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Instalar Conector Booking — HospedaMais</title>
+  <style>
+    body{font-family:Inter,Arial,sans-serif;background:#f5f7f6;color:#173b34;margin:0;padding:24px}.card{max-width:760px;margin:auto;background:white;border:1px solid #dbe5e1;border-radius:18px;padding:24px;box-shadow:0 10px 30px #1232}.step{padding:14px 0;border-bottom:1px solid #e8eeeb}.btn{display:inline-block;background:#176b5b;color:white;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700;margin:6px 6px 6px 0}.secondary{background:#eef4f2;color:#176b5b}.code{display:block;background:#eef4f2;padding:12px;border-radius:10px;word-break:break-all;font-family:monospace}small{color:#657b74}</style>
+</head>
+<body>
+  <main class="card">
+    <h1>Conector Booking do HospedaMais</h1>
+    <p>A extensão lê somente a reserva aberta em <b>admin.booking.com</b>, mostra uma prévia e envia para conferência no HospedaMais. Ela não salva a senha da Booking.</p>
+    <div class="step"><b>1. Baixe o projeto</b><br><a class="btn" href="https://github.com/drinksmk0-coder/sistemahotel/archive/refs/heads/agent/versao-escolhida-integrada-final.zip">Baixar extensão</a><br><small>Extraia o ZIP e localize a pasta <b>booking-chrome-extension</b>.</small></div>
+    <div class="step"><b>2. Abra o gerenciador do Chrome</b><span class="code">chrome://extensions</span><small>Ative “Modo do desenvolvedor” no canto superior direito.</small></div>
+    <div class="step"><b>3. Instale</b><br><span class="code">Carregar sem compactação → selecionar booking-chrome-extension</span></div>
+    <div class="step"><b>4. Configure no ícone HospedaMais</b><br><span class="code">Endpoint: https://xjdqjjfnpcnywrkxentv.supabase.co/functions/v1/booking-browser-ingest</span><small>O ID da empresa e o token aparecem na tela Integrações do HospedaMais após a ativação.</small></div>
+    <div class="step"><b>5. Teste</b><br><small>Abra uma reserva na Extranet, clique no ícone HospedaMais, confira os dados e pressione “Enviar para conferência”.</small></div>
+    <a class="btn secondary" href="/integracoes">Voltar para Integrações</a>
+  </main>
+</body>
+</html>
