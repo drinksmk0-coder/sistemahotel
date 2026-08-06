@@ -1,0 +1,62 @@
+name: Publish validated room and inventory fixes
+
+on:
+  push:
+    branches:
+      - fix/vendas-exclusao-estoque-busca
+    paths:
+      - .github/workflows/publish-room-names-inline-stock.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/vendas-exclusao-estoque-busca
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Apply focused corrections
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64
+          import gzip
+          import pathlib
+          import re
+
+          workflow = pathlib.Path('.github/workflows/fix-room-names-inline-stock.yml').read_text()
+          match = re.search(r"echo '([^']+)' \| base64", workflow)
+          if not match:
+              raise SystemExit('Payload de correção não encontrado')
+          pathlib.Path('/tmp/fix-room-names-inline-stock.mjs').write_bytes(
+              gzip.decompress(base64.b64decode(match.group(1)))
+          )
+          PY
+          node /tmp/fix-room-names-inline-stock.mjs
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Compile application directly
+        run: npx vite build
+      - name: Commit and push validated source files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/data.ts src/components/MapaQuartos.tsx src/routes/_authenticated/clientes.tsx src/routes/_authenticated/vendas.tsx
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+            exit 0
+          fi
+          git commit -m "corrige nomes, edicao direta e valor do estoque"
+          git reset --hard HEAD
+          git clean -fd .vercel node_modules/.nitro
+          git push origin HEAD:fix/vendas-exclusao-estoque-busca
