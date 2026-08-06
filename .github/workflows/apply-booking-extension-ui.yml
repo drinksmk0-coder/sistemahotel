@@ -1,0 +1,50 @@
+name: Apply Booking extension UI
+
+on:
+  push:
+    branches:
+      - agent/versao-escolhida-integrada-final
+    paths:
+      - scripts/integrate-booking-extension-ui.mjs
+      - public/booking-extension-install.html
+      - .github/workflows/apply-booking-extension-ui.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+        with:
+          ref: agent/versao-escolhida-integrada-final
+          fetch-depth: 0
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Aplicar interface do conector Booking
+        run: node scripts/integrate-booking-extension-ui.mjs
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Compilar aplicação
+        run: npm run build
+
+      - name: Gravar alteração validada
+        run: |
+          if git diff --quiet; then
+            echo "Nenhuma alteração necessária."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/_authenticated/integracoes.tsx public/booking-extension-install.html
+          git commit -m "feat: integra instalação do conector Booking ao sistema"
+          git push origin agent/versao-escolhida-integrada-final
