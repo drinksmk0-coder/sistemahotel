@@ -84,9 +84,6 @@ function Avaliar() {
     e.preventDefault();
     if (!notas.nota_geral) return toast.error("Dê ao menos a nota geral");
     if (!quartoInput.trim()) return toast.error("Informe o número do quarto");
-    if (alertCriteria.length > 0 && !sugestao.trim()) {
-      return toast.error("Conte rapidamente o que aconteceu nas notas abaixo de 3");
-    }
 
     const q = Number(quartoInput);
     if (!Number.isInteger(q) || q <= 0) return toast.error("Número do quarto inválido");
@@ -225,15 +222,14 @@ function Avaliar() {
                 : improvementCriteria.length > 0
                   ? "O que faltou para essas notas serem 5?"
                   : "O que devemos melhorar neste quarto?"}
-              {alertCriteria.length > 0 && " (obrigatório)"}
+              {alertCriteria.length > 0 && " (opcional — seu relato ajuda o hotel a resolver mais rápido)"}
             </span>
             <textarea
               className="field min-h-20"
               value={sugestao}
               onChange={(e) => setSugestao(e.target.value)}
               maxLength={500}
-              required={alertCriteria.length > 0}
-              placeholder={alertCriteria.length > 0 ? "Explique brevemente para que o hotel possa resolver." : undefined}
+              placeholder={alertCriteria.length > 0 ? "Conte brevemente o que aconteceu, caso se sinta à vontade." : undefined}
             />
           </label>
 
