@@ -37,60 +37,6 @@ for insert
 to authenticated
 with check (public.is_company_member(company_id, auth.uid()));
 
-create or replace function public.standardize_sale_fields()
-returns trigger
-language plpgsql
-set search_path to 'public', 'pg_temp'
-as $$
-declare
-  keep_cancelled boolean := lower(trim(coalesce(new.status, ''))) = 'cancelado';
-begin
-  new.pagamento := case
-    when lower(unaccent(coalesce(new.pagamento,''))) like '%pix%' then 'Pix'
-    when lower(unaccent(coalesce(new.pagamento,''))) like '%credito%' then 'Cartão de Crédito'
-    when lower(unaccent(coalesce(new.pagamento,''))) like '%debito%' then 'Cartão de Débito'
-    when lower(unaccent(coalesce(new.pagamento,''))) like '%dinheiro%'
-      or lower(unaccent(coalesce(new.pagamento,''))) like '%especie%' then 'Dinheiro'
-    when lower(unaccent(coalesce(new.pagamento,''))) like '%boleto%' then 'Boleto Bancário'
-    when lower(unaccent(coalesce(new.pagamento,''))) like '%transfer%' then 'Transferência'
-    when trim(coalesce(new.pagamento,'')) = '' then 'Não informado'
-    else initcap(lower(trim(new.pagamento)))
-  end;
-
-  new.categoria := case
-    when trim(coalesce(new.categoria,'')) = '' then 'Outros'
-    when lower(unaccent(new.categoria)) like '%agua%' then 'Bebidas'
-    when lower(unaccent(new.categoria)) like '%bebida%' then 'Bebidas'
-    when lower(unaccent(new.categoria)) like '%lavander%' then 'Lavanderia'
-    when lower(unaccent(new.categoria)) like '%aliment%' then 'Alimentação'
-    when lower(unaccent(new.categoria)) like '%servic%' then 'Serviços'
-    else initcap(lower(trim(new.categoria)))
-  end;
-
-  new.item := trim(regexp_replace(coalesce(new.item, new.categoria, 'Venda extra'), '\s+', ' ', 'g'));
-  new.qtd := greatest(1, coalesce(new.qtd, 1));
-  new.total := greatest(0, coalesce(new.total, 0));
-  new.valor_unit := case
-    when coalesce(new.valor_unit, 0) > 0 then new.valor_unit
-    else round(new.total / greatest(new.qtd, 1), 2)
-  end;
-
-  if keep_cancelled then
-    new.valor_pago := 0;
-    new.status := 'cancelado';
-  else
-    new.valor_pago := least(new.total, greatest(0, coalesce(new.valor_pago, 0)));
-    new.status := case
-      when new.valor_pago >= new.total and new.total > 0 then 'pago'
-      when new.valor_pago > 0 then 'parcial'
-      else 'pendente'
-    end;
-  end if;
-
-  return new;
-end;
-$$;
-
 create or replace function public.register_stock_count(
   _company_id uuid,
   _product_id uuid,
@@ -229,40 +175,35 @@ begin
     from public.sales s
     where s.company_id = _company_id
       and s.id = any(_sale_ids)
-      and coalesce(s.status, '') <> 'cancelado'
     for update
   loop
     processed := processed + 1;
+    previous_stock := null;
 
     if sale_row.produto_id is not null and coalesce(sale_row.qtd, 0) > 0 then
       select estoque_atual into previous_stock
       from public.products
-      where id = sale_row.produto_id and company_id = _company_id
-      for update;
-
-      if found then
-        restored_stock := previous_stock + sale_row.qtd;
-        update public.products
-        set estoque_atual = restored_stock,
-            updated_at = now()
-        where id = sale_row.produto_id and company_id = _company_id;
-
-        insert into public.stock_movements(
-          company_id, produto_id, tipo, quantidade,
-          estoque_anterior, estoque_posterior, motivo, created_by
-        ) values (
-          _company_id, sale_row.produto_id, 'cancelamento_venda', sale_row.qtd,
-          previous_stock, restored_stock,
-          'Cancelamento da comanda ' || coalesce(sale_row.compra_id::text, sale_row.id::text),
-          auth.uid()
-        );
-      end if;
+      where id = sale_row.produto_id and company_id = _company_id;
     end if;
 
-    update public.sales
-    set status = 'cancelado',
-        valor_pago = 0
+    delete from public.sales
     where id = sale_row.id and company_id = _company_id;
+
+    if previous_stock is not null then
+      select estoque_atual into restored_stock
+      from public.products
+      where id = sale_row.produto_id and company_id = _company_id;
+
+      insert into public.stock_movements(
+        company_id, produto_id, tipo, quantidade,
+        estoque_anterior, estoque_posterior, motivo, created_by
+      ) values (
+        _company_id, sale_row.produto_id, 'exclusao_venda', sale_row.qtd,
+        previous_stock, restored_stock,
+        'Venda excluída definitivamente: ' || coalesce(sale_row.compra_id::text, sale_row.id::text),
+        auth.uid()
+      );
+    end if;
   end loop;
 
   if processed = 0 then
