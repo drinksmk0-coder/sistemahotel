@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "HospedaMais Booking Connector",
+  "version": "0.1.0",
+  "description": "Captura, com confirmação humana, os dados visíveis de uma reserva aberta na Extranet da Booking e envia ao HospedaMais.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": [
+    "https://admin.booking.com/*",
+    "https://*.supabase.co/functions/v1/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Enviar reserva ao HospedaMais"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://admin.booking.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
