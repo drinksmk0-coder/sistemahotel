@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HospedaMais Booking Connector",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Captura, com confirmação humana, os dados visíveis de uma reserva aberta na Extranet da Booking e envia ao HospedaMais.",
   "permissions": ["activeTab", "storage"],
   "host_permissions": [
