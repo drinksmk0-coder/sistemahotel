@@ -6,6 +6,7 @@ import {
   ExternalLink,
   FileSignature,
   RefreshCw,
+  Trash2,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -88,6 +89,7 @@ function FichasCheckin() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<GuestCheckin | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["guest-checkins-with-guests", company.data?.id],
@@ -186,6 +188,36 @@ function FichasCheckin() {
       queryKey: ["guest-checkins-pending"],
     });
     toast.success("Ficha conferida e confirmada.");
+  }
+
+  async function deleteCheckin(row: GuestCheckin) {
+    if (!company.data?.id || deletingId) return;
+    const confirmed = window.confirm(
+      "Excluir somente esta ficha de check-in? A reserva, o cadastro do hóspede, pagamentos e histórico financeiro serão mantidos.",
+    );
+    if (!confirmed) return;
+
+    setDeletingId(row.id);
+    const { error } = await (supabase as any)
+      .from("guest_checkins")
+      .delete()
+      .eq("id", row.id)
+      .eq("company_id", company.data.id);
+    setDeletingId(null);
+
+    if (error) {
+      toast.error(`Não foi possível excluir a ficha: ${error.message}`);
+      return;
+    }
+
+    setSelected((current) => (current?.id === row.id ? null : current));
+    await queryClient.invalidateQueries({
+      queryKey: ["guest-checkins-with-guests"],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["guest-checkins-pending"],
+    });
+    toast.success("Ficha de check-in excluída. Reserva e histórico foram preservados.");
   }
 
   return (
@@ -344,7 +376,9 @@ function FichasCheckin() {
             row={selected}
             guests={guestsByReservation.get(selected.reservation_id) ?? []}
             confirming={confirming}
+            deleting={deletingId === selected.id}
             onConfirm={() => void confirmReview(selected)}
+            onDelete={() => void deleteCheckin(selected)}
             onClose={() => setSelected(null)}
           />
         </Modal>
@@ -357,13 +391,17 @@ function FichaDetalhes({
   row,
   guests,
   confirming,
+  deleting,
   onConfirm,
+  onDelete,
   onClose,
 }: {
   row: GuestCheckin;
   guests: ReservationGuest[];
   confirming: boolean;
+  deleting: boolean;
   onConfirm: () => void;
+  onDelete: () => void;
   onClose: () => void;
 }) {
   const holder = guests.find((guest) => guest.titular);
@@ -457,13 +495,24 @@ function FichaDetalhes({
         )}
       </section>
 
-      <div className="flex flex-wrap justify-end gap-2">
-        <button type="button" className="btn-ghost" onClick={onClose}>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          type="button"
+          className="mr-auto flex items-center gap-2 rounded-md border border-destructive/30 px-3 py-2 text-sm font-semibold text-destructive transition hover:bg-destructive/10 disabled:cursor-wait disabled:opacity-50"
+          onClick={onDelete}
+          disabled={deleting}
+          title="Excluir somente esta ficha de check-in"
+        >
+          <Trash2 className="h-4 w-4" />
+          {deleting ? "Excluindo…" : "Excluir ficha"}
+        </button>
+        <button type="button" className="btn-ghost" onClick={onClose} disabled={deleting}>
           Fechar
         </button>
         <button
           type="button"
           className="btn-ghost flex items-center gap-2"
+          disabled={deleting}
           onClick={() =>
             window.open(
               `/checkin-print?token=${row.public_token}`,
@@ -479,7 +528,7 @@ function FichaDetalhes({
             type="button"
             className="btn-primary flex items-center gap-2"
             onClick={onConfirm}
-            disabled={confirming || !row.signature_data_url}
+            disabled={confirming || deleting || !row.signature_data_url}
           >
             <CheckCircle2 className="h-4 w-4" />
             {confirming ? "Confirmando…" : "Confirmar ficha conferida"}
