@@ -88,7 +88,7 @@ const NAV_ITEMS: NavigationItem[] = [
   },
   {
     to: "/mapa",
-    label: "Quadro de quartos",
+    label: "Mapa de quartos",
     icon: BedDouble,
     roles: ["dono", "recepcao", "limpeza", "cafe"],
     group: "Operação",
