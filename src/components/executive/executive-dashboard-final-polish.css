@@ -42,7 +42,7 @@
 }
 
 .executive-readable-root [data-executive-map-layout="true"] {
-  min-height: 19rem !important;
+  min-height: 16rem !important;
   grid-template-columns: minmax(0, 1fr) !important;
   align-items: start !important;
   gap: 0.45rem !important;
@@ -56,11 +56,29 @@
 .executive-readable-root [data-executive-brazil-map="true"] {
   display: block !important;
   width: 100% !important;
-  height: 14.75rem !important;
+  height: 11.75rem !important;
   max-width: 28rem !important;
   margin-inline: auto !important;
   transform: scale(1.06);
   transform-origin: center;
+}
+
+@media (min-width: 1680px) and (min-height: 900px) {
+  .executive-readable-root [data-executive-donut-layout="true"] {
+    min-height: 10.5rem !important;
+  }
+
+  .executive-readable-root [data-executive-donut-chart="true"] {
+    height: 10.25rem !important;
+  }
+
+  .executive-readable-root [data-executive-map-layout="true"] {
+    min-height: 14rem !important;
+  }
+
+  .executive-readable-root [data-executive-brazil-map="true"] {
+    height: 10rem !important;
+  }
 }
 
 .executive-readable-root [data-executive-map-layout="true"] > div:last-child {
