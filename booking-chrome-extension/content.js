@@ -149,6 +149,38 @@ function extractBookingReservation() {
   };
 }
 
+let autoTimer = null;
+let lastCandidateKey = "";
+
+function candidateKey(payload) {
+  return [
+    payload?.booking_code || "",
+    payload?.status_text || "",
+    payload?.checkin_text || "",
+    payload?.checkout_text || "",
+    payload?.total_text || "",
+  ].join("|");
+}
+
+function scheduleAutomaticCapture(delay = 2200) {
+  window.clearTimeout(autoTimer);
+  autoTimer = window.setTimeout(() => {
+    try {
+      const payload = extractBookingReservation();
+      if (!payload.booking_code) return;
+      const key = candidateKey(payload);
+      if (!key || key === lastCandidateKey) return;
+      lastCandidateKey = key;
+      chrome.runtime.sendMessage({
+        type: "HOSPEDAMAIS_AUTO_BOOKING",
+        payload,
+      });
+    } catch {
+      // O modo automático nunca deve interferir na navegação da Extranet.
+    }
+  }, delay);
+}
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "HOSPEDAMAIS_EXTRACT_BOOKING") return;
   try {
@@ -162,3 +194,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   return true;
 });
+
+scheduleAutomaticCapture(1800);
+const observer = new MutationObserver(() => scheduleAutomaticCapture());
+if (document.documentElement) {
+  observer.observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+  });
+}
