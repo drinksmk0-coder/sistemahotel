@@ -64,15 +64,18 @@ function bookingCode(lines, flatText) {
   );
 }
 
+function stripCancellation(value) {
+  return clean(String(value ?? "").replace(/\s+cancelad[oa](?:\s+pelo\s+hóspede)?\s*$/i, ""));
+}
+
 function findRoomType(lines) {
   const explicit = valueAfterLabel(lines, ["Tipo de quarto", "Room type", "Acomodação"]);
-  if (explicit) return explicit;
+  if (explicit) return stripCancellation(explicit) || null;
 
-  return (
-    lines.find((line) =>
-      /^(quarto|suíte|suite|apartamento|chalé|chale|studio|estúdio)\b/i.test(line),
-    ) || null
+  const roomLine = lines.find((line) =>
+    /^(quarto|suíte|suite|apartamento|chalé|chale|studio|estúdio)\b/i.test(line),
   );
+  return roomLine ? stripCancellation(roomLine) || null : null;
 }
 
 function findStatus(lines, flatText) {
@@ -83,8 +86,14 @@ function findStatus(lines, flatText) {
   ]);
   if (explicit) return explicit;
 
+  const cancelled = lines.find((line) => /cancelad[oa]/i.test(line));
+  if (cancelled) {
+    const match = cancelled.match(/(cancelad[oa](?:\s+pelo\s+hóspede)?)/i);
+    return match?.[1] ? clean(match[1]) : "Cancelada";
+  }
+
   const statusLine = lines.find((line) =>
-    /^(recebido|confirmada?|cancelada?|no-show|não compareceu|alterada?)$/i.test(line),
+    /^(recebido|confirmada?|no-show|não compareceu|alterada?)$/i.test(line),
   );
   if (statusLine) return statusLine;
 
