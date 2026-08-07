@@ -84,46 +84,49 @@ function Avaliar() {
     e.preventDefault();
     if (!notas.nota_geral) return toast.error("Dê ao menos a nota geral");
     if (!quartoInput.trim()) return toast.error("Informe o número do quarto");
+    if (!empresa) return toast.error("Este QR Code não identifica o hotel. Solicite um novo QR Code na recepção.");
 
     const q = Number(quartoInput);
     if (!Number.isInteger(q) || q <= 0) return toast.error("Número do quarto inválido");
 
     setBusy(true);
     try {
-      const { error } = await supabase.from("feedbacks").insert({
-        company_id: empresa ?? null,
-        hospede_nome: nome.trim() || null,
-        quarto: q,
-        nota_geral: notas.nota_geral ?? null,
-        nota_limpeza: notas.nota_limpeza ?? null,
-        nota_conforto: notas.nota_cama ?? null,
-        nota_cama: notas.nota_cama ?? null,
-        nota_banheiro: notas.nota_banheiro ?? null,
-        nota_chuveiro: notas.nota_chuveiro ?? null,
-        nota_silencio: notas.nota_silencio ?? null,
-        nota_ventilacao: notas.nota_ventilacao ?? null,
-        nota_espaco: notas.nota_espaco ?? null,
-        nota_tv: notas.nota_tv ?? null,
-        nota_frigobar: notas.nota_frigobar ?? null,
-        nota_wifi: notas.nota_wifi ?? null,
-        nota_iluminacao: notas.nota_iluminacao ?? null,
-        nota_custo_beneficio: notas.nota_custo_beneficio ?? null,
-        nota_atendimento: notas.nota_atendimento ?? null,
-        recomendaria,
-        voltaria_quarto: voltariaQuarto,
-        preferencia_principal: preferenciaPrincipal || null,
-        problema_principal: problemaPrincipal || null,
-        wifi_problema: wifiProblema,
-        wifi_dispositivo: wifiProblema && wifiDispositivo ? wifiDispositivo : null,
-        comentario: comentario.trim() || null,
-        sugestao: sugestao.trim() || null,
-      } as never);
+      const { data, error } = await supabase.functions.invoke("submit-feedback", {
+        body: {
+          company_id: empresa,
+          hospede_nome: nome.trim() || null,
+          quarto: q,
+          nota_geral: notas.nota_geral ?? null,
+          nota_limpeza: notas.nota_limpeza ?? null,
+          nota_conforto: notas.nota_cama ?? null,
+          nota_cama: notas.nota_cama ?? null,
+          nota_banheiro: notas.nota_banheiro ?? null,
+          nota_chuveiro: notas.nota_chuveiro ?? null,
+          nota_silencio: notas.nota_silencio ?? null,
+          nota_ventilacao: notas.nota_ventilacao ?? null,
+          nota_espaco: notas.nota_espaco ?? null,
+          nota_tv: notas.nota_tv ?? null,
+          nota_frigobar: notas.nota_frigobar ?? null,
+          nota_wifi: notas.nota_wifi ?? null,
+          nota_iluminacao: notas.nota_iluminacao ?? null,
+          nota_custo_beneficio: notas.nota_custo_beneficio ?? null,
+          nota_atendimento: notas.nota_atendimento ?? null,
+          recomendaria,
+          voltaria_quarto: voltariaQuarto,
+          preferencia_principal: preferenciaPrincipal || null,
+          problema_principal: problemaPrincipal || null,
+          wifi_problema: wifiProblema,
+          wifi_dispositivo: wifiProblema && wifiDispositivo ? wifiDispositivo : null,
+          comentario: comentario.trim() || null,
+          sugestao: sugestao.trim() || null,
+        },
+      });
       if (error) throw error;
-
+      if (!data?.ok) throw new Error(data?.error ?? "Não foi possível registrar a avaliação.");
       setSent(true);
     } catch (error) {
       console.error(error);
-      toast.error("Não foi possível enviar. Tente novamente.");
+      toast.error(error instanceof Error ? error.message : "Não foi possível enviar. Tente novamente.");
     } finally {
       setBusy(false);
     }
