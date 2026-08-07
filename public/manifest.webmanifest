@@ -1,7 +1,7 @@
 {
-  "name": "HospedaMais — Gestão hoteleira inteligente",
-  "short_name": "HospedaMais",
-  "description": "Plataforma de gestão hoteleira para reservas, quartos, equipe, finanças e decisões estratégicas.",
+  "name": "Hotel Real | HospedaMais",
+  "short_name": "Hotel Real",
+  "description": "Hotel Real — reservas diretas, hospedagem e atendimento pelo HospedaMais.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

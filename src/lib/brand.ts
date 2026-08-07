@@ -1,9 +1,11 @@
 export const BRAND = {
   name: "HospedaMais",
   shortName: "HospedaMais",
+  hotelName: "Hotel Real",
   tagline: "Gestão hoteleira inteligente",
+  publicTagline: "Reservas diretas e hospedagem",
   description:
-    "Plataforma de gestão hoteleira para reservas, quartos, equipe, finanças, hóspedes e decisões estratégicas.",
+    "Hotel Real — reservas diretas, hospedagem e atendimento pelo HospedaMais.",
   icon: "/hospedamais-icon.svg",
   manifest: "/manifest.webmanifest",
 } as const;
@@ -11,5 +13,7 @@ export const BRAND = {
 export const BRAND_STORAGE_PREFIX = "hospedamais";
 
 export function brandedPageTitle(page?: string) {
-  return page ? `${page} — ${BRAND.name}` : `${BRAND.name} — ${BRAND.tagline}`;
+  return page
+    ? `${page} — ${BRAND.hotelName} | ${BRAND.name}`
+    : `${BRAND.hotelName} — ${BRAND.publicTagline} | ${BRAND.name}`;
 }
