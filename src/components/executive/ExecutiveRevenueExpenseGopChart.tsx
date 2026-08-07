@@ -363,6 +363,30 @@ function ExpenseInsights({ loading, error, summary, hasUnallocatedFilters }: {
   summary: FinancialSummary;
   hasUnallocatedFilters: boolean;
 }) {
+  const isEmpty = !loading
+    && !error
+    && summary.expenseCategories.length === 0
+    && summary.expensePayments.length === 0;
+
+  if (isEmpty) {
+    return (
+      <section data-executive-empty-expenses className="rounded-2xl border border-dashed border-border bg-card px-4 py-3 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-xs font-black text-blue-600">8–9. Análise de despesas</h2>
+            <p className="text-[10px] font-medium text-muted-foreground">Nenhuma despesa cadastrada no período selecionado.</p>
+          </div>
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold text-emerald-700">R$ 0,00</span>
+        </div>
+        {hasUnallocatedFilters && (
+          <p className="mt-1 text-[9px] font-medium text-muted-foreground">
+            Os filtros de período, dia da semana e forma de pagamento também são aplicados às despesas.
+          </p>
+        )}
+      </section>
+    );
+  }
+
   return (
     <section data-executive-detail-grid="expenses" className="executive-expense-insights grid grid-cols-1 gap-2 lg:grid-cols-2">
       <article data-executive-panel data-empty={!loading && !error && summary.expenseCategories.length === 0} className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
