@@ -52,26 +52,35 @@ function CheckinPrint() {
 
   return <main className="min-h-screen bg-neutral-100 py-5 print:bg-white print:py-0">
     <style>{`
-      @page { size: A4 portrait; margin: 5mm; }
+      @page { size: A4 portrait; margin: 0; }
       @media print {
-        html, body { width: 210mm; margin: 0 !important; background: #fff !important; color: #000 !important; }
+        html, body { width: 210mm; min-height: 297mm; margin: 0 !important; background: #fff !important; color: #000 !important; }
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .no-print { display: none !important; }
         .print-sheet {
           box-shadow: none !important;
-          width: 200mm !important;
-          max-width: 200mm !important;
-          min-height: auto !important;
+          box-sizing: border-box !important;
+          display: flex !important;
+          flex-direction: column !important;
+          width: 210mm !important;
+          max-width: 210mm !important;
+          min-height: 297mm !important;
           margin: 0 !important;
-          padding: 0 !important;
+          padding: 6mm !important;
           color: #000 !important;
           background: #fff !important;
         }
         .print-sheet, .print-sheet * { color: #000 !important; }
         .print-sheet header { border-color: #000 !important; }
         .print-sheet h2 { border-color: #000 !important; }
+        .holder-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 2mm !important; }
+        .print-section { margin-top: 4mm !important; }
+        .print-sheet h2 { margin-bottom: 2mm !important; padding-bottom: 1.5mm !important; font-size: 12px !important; }
+        .print-row > p { margin-bottom: 1mm !important; font-size: 8px !important; }
+        .print-row > div { min-height: 8mm !important; padding: 1.5mm 2mm !important; font-size: 10px !important; line-height: 1.25 !important; }
         .print-row > div, .companion-card { border-color: #000 !important; background: #fff !important; }
         .signature-block > div > div { border-color: #000 !important; }
+        .signature-block { margin-top: auto !important; padding-top: 7mm !important; }
         .print-section, .print-row, .signature-block, .companion-card { break-inside: avoid; page-break-inside: avoid; }
         img { filter: grayscale(1) contrast(1.2); }
       }
@@ -100,7 +109,7 @@ function CheckinPrint() {
         <Field label="Recebida em" value={formatDateTime(data.submitted_at)} />
       </div></Section>
 
-      <Section title="Hóspede titular"><div className="grid grid-cols-4 gap-1.5">{LABELS.map(([key, label]) => <Field key={key} label={label} value={displayValue(key, form[key])} className={wideField(key)} />)}</div></Section>
+      <Section title="Hóspede titular"><div className="holder-grid grid grid-cols-4 gap-1.5">{LABELS.map(([key, label]) => <Field key={key} label={label} value={displayValue(key, form[key])} className={wideField(key)} />)}</div></Section>
 
       <Section title={`Acompanhantes (${companions.length})`}>
         {companions.length === 0 ? <div className="rounded border border-black px-2 py-2 text-[9px] text-black">Reserva somente para o titular.</div> : <div className="space-y-2">{companions.map((guest, index) => <div key={`${guest.nome}-${index}`} className="companion-card grid grid-cols-4 gap-1.5 rounded border border-black bg-white p-2 text-black">
