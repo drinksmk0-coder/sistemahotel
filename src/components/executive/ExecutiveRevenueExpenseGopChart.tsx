@@ -389,7 +389,7 @@ function ExpenseInsights({ loading, error, summary, hasUnallocatedFilters }: {
 
   return (
     <section data-executive-detail-grid="expenses" className="executive-expense-insights grid grid-cols-1 gap-2 lg:grid-cols-2">
-      <article data-executive-panel data-empty={!loading && !error && summary.expenseCategories.length === 0} className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <article data-executive-panel data-executive-expense-card="ranking" data-empty={!loading && !error && summary.expenseCategories.length === 0} className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-black text-blue-600">8. Ranking de despesas por categoria</h2>
@@ -402,7 +402,7 @@ function ExpenseInsights({ loading, error, summary, hasUnallocatedFilters }: {
         {!loading && !error && <ExpenseRanking rows={summary.expenseCategories} />}
       </article>
 
-      <article data-executive-panel data-empty={!loading && !error && summary.expensePayments.length === 0} className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <article data-executive-panel data-executive-expense-card="payments" data-empty={!loading && !error && summary.expensePayments.length === 0} className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
         <div className="mb-3">
           <h2 className="text-sm font-black text-blue-600">9. Como as despesas foram pagas</h2>
           <p className="text-[10px] font-medium text-muted-foreground">Compara valor e quantidade de pagamentos por modalidade.</p>
@@ -425,7 +425,7 @@ function ExpenseRanking({ rows }: { rows: NamedValue[] }) {
   if (!rows.length) return <CompactState text="Nenhuma despesa cadastrada no período selecionado." />;
   const max = Math.max(1, ...rows.map((row) => row.value));
   return (
-    <div className="flex min-h-48 flex-col justify-evenly gap-3">
+    <div data-executive-expense-ranking="true" className="flex min-h-48 flex-col justify-evenly gap-3">
       {rows.slice(0, 7).map((row) => (
         <div key={row.name} className="grid grid-cols-[minmax(7rem,1fr)_2fr_auto] items-center gap-2 text-xs">
           <span className="truncate font-semibold" title={row.name}>{row.name}</span>
