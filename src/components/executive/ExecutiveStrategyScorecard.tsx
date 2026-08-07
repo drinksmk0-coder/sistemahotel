@@ -155,7 +155,7 @@ export function ExecutiveStrategyScorecard() {
 function GoalCard({ goal }: { goal: StrategicGoal }) {
   const status = statusTheme(goal.status);
   return (
-    <article data-executive-goal-card className={`flex h-full min-w-0 flex-col rounded-xl border p-3 ${status.card}`}>
+    <article data-executive-goal-card data-goal-status={goal.status} className={`flex h-full min-w-0 flex-col rounded-xl border p-3 ${status.card}`}>
       <div className="flex items-start justify-between gap-2">
         <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${status.icon}`}>{goal.icon}</div>
         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase ${status.badge}`}>
@@ -167,7 +167,7 @@ function GoalCard({ goal }: { goal: StrategicGoal }) {
       <h3 className="text-sm font-black leading-tight text-foreground">{goal.objective}</h3>
       <p className="mt-1 min-h-8 text-[10px] leading-4 text-muted-foreground">{goal.question}</p>
 
-      <div className="mt-2 rounded-lg bg-background/80 p-2">
+      <div data-executive-goal-metric className="mt-2 rounded-lg border border-border/60 bg-background/90 p-2.5 shadow-sm">
         <p className="text-[9px] font-bold uppercase text-muted-foreground">KPI: {goal.kpi}</p>
         <div className="mt-1 flex items-end justify-between gap-2">
           <strong className="text-base font-black text-foreground">{goal.current}</strong>
@@ -178,7 +178,7 @@ function GoalCard({ goal }: { goal: StrategicGoal }) {
         </div>
       </div>
 
-      <div data-executive-goal-action className="mt-auto border-t border-current/10 pt-2">
+      <div data-executive-goal-action className="mt-2 rounded-lg bg-background/70 px-2.5 py-2">
         <p className="text-[9px] font-extrabold uppercase text-muted-foreground">Ação recomendada</p>
         <p className="mt-0.5 text-[10px] font-semibold leading-4 text-foreground">{goal.action}</p>
       </div>

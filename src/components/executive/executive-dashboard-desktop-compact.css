@@ -7,9 +7,28 @@
   --executive-radius: clamp(0.9rem, 0.8vw, 1.15rem);
 }
 
-.executive-readable-root .executive-help-tooltip,
-.executive-readable-root .recharts-tooltip-wrapper {
+.executive-readable-root .executive-help-tooltip {
   display: none !important;
+}
+
+/* Interação de BI: os valores voltam a aparecer ao passar o mouse. */
+.executive-readable-root .recharts-tooltip-wrapper {
+  z-index: 60 !important;
+  display: block !important;
+  pointer-events: none !important;
+}
+
+.executive-readable-root .recharts-default-tooltip {
+  border: 1px solid var(--border) !important;
+  border-radius: 0.75rem !important;
+  background: color-mix(in srgb, var(--card) 96%, transparent) !important;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 0.14) !important;
+}
+
+.executive-readable-root .recharts-cartesian-axis-tick-value {
+  fill: var(--muted-foreground);
+  font-size: 0.68rem;
+  font-weight: 650;
 }
 
 .executive-readable-root > .executive-dashboard-shell {
@@ -57,6 +76,15 @@ body:has(.executive-dashboard-shell:fullscreen) {
   padding: var(--executive-panel-padding) !important;
 }
 
+.executive-readable-root [data-executive-panel]:has([data-executive-chart]),
+.executive-readable-root [data-executive-panel]:has([data-executive-donut-layout]),
+.executive-readable-root [data-executive-panel]:has([data-executive-map-layout]),
+.executive-readable-root [data-executive-panel]:has([data-executive-progress-bars]) {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
 .executive-readable-root [data-executive-panel] h2 {
   margin-bottom: 0.55rem !important;
   font-size: clamp(0.76rem, 0.64rem + 0.12vw, 0.94rem) !important;
@@ -96,7 +124,11 @@ body:has(.executive-dashboard-shell:fullscreen) {
 
 /* Cinco objetivos em TV/desktop amplo; 3, 2 ou 1 conforme o espaço diminui. */
 .executive-readable-root [data-executive-strategy] {
+  position: relative;
+  overflow: hidden;
   padding: clamp(0.75rem, 0.75vw, 1rem) !important;
+  border-top: 0.22rem solid color-mix(in srgb, var(--primary) 82%, #ffffff) !important;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 0.07) !important;
 }
 
 .executive-readable-root [data-executive-goal-grid] {
@@ -106,8 +138,27 @@ body:has(.executive-dashboard-shell:fullscreen) {
 }
 
 .executive-readable-root [data-executive-goal-card] {
+  position: relative;
   min-height: 14rem;
+  overflow: hidden;
   padding: clamp(0.75rem, 0.65vw, 0.95rem) !important;
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.06);
+}
+
+.executive-readable-root [data-executive-goal-card]::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.24rem;
+  content: "";
+  background: #f59e0b;
+}
+
+.executive-readable-root [data-executive-goal-card][data-goal-status="success"]::before {
+  background: #10b981;
+}
+
+.executive-readable-root [data-executive-goal-card][data-goal-status="danger"]::before {
+  background: #ef4444;
 }
 
 .executive-readable-root [data-executive-goal-card] h3 {
@@ -121,7 +172,27 @@ body:has(.executive-dashboard-shell:fullscreen) {
 
 .executive-readable-root [data-executive-goal-action] {
   min-height: 3.55rem;
+  margin-top: 0.55rem !important;
+  border: 1px solid color-mix(in srgb, currentColor 10%, var(--border));
+}
+
+.executive-readable-root [data-executive-goal-metric] {
   margin-top: auto !important;
+}
+
+.executive-readable-root [data-executive-goal-metric] strong {
+  font-size: clamp(1.05rem, 0.92rem + 0.18vw, 1.3rem) !important;
+  letter-spacing: -0.025em;
+}
+
+.executive-readable-root [data-executive-goal-metric] > div > span {
+  border-radius: 999px;
+  background: var(--muted);
+  padding: 0.2rem 0.45rem;
+}
+
+.executive-readable-root [data-executive-goal-action] > p:last-child {
+  color: color-mix(in srgb, var(--foreground) 88%, var(--muted-foreground));
 }
 
 /* Os grupos inferiores mudam de 3 para 2 ou 1 coluna sem comprimir gráficos. */
@@ -136,21 +207,29 @@ body:has(.executive-dashboard-shell:fullscreen) {
 }
 
 .executive-readable-root [data-executive-chart="main"] {
-  height: clamp(15rem, 25vh, 19rem) !important;
+  height: clamp(19rem, 34vh, 25rem) !important;
+  flex: 1 1 auto;
 }
 
 .executive-readable-root [data-executive-chart="detail"],
 .executive-readable-root .h-52 {
-  height: clamp(11.5rem, 18vh, 15rem) !important;
+  height: clamp(16rem, 27vh, 21rem) !important;
+  flex: 1 1 auto;
 }
 
 .executive-readable-root .h-48 {
-  height: clamp(11rem, 17vh, 14rem) !important;
+  height: clamp(15rem, 25vh, 19rem) !important;
 }
 
 .executive-readable-root .min-h-52,
 .executive-readable-root .min-h-60 {
-  min-height: clamp(11.5rem, 18vh, 15rem) !important;
+  min-height: clamp(16rem, 27vh, 21rem) !important;
+}
+
+.executive-readable-root [data-executive-donut-layout="true"],
+.executive-readable-root [data-executive-map-layout="true"],
+.executive-readable-root [data-executive-progress-bars="true"] {
+  flex: 1 1 auto;
 }
 
 /* Quando não existem despesas, duas áreas de gráfico viram uma única faixa. */
@@ -202,8 +281,8 @@ body:has(.executive-dashboard-shell:fullscreen) {
   }
 
   .executive-readable-root [data-executive-goal-card] {
-    min-height: 12.75rem !important;
-    padding: 0.65rem !important;
+    min-height: 13.75rem !important;
+    padding: 0.72rem !important;
   }
 
   .executive-readable-root [data-executive-goal-card] h3 {
@@ -215,7 +294,7 @@ body:has(.executive-dashboard-shell:fullscreen) {
   }
 
   .executive-readable-root [data-executive-goal-action] {
-    min-height: 3.15rem !important;
+    min-height: 3.4rem !important;
   }
 
   .executive-readable-root [data-executive-kpi-grid] article {
@@ -229,16 +308,26 @@ body:has(.executive-dashboard-shell:fullscreen) {
   }
 
   .executive-readable-root [data-executive-chart="main"] {
-    height: 15.5rem !important;
+    height: 21rem !important;
   }
 
   .executive-readable-root [data-executive-chart="detail"],
   .executive-readable-root .h-52 {
-    height: 12.5rem !important;
+    height: 17.5rem !important;
   }
 
   .executive-readable-root .h-48 {
-    height: 11.75rem !important;
+    height: 16.5rem !important;
+  }
+
+  .executive-readable-root [data-executive-detail-grid="financial"] > article,
+  .executive-readable-root [data-executive-detail-grid="operations"] > article {
+    min-height: 20rem !important;
+  }
+
+  .executive-readable-root [data-executive-progress-bars="true"] {
+    min-height: 17.5rem !important;
+    justify-content: space-evenly;
   }
 }
 

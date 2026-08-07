@@ -311,11 +311,11 @@ function RevenueExpenseGopChart({ rows, summary }: { rows: ChartRow[]; summary: 
         <SummaryValue label="Despesas" value={summary.expenses} tone="red" />
         <SummaryValue label="GOP" value={summary.gop} tone={summary.gop >= 0 ? "green" : "red"} />
       </div>
-      <div className="h-44 min-w-0">
+      <div data-executive-chart="detail" data-chart-points={rows.length} className="h-60 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={rows} margin={{ left: 0, right: 8, top: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 5" vertical={false} />
-            <XAxis dataKey="label" minTickGap={18} />
+            <XAxis dataKey="label" interval={rows.length <= 12 ? 0 : "preserveStartEnd"} minTickGap={18} tickMargin={8} />
             <YAxis width={52} tickFormatter={compactCurrency} />
             <Tooltip
               formatter={(value: number, name: string) => [fmtBRL(value), name]}
@@ -323,9 +323,9 @@ function RevenueExpenseGopChart({ rows, summary }: { rows: ChartRow[]; summary: 
             />
             <Legend wrapperStyle={{ fontSize: 9, fontWeight: 700 }} />
             <ReferenceLine y={0} stroke="var(--border)" />
-            <Bar dataKey="lodgingRevenue" name="Hospedagem" fill={BLUE} radius={[5, 5, 0, 0]} maxBarSize={16} />
-            <Bar dataKey="productRevenue" name="Produtos/serviços" fill={TEAL} radius={[5, 5, 0, 0]} maxBarSize={16} />
-            <Bar dataKey="expenses" name="Despesas" fill={RED} radius={[5, 5, 0, 0]} maxBarSize={16} />
+            <Bar dataKey="lodgingRevenue" name="Hospedagem" fill={BLUE} radius={[5, 5, 0, 0]} maxBarSize={rows.length <= 12 ? 34 : 20} />
+            <Bar dataKey="productRevenue" name="Produtos/serviços" fill={TEAL} radius={[5, 5, 0, 0]} maxBarSize={rows.length <= 12 ? 34 : 20} />
+            <Bar dataKey="expenses" name="Despesas" fill={RED} radius={[5, 5, 0, 0]} maxBarSize={rows.length <= 12 ? 34 : 20} />
             <Line
               type="monotone"
               dataKey="gop"
@@ -444,8 +444,8 @@ function ExpensePaymentDonut({ rows }: { rows: NamedValue[] }) {
   const data = compactRows(rows);
   const total = data.reduce((sum, row) => sum + row.value, 0);
   return (
-    <div className="grid min-h-48 grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(10rem,0.85fr)_minmax(0,1.15fr)]">
-      <div className="h-48 min-w-0">
+    <div data-executive-donut-layout="true" className="grid min-h-48 grid-cols-1 items-center gap-3 sm:grid-cols-[minmax(10rem,0.85fr)_minmax(0,1.15fr)]">
+      <div data-executive-donut-chart="true" className="h-48 min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
@@ -454,8 +454,8 @@ function ExpensePaymentDonut({ rows }: { rows: NamedValue[] }) {
               nameKey="name"
               cx="50%"
               cy="50%"
-              innerRadius={48}
-              outerRadius={76}
+              innerRadius="48%"
+              outerRadius="82%"
               paddingAngle={data.length === 1 ? 0 : 2}
               stroke={data.length === 1 ? "none" : "var(--card)"}
               strokeWidth={data.length === 1 ? 0 : 2}
@@ -467,7 +467,7 @@ function ExpensePaymentDonut({ rows }: { rows: NamedValue[] }) {
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div className="space-y-2 text-xs">
+      <div data-executive-donut-legend="true" className="space-y-2 text-xs">
         {data.map((row, index) => (
           <div key={row.name} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <span className="flex min-w-0 items-center gap-2">
