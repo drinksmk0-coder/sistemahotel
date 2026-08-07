@@ -52,7 +52,7 @@ export function RoomTimeline({
   onRoomClick: (room: Room) => void;
   onCreateReservation: (room: Room, date: string) => void;
 }) {
-  const [daysVisible, setDaysVisible] = useState<TimelineRange>(30);
+  const [daysVisible, setDaysVisible] = useState<TimelineRange>(14);
   const [paymentReservation, setPaymentReservation] = useState<Reservation | null>(null);
   const [companyBillingReservation, setCompanyBillingReservation] = useState<Reservation | null>(null);
   const [companyBillingBusy, setCompanyBillingBusy] = useState(false);
@@ -182,7 +182,7 @@ export function RoomTimeline({
 
   const roomColumnWidth = 260;
   const dayWidth = daysVisible >= 60 ? 56 : daysVisible >= 30 ? 64 : 80;
-  const rowHeight = 46;
+  const rowHeight = 52;
   const gridTemplateColumns = `${roomColumnWidth}px repeat(${daysVisible}, minmax(${dayWidth}px, 1fr))`;
   const minimumWidth = roomColumnWidth + daysVisible * dayWidth;
 
@@ -195,12 +195,9 @@ export function RoomTimeline({
         <div className="border-b border-border bg-card px-2.5 py-2">
           <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <div>
-                <h2 className="text-sm font-extrabold text-pine-dark">Mapa de ocupação</h2>
-                <p className="text-[10px] text-muted-foreground">
-                  Reservas ocupam todo o período bloqueado. Ações financeiras ficam disponíveis direto no mapa.
-                </p>
-              </div>
+              <p className="text-[10px] font-semibold text-muted-foreground">
+                Reservas, disponibilidade e ações rápidas da recepção.
+              </p>
               <label className="relative inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground shadow-sm">
                 <CalendarDays className="h-3.5 w-3.5 shrink-0" />
                 <span>{fmtDate(startDate)} a {fmtDate(endDate)}</span>
@@ -260,13 +257,13 @@ export function RoomTimeline({
             </div>
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-semibold text-muted-foreground">
-            <Legend color="bg-emerald-600" label="Hospedado · quitado" />
-            <Legend color="bg-brick" label="Hospedado · com débito" />
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] font-semibold text-muted-foreground">
+            <Legend color="bg-emerald-600" label="Hospedado · quitado" emphasis />
+            <Legend color="bg-brick" label="Hospedado · com débito" emphasis />
             <Legend color="bg-[var(--chart-5)]" label="Reserva · aguardando check-in" />
             <Legend color="bg-indigo-600" label="Saiu e retorna" />
             <Legend color="bg-slate" label="Finalizada" />
-            <span className="ml-auto hidden items-center gap-2 sm:flex">
+            <span className="ml-auto hidden items-center gap-2 rounded-md border border-border bg-muted/35 px-2 py-1 sm:flex">
               <WalletCards className="h-3 w-3" /> receber
               <Building2 className="h-3 w-3" /> faturar empresa
               <Pencil className="h-3 w-3" /> editar
@@ -408,7 +405,7 @@ export function RoomTimeline({
                         return (
                           <div
                             key={reservation.id}
-                            className={`relative z-10 mx-1 my-1 flex min-w-0 overflow-hidden rounded-md border shadow-sm transition hover:z-20 hover:brightness-105 hover:shadow-md ${visual.className}`}
+                            className={`relative z-10 mx-1 my-1 flex min-w-0 overflow-hidden rounded-lg border shadow-sm ring-1 ring-black/5 transition hover:z-20 hover:brightness-105 hover:shadow-md ${visual.className}`}
                             style={{
                               gridColumn: `${startIndex + 2} / span ${span}`,
                               gridRow: 1,
@@ -418,13 +415,13 @@ export function RoomTimeline({
                             <button
                               type="button"
                               onClick={() => onRoomClick(room)}
-                              className="flex min-w-0 flex-1 items-center px-2 text-left"
+                              className="flex min-w-0 flex-1 items-center px-2.5 text-left"
                             >
                               <span className="min-w-0">
-                                <strong className="block truncate text-[10px] font-black">
+                                <strong className="block truncate text-[11px] font-black leading-tight">
                                   {reservation.cliente_nome}
                                 </strong>
-                                <span className="flex items-center gap-1 truncate text-[8px] font-bold opacity-95">
+                                <span className="mt-0.5 flex items-center gap-1 truncate text-[9px] font-bold opacity-95">
                                   <CircleDollarSign className="h-2.5 w-2.5 shrink-0" />
                                   {visual.label}
                                 </span>
@@ -435,7 +432,7 @@ export function RoomTimeline({
                               <button
                                 type="button"
                                 onClick={() => setPaymentReservation(reservation)}
-                                className="flex min-w-8 shrink-0 items-center justify-center border-l border-white/25 bg-black/5 px-1.5 transition hover:bg-black/15"
+                                className="flex min-w-9 shrink-0 items-center justify-center border-l border-white/30 bg-black/10 px-1.5 transition hover:bg-black/20"
                                 aria-label={`Receber conta de ${reservation.cliente_nome}`}
                                 title={`Receber / quitar ${fmtBRL(account.balance)}`}
                               >
@@ -447,7 +444,7 @@ export function RoomTimeline({
                               <button
                                 type="button"
                                 onClick={() => setCompanyBillingReservation(reservation)}
-                                className="flex min-w-8 shrink-0 items-center justify-center border-l border-white/25 bg-black/5 px-1.5 transition hover:bg-black/15"
+                                className="flex min-w-9 shrink-0 items-center justify-center border-l border-white/30 bg-black/10 px-1.5 transition hover:bg-black/20"
                                 aria-label={`Faturar conta de ${reservation.cliente_nome} para empresa`}
                                 title="Faturar empresa e concluir check-out"
                               >
@@ -457,7 +454,7 @@ export function RoomTimeline({
 
                             <a
                               href={`/reservas?editar=${reservation.id}`}
-                              className="flex min-w-8 shrink-0 items-center justify-center border-l border-white/25 bg-black/5 px-1.5 transition hover:bg-black/15"
+                              className="flex min-w-9 shrink-0 items-center justify-center border-l border-white/30 bg-black/10 px-1.5 transition hover:bg-black/20"
                               aria-label={`Editar reserva de ${reservation.cliente_nome}`}
                               title="Editar hospedagem"
                             >
@@ -474,7 +471,7 @@ export function RoomTimeline({
                                     patch: { situacao: temporarilyAway ? null : "ausente_temporario" },
                                   })
                                 }
-                                className="flex min-w-8 shrink-0 items-center justify-center border-l border-white/25 bg-black/5 px-1.5 transition hover:bg-black/10 disabled:cursor-wait disabled:opacity-60"
+                                className="flex min-w-9 shrink-0 items-center justify-center border-l border-white/30 bg-black/10 px-1.5 transition hover:bg-black/20 disabled:cursor-wait disabled:opacity-60"
                                 aria-label={
                                   temporarilyAway
                                     ? `Marcar hóspede do quarto ${room.numero} como retornado`
@@ -527,10 +524,22 @@ export function RoomTimeline({
   );
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
+function Legend({
+  color,
+  label,
+  emphasis = false,
+}: {
+  color: string;
+  label: string;
+  emphasis?: boolean;
+}) {
   return (
-    <span className="flex items-center gap-1">
-      <span className={`h-2 w-2 rounded-full ${color}`} />
+    <span
+      className={`flex items-center gap-1 rounded-full px-2 py-1 ${
+        emphasis ? "border border-border bg-muted/45 font-bold text-foreground" : "bg-muted/20"
+      }`}
+    >
+      <span className={`h-2.5 w-2.5 rounded-full ${color}`} />
       {label}
     </span>
   );
