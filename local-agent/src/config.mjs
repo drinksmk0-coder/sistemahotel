@@ -16,6 +16,11 @@ export const config = {
   companyId: process.env.COMPANY_ID || '',
   gmail: {
     enabled: bool(process.env.GMAIL_ENABLED, false),
+    pollMinutes: Math.max(1, int(process.env.GMAIL_POLL_MINUTES, 5)),
+    userId: process.env.GMAIL_USER || 'me',
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    refreshToken: process.env.GOOGLE_REFRESH_TOKEN || '',
   },
 };
 
@@ -25,6 +30,11 @@ export function validateConfig() {
     if (!config.booking.endpoint) missing.push('BOOKING_CONNECTOR_ENDPOINT');
     if (!config.booking.token) missing.push('BOOKING_CONNECTOR_TOKEN');
     if (!config.companyId) missing.push('COMPANY_ID');
+  }
+  if (config.gmail.enabled) {
+    if (!config.gmail.clientId) missing.push('GOOGLE_CLIENT_ID');
+    if (!config.gmail.clientSecret) missing.push('GOOGLE_CLIENT_SECRET');
+    if (!config.gmail.refreshToken) missing.push('GOOGLE_REFRESH_TOKEN');
   }
   if (missing.length) throw new Error(`Configuração ausente: ${missing.join(', ')}`);
 }
