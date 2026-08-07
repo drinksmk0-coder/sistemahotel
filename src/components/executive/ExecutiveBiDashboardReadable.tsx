@@ -4,7 +4,6 @@ import { ExecutiveDashboardInteractions } from "@/components/executive/Executive
 import { ExecutiveDashboardReference } from "@/components/executive/ExecutiveDashboardReference";
 import { ExecutiveDashboardUiGuard } from "@/components/executive/ExecutiveDashboardUiGuard";
 import { ExecutiveDonutLegendStandardizer } from "@/components/executive/ExecutiveDonutLegendStandardizer";
-import { ExecutiveExpenseCategoryFrequency } from "@/components/executive/ExecutiveExpenseCategoryFrequency";
 import { ExecutiveRevenueExpenseGopChart } from "@/components/executive/ExecutiveRevenueExpenseGopChart";
 import { ExecutiveStrategyScorecardPortal } from "@/components/executive/ExecutiveStrategyScorecardPortal";
 import "@/components/executive/executive-dashboard-reference-enhancements.css";
@@ -27,7 +26,6 @@ export function ExecutiveBiDashboardReadable() {
       <ExecutiveDashboardInteractions />
       <ExecutiveRevenueExpenseGopChart />
       <ExecutiveCancellationImpact />
-      <ExecutiveExpenseCategoryFrequency />
       <ExecutiveDonutLegendStandardizer />
       <ExecutiveDashboardFinalPolish />
       <ExecutiveDashboardUiGuard />
