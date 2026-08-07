@@ -2,7 +2,15 @@ let currentPayload = null;
 const $ = (id) => document.getElementById(id);
 
 async function config() {
-  return chrome.storage.local.get(["endpoint", "token", "company"]);
+  return chrome.storage.local.get([
+    "endpoint",
+    "token",
+    "company",
+    "autoMode",
+    "autoLastSentAt",
+    "autoLastEventId",
+    "autoLastError",
+  ]);
 }
 
 function field(label, value) {
@@ -26,6 +34,21 @@ function render(payload) {
   $("status").textContent = payload.booking_code
     ? "Dados capturados. Confira antes de enviar."
     : "Não encontrei o código da reserva nesta página.";
+}
+
+function renderAutoStatus(saved) {
+  if (saved.autoLastError) {
+    $("autoStatus").innerHTML = `<span class="error">Último envio automático: ${saved.autoLastError}</span>`;
+    return;
+  }
+  if (saved.autoMode === true && saved.autoLastSentAt) {
+    const when = new Date(saved.autoLastSentAt).toLocaleString("pt-BR");
+    $("autoStatus").innerHTML = `<span class="ok">Modo automático ativo. Último envio: ${when}${saved.autoLastEventId ? ` · evento ${saved.autoLastEventId}` : ""}.</span>`;
+    return;
+  }
+  $("autoStatus").textContent = saved.autoMode === true
+    ? "Modo automático ativo. Aguardando uma reserva válida ser carregada."
+    : "Modo automático desligado.";
 }
 
 async function capture() {
@@ -64,7 +87,7 @@ async function send() {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
-    $("status").innerHTML = `<span class="ok">Enviado. Evento ${result.event_id || "registrado"} aguardando conferência.</span>`;
+    $("status").innerHTML = `<span class="ok">Enviado. Evento ${result.event_id || "registrado"} recebido pelo HospedaMais.</span>`;
   } catch (error) {
     $("status").innerHTML = `<span class="error">${error instanceof Error ? error.message : String(error)}</span>`;
   } finally {
@@ -77,6 +100,8 @@ async function loadConfig() {
   $("endpoint").value = saved.endpoint || "";
   $("token").value = saved.token || "";
   $("company").value = saved.company || "";
+  $("autoMode").checked = saved.autoMode === true;
+  renderAutoStatus(saved);
 }
 
 $("capture").addEventListener("click", capture);
@@ -86,8 +111,11 @@ $("save").addEventListener("click", async () => {
     endpoint: $("endpoint").value.trim(),
     token: $("token").value.trim(),
     company: $("company").value.trim(),
+    autoMode: $("autoMode").checked,
   });
-  $("status").innerHTML = '<span class="ok">Configuração salva neste navegador.</span>';
+  const saved = await config();
+  renderAutoStatus(saved);
+  $("status").innerHTML = `<span class="ok">Configuração salva. ${saved.autoMode ? "Modo automático ativado." : "Modo automático desligado."}</span>`;
 });
 
 loadConfig().then(capture);
