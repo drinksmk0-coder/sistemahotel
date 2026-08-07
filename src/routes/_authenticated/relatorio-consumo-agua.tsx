@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { Droplets, MessageCircle, Printer, RefreshCw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/AppLayout";
 import { useRole, useSession } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
-import { useClients, useCurrentCompany } from "@/lib/data";
+import { useCurrentCompany } from "@/lib/data";
 import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/relatorio-consumo-agua")({
@@ -29,7 +29,8 @@ type WaterReport = {
     total: number;
     paid: number;
     pending: number;
-    guests: number;
+    guests?: number;
+    employees?: number;
     rooms: number;
   };
   rows: Array<{
@@ -38,7 +39,8 @@ type WaterReport = {
     room: number;
     reservation_id?: string | null;
     client_id?: string | null;
-    guest_name: string;
+    guest_name?: string;
+    employee_name?: string;
     item: string;
     quantity: number;
     unit_value: number;
@@ -52,13 +54,22 @@ type WaterReport = {
   unquantified_notes: Array<{
     reservation_id: string;
     room: number;
-    guest_name: string;
+    guest_name?: string;
+    employee_name?: string;
     checkin: string;
     checkout: string;
     note: string;
   }>;
   generated_at: string;
   document_type: string;
+};
+
+type CorporateAccount = {
+  id: string;
+  name: string;
+  document: string | null;
+  email: string | null;
+  phone: string | null;
 };
 
 function firstDayOfMonth() {
@@ -69,24 +80,61 @@ function WaterConsumptionReportPage() {
   const { user } = useSession();
   const { data: role, isLoading: roleLoading } = useRole(user);
   const company = useCurrentCompany();
-  const { data: clients = [] } = useClients();
   const [start, setStart] = useState(firstDayOfMonth);
   const [end, setEnd] = useState(todayISO);
-  const [clientId, setClientId] = useState("");
-  const [recipientName, setRecipientName] = useState("");
+  const [corporateAccountId, setCorporateAccountId] = useState("");
   const [recipientDocument, setRecipientDocument] = useState("");
   const [recipientEmail, setRecipientEmail] = useState("");
   const [notes, setNotes] = useState("");
 
+  const corporateAccountsQuery = useQuery({
+    queryKey: ["water-report-corporate-accounts", company.data?.id],
+    enabled: Boolean(company.data?.id && role === "dono"),
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("corporate_accounts")
+        .select("id,name,document,email,phone")
+        .eq("company_id", company.data!.id)
+        .eq("active", true)
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as CorporateAccount[];
+    },
+  });
+
+  const corporateAccounts = corporateAccountsQuery.data ?? [];
+  const selectedCorporateAccount = corporateAccounts.find(
+    (account) => account.id === corporateAccountId,
+  );
+
+  useEffect(() => {
+    if (!corporateAccountId && corporateAccounts.length === 1) {
+      setCorporateAccountId(corporateAccounts[0].id);
+    }
+  }, [corporateAccountId, corporateAccounts]);
+
+  useEffect(() => {
+    if (!selectedCorporateAccount) return;
+    setRecipientDocument(selectedCorporateAccount.document ?? "");
+    setRecipientEmail(selectedCorporateAccount.email ?? "");
+  }, [selectedCorporateAccount]);
+
   const query = useQuery({
-    queryKey: ["water-consumption-report", company.data?.id, start, end, clientId],
-    enabled: Boolean(company.data?.id && role === "dono" && start && end && end >= start),
+    queryKey: ["water-consumption-report", company.data?.id, start, end, corporateAccountId],
+    enabled: Boolean(
+      company.data?.id &&
+        role === "dono" &&
+        corporateAccountId &&
+        start &&
+        end &&
+        end >= start,
+    ),
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("water_consumption_report", {
         p_company_id: company.data!.id,
         p_start: start,
         p_end: end,
-        p_client_id: clientId || null,
+        p_corporate_account_id: corporateAccountId,
       });
       if (error) throw error;
       return data as WaterReport;
@@ -94,14 +142,13 @@ function WaterConsumptionReportPage() {
   });
 
   const report = query.data;
-  const selectedClient = clients.find((client) => client.id === clientId);
+  const recipientName = selectedCorporateAccount?.name ?? "";
   const summaryText = useMemo(() => {
     if (!report) return "";
     return [
       `RELATÓRIO DE CONSUMO DE ÁGUA — ${report.company.name ?? "Hotel"}`,
       `Período: ${fmtDate(start)} a ${fmtDate(end)}`,
       recipientName ? `Empresa pagadora: ${recipientName}` : "",
-      selectedClient ? `Hóspede: ${selectedClient.nome}` : "",
       `Quantidade total: ${Number(report.summary.quantity).toLocaleString("pt-BR")} unidade(s)`,
       `Valor total: ${fmtBRL(report.summary.total)}`,
       `Valor pendente: ${fmtBRL(report.summary.pending)}`,
@@ -109,7 +156,7 @@ function WaterConsumptionReportPage() {
     ]
       .filter(Boolean)
       .join("\n");
-  }, [end, recipientName, report, selectedClient, start]);
+  }, [end, recipientName, report, start]);
 
   if (roleLoading || !role) {
     return <div className="card-surface p-6 text-sm text-muted-foreground">Carregando permissões…</div>;
@@ -167,17 +214,20 @@ function WaterConsumptionReportPage() {
             <input className="field mt-1" type="date" value={end} onChange={(event) => setEnd(event.target.value)} />
           </label>
           <label className="text-xs font-semibold text-muted-foreground md:col-span-2">
-            Hóspede — opcional
-            <select className="field mt-1" value={clientId} onChange={(event) => setClientId(event.target.value)}>
-              <option value="">Todos os hóspedes</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>{client.nome}</option>
+            Empresa pagadora
+            <select
+              className="field mt-1"
+              value={corporateAccountId}
+              onChange={(event) => setCorporateAccountId(event.target.value)}
+              disabled={corporateAccountsQuery.isLoading}
+            >
+              <option value="">
+                {corporateAccountsQuery.isLoading ? "Carregando empresas…" : "Selecione uma empresa cadastrada"}
+              </option>
+              {corporateAccounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name}</option>
               ))}
             </select>
-          </label>
-          <label className="text-xs font-semibold text-muted-foreground">
-            Empresa pagadora
-            <input className="field mt-1" value={recipientName} onChange={(event) => setRecipientName(event.target.value)} placeholder="Nome da empresa" />
           </label>
           <label className="text-xs font-semibold text-muted-foreground">
             CNPJ / documento
@@ -196,9 +246,21 @@ function WaterConsumptionReportPage() {
 
       {query.isLoading ? (
         <div className="card-surface p-8 text-center text-sm text-muted-foreground">Consolidando o consumo de água…</div>
+      ) : corporateAccountsQuery.error ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">
+          Não foi possível carregar as empresas pagadoras: {errorMessage(corporateAccountsQuery.error)}
+        </div>
+      ) : !corporateAccountsQuery.isLoading && corporateAccounts.length === 0 ? (
+        <div className="card-surface p-5 text-sm text-muted-foreground">
+          Cadastre uma empresa pagadora e vincule os hóspedes antes de emitir este relatório.
+        </div>
+      ) : !corporateAccountId ? (
+        <div className="card-surface p-5 text-sm text-muted-foreground">
+          Selecione a empresa pagadora para gerar o relatório.
+        </div>
       ) : query.error ? (
         <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">
-          Não foi possível gerar o relatório: {query.error instanceof Error ? query.error.message : "erro desconhecido"}
+          Não foi possível gerar o relatório: {errorMessage(query.error)}
         </div>
       ) : report ? (
         <article className="mx-auto max-w-[210mm] rounded-xl border border-border bg-white p-5 text-slate-950 shadow-sm print:max-w-none print:border-0 print:p-0 print:shadow-none">
@@ -226,7 +288,7 @@ function WaterConsumptionReportPage() {
             </div>
             <div className="rounded-lg border border-slate-300 p-3">
               <strong className="block uppercase text-slate-500">Emitido para</strong>
-              {recipientName || selectedClient?.nome || "Não informado"}
+              {recipientName || "Não informado"}
               {recipientDocument && <span className="block">Documento: {recipientDocument}</span>}
               {recipientEmail && <span className="block">E-mail: {recipientEmail}</span>}
             </div>
@@ -234,7 +296,7 @@ function WaterConsumptionReportPage() {
 
           <section className="mt-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-4">
             <Summary label="Unidades" value={Number(report.summary.quantity).toLocaleString("pt-BR")} />
-            <Summary label="Hóspedes" value={String(report.summary.guests)} />
+            <Summary label="Hóspedes" value={String(report.summary.employees ?? report.summary.guests ?? 0)} />
             <Summary label="Total" value={fmtBRL(report.summary.total)} />
             <Summary label="Pendente" value={fmtBRL(report.summary.pending)} />
           </section>
@@ -258,7 +320,7 @@ function WaterConsumptionReportPage() {
                 ) : report.rows.map((row) => (
                   <tr key={row.id} className="border-b border-slate-200">
                     <td className="p-2">{fmtDate(row.date)}</td>
-                    <td className="p-2 font-semibold">{row.guest_name}</td>
+                    <td className="p-2 font-semibold">{row.employee_name ?? row.guest_name ?? "Não identificado"}</td>
                     <td className="p-2">{row.room}</td>
                     <td className="p-2">{row.item}</td>
                     <td className="p-2 text-right">{row.quantity}</td>
@@ -285,7 +347,7 @@ function WaterConsumptionReportPage() {
               <ul className="mt-2 space-y-1">
                 {report.unquantified_notes.map((item) => (
                   <li key={item.reservation_id}>
-                    UH {item.room} · {item.guest_name} · {item.note}
+                    UH {item.room} · {item.employee_name ?? item.guest_name ?? "Não identificado"} · {item.note}
                   </li>
                 ))}
               </ul>
@@ -307,6 +369,14 @@ function WaterConsumptionReportPage() {
       ) : null}
     </div>
   );
+}
+
+function errorMessage(error: unknown) {
+  if (error && typeof error === "object" && "message" in error) {
+    const message = String((error as { message?: unknown }).message ?? "").trim();
+    if (message) return message;
+  }
+  return "erro desconhecido";
 }
 
 function Summary({ label, value }: { label: string; value: string }) {

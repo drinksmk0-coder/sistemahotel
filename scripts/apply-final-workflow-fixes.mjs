@@ -27,66 +27,6 @@ patch("src/routes/_authenticated/reservas.tsx", [
   ],
 ]);
 
-patch("src/routes/_authenticated/fichas-checkin.tsx", [
-  [
-    '  RefreshCw,\n  UserRound,',
-    '  RefreshCw,\n  Trash2,\n  AlertTriangle,\n  UserRound,',
-  ],
-  [
-    '  const [confirming, setConfirming] = useState(false);',
-    '  const [confirming, setConfirming] = useState(false);\n  const [deletingId, setDeletingId] = useState<string | null>(null);',
-  ],
-  [
-    '  return (\n    <div>',
-    `  async function deleteTestForm(row: GuestCheckin) {
-    if (!company.data?.id || deletingId) return;
-    const reservation = reservations.find((item) => item.id === row.reservation_id);
-    const name = reservation?.cliente_nome || row.form_data?.nome_completo || "este hóspede";
-    if (!window.confirm(\`Excluir somente a ficha de check-in de \${name}? A reserva, o hóspede, pagamentos e histórico da hospedagem serão mantidos.\`)) return;
-    setDeletingId(row.id);
-    const guestsDelete = await (supabase as any)
-      .from("reservation_guests")
-      .delete()
-      .eq("reservation_id", row.reservation_id)
-      .eq("company_id", company.data.id);
-    if (guestsDelete.error) {
-      setDeletingId(null);
-      toast.error(\`Não foi possível excluir os acompanhantes da ficha: \${guestsDelete.error.message}\`);
-      return;
-    }
-    const result = await (supabase as any)
-      .from("guest_checkins")
-      .delete()
-      .eq("id", row.id)
-      .eq("company_id", company.data.id);
-    setDeletingId(null);
-    if (result.error) {
-      toast.error(\`Não foi possível excluir a ficha: \${result.error.message}\`);
-      return;
-    }
-    if (selected?.id === row.id) setSelected(null);
-    await queryClient.invalidateQueries({ queryKey: ["guest-checkins-with-guests"] });
-    await queryClient.invalidateQueries({ queryKey: ["guest-checkins-pending"] });
-    toast.success("Ficha de teste excluída. A reserva e o hóspede foram preservados.");
-  }
-
-  return (
-    <div>`,
-  ],
-  [
-    '      {pending.length > 0 && (',
-    '      <section className="mb-3 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950 shadow-sm">\n        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" />\n        <div>\n          <strong className="block text-sm">Impressão da FNRH em folha A3</strong>\n          <p className="mt-0.5 text-xs">Abra a ficha, confira o preview e selecione papel A3, escala “Ajustar à página”, margens padrão e cabeçalhos desativados. O sistema não imprime automaticamente.</p>\n        </div>\n      </section>\n\n      {pending.length > 0 && (',
-  ],
-  [
-    '                <button\n                  type="button"\n                  className="btn-primary mt-3 flex w-full items-center justify-center gap-2"\n                  onClick={() => openForm(row)}\n                >\n                  <FileSignature className="h-4 w-4" />\n                  {waiting ? "Conferir ficha completa" : "Ver ficha completa"}\n                </button>',
-    '                <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">\n                  <button\n                    type="button"\n                    className="btn-primary flex items-center justify-center gap-2"\n                    onClick={() => openForm(row)}\n                  >\n                    <FileSignature className="h-4 w-4" />\n                    {waiting ? "Conferir ficha completa" : "Ver ficha completa"}\n                  </button>\n                  <button\n                    type="button"\n                    className="btn-ghost flex items-center justify-center gap-2 text-destructive"\n                    disabled={deletingId === row.id}\n                    onClick={() => void deleteTestForm(row)}\n                    title="Excluir somente esta ficha de teste"\n                  >\n                    <Trash2 className="h-4 w-4" />\n                    {deletingId === row.id ? "Excluindo…" : "Excluir ficha"}\n                  </button>\n                </div>',
-  ],
-  [
-    '<ExternalLink className="h-4 w-4" /> Abrir para impressão',
-    '<ExternalLink className="h-4 w-4" /> Abrir preview A3',
-  ],
-]);
-
 patch("src/components/MapaQuartos.tsx", [
   [
     '            {whatsapp && (',
