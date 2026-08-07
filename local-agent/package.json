@@ -1,0 +1,15 @@
+{
+  "name": "hospedamais-local-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "install-browser": "playwright install chromium",
+    "send-email": "node src/send-email.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "googleapis": "^144.0.0",
+    "playwright": "^1.55.0"
+  }
+}
