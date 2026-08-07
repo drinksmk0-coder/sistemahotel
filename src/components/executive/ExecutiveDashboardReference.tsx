@@ -172,6 +172,7 @@ export function ExecutiveDashboardReference() {
     queryKey: ["executive-reference-dashboard-source", company.data?.id, range.start, range.end],
     enabled: Boolean(company.data?.id),
     staleTime: 60_000,
+    placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const [current, previous] = await Promise.all([
         loadSource(company.data!.id, range),
@@ -219,8 +220,8 @@ export function ExecutiveDashboardReference() {
   if (company.error || query.error || !query.data) return <State text="Não foi possível carregar o painel." danger />;
 
   return (
-    <div ref={dashboardRef} className={`min-h-0 space-y-2 bg-background pb-5 ${isFullscreen ? "h-screen overflow-auto p-2" : ""}`}>
-      <header className="flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+    <div ref={dashboardRef} data-fullscreen={isFullscreen || undefined} aria-busy={query.isFetching} className="executive-dashboard-shell min-h-0 space-y-2 bg-background pb-5">
+      <header data-executive-header className="flex flex-col gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center gap-3">
           <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-50 text-blue-600">
             <TrendingUp className="h-5 w-5" />
@@ -265,7 +266,7 @@ export function ExecutiveDashboardReference() {
         />
       )}
 
-      <section className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
+      <section data-executive-kpi-grid className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7">
         <Kpi icon={<CircleDollarSign />} label="Receita total" value={fmtBRL(current.revenue)} delta={variation(current.revenue, previous.revenue)} tone="green" />
         <Kpi icon={<TrendingUp />} label="Taxa de ocupação" value={`${current.occupancy.toFixed(1)}%`} delta={current.occupancy - previous.occupancy} suffix=" p.p." tone="green" />
         <Kpi icon={<CalendarDays />} label="Diária média (ADR)" value={fmtBRL(current.adr)} delta={variation(current.adr, previous.adr)} tone="blue" />
@@ -275,17 +276,17 @@ export function ExecutiveDashboardReference() {
         <Kpi icon={<UserRoundX />} label="No-show" value={String(current.noShow)} delta={current.noShow - previous.noShow} absolute negative tone="purple" />
       </section>
 
-      <Panel title="1. Ocupação, reservas, cancelamentos e no-show por dia" className="p-3">
+      <Panel title={`1. Ocupação, reservas, cancelamentos e no-show por ${chartGranularity(current.daily.length)}`} className="p-3">
         <MainPerformanceChart rows={current.daily} />
       </Panel>
 
-      <section className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+      <section data-executive-detail-grid="financial" className="grid grid-cols-1 gap-2 lg:grid-cols-3">
         <Panel title="2. Receitas por dia (R$)"><RevenueChart rows={current.daily} /></Panel>
         <Panel title="3. Receitas por forma de pagamento"><DonutChart rows={current.payments} currency /></Panel>
         <Panel title="4. Reservas por canal"><DonutChart rows={current.channels} /></Panel>
       </section>
 
-      <section className="grid grid-cols-1 gap-2 lg:grid-cols-3">
+      <section data-executive-detail-grid="operations" className="grid grid-cols-1 gap-2 lg:grid-cols-3">
         <Panel title="5. Ocupação por categoria de quarto"><ProgressBars rows={current.categoryOccupancy} footer={`Taxa de ocupação média total: ${current.occupancy.toFixed(1)}%`} /></Panel>
         <Panel title="6. Ranking de quartos por ocupação"><ProgressBars rows={current.roomOccupancy} footer={`Média dos quartos: ${current.occupancy.toFixed(1)}%`} /></Panel>
         <Panel title="7. Origem: hóspedes x receita por estado"><StateRevenueMap rows={current.states} /></Panel>
@@ -376,7 +377,7 @@ function Kpi({ icon, label, value, delta, suffix = "%", absolute = false, negati
 
 function Panel({ title, children, className = "" }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <article className={`min-w-0 overflow-visible rounded-2xl border border-border bg-card p-3 shadow-sm ${className}`}>
+    <article data-executive-panel className={`min-w-0 overflow-visible rounded-2xl border border-border bg-card p-3 shadow-sm ${className}`}>
       <h2 className="mb-2 text-sm font-black text-blue-600">{title}</h2>
       {children}
     </article>
@@ -387,7 +388,7 @@ function MainPerformanceChart({ rows }: { rows: DailyRow[] }) {
   const data = aggregateChartRows(rows);
   if (!data.length) return <Empty />;
   return (
-    <div className="h-[300px] min-w-0">
+    <div data-executive-chart="main" className="h-[300px] min-w-0">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ left: 0, right: 12, top: 24, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 5" vertical={false} />
@@ -412,7 +413,7 @@ function RevenueChart({ rows }: { rows: DailyRow[] }) {
   const data = aggregateChartRows(rows).filter((row) => row.revenue > 0);
   if (!data.length) return <Empty />;
   return (
-    <div className="h-52 min-w-0">
+    <div data-executive-chart="detail" className="h-52 min-w-0">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ left: 0, right: 8, top: 10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 5" vertical={false} />
@@ -655,6 +656,12 @@ function aggregateChartRows(rows: DailyRow[]): DailyRow[] {
   });
 }
 
+function chartGranularity(dayCount: number) {
+  if (dayCount > 120) return "mês";
+  if (dayCount > 45) return "semana";
+  return "dia";
+}
+
 function compactDonutRows(rows: NamedValue[]) {
   const sorted = rows.filter((row) => row.value > 0).sort((a, b) => b.value - a.value);
   if (sorted.length <= 6) return sorted;
@@ -750,5 +757,11 @@ function formatDay(value: string) { return new Intl.DateTimeFormat("pt-BR", { da
 function formatDateTime() { return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date()); }
 function compactCurrency(value: number) { return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", notation: "compact", maximumFractionDigits: 1 }).format(value); }
 function stateCode(value: string) { const clean = normalize(value).toUpperCase(); const aliases: Record<string, string> = { ACRE:"AC",ALAGOAS:"AL",AMAPA:"AP",AMAZONAS:"AM",BAHIA:"BA",CEARA:"CE","DISTRITO FEDERAL":"DF","ESPIRITO SANTO":"ES",GOIAS:"GO",MARANHAO:"MA","MATO GROSSO":"MT","MATO GROSSO DO SUL":"MS","MINAS GERAIS":"MG",PARA:"PA",PARAIBA:"PB",PARANA:"PR",PERNAMBUCO:"PE",PIAUI:"PI","RIO DE JANEIRO":"RJ","RIO GRANDE DO NORTE":"RN","RIO GRANDE DO SUL":"RS",RONDONIA:"RO",RORAIMA:"RR","SANTA CATARINA":"SC","SAO PAULO":"SP",SERGIPE:"SE",TOCANTINS:"TO" }; return aliases[clean] ?? (clean.length === 2 ? clean : clean.toLowerCase().replace("br-", "").toUpperCase()); }
-function Empty() { return <div className="grid h-48 place-items-center text-xs font-semibold text-muted-foreground">Sem dados suficientes no período e filtros selecionados.</div>; }
+function Empty() {
+  return (
+    <div data-executive-empty className="grid h-48 place-items-center px-4 text-center text-xs font-semibold text-muted-foreground">
+      Sem dados suficientes no período e filtros selecionados.
+    </div>
+  );
+}
 function State({ text, danger = false }: { text: string; danger?: boolean }) { return <div className={`rounded-2xl border p-6 text-sm ${danger ? "border-red-200 bg-red-50 text-red-700" : "border-border bg-card"}`}>{text}</div>; }

@@ -160,8 +160,12 @@
   margin-top: 0.5rem;
 }
 
-.executive-expense-insights article {
+.executive-expense-insights article:not([data-empty="true"]) {
   min-height: 17rem;
+}
+
+.executive-expense-insights article[data-empty="true"] {
+  min-height: 9.5rem;
 }
 
 @media (max-width: 767px) {
@@ -196,7 +200,7 @@
     gap: 0.35rem;
   }
 
-  .executive-expense-insights article {
+  .executive-expense-insights article:not([data-empty="true"]) {
     min-height: 14rem;
   }
 }

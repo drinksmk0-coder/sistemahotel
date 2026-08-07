@@ -122,7 +122,7 @@ export function ExecutiveStrategyScorecard() {
   const dangerCount = goals.filter((goal) => goal.status === "danger").length;
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-3 shadow-sm" aria-label="Objetivos estratégicos do hotel">
+    <section data-executive-strategy className="rounded-2xl border border-border bg-card p-3 shadow-sm" aria-label="Objetivos estratégicos do hotel">
       <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-start gap-3">
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
@@ -141,7 +141,7 @@ export function ExecutiveStrategyScorecard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
+      <div data-executive-goal-grid className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
         {goals.map((goal) => <GoalCard key={goal.kpi} goal={goal} />)}
       </div>
 
@@ -155,7 +155,7 @@ export function ExecutiveStrategyScorecard() {
 function GoalCard({ goal }: { goal: StrategicGoal }) {
   const status = statusTheme(goal.status);
   return (
-    <article className={`min-w-0 rounded-xl border p-3 ${status.card}`}>
+    <article data-executive-goal-card className={`flex h-full min-w-0 flex-col rounded-xl border p-3 ${status.card}`}>
       <div className="flex items-start justify-between gap-2">
         <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${status.icon}`}>{goal.icon}</div>
         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase ${status.badge}`}>
@@ -178,7 +178,7 @@ function GoalCard({ goal }: { goal: StrategicGoal }) {
         </div>
       </div>
 
-      <div className="mt-2 border-t border-current/10 pt-2">
+      <div data-executive-goal-action className="mt-auto border-t border-current/10 pt-2">
         <p className="text-[9px] font-extrabold uppercase text-muted-foreground">Ação recomendada</p>
         <p className="mt-0.5 text-[10px] font-semibold leading-4 text-foreground">{goal.action}</p>
       </div>

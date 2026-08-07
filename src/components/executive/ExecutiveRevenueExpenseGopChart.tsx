@@ -106,6 +106,7 @@ export function ExecutiveRevenueExpenseGopChart() {
     let card: HTMLElement | null = null;
     let chartPortalHost: HTMLDivElement | null = null;
     let financialPortalHost: HTMLDivElement | null = null;
+    let titleElement: HTMLElement | null = null;
     let originalTitle = "2. Receitas por dia (R$)";
     const hiddenElements = new Set<HTMLElement>();
 
@@ -114,6 +115,7 @@ export function ExecutiveRevenueExpenseGopChart() {
       if (fields.length < 2 || !fields[0].value || !fields[1].value) return;
       const start = fields[0].value <= fields[1].value ? fields[0].value : fields[1].value;
       const end = fields[0].value <= fields[1].value ? fields[1].value : fields[0].value;
+      if (titleElement) titleElement.textContent = `2. Hospedagem, produtos, despesas e GOP por ${rangeGranularity(start, end)}`;
       setRange((current) => current?.start === start && current?.end === end ? current : { start, end });
     };
 
@@ -148,7 +150,7 @@ export function ExecutiveRevenueExpenseGopChart() {
       if (!card || !title || !dashboard || !footer) return false;
 
       originalTitle = title.textContent ?? originalTitle;
-      title.textContent = "2. Hospedagem, produtos, despesas e GOP por dia";
+      titleElement = title;
 
       chartPortalHost = card.querySelector<HTMLDivElement>("[data-revenue-expense-gop-host]");
       if (!chartPortalHost) {
@@ -215,6 +217,7 @@ export function ExecutiveRevenueExpenseGopChart() {
     queryKey: ["executive-revenue-expense-gop", company.data?.id, range?.start, range?.end],
     enabled: Boolean(company.data?.id && range),
     staleTime: 60_000,
+    placeholderData: (previousData) => previousData,
     queryFn: async () => {
       const [reservationsResult, salesResult, expensesResult, roomsResult, clientsResult] = await Promise.all([
         (supabase as any)
@@ -361,8 +364,8 @@ function ExpenseInsights({ loading, error, summary, hasUnallocatedFilters }: {
   hasUnallocatedFilters: boolean;
 }) {
   return (
-    <section className="executive-expense-insights grid grid-cols-1 gap-2 lg:grid-cols-2">
-      <article className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
+    <section data-executive-detail-grid="expenses" className="executive-expense-insights grid grid-cols-1 gap-2 lg:grid-cols-2">
+      <article data-executive-panel data-empty={!loading && !error && summary.expenseCategories.length === 0} className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-black text-blue-600">8. Ranking de despesas por categoria</h2>
@@ -375,7 +378,7 @@ function ExpenseInsights({ loading, error, summary, hasUnallocatedFilters }: {
         {!loading && !error && <ExpenseRanking rows={summary.expenseCategories} />}
       </article>
 
-      <article className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
+      <article data-executive-panel data-empty={!loading && !error && summary.expensePayments.length === 0} className="min-w-0 rounded-2xl border border-border bg-card p-3 shadow-sm">
         <div className="mb-3">
           <h2 className="text-sm font-black text-blue-600">9. Como as despesas foram pagas</h2>
           <p className="text-[10px] font-medium text-muted-foreground">Compara valor e quantidade de pagamentos por modalidade.</p>
@@ -485,7 +488,7 @@ function buildAnalysis(data: {
 
   const span = daysBetween(range.start, range.end) + 1;
   const grouped = new Map<string, ChartRow>();
-  let cursor = parseDate(range.start);
+  const cursor = parseDate(range.start);
   const end = parseDate(range.end);
 
   while (cursor <= end) {
@@ -686,6 +689,13 @@ function stateCode(value: string) {
   return aliases[clean] ?? (clean.length === 2 ? clean : clean.toLowerCase().replace("br-", "").toUpperCase());
 }
 
+function rangeGranularity(start: string, end: string) {
+  const dayCount = Math.round((parseDate(end).getTime() - parseDate(start).getTime()) / 86_400_000) + 1;
+  if (dayCount > 120) return "mês";
+  if (dayCount > 45) return "semana";
+  return "dia";
+}
+
 function ChartState({ text, danger = false }: { text: string; danger?: boolean }) {
   return (
     <div className={`grid h-52 place-items-center rounded-xl text-xs font-semibold ${danger ? "bg-red-50 text-red-700" : "text-muted-foreground"}`}>
@@ -696,7 +706,7 @@ function ChartState({ text, danger = false }: { text: string; danger?: boolean }
 
 function CompactState({ text, danger = false }: { text: string; danger?: boolean }) {
   return (
-    <div className={`grid min-h-48 place-items-center rounded-xl text-xs font-semibold ${danger ? "bg-red-50 text-red-700" : "text-muted-foreground"}`}>
+    <div data-executive-empty className={`grid min-h-48 place-items-center rounded-xl px-4 text-center text-xs font-semibold ${danger ? "bg-red-50 text-red-700" : "text-muted-foreground"}`}>
       {text}
     </div>
   );
