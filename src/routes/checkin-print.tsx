@@ -52,15 +52,15 @@ function CheckinPrint() {
 
   return <main className="min-h-screen bg-neutral-100 py-5 print:bg-white print:py-0">
     <style>{`
-      @page { size: A4 portrait; margin: 10mm; }
+      @page { size: A4 portrait; margin: 5mm; }
       @media print {
-        html, body { width: 210mm; background: #fff !important; color: #000 !important; }
+        html, body { width: 210mm; margin: 0 !important; background: #fff !important; color: #000 !important; }
         body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .no-print { display: none !important; }
         .print-sheet {
           box-shadow: none !important;
-          width: 190mm !important;
-          max-width: 190mm !important;
+          width: 200mm !important;
+          max-width: 200mm !important;
           min-height: auto !important;
           margin: 0 !important;
           padding: 0 !important;
