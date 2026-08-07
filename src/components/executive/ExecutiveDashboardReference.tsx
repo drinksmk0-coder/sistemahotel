@@ -387,19 +387,20 @@ function Panel({ title, children, className = "" }: { title: string; children: R
 function MainPerformanceChart({ rows }: { rows: DailyRow[] }) {
   const data = aggregateChartRows(rows);
   if (!data.length) return <Empty />;
+  const barSize = data.length <= 12 ? 38 : data.length <= 31 ? 24 : 14;
   return (
-    <div data-executive-chart="main" className="h-[300px] min-w-0">
+    <div data-executive-chart="main" data-chart-points={data.length} className="h-[300px] min-w-0">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ left: 0, right: 12, top: 24, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 5" vertical={false} />
-          <XAxis dataKey="date" minTickGap={20} />
+          <XAxis dataKey="date" interval={data.length <= 12 ? 0 : "preserveStartEnd"} minTickGap={20} tickMargin={8} />
           <YAxis yAxisId="count" allowDecimals={false} width={34} />
           <YAxis yAxisId="occupancy" orientation="right" domain={[0, 100]} tickFormatter={(value) => `${value}%`} width={42} />
           <Tooltip formatter={(value: number, name: string) => name === "Taxa de ocupação" ? `${value.toFixed(1)}%` : `${value}`} />
           <Legend verticalAlign="top" align="center" wrapperStyle={{ fontSize: 10, fontWeight: 700 }} />
-          <Bar yAxisId="count" dataKey="reservations" name="Reservas" fill={BLUE} radius={[4, 4, 0, 0]} maxBarSize={18} />
-          <Bar yAxisId="count" dataKey="cancelled" name="Canceladas" fill={RED} radius={[4, 4, 0, 0]} maxBarSize={18} />
-          <Bar yAxisId="count" dataKey="noShow" name="No-show" fill={PURPLE} radius={[4, 4, 0, 0]} maxBarSize={18} />
+          <Bar yAxisId="count" dataKey="reservations" name="Reservas" fill={BLUE} radius={[4, 4, 0, 0]} maxBarSize={barSize} />
+          <Bar yAxisId="count" dataKey="cancelled" name="Canceladas" fill={RED} radius={[4, 4, 0, 0]} maxBarSize={barSize} />
+          <Bar yAxisId="count" dataKey="noShow" name="No-show" fill={PURPLE} radius={[4, 4, 0, 0]} maxBarSize={barSize} />
           <Line yAxisId="occupancy" type="monotone" dataKey="occupancy" name="Taxa de ocupação" stroke={GREEN} strokeWidth={3} dot={{ r: 3, fill: GREEN }} activeDot={{ r: 5 }}>
             <LabelList dataKey="occupancy" position="top" fill={GREEN} fontSize={9} fontWeight={800} formatter={(value: number) => `${value.toFixed(0)}%`} />
           </Line>
@@ -417,10 +418,10 @@ function RevenueChart({ rows }: { rows: DailyRow[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ left: 0, right: 8, top: 10, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 5" vertical={false} />
-          <XAxis dataKey="date" minTickGap={20} />
+          <XAxis dataKey="date" interval={data.length <= 12 ? 0 : "preserveStartEnd"} minTickGap={20} tickMargin={8} />
           <YAxis width={46} tickFormatter={compactCurrency} />
           <Tooltip formatter={(value: number) => fmtBRL(value)} />
-          <Bar dataKey="revenue" fill={BLUE} radius={[5, 5, 0, 0]} maxBarSize={22} />
+          <Bar dataKey="revenue" fill={BLUE} radius={[5, 5, 0, 0]} maxBarSize={data.length <= 12 ? 42 : 24} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -433,8 +434,8 @@ function DonutChart({ rows, currency = false }: { rows: NamedValue[]; currency?:
   if (!data.length) return <Empty />;
   const singleSlice = data.length === 1;
   return (
-    <div className="grid min-h-[220px] min-w-0 grid-cols-1 items-center gap-3 overflow-visible sm:grid-cols-[minmax(145px,0.85fr)_minmax(0,1.15fr)]">
-      <div className="h-[190px] min-w-0 overflow-visible sm:h-[210px]">
+    <div data-executive-donut-layout="true" className="grid min-h-[220px] min-w-0 grid-cols-1 items-center gap-3 overflow-visible sm:grid-cols-[minmax(145px,0.85fr)_minmax(0,1.15fr)]">
+      <div data-executive-donut-chart="true" className="h-[190px] min-w-0 overflow-visible sm:h-[210px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart style={{ overflow: "visible" }}>
             <Pie
@@ -443,8 +444,8 @@ function DonutChart({ rows, currency = false }: { rows: NamedValue[]; currency?:
               nameKey="name"
               cx="50%"
               cy="50%"
-              innerRadius={44}
-              outerRadius={72}
+              innerRadius="48%"
+              outerRadius="82%"
               paddingAngle={singleSlice ? 0 : 2}
               startAngle={90}
               endAngle={-270}
@@ -458,7 +459,7 @@ function DonutChart({ rows, currency = false }: { rows: NamedValue[]; currency?:
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div className="flex min-w-0 flex-col justify-center gap-2 text-xs">
+      <div data-executive-donut-legend="true" className="flex min-w-0 flex-col justify-center gap-2 text-xs">
         {data.map((row, index) => (
           <div key={row.name} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
             <span className="flex min-w-0 items-start gap-2 leading-4">
@@ -477,7 +478,7 @@ function ProgressBars({ rows, footer }: { rows: NamedValue[]; footer: string }) 
   const data = rows.slice(0, 6);
   if (!data.length) return <Empty />;
   return (
-    <div className="space-y-3 py-2">
+    <div data-executive-progress-bars="true" className="space-y-3 py-2">
       {data.map((row) => (
         <div key={row.name} className="grid grid-cols-[minmax(105px,1fr)_2.2fr_44px] items-center gap-2 text-xs">
           <span className="truncate font-semibold" title={row.name}>{row.name}</span>
@@ -496,9 +497,9 @@ function StateRevenueMap({ rows }: { rows: StateValue[] }) {
   const maxRevenue = Math.max(1, ...rows.map((row) => row.revenue));
   if (!top.length) return <Empty />;
   return (
-    <div className="grid min-h-60 items-center gap-3 sm:grid-cols-[1.1fr_0.9fr]">
+    <div data-executive-map-layout="true" className="grid min-h-60 items-center gap-3 sm:grid-cols-[1.1fr_0.9fr]">
       <div>
-        <svg viewBox={brazil.viewBox} className="mx-auto h-52 w-full" role="img" aria-label="Mapa do Brasil por receita">
+        <svg data-executive-brazil-map="true" viewBox={brazil.viewBox} className="mx-auto h-52 w-full" role="img" aria-label="Mapa do Brasil por receita">
           {brazil.locations.map((location: { id: string; path: string; name: string }) => {
             const row = values.get(stateCode(location.id));
             const opacity = row?.revenue ? 0.2 + (row.revenue / maxRevenue) * 0.8 : 0.08;
