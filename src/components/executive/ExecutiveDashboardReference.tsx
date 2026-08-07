@@ -93,6 +93,13 @@ type DailyRow = {
 };
 type NamedValue = { name: string; value: number };
 type StateValue = { code: string; guests: number; revenue: number };
+type BookingPerformance = {
+  validReservations: number;
+  cancellations: number;
+  cancellationRate: number;
+  validRevenue: number;
+  lostRevenue: number;
+};
 type DashboardData = {
   revenue: number;
   occupancy: number;
@@ -107,6 +114,7 @@ type DashboardData = {
   categoryOccupancy: NamedValue[];
   roomOccupancy: NamedValue[];
   states: StateValue[];
+  booking: BookingPerformance;
 };
 
 const BLUE = "#2563eb";
@@ -147,6 +155,13 @@ const EMPTY_DASHBOARD: DashboardData = {
   categoryOccupancy: [],
   roomOccupancy: [],
   states: [],
+  booking: {
+    validReservations: 0,
+    cancellations: 0,
+    cancellationRate: 0,
+    validRevenue: 0,
+    lostRevenue: 0,
+  },
 };
 
 export function ExecutiveDashboardReference() {
@@ -275,6 +290,8 @@ export function ExecutiveDashboardReference() {
         <Kpi icon={<UserRoundX />} label="No-show" value={String(current.noShow)} delta={current.noShow - previous.noShow} absolute negative tone="purple" />
       </section>
 
+      <BookingPerformancePanel data={current.booking} />
+
       <Panel title="1. Ocupação, reservas, cancelamentos e no-show por dia" className="p-3">
         <MainPerformanceChart rows={current.daily} />
       </Panel>
@@ -380,6 +397,33 @@ function Panel({ title, children, className = "" }: { title: string; children: R
       <h2 className="mb-2 text-sm font-black text-blue-600">{title}</h2>
       {children}
     </article>
+  );
+}
+
+function BookingPerformancePanel({ data }: { data: BookingPerformance }) {
+  const metrics = [
+    { label: "Reservas válidas", value: String(data.validReservations), tone: "text-blue-700" },
+    { label: "Cancelamentos", value: String(data.cancellations), tone: "text-red-600" },
+    { label: "Taxa de cancelamento", value: `${data.cancellationRate.toFixed(1)}%`, tone: "text-red-600" },
+    { label: "Receita válida", value: fmtBRL(data.validRevenue), tone: "text-emerald-700" },
+    { label: "Receita perdida (bruta)", value: fmtBRL(data.lostRevenue), tone: "text-red-600" },
+  ];
+
+  return (
+    <section className="rounded-2xl border border-blue-200 bg-blue-50/40 p-3 shadow-sm" aria-label="Desempenho das reservas Booking no período">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-1">
+        <h2 className="text-sm font-black text-blue-700">Booking no período</h2>
+        <p className="text-[9px] font-semibold text-muted-foreground">Canceladas ficam no histórico e não entram na receita válida.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+        {metrics.map((metric) => (
+          <article key={metric.label} className="min-w-0 rounded-xl border border-border bg-card px-3 py-2">
+            <p className="truncate text-[9px] font-bold uppercase tracking-wide text-muted-foreground" title={metric.label}>{metric.label}</p>
+            <strong className={`block truncate text-base font-black tabular-nums ${metric.tone}`} title={metric.value}>{metric.value}</strong>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -576,6 +620,9 @@ function buildDashboard(source: DashboardSource, range: Range, filters: Dashboar
   const occupancy = availableNights > 0 ? (roomNights / availableNights) * 100 : 0;
   const adr = roomNights > 0 ? lodgingRevenue / roomNights : 0;
   const revpar = availableNights > 0 ? lodgingRevenue / availableNights : 0;
+  const bookingRows = arrivalReservations.filter((row) => normalizeChannel(row.canal) === "Booking.com" && !isMaintenance(row.status));
+  const bookingCancelled = bookingRows.filter((row) => isCancelled(row.status));
+  const bookingValid = bookingRows.filter((row) => !isCancelled(row.status) && !isNoShow(row.status));
 
   return {
     revenue,
@@ -591,6 +638,13 @@ function buildDashboard(source: DashboardSource, range: Range, filters: Dashboar
     categoryOccupancy: aggregateCategoryOccupancy(activeBase, selectedRooms, range, filters.weekday),
     roomOccupancy: aggregateRoomOccupancy(activeBase, selectedRooms, range, filters.weekday),
     states: aggregateStates(activeArrivals, clientMap),
+    booking: {
+      validReservations: bookingValid.length,
+      cancellations: bookingCancelled.length,
+      cancellationRate: bookingRows.length > 0 ? (bookingCancelled.length / bookingRows.length) * 100 : 0,
+      validRevenue: bookingValid.reduce((sum, row) => sum + number(row.valor_total), 0),
+      lostRevenue: bookingCancelled.reduce((sum, row) => sum + number(row.valor_total), 0),
+    },
   };
 }
 
