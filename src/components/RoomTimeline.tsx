@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
+  DoorOpen,
   LogOut,
   Pencil,
   Plus,
@@ -56,6 +57,7 @@ export function RoomTimeline({
   const [paymentReservation, setPaymentReservation] = useState<Reservation | null>(null);
   const [companyBillingReservation, setCompanyBillingReservation] = useState<Reservation | null>(null);
   const [companyBillingBusy, setCompanyBillingBusy] = useState(false);
+  const [checkoutBusyId, setCheckoutBusyId] = useState<string | null>(null);
   const { data: sales = [] } = useSales();
   const updateRoomSituation = useUpdate("rooms", ["rooms"]);
   const updateReservation = useUpdate("reservations", ["reservations"]);
@@ -180,6 +182,46 @@ export function RoomTimeline({
     );
   }
 
+  function finishCheckout(reservation: Reservation) {
+    const account = buildGuestAccount(reservation, sales);
+    if (account.balance > 0.009) {
+      toast.error(`Ainda existe saldo de ${fmtBRL(account.balance)}. Receba ou fature antes do check-out.`);
+      return;
+    }
+
+    setCheckoutBusyId(reservation.id);
+    updateReservation.mutate(
+      {
+        id: reservation.id,
+        patch: {
+          status: "finalizado",
+          checkout_at: new Date().toISOString(),
+        },
+      },
+      {
+        onSuccess: () => {
+          updateRoomSituation.mutate(
+            { id: reservation.quarto, patch: { situacao: "limpeza" } },
+            {
+              onSuccess: () => {
+                toast.success(`Check-out do quarto ${reservation.quarto} concluído.`);
+                setCheckoutBusyId(null);
+              },
+              onError: (error: Error) => {
+                toast.error(`Check-out concluído, mas falhou ao marcar limpeza: ${error.message}`);
+                setCheckoutBusyId(null);
+              },
+            },
+          );
+        },
+        onError: (error: Error) => {
+          toast.error(error.message);
+          setCheckoutBusyId(null);
+        },
+      },
+    );
+  }
+
   const roomColumnWidth = 260;
   const dayWidth = daysVisible >= 60 ? 56 : daysVisible >= 30 ? 64 : 80;
   const rowHeight = 52;
@@ -264,6 +306,7 @@ export function RoomTimeline({
             <Legend color="bg-indigo-600" label="Saiu e retorna" />
             <Legend color="bg-slate" label="Finalizada" />
             <span className="ml-auto hidden items-center gap-2 rounded-md border border-border bg-muted/35 px-2 py-1 sm:flex">
+              <DoorOpen className="h-3 w-3" /> checkout
               <WalletCards className="h-3 w-3" /> receber
               <Building2 className="h-3 w-3" /> faturar empresa
               <Pencil className="h-3 w-3" /> editar
@@ -346,6 +389,7 @@ export function RoomTimeline({
                         onClick={() => onRoomClick(room)}
                         className="sticky left-0 z-20 flex items-center border-r border-border bg-card px-2.5 py-1 text-left text-pine-dark transition hover:bg-primary/[0.05]"
                         title={featureTitle || "Características ainda não cadastradas"}
+                        style={{ gridColumn: 1, gridRow: 1 }}
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">
@@ -371,7 +415,7 @@ export function RoomTimeline({
                             className={`group/cell relative border-r border-border/60 transition hover:bg-primary/[0.08] ${
                               isToday ? "bg-primary/[0.06]" : weekend ? "bg-muted/20" : "bg-card"
                             }`}
-                            style={{ gridColumn: index + 2 }}
+                            style={{ gridColumn: index + 2, gridRow: 1 }}
                             aria-label={`Reservar quarto ${room.numero} em ${fmtDate(date)}`}
                           >
                             <Plus className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 text-primary opacity-0 transition group-hover/cell:opacity-55" />
@@ -398,9 +442,13 @@ export function RoomTimeline({
                           account.paid,
                         );
                         const canReceive =
-                          account.balance > 0 &&
+                          account.balance > 0.009 &&
                           !["cancelado", "finalizado"].includes(reservation.status);
-                        const canCompanyBill = checkedIn && account.balance > 0;
+                        const canCompanyBill = checkedIn && account.balance > 0.009;
+                        const canCheckout =
+                          checkedIn &&
+                          account.balance <= 0.009 &&
+                          !["cancelado", "finalizado"].includes(reservation.status);
 
                         return (
                           <div
@@ -427,6 +475,19 @@ export function RoomTimeline({
                                 </span>
                               </span>
                             </button>
+
+                            {canCheckout && (
+                              <button
+                                type="button"
+                                disabled={checkoutBusyId === reservation.id}
+                                onClick={() => finishCheckout(reservation)}
+                                className="flex min-w-9 shrink-0 items-center justify-center border-l border-white/30 bg-black/10 px-1.5 transition hover:bg-black/20 disabled:cursor-wait disabled:opacity-60"
+                                aria-label={`Fazer check-out de ${reservation.cliente_nome}`}
+                                title="Fazer check-out"
+                              >
+                                <DoorOpen className="h-3.5 w-3.5" />
+                              </button>
+                            )}
 
                             {canReceive && (
                               <button
@@ -546,7 +607,7 @@ function Legend({
 }
 
 function reservationIsCheckedIn(reservation: Reservation) {
-  return reservation.status === "ocupado" || Boolean(reservation.checkin_at);
+  return ["ocupado", "saida_pendente"].includes(reservation.status) || Boolean(reservation.checkin_at);
 }
 
 function reservationVisual(
