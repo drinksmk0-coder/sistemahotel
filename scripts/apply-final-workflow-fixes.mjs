@@ -56,22 +56,3 @@ patch("src/routes/_authenticated/vendas.tsx", [
     '  const [room, setRoom] = useState<number | null>(initialRoom ?? rooms[0]?.numero ?? null);',
   ],
 ]);
-
-patch("src/routes/checkin-print.tsx", [
-  [
-    '@page { size: A4 portrait; margin: 9mm; }',
-    '@page { size: A3 portrait; margin: 10mm; }',
-  ],
-  [
-    'max-w-[210mm]',
-    'max-w-[297mm]',
-  ],
-  [
-    'min-h-[297mm] w-full max-w-[210mm]',
-    'min-h-[420mm] w-full max-w-[297mm]',
-  ],
-  [
-    '<button type="button" onClick={() => window.print()} className="btn-primary flex items-center gap-2"><Printer className="h-4 w-4" /> Imprimir ou salvar em PDF</button>',
-    '<div className="mr-auto rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950"><strong>Antes de imprimir:</strong> selecione papel A3, escala “Ajustar à página”, margens padrão e desative cabeçalhos/rodapés.</div><button type="button" onClick={() => window.print()} className="btn-primary flex items-center gap-2"><Printer className="h-4 w-4" /> Imprimir em A3 ou salvar PDF</button>',
-  ],
-]);
