@@ -363,6 +363,40 @@ body:has(.executive-dashboard-shell:fullscreen) {
   }
 }
 
+/* Os cards 8 e 9 não devem herdar a altura de outros painéis da mesma linha.
+   O conteúdo ocupa a altura útil: barras distribuídas e rosca centralizada. */
+@media (min-width: 1024px) {
+  .executive-readable-root [data-executive-detail-grid="expenses"] {
+    align-items: start !important;
+  }
+
+  .executive-readable-root [data-executive-detail-grid="expenses"] > [data-executive-expense-card] {
+    height: clamp(22rem, 42vh, 27rem) !important;
+    min-height: 22rem !important;
+  }
+
+  .executive-readable-root [data-executive-expense-card="ranking"] [data-executive-expense-ranking="true"] {
+    flex: 1 1 auto;
+    height: auto !important;
+    min-height: 0 !important;
+    justify-content: space-evenly !important;
+    padding-block: 0.35rem;
+  }
+
+  .executive-readable-root [data-executive-expense-card="payments"] [data-executive-donut-layout="true"] {
+    flex: 1 1 auto;
+    height: auto !important;
+    min-height: 0 !important;
+    grid-template-columns: minmax(17rem, 1.25fr) minmax(0, 0.75fr) !important;
+    align-content: center;
+  }
+
+  .executive-readable-root [data-executive-expense-card="payments"] [data-executive-donut-chart="true"] {
+    height: clamp(19rem, 32vh, 22rem) !important;
+    min-width: 17rem !important;
+  }
+}
+
 @media print {
   .executive-readable-root > .executive-dashboard-shell {
     width: 100% !important;
