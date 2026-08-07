@@ -1,9 +1,22 @@
 function clean(value) {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+  return String(value ?? "").replace(/[\t\f\v ]+/g, " ").trim();
 }
 
-function pageText() {
-  return clean(document.body?.innerText || "");
+function rawPageText() {
+  return String(document.body?.innerText || "")
+    .replace(/\r/g, "")
+    .replace(/\u00a0/g, " ");
+}
+
+function pageLines() {
+  return rawPageText()
+    .split("\n")
+    .map(clean)
+    .filter(Boolean);
+}
+
+function flatPageText() {
+  return clean(rawPageText().replace(/\n+/g, " | "));
 }
 
 function firstMatch(text, patterns) {
@@ -14,44 +27,101 @@ function firstMatch(text, patterns) {
   return null;
 }
 
-function bookingCode() {
+function valueAfterLabel(lines, labels, options = {}) {
+  const normalizedLabels = labels.map((label) => label.toLocaleLowerCase("pt-BR"));
+  const maxLookAhead = options.maxLookAhead ?? 3;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const current = lines[index];
+    const lower = current.toLocaleLowerCase("pt-BR");
+    const matchedLabel = normalizedLabels.find(
+      (label) => lower === label || lower.startsWith(`${label}:`),
+    );
+    if (!matchedLabel) continue;
+
+    const inline = clean(current.slice(matchedLabel.length).replace(/^\s*:\s*/, ""));
+    if (inline) return inline;
+
+    for (let offset = 1; offset <= maxLookAhead; offset += 1) {
+      const candidate = lines[index + offset];
+      if (!candidate) break;
+      if (/^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ ]{1,40}:$/.test(candidate)) break;
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function bookingCode(lines, flatText) {
   const url = new URL(location.href);
   return (
     url.searchParams.get("res_id") ||
-    firstMatch(pageText(), [
+    valueAfterLabel(lines, ["Número da reserva", "Reservation number"]) ||
+    firstMatch(flatText, [
       /(?:número da reserva|reservation number|booking confirmation)\s*[:#-]?\s*(\d{8,12})/i,
       /\b(\d{10})\b/,
     ])
   );
 }
 
-function extractBookingReservation() {
-  const text = pageText();
-  const title = clean(document.title);
-  const code = bookingCode();
+function findRoomType(lines) {
+  const explicit = valueAfterLabel(lines, ["Tipo de quarto", "Room type", "Acomodação"]);
+  if (explicit) return explicit;
 
-  const guestName = firstMatch(text, [
-    /(?:nome do hóspede|guest name|hóspede principal)\s*[:\n-]\s*([^\n|]{3,120})/i,
-    /(?:reservado por|booked by)\s*[:\n-]\s*([^\n|]{3,120})/i,
+  return (
+    lines.find((line) =>
+      /^(quarto|suíte|suite|apartamento|chalé|chale|studio|estúdio)\b/i.test(line),
+    ) || null
+  );
+}
+
+function findStatus(lines, flatText) {
+  const explicit = valueAfterLabel(lines, [
+    "Status da reserva",
+    "Reservation status",
+    "Situação da reserva",
   ]);
-  const checkin = firstMatch(text, [
-    /(?:check-in|entrada|arrival)\s*[:\n-]\s*([^\n|]{4,50})/i,
+  if (explicit) return explicit;
+
+  const statusLine = lines.find((line) =>
+    /^(recebido|confirmada?|cancelada?|no-show|não compareceu|alterada?)$/i.test(line),
+  );
+  if (statusLine) return statusLine;
+
+  if (/pedir cancelamento de reserva/i.test(flatText)) return "Reserva ativa";
+  return null;
+}
+
+function extractBookingReservation() {
+  const lines = pageLines();
+  const flatText = flatPageText();
+  const title = clean(document.title);
+  const code = bookingCode(lines, flatText);
+
+  const guestName =
+    valueAfterLabel(lines, ["Nome do hóspede", "Guest name", "Hóspede principal"]) ||
+    valueAfterLabel(lines, ["Reservado por", "Booked by"]);
+
+  const checkin = valueAfterLabel(lines, ["Check-in", "Entrada", "Arrival"], {
+    maxLookAhead: 2,
+  });
+  const checkout = valueAfterLabel(lines, ["Check-out", "Saída", "Departure"], {
+    maxLookAhead: 2,
+  });
+  const total = valueAfterLabel(lines, [
+    "Preço total",
+    "Valor total",
+    "Total price",
+    "Total da reserva",
   ]);
-  const checkout = firstMatch(text, [
-    /(?:check-out|saída|departure)\s*[:\n-]\s*([^\n|]{4,50})/i,
+  const guests = valueAfterLabel(lines, [
+    "Total de hóspedes",
+    "Hóspedes",
+    "Guests",
+    "Adultos e crianças",
   ]);
-  const total = firstMatch(text, [
-    /(?:valor total|total price|preço total|total da reserva)\s*[:\n-]\s*([^\n|]{2,60})/i,
-  ]);
-  const guests = firstMatch(text, [
-    /(?:hóspedes|guests|adultos e crianças)\s*[:\n-]\s*([^\n|]{2,80})/i,
-  ]);
-  const roomType = firstMatch(text, [
-    /(?:tipo de quarto|room type|acomodação)\s*[:\n-]\s*([^\n|]{2,120})/i,
-  ]);
-  const status = firstMatch(text, [
-    /(?:status da reserva|reservation status|situação)\s*[:\n-]\s*([^\n|]{2,80})/i,
-  ]);
+  const roomType = findRoomType(lines);
+  const status = findStatus(lines, flatText);
 
   return {
     source: "booking_extranet_chrome",
@@ -66,7 +136,7 @@ function extractBookingReservation() {
     guests_text: guests,
     room_type: roomType,
     status_text: status,
-    raw_excerpt: text.slice(0, 12000),
+    raw_excerpt: rawPageText().slice(0, 12000),
   };
 }
 
@@ -76,7 +146,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     const payload = extractBookingReservation();
     sendResponse({ ok: true, payload });
   } catch (error) {
-    sendResponse({ ok: false, error: error instanceof Error ? error.message : String(error) });
+    sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
   return true;
 });
