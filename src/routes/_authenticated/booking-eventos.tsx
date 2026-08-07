@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Chrome, Mail, ShieldCheck, XCircle } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
 import { Badge, EmptyState } from "@/components/ui-kit";
@@ -41,8 +42,28 @@ type PortalRow = {
   reservation: ReservationSummary | null;
 };
 
+type RoomOption = { numero: number; configuracao: string | null };
+
 function BookingEventos() {
   const current = useCurrentCompany();
+  const queryClient = useQueryClient();
+  const [selectedRooms, setSelectedRooms] = useState<Record<string, string>>({});
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  const { data: rooms = [] } = useQuery({
+    queryKey: ["booking-events-rooms", current.data?.id],
+    enabled: !!current.data?.id,
+    queryFn: async (): Promise<RoomOption[]> => {
+      const { data, error } = await (supabase as any)
+        .from("rooms")
+        .select("numero,configuracao")
+        .eq("company_id", current.data!.id)
+        .order("numero");
+      if (error) throw error;
+      return (data ?? []) as RoomOption[];
+    },
+  });
+
   const { data: rows = [], isLoading, error } = useQuery({
     queryKey: ["booking-events-portal", current.data?.id],
     enabled: !!current.data?.id,
@@ -57,7 +78,7 @@ function BookingEventos() {
           .order("created_at", { ascending: false }),
         (supabase as any)
           .from("booking_browser_events")
-          .select("id,booking_code,status,event_type,guest_name,checkin_text,checkout_text,total_text,guests_text,room_type,booking_status_text,captured_at")
+          .select("id,booking_code,status,event_type,reservation_id,previous_status,new_status,error,guest_name,checkin_text,checkout_text,total_text,guests_text,room_type,booking_status_text,captured_at")
           .eq("company_id", companyId)
           .order("captured_at", { ascending: false }),
       ]);
@@ -91,10 +112,10 @@ function BookingEventos() {
         booking_code: event.booking_code,
         status: event.status,
         event_type: event.event_type,
-        reservation_id: null,
-        previous_status: null,
-        new_status: null,
-        error: null,
+        reservation_id: event.reservation_id,
+        previous_status: event.previous_status,
+        new_status: event.new_status,
+        error: event.error,
         received_at: event.captured_at,
         guest_name: event.guest_name,
         room_type: event.room_type,
@@ -105,7 +126,8 @@ function BookingEventos() {
         booking_status_text: event.booking_status_text,
       }));
 
-      const reservationIds = [...new Set(emailEvents.map((event: any) => event.reservation_id).filter(Boolean))] as string[];
+      const allEvents = [...emailEvents, ...browserEvents];
+      const reservationIds = [...new Set(allEvents.map((event: any) => event.reservation_id).filter(Boolean))] as string[];
       let reservations: ReservationSummary[] = [];
 
       if (reservationIds.length > 0) {
@@ -119,7 +141,7 @@ function BookingEventos() {
       }
 
       const byId = new Map(reservations.map((reservation) => [reservation.id, reservation]));
-      const combined: PortalRow[] = [...emailEvents, ...browserEvents].map((event: any) => ({
+      const combined: PortalRow[] = allEvents.map((event: any) => ({
         ...event,
         reservation: event.reservation_id ? byId.get(event.reservation_id) ?? null : null,
       }));
@@ -128,6 +150,114 @@ function BookingEventos() {
     },
     refetchInterval: 30_000,
   });
+
+  async function createReservation(event: PortalRow) {
+    if (!current.data?.id || event.source !== "chrome" || event.event_type !== "reservation_details") return;
+    const roomNumber = Number(selectedRooms[event.id]);
+    if (!Number.isFinite(roomNumber)) {
+      window.alert("Selecione o quarto antes de criar a reserva.");
+      return;
+    }
+
+    const checkin = parseBookingDate(event.checkin_text);
+    const checkout = parseBookingDate(event.checkout_text);
+    if (!checkin || !checkout || !event.guest_name) {
+      window.alert("A Booking não forneceu todos os dados necessários para criar a reserva.");
+      return;
+    }
+
+    setProcessingId(event.id);
+    try {
+      const companyId = current.data.id;
+      const { data: existing } = await (supabase as any)
+        .from("reservations")
+        .select("id,status")
+        .eq("company_id", companyId)
+        .eq("codigo_externo", event.booking_code)
+        .maybeSingle();
+
+      if (existing?.id) {
+        await (supabase as any)
+          .from("booking_browser_events")
+          .update({ status: "processed", reservation_id: existing.id, processed_at: new Date().toISOString(), error: null })
+          .eq("id", event.id)
+          .eq("company_id", companyId);
+        await queryClient.invalidateQueries({ queryKey: ["booking-events-portal", companyId] });
+        return;
+      }
+
+      const { data: conflicts, error: conflictError } = await (supabase as any)
+        .from("reservations")
+        .select("id,cliente_nome,checkin,checkout,status")
+        .eq("company_id", companyId)
+        .eq("quarto", roomNumber)
+        .in("status", ["reservado", "ocupado"])
+        .lt("checkin", checkout)
+        .gt("checkout", checkin);
+      if (conflictError) throw conflictError;
+      if ((conflicts ?? []).length > 0) {
+        window.alert("Esse quarto já possui uma reserva no período. Escolha outro quarto.");
+        return;
+      }
+
+      const days = Math.max(1, Math.round((Date.parse(`${checkout}T12:00:00`) - Date.parse(`${checkin}T12:00:00`)) / 86400000));
+      const total = parseMoney(event.total_text);
+      const people = parsePeople(event.guests_text);
+      const { data: auth } = await supabase.auth.getUser();
+
+      const { data: reservation, error: reservationError } = await (supabase as any)
+        .from("reservations")
+        .insert({
+          quarto: roomNumber,
+          cliente_nome: event.guest_name,
+          checkin,
+          checkout,
+          diarias: days,
+          valor_diaria: total / days,
+          valor_total: total,
+          pagamento: "-",
+          pago: false,
+          valor_pago: 0,
+          pessoas: people,
+          desconto: 0,
+          status: "reservado",
+          canal: "Booking",
+          company_id: companyId,
+          created_by: auth.user?.id ?? null,
+          presence_status: "aguardando",
+          codigo_externo: event.booking_code,
+          origem_importacao: "booking_chrome_extension",
+          observacoes_importacao: event.room_type ? `Acomodação Booking: ${event.room_type}` : "Reserva importada da Booking pela extensão Chrome.",
+        })
+        .select("id")
+        .single();
+      if (reservationError) throw reservationError;
+
+      await (supabase as any)
+        .from("booking_browser_events")
+        .update({
+          status: "processed",
+          reservation_id: reservation.id,
+          previous_status: null,
+          new_status: "reservado",
+          processed_at: new Date().toISOString(),
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: auth.user?.id ?? null,
+          error: null,
+        })
+        .eq("id", event.id)
+        .eq("company_id", companyId);
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["booking-events-portal", companyId] }),
+        queryClient.invalidateQueries({ queryKey: ["reservations"] }),
+      ]);
+    } catch (caught) {
+      window.alert(caught instanceof Error ? caught.message : "Não foi possível criar a reserva.");
+    } finally {
+      setProcessingId(null);
+    }
+  }
 
   return (
     <div>
@@ -140,7 +270,7 @@ function BookingEventos() {
         <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
         <div>
           <p className="font-semibold">Histórico protegido</p>
-          <p className="text-sm">Este portal não possui ações para excluir reservas, hóspedes, pagamentos ou histórico.</p>
+          <p className="text-sm">Cancelamentos seguros são aplicados sem excluir reservas, hóspedes, pagamentos ou histórico. Reservas novas exigem apenas a escolha do quarto quando a Booking não informa um número específico.</p>
         </div>
       </div>
 
@@ -154,7 +284,7 @@ function BookingEventos() {
         <EmptyState text="Nenhum evento da Booking encontrado para esta empresa." />
       ) : (
         <div className="card-surface overflow-x-auto">
-          <table className="w-full min-w-[1180px] text-sm">
+          <table className="w-full min-w-[1320px] text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
                 <th className="p-3">Origem</th>
@@ -166,7 +296,7 @@ function BookingEventos() {
                 <th className="p-3">Código Booking</th>
                 <th className="p-3">Valor</th>
                 <th className="p-3">Status</th>
-                <th className="p-3">Resultado</th>
+                <th className="p-3">Resultado / ação</th>
               </tr>
             </thead>
             <tbody>
@@ -175,7 +305,7 @@ function BookingEventos() {
                   <td className="p-3">{sourceBadge(event.source)}</td>
                   <td className="whitespace-nowrap p-3">{fmtDate(event.received_at.slice(0, 10))}</td>
                   <td className="p-3 font-semibold">{event.guest_name ?? event.reservation?.cliente_nome ?? "Reserva não localizada"}</td>
-                  <td className="p-3">{event.room_type ?? event.reservation?.quarto ?? "—"}</td>
+                  <td className="p-3">{event.reservation?.quarto ?? event.room_type ?? "—"}</td>
                   <td className="whitespace-nowrap p-3">{event.checkin_text ?? (event.reservation?.checkin ? fmtDate(event.reservation.checkin) : "—")}</td>
                   <td className="whitespace-nowrap p-3">{event.checkout_text ?? (event.reservation?.checkout ? fmtDate(event.reservation.checkout) : "—")}</td>
                   <td className="p-3 font-mono text-xs">{event.booking_code}</td>
@@ -186,7 +316,32 @@ function BookingEventos() {
                       <Badge tone={statusTone(event.status)}>{event.booking_status_text ?? statusLabel(event.status)}</Badge>
                     </span>
                   </td>
-                  <td className="max-w-[360px] p-3 text-muted-foreground">{resultLabel(event)}</td>
+                  <td className="max-w-[420px] p-3 text-muted-foreground">
+                    {event.source === "chrome" && event.event_type === "reservation_details" && event.status === "needs_review" ? (
+                      <div className="flex min-w-[300px] items-center gap-2">
+                        <select
+                          className="h-9 min-w-[150px] rounded-md border border-border bg-background px-2 text-foreground"
+                          value={selectedRooms[event.id] ?? ""}
+                          onChange={(e) => setSelectedRooms((currentRooms) => ({ ...currentRooms, [event.id]: e.target.value }))}
+                        >
+                          <option value="">Escolher quarto</option>
+                          {rooms.map((room) => (
+                            <option key={room.numero} value={room.numero}>Quarto {room.numero}{room.configuracao ? ` · ${room.configuracao}` : ""}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="h-9 rounded-md bg-primary px-3 font-semibold text-primary-foreground disabled:opacity-50"
+                          disabled={processingId === event.id}
+                          onClick={() => createReservation(event)}
+                        >
+                          {processingId === event.id ? "Criando..." : "Criar reserva"}
+                        </button>
+                      </div>
+                    ) : (
+                      resultLabel(event)
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -226,15 +381,41 @@ function statusLabel(status: string) {
 }
 
 function resultLabel(event: PortalRow) {
-  if (event.source === "chrome") {
-    if (event.event_type === "cancellation_details") return "Cancelamento capturado pela extensão e aguardando conferência.";
-    return "Reserva capturada pela extensão e aguardando conferência.";
-  }
   if (event.error) return event.error;
+  if (event.source === "chrome") {
+    if (event.status === "processed" && event.event_type === "cancellation_details") return "Cancelamento aplicado no HospedaMais e histórico preservado.";
+    if (event.status === "processed" && event.event_type === "reservation_details") return "Reserva vinculada ao HospedaMais.";
+    if (event.event_type === "cancellation_details") return "Cancelamento recebido; revisão manual necessária.";
+    return "Reserva capturada pela extensão e aguardando escolha do quarto.";
+  }
   if (event.status === "processed") {
     return `Reserva alterada de ${event.previous_status ?? "reservado"} para ${event.new_status ?? "cancelado"}.`;
   }
   if (event.status === "already_cancelled") return "A reserva já estava cancelada; nenhuma alteração adicional foi feita.";
   if (event.status === "needs_review") return "O evento foi preservado e aguarda conferência manual; nenhum registro foi excluído.";
-  return "Evento recebido, sem resultado de cancelamento confirmado.";
+  return "Evento recebido, sem resultado confirmado.";
+}
+
+function parseBookingDate(value: string | null) {
+  const text = String(value ?? "").toLocaleLowerCase("pt-BR");
+  const match = text.match(/(\d{1,2})\s+de\s+([a-zç.]+)\s+de\s+(\d{4})/i);
+  if (!match) return null;
+  const months: Record<string, string> = {
+    jan: "01", fev: "02", mar: "03", abr: "04", mai: "05", jun: "06",
+    jul: "07", ago: "08", set: "09", out: "10", nov: "11", dez: "12",
+  };
+  const month = months[match[2].replace(/\./g, "").slice(0, 3)];
+  if (!month) return null;
+  return `${match[3]}-${month}-${match[1].padStart(2, "0")}`;
+}
+
+function parseMoney(value: string | null) {
+  const cleaned = String(value ?? "0").replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  const number = Number(cleaned);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function parsePeople(value: string | null) {
+  const match = String(value ?? "").match(/\d+/);
+  return Math.max(1, Number(match?.[0] ?? 1));
 }
