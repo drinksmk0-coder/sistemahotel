@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { MapaQuartos } from "@/components/MapaQuartos";
 import { RoomOperationsBoard } from "@/components/RoomOperationsBoard";
 import { useRole, useSession } from "@/hooks/use-auth";
-import { useLiveReservations } from "@/hooks/use-live-reservations";
 
 export const Route = createFileRoute("/_authenticated/mapa")({
   component: MapaPorFuncao,
@@ -11,7 +10,6 @@ export const Route = createFileRoute("/_authenticated/mapa")({
 function MapaPorFuncao() {
   const { user } = useSession();
   const { data: role } = useRole(user);
-  useLiveReservations();
 
   if (!role) {
     return (
