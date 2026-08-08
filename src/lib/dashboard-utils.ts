@@ -127,12 +127,12 @@ export function calculateHotelKpis({
 }
 
 export function reservationRevenue(reservation: Reservation): number {
-  if (reservation.status === "cancelado" || reservation.status === "manutencao") return 0;
+  if (isNonRevenueStatus(reservation.status)) return 0;
   return Math.max(0, Number(reservation.valor_total) || 0);
 }
 
 export function reservationReceived(reservation: Reservation): number {
-  if (reservation.status === "cancelado" || reservation.status === "manutencao") return 0;
+  if (isNonRevenueStatus(reservation.status)) return 0;
   return Math.max(0, Number(reservation.valor_pago) || 0);
 }
 
@@ -200,7 +200,7 @@ export function lastMonths(today: string, count = 12): { key: string; label: str
 }
 
 export function roomNights(reservation: Reservation, range?: DateRange): number {
-  if (reservation.status === "cancelado" || reservation.status === "manutencao") return 0;
+  if (isNonRevenueStatus(reservation.status)) return 0;
   const start = range && reservation.checkin < range.start ? range.start : reservation.checkin;
   const endBoundary = range ? addDays(range.end, 1) : reservation.checkout;
   const end = reservation.checkout > endBoundary ? endBoundary : reservation.checkout;
@@ -217,14 +217,23 @@ export function roomNights(reservation: Reservation, range?: DateRange): number 
 function isCommercialReservation(reservation: Reservation): boolean {
   const status = normalizeText(String(reservation.status ?? ""));
   if (
-    status.includes("cancel") ||
-    status.includes("manutencao") ||
+    isNonRevenueStatus(status) ||
     status.includes("cortesia") ||
     status.includes("interno")
   ) {
     return false;
   }
   return Math.max(0, Number(reservation.valor_total) || 0) > 0;
+}
+
+function isNonRevenueStatus(value: string | null | undefined): boolean {
+  const status = normalizeText(String(value ?? ""));
+  const compact = status.replace(/[\s_-]+/g, "");
+  return status.includes("cancel")
+    || status.includes("manutencao")
+    || compact.includes("noshow")
+    || compact.includes("naocompareceu")
+    || compact.includes("naocomparecimento");
 }
 
 function safeDivide(value: number, divider: number): number {
