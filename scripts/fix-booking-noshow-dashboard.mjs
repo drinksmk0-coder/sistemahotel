@@ -58,7 +58,7 @@ replaceOnce(
         && !internalBookingCodes.has(normalizeBookingCode(event.booking_code)))
       .filter((event) => {
         const code = normalizeBookingCode(event.booking_code);
-        const key = `${eventType}:${code || event.reservation_id || event.checkin}`;
+        const key = eventType + ":" + (code || event.reservation_id || event.checkin);
         if (seen.has(key)) return false;
         seen.add(key);
         return true;
