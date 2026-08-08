@@ -65,7 +65,7 @@ function bookingCode(lines, flatText) {
 }
 
 function stripCancellation(value) {
-  return clean(String(value ?? "").replace(/\s+cancelad[oa](?:\s+pelo\s+hóspede)?\s*$/i, ""));
+  return clean(String(value ?? "").replace(/\s+(?:cancelad[oa](?:\s+pelo\s+hóspede)?|cancell?ed(?:\s+by\s+guest)?)\s*$/i, ""));
 }
 
 function findRoomType(lines) {
@@ -73,9 +73,12 @@ function findRoomType(lines) {
   if (explicit) return stripCancellation(explicit) || null;
 
   const roomLine = lines.find((line) =>
-    /^(quarto|suíte|suite|apartamento|chalé|chale|studio|estúdio)\b/i.test(line),
+    /^(?:\d+\s+)?(?:quarto|suíte|suite|apartamento|chalé|chale|studio|estúdio)\b/i.test(line) ||
+    /\b(?:room|suite|apartment|studio)\s*$/i.test(stripCancellation(line)),
   );
-  return roomLine ? stripCancellation(roomLine) || null : null;
+  return roomLine
+    ? stripCancellation(roomLine).replace(/^\d+\s+/, "") || null
+    : null;
 }
 
 function findStatus(lines, flatText) {
@@ -86,9 +89,9 @@ function findStatus(lines, flatText) {
   ]);
   if (explicit) return explicit;
 
-  const cancelled = lines.find((line) => /cancelad[oa]/i.test(line));
+  const cancelled = lines.find((line) => /cancelad[oa]|cancelou\s+esta\s+reserva|cancell?ed\s+(?:this\s+booking|by\s+guest)/i.test(line));
   if (cancelled) {
-    const match = cancelled.match(/(cancelad[oa](?:\s+pelo\s+hóspede)?)/i);
+    const match = cancelled.match(/(cancelad[oa](?:\s+pelo\s+hóspede)?|cancelou\s+esta\s+reserva|cancell?ed(?:\s+this\s+booking|\s+by\s+guest)?)/i);
     return match?.[1] ? clean(match[1]) : "Cancelada";
   }
 

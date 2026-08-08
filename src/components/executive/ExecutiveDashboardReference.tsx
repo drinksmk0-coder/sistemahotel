@@ -53,6 +53,7 @@ type FilterOptions = {
 };
 type ReservationRow = {
   id: string;
+  codigo_externo: string | null;
   status: string | null;
   checkin: string;
   checkout: string;
@@ -76,11 +77,20 @@ type ClientRow = {
   id: string;
   estado: string | null;
 };
+type BookingEventRow = {
+  booking_code: string;
+  event_type: string | null;
+  status: string;
+  checkin_text: string | null;
+  total_text: string | null;
+  reservation_id: string | null;
+};
 type DashboardSource = {
   reservations: ReservationRow[];
   sales: SaleRow[];
   rooms: RoomRow[];
   clients: ClientRow[];
+  bookingEvents: BookingEventRow[];
 };
 type DailyRow = {
   iso: string;
@@ -93,6 +103,13 @@ type DailyRow = {
 };
 type NamedValue = { name: string; value: number };
 type StateValue = { code: string; guests: number; revenue: number };
+type BookingPerformance = {
+  validReservations: number;
+  cancellations: number;
+  cancellationRate: number;
+  validRevenue: number;
+  lostRevenue: number;
+};
 type DashboardData = {
   revenue: number;
   occupancy: number;
@@ -107,6 +124,7 @@ type DashboardData = {
   categoryOccupancy: NamedValue[];
   roomOccupancy: NamedValue[];
   states: StateValue[];
+  booking: BookingPerformance;
 };
 
 const BLUE = "#2563eb";
@@ -147,6 +165,13 @@ const EMPTY_DASHBOARD: DashboardData = {
   categoryOccupancy: [],
   roomOccupancy: [],
   states: [],
+  booking: {
+    validReservations: 0,
+    cancellations: 0,
+    cancellationRate: 0,
+    validRevenue: 0,
+    lostRevenue: 0,
+  },
 };
 
 export function ExecutiveDashboardReference() {
@@ -155,7 +180,7 @@ export function ExecutiveDashboardReference() {
   const today = todayISO();
   const monthStart = `${today.slice(0, 7)}-01`;
   const [start, setStart] = useState(monthStart);
-  const [end, setEnd] = useState(today);
+  const [end, setEnd] = useState(localISO(addDaysDate(parseDate(today), 90)));
   const [filters, setFilters] = useState<DashboardFilters>(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -193,7 +218,7 @@ export function ExecutiveDashboardReference() {
     setFilters((currentFilters) => ({ ...currentFilters, [key]: value }));
   }
 
-  function applyPreset(preset: "today" | "7" | "30" | "month" | "year") {
+  function applyPreset(preset: "today" | "7" | "30" | "month" | "year" | "future30" | "future90") {
     const now = new Date();
     const presetEnd = localISO(now);
     if (preset === "today") {
@@ -205,6 +230,11 @@ export function ExecutiveDashboardReference() {
     if (preset === "30") setStart(localISO(addDaysDate(now, -29)));
     if (preset === "month") setStart(`${presetEnd.slice(0, 7)}-01`);
     if (preset === "year") setStart(`${presetEnd.slice(0, 4)}-01-01`);
+    if (preset === "future30" || preset === "future90") {
+      setStart(presetEnd);
+      setEnd(localISO(addDaysDate(now, preset === "future30" ? 30 : 90)));
+      return;
+    }
     setEnd(presetEnd);
   }
 
@@ -276,6 +306,8 @@ export function ExecutiveDashboardReference() {
         <Kpi icon={<UserRoundX />} label="No-show" value={String(current.noShow)} delta={current.noShow - previous.noShow} absolute negative tone="purple" />
       </section>
 
+      <BookingPerformancePanel data={current.booking} />
+
       <Panel title={`1. Ocupação, reservas, cancelamentos e no-show por ${chartGranularity(current.daily.length)}`} className="p-3">
         <MainPerformanceChart rows={current.daily} />
       </Panel>
@@ -304,7 +336,7 @@ function FilterPanel({ filters, options, onChange, onClear, onPreset }: {
   options: FilterOptions;
   onChange: <K extends keyof DashboardFilters>(key: K, value: DashboardFilters[K]) => void;
   onClear: () => void;
-  onPreset: (preset: "today" | "7" | "30" | "month" | "year") => void;
+  onPreset: (preset: "today" | "7" | "30" | "month" | "year" | "future30" | "future90") => void;
 }) {
   return (
     <section className="rounded-2xl border border-blue-200 bg-card p-3 shadow-sm" data-executive-control>
@@ -324,6 +356,8 @@ function FilterPanel({ filters, options, onChange, onClear, onPreset }: {
         <QuickPeriod label="30 dias" onClick={() => onPreset("30")} />
         <QuickPeriod label="Mês atual" onClick={() => onPreset("month")} />
         <QuickPeriod label="Ano atual" onClick={() => onPreset("year")} />
+        <QuickPeriod label="Próximos 30 dias" onClick={() => onPreset("future30")} />
+        <QuickPeriod label="Próximos 90 dias" onClick={() => onPreset("future90")} />
       </div>
 
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -381,6 +415,33 @@ function Panel({ title, children, className = "" }: { title: string; children: R
       <h2 className="mb-2 text-sm font-black text-blue-600">{title}</h2>
       {children}
     </article>
+  );
+}
+
+function BookingPerformancePanel({ data }: { data: BookingPerformance }) {
+  const metrics = [
+    { label: "Reservas válidas", value: String(data.validReservations), tone: "text-blue-700" },
+    { label: "Cancelamentos", value: String(data.cancellations), tone: "text-red-600" },
+    { label: "Taxa de cancelamento", value: `${data.cancellationRate.toFixed(1)}%`, tone: "text-red-600" },
+    { label: "Receita válida", value: fmtBRL(data.validRevenue), tone: "text-emerald-700" },
+    { label: "Receita perdida (bruta)", value: fmtBRL(data.lostRevenue), tone: "text-red-600" },
+  ];
+
+  return (
+    <section className="rounded-2xl border border-blue-200 bg-blue-50/40 p-3 shadow-sm" aria-label="Desempenho das reservas Booking no período">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-1">
+        <h2 className="text-sm font-black text-blue-700">Booking no período</h2>
+        <p className="text-[9px] font-semibold text-muted-foreground">Canceladas ficam no histórico e não entram na receita válida.</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
+        {metrics.map((metric) => (
+          <article key={metric.label} className="min-w-0 rounded-xl border border-border bg-card px-3 py-2">
+            <p className="truncate text-[9px] font-bold uppercase tracking-wide text-muted-foreground" title={metric.label}>{metric.label}</p>
+            <strong className={`block truncate text-base font-black tabular-nums ${metric.tone}`} title={metric.value}>{metric.value}</strong>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -523,21 +584,24 @@ function StateRevenueMap({ rows }: { rows: StateValue[] }) {
 }
 
 async function loadSource(companyId: string, range: Range): Promise<DashboardSource> {
-  const [reservationsResult, salesResult, roomsResult, clientsResult] = await Promise.all([
-    (supabase as any).from("reservations").select("id,status,checkin,checkout,quarto,valor_total,pagamento,pessoas,canal,cliente_id").eq("company_id", companyId).lte("checkin", range.end).gte("checkout", range.start),
+  const [reservationsResult, salesResult, roomsResult, clientsResult, bookingEventsResult] = await Promise.all([
+    (supabase as any).from("reservations").select("id,codigo_externo,status,checkin,checkout,quarto,valor_total,pagamento,pessoas,canal,cliente_id").eq("company_id", companyId).lte("checkin", range.end).gte("checkout", range.start),
     (supabase as any).from("sales").select("data,total,pagamento").eq("company_id", companyId).gte("data", range.start).lte("data", range.end),
     (supabase as any).from("rooms").select("numero,configuracao").eq("company_id", companyId),
     (supabase as any).from("clients").select("id,estado").eq("company_id", companyId),
+    (supabase as any).from("booking_browser_events").select("booking_code,event_type,status,checkin_text,total_text,reservation_id").eq("company_id", companyId).eq("event_type", "cancellation_details"),
   ]);
   if (reservationsResult.error) throw reservationsResult.error;
   if (salesResult.error) throw salesResult.error;
   if (roomsResult.error) throw roomsResult.error;
   if (clientsResult.error) throw clientsResult.error;
+  if (bookingEventsResult.error) throw bookingEventsResult.error;
   return {
     reservations: (reservationsResult.data ?? []) as ReservationRow[],
     sales: (salesResult.data ?? []) as SaleRow[],
     rooms: (roomsResult.data ?? []) as RoomRow[],
     clients: (clientsResult.data ?? []) as ClientRow[],
+    bookingEvents: (bookingEventsResult.data ?? []) as BookingEventRow[],
   };
 }
 
@@ -578,6 +642,15 @@ function buildDashboard(source: DashboardSource, range: Range, filters: Dashboar
   const occupancy = availableNights > 0 ? (roomNights / availableNights) * 100 : 0;
   const adr = roomNights > 0 ? lodgingRevenue / roomNights : 0;
   const revpar = availableNights > 0 ? lodgingRevenue / availableNights : 0;
+  const bookingRows = arrivalReservations.filter((row) => normalizeChannel(row.canal) === "Booking.com" && !isMaintenance(row.status));
+  const bookingCancelled = bookingRows.filter((row) => isCancelled(row.status));
+  const bookingValid = bookingRows.filter((row) => !isCancelled(row.status) && !isNoShow(row.status));
+  const cancelledReservationIds = new Set(bookingCancelled.map((row) => row.id));
+  const allowExternalCancellations = (filters.channel === "all" || filters.channel === "Booking.com")
+    && filters.payment === "all" && filters.state === "all" && filters.room === "all" && filters.category === "all";
+  const externalCancellations = (allowExternalCancellations ? source.bookingEvents : [])
+    .map((event) => ({ ...event, checkin: parseBookingEventDate(event.checkin_text), total: parseBookingMoney(event.total_text) }))
+    .filter((event) => event.checkin && inDateRange(event.checkin, range) && matchesWeekday(event.checkin, filters.weekday) && (!event.reservation_id || !cancelledReservationIds.has(event.reservation_id)));
 
   return {
     revenue,
@@ -585,14 +658,21 @@ function buildDashboard(source: DashboardSource, range: Range, filters: Dashboar
     adr,
     revpar,
     reservations: arrivalReservations.length,
-    cancellations: arrivalReservations.filter((row) => isCancelled(row.status)).length,
+    cancellations: arrivalReservations.filter((row) => isCancelled(row.status)).length + externalCancellations.length,
     noShow: arrivalReservations.filter((row) => isNoShow(row.status)).length,
-    daily: buildDaily(baseReservations, sales, selectedRooms.length, range, filters.weekday),
+    daily: buildDaily(baseReservations, sales, selectedRooms.length, range, filters.weekday, externalCancellations),
     payments: aggregatePayments(activeArrivals, sales),
     channels: aggregateChannels(arrivalReservations),
     categoryOccupancy: aggregateCategoryOccupancy(activeBase, selectedRooms, range, filters.weekday),
     roomOccupancy: aggregateRoomOccupancy(activeBase, selectedRooms, range, filters.weekday),
     states: aggregateStates(activeArrivals, clientMap),
+    booking: {
+      validReservations: bookingValid.length,
+      cancellations: bookingCancelled.length + externalCancellations.length,
+      cancellationRate: bookingRows.length + externalCancellations.length > 0 ? ((bookingCancelled.length + externalCancellations.length) / (bookingRows.length + externalCancellations.length)) * 100 : 0,
+      validRevenue: bookingValid.reduce((sum, row) => sum + number(row.valor_total), 0),
+      lostRevenue: bookingCancelled.reduce((sum, row) => sum + number(row.valor_total), 0) + externalCancellations.reduce((sum, event) => sum + event.total, 0),
+    },
   };
 }
 
@@ -612,7 +692,7 @@ function matchesSaleFilters(row: SaleRow, filters: DashboardFilters) {
   return true;
 }
 
-function buildDaily(reservations: ReservationRow[], sales: SaleRow[], roomCount: number, range: Range, weekday: string) {
+function buildDaily(reservations: ReservationRow[], sales: SaleRow[], roomCount: number, range: Range, weekday: string, externalCancellations: Array<BookingEventRow & { checkin: string | null; total: number }>) {
   const rows: DailyRow[] = [];
   datesInRange(range).forEach((day) => {
     if (!matchesWeekday(day, weekday)) return;
@@ -623,7 +703,7 @@ function buildDaily(reservations: ReservationRow[], sales: SaleRow[], roomCount:
       iso: day,
       date: formatDay(day),
       reservations: arrivals.length,
-      cancelled: arrivals.filter((row) => isCancelled(row.status)).length,
+      cancelled: arrivals.filter((row) => isCancelled(row.status)).length + externalCancellations.filter((event) => event.checkin === day).length,
       noShow: arrivals.filter((row) => isNoShow(row.status)).length,
       occupancy: roomCount > 0 ? (occupied / roomCount) * 100 : 0,
       revenue: dayRevenue,
@@ -736,6 +816,20 @@ function normalizeChannel(value: string | null) {
   if (text.includes("whats") || text.includes("direto") || text.includes("balcao")) return "Direto (Site/WhatsApp)";
   return value?.trim() || "Outros";
 }
+function parseBookingEventDate(value: string | null) {
+  const text = String(value ?? "").toLocaleLowerCase("pt-BR");
+  const months: Record<string, string> = { jan:"01",fev:"02",mar:"03",abr:"04",mai:"05",jun:"06",jul:"07",ago:"08",set:"09",out:"10",nov:"11",dez:"12",apr:"04",may:"05",aug:"08",sep:"09",oct:"10",dec:"12" };
+  const portuguese = text.match(/(\d{1,2})\s+de\s+([a-zç.]+)\s+de\s+(\d{4})/i);
+  if (portuguese) {
+    const month = months[portuguese[2].replace(/\./g, "").slice(0, 3)];
+    return month ? `${portuguese[3]}-${month}-${portuguese[1].padStart(2, "0")}` : null;
+  }
+  const english = text.match(/\b([a-z]{3,9})\s+(\d{1,2}),\s*(\d{4})/i);
+  const month = english ? months[english[1].slice(0, 3)] : null;
+  return english && month ? `${english[3]}-${month}-${english[2].padStart(2, "0")}` : null;
+}
+function parseBookingMoney(value: string | null) { const parsed = Number(String(value ?? "0").replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(parsed) ? parsed : 0; }
+function inDateRange(value: string, range: Range) { return value >= range.start && value <= range.end; }
 function matchesWeekday(value: string, weekday: string) { return weekday === "all" || String(parseDate(value).getUTCDay()) === weekday; }
 function isCancelled(value: string | null) { return normalize(value).includes("cancel"); }
 function isNoShow(value: string | null) { const text = normalize(value).replace(/[\s_-]+/g, ""); return text.includes("noshow") || text.includes("naocompareceu") || text.includes("naocomparecimento"); }

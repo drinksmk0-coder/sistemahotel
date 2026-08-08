@@ -283,44 +283,36 @@ function BookingEventos() {
       ) : rows.length === 0 ? (
         <EmptyState text="Nenhum evento da Booking encontrado para esta empresa." />
       ) : (
-        <div className="card-surface overflow-x-auto">
-          <table className="w-full min-w-[1320px] text-sm">
+        <div className="card-surface overflow-hidden">
+          <table className="w-full table-fixed text-[11px] xl:text-xs">
             <thead>
               <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-                <th className="p-3">Origem</th>
-                <th className="p-3">Recebido</th>
-                <th className="p-3">Hóspede</th>
-                <th className="p-3">Quarto/Acomodação</th>
-                <th className="p-3">Check-in</th>
-                <th className="p-3">Checkout</th>
-                <th className="p-3">Código Booking</th>
-                <th className="p-3">Valor</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Resultado / ação</th>
+                <th className="w-[12%] p-2">Origem/data</th>
+                <th className="w-[19%] p-2">Hóspede/código</th>
+                <th className="w-[16%] p-2">Hospedagem</th>
+                <th className="w-[13%] p-2">Quarto/valor</th>
+                <th className="w-[15%] p-2">Status</th>
+                <th className="w-[25%] p-2">Resultado/ação</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((event) => (
                 <tr key={`${event.source}-${event.id}`} className="border-b border-border/50 align-top">
-                  <td className="p-3">{sourceBadge(event.source)}</td>
-                  <td className="whitespace-nowrap p-3">{fmtDate(event.received_at.slice(0, 10))}</td>
-                  <td className="p-3 font-semibold">{event.guest_name ?? event.reservation?.cliente_nome ?? "Reserva não localizada"}</td>
-                  <td className="p-3">{event.reservation?.quarto ?? event.room_type ?? "—"}</td>
-                  <td className="whitespace-nowrap p-3">{event.checkin_text ?? (event.reservation?.checkin ? fmtDate(event.reservation.checkin) : "—")}</td>
-                  <td className="whitespace-nowrap p-3">{event.checkout_text ?? (event.reservation?.checkout ? fmtDate(event.reservation.checkout) : "—")}</td>
-                  <td className="p-3 font-mono text-xs">{event.booking_code}</td>
-                  <td className="p-3">{event.total_text ?? "—"}</td>
-                  <td className="p-3">
+                  <td className="p-2">{sourceBadge(event.source)}<span className="mt-1 block text-muted-foreground">{fmtDate(event.received_at.slice(0, 10))}</span></td>
+                  <td className="break-words p-2 font-semibold">{event.guest_name ?? event.reservation?.cliente_nome ?? "Reserva não localizada"}<span className="mt-1 block font-mono text-[10px] font-normal text-muted-foreground">{event.booking_code}</span></td>
+                  <td className="p-2 text-muted-foreground"><span className="block"><strong className="text-foreground">Entrada:</strong> {event.checkin_text ?? (event.reservation?.checkin ? fmtDate(event.reservation.checkin) : "—")}</span><span className="mt-1 block"><strong className="text-foreground">Saída:</strong> {event.checkout_text ?? (event.reservation?.checkout ? fmtDate(event.reservation.checkout) : "—")}</span></td>
+                  <td className="break-words p-2"><span className="block">{event.reservation?.quarto ? `Quarto ${event.reservation.quarto}` : event.room_type ?? "—"}</span><strong className="mt-1 block">{event.total_text ?? "—"}</strong></td>
+                  <td className="p-2">
                     <span className="inline-flex items-center gap-1.5">
                       {statusIcon(event.status)}
-                      <Badge tone={statusTone(event.status)}>{event.booking_status_text ?? statusLabel(event.status)}</Badge>
+                      <Badge tone={statusTone(event.status)}><span className="whitespace-normal">{event.booking_status_text ?? statusLabel(event.status)}</span></Badge>
                     </span>
                   </td>
-                  <td className="max-w-[420px] p-3 text-muted-foreground">
+                  <td className="break-words p-2 text-muted-foreground">
                     {event.source === "chrome" && event.event_type === "reservation_details" && event.status === "needs_review" ? (
-                      <div className="flex min-w-[300px] items-center gap-2">
+                      <div className="grid min-w-0 gap-1.5 xl:grid-cols-[minmax(0,1fr)_auto]">
                         <select
-                          className="h-9 min-w-[150px] rounded-md border border-border bg-background px-2 text-foreground"
+                          className="h-8 min-w-0 rounded-md border border-border bg-background px-1.5 text-[11px] text-foreground"
                           value={selectedRooms[event.id] ?? ""}
                           onChange={(e) => setSelectedRooms((currentRooms) => ({ ...currentRooms, [event.id]: e.target.value }))}
                         >
@@ -331,7 +323,7 @@ function BookingEventos() {
                         </select>
                         <button
                           type="button"
-                          className="h-9 rounded-md bg-primary px-3 font-semibold text-primary-foreground disabled:opacity-50"
+                          className="h-8 rounded-md bg-primary px-2 text-[11px] font-semibold text-primary-foreground disabled:opacity-50"
                           disabled={processingId === event.id}
                           onClick={() => createReservation(event)}
                         >

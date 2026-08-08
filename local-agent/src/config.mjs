@@ -3,13 +3,16 @@ import path from 'node:path';
 
 const bool = (v, fallback = false) => v == null ? fallback : /^(1|true|yes|on)$/i.test(String(v));
 const int = (v, fallback) => Number.isFinite(Number(v)) ? Number(v) : fallback;
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 export const config = {
   booking: {
     enabled: bool(process.env.BOOKING_ENABLED, true),
+    headless: bool(process.env.BOOKING_HEADLESS, false),
     pollMinutes: Math.max(1, int(process.env.BOOKING_POLL_MINUTES, 5)),
+    maxReservationsPerCycle: clamp(int(process.env.BOOKING_MAX_RESERVATIONS_PER_CYCLE, 12), 1, 20),
     profileDir: path.resolve(process.env.BOOKING_PROFILE_DIR || './data/booking-profile'),
-    reservationsUrl: process.env.BOOKING_RESERVATIONS_URL || 'https://admin.booking.com/hotel/hoteladmin/reservations.html',
+    reservationsUrl: process.env.BOOKING_RESERVATIONS_URL || 'https://admin.booking.com/',
     endpoint: process.env.BOOKING_CONNECTOR_ENDPOINT || '',
     token: process.env.BOOKING_CONNECTOR_TOKEN || '',
   },
