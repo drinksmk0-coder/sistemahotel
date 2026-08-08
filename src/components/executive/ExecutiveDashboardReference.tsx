@@ -626,7 +626,7 @@ function buildDashboard(source: DashboardSource, range: Range, filters: Dashboar
   });
   const selectedRoomNumbers = new Set(selectedRooms.map((room) => room.numero));
   const baseReservations = source.reservations.filter((row) => matchesReservationFilters(row, filters, clientMap, roomMap));
-  const arrivalReservations = baseReservations.filter((row) => matchesWeekday(row.checkin, filters.weekday));
+  const arrivalReservations = baseReservations.filter((row) => inDateRange(row.checkin, range) && matchesWeekday(row.checkin, filters.weekday));
   const activeBase = baseReservations.filter((row) => !isCancelled(row.status) && !isNoShow(row.status) && !isMaintenance(row.status));
   const activeArrivals = arrivalReservations.filter((row) => !isCancelled(row.status) && !isNoShow(row.status) && !isMaintenance(row.status));
   const sales = source.sales.filter((row) => matchesSaleFilters(row, filters));
@@ -828,7 +828,18 @@ function parseBookingEventDate(value: string | null) {
   const month = english ? months[english[1].slice(0, 3)] : null;
   return english && month ? `${english[3]}-${month}-${english[2].padStart(2, "0")}` : null;
 }
-function parseBookingMoney(value: string | null) { const parsed = Number(String(value ?? "0").replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(parsed) ? parsed : 0; }
+function parseBookingMoney(value: string | null) {
+  const text = String(value ?? "").replace(/[^0-9,.-]/g, "");
+  if (!text) return 0;
+  const comma = text.lastIndexOf(",");
+  const dot = text.lastIndexOf(".");
+  let normalized = text;
+  if (comma >= 0 && dot >= 0) normalized = comma > dot ? text.replace(/\./g, "").replace(",", ".") : text.replace(/,/g, "");
+  else if (comma >= 0) normalized = text.length - comma - 1 === 3 ? text.replace(/,/g, "") : text.replace(",", ".");
+  else if (dot >= 0) normalized = text.length - dot - 1 === 3 ? text.replace(/\./g, "") : text;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 function inDateRange(value: string, range: Range) { return value >= range.start && value <= range.end; }
 function matchesWeekday(value: string, weekday: string) { return weekday === "all" || String(parseDate(value).getUTCDay()) === weekday; }
 function isCancelled(value: string | null) { return normalize(value).includes("cancel"); }

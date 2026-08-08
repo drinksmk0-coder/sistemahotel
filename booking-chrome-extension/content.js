@@ -35,7 +35,7 @@ function valueAfterLabel(lines, labels, options = {}) {
     const current = lines[index];
     const lower = current.toLocaleLowerCase("pt-BR");
     const matchedLabel = normalizedLabels.find(
-      (label) => lower === label || lower.startsWith(`${label}:`),
+      (label) => lower === label || lower.startsWith(`${label}:`) || lower.startsWith(`${label} `),
     );
     if (!matchedLabel) continue;
 
@@ -50,6 +50,32 @@ function valueAfterLabel(lines, labels, options = {}) {
     }
   }
   return null;
+}
+
+function moneyAmount(value) {
+  const text = clean(value);
+  const normalized = text.replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function findGrossTotal(lines) {
+  const headline = valueAfterLabel(lines, [
+    "Preço total",
+    "Valor total",
+    "Total price",
+    "Total da reserva",
+  ]);
+  if (moneyAmount(headline) > 0) return headline;
+
+  for (const labels of [
+    ["Preço total do quarto", "Total room price"],
+    ["Subtotal"],
+  ]) {
+    const candidate = valueAfterLabel(lines, labels, { maxLookAhead: 2 });
+    if (moneyAmount(candidate) > 0) return candidate;
+  }
+  return headline;
 }
 
 function bookingCode(lines, flatText) {
@@ -168,12 +194,7 @@ function extractBookingReservation() {
   const checkout = valueAfterLabel(lines, ["Check-out", "Saída", "Departure"], {
     maxLookAhead: 2,
   });
-  const total = valueAfterLabel(lines, [
-    "Preço total",
-    "Valor total",
-    "Total price",
-    "Total da reserva",
-  ]);
+  const total = findGrossTotal(lines);
   const guests = valueAfterLabel(lines, [
     "Total de hóspedes",
     "Hóspedes",

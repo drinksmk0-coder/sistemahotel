@@ -55,6 +55,7 @@ Deno.serve(async (request) => {
   const cancellationText = `${payload?.status_text ?? ""} ${payload?.room_type ?? ""} ${String(payload?.raw_excerpt ?? "").slice(0, 2400)}`;
   const eventType = isConfirmedCancellation(cancellationText) ? "cancellation_details" : "reservation_details";
   const guestPhone = normalizePhone(payload?.guest_phone);
+  const grossTotal = parseGrossTotal(payload);
   const safePayload = { ...payload, raw_excerpt: String(payload?.raw_excerpt ?? "").slice(0, 12000) };
 
   const { data: event, error: eventError } = await supabase
@@ -69,7 +70,7 @@ Deno.serve(async (request) => {
       guest_phone: guestPhone,
       checkin_text: nullable(payload?.checkin_text),
       checkout_text: nullable(payload?.checkout_text),
-      total_text: nullable(payload?.total_text),
+      total_text: grossTotal > 0 ? formatCurrency(grossTotal) : nullable(payload?.total_text),
       guests_text: nullable(payload?.guests_text),
       room_type: cleanRoomType(payload?.room_type),
       booking_status_text: eventType === "cancellation_details"
@@ -130,7 +131,7 @@ async function createReservationAutomatically(eventId: string, companyId: string
   const checkin = parseBookingDate(payload?.checkin_text);
   const checkout = parseBookingDate(payload?.checkout_text);
   const roomType = cleanRoomType(payload?.room_type);
-  const total = parseCurrency(payload?.total_text);
+  const total = parseGrossTotal(payload);
   const people = parseGuests(payload?.guests_text);
 
   if (!guestName || !checkin || !checkout || !roomType) {
@@ -245,7 +246,22 @@ async function processCancellation(eventId: string, companyId: string, bookingCo
   }
 
   const reservation = match.reservation;
+  const total = parseGrossTotal(payload);
+  const nights = daysBetween(reservation.checkin, reservation.checkout);
+  const financialUpdates = total > 0
+    ? {
+        valor_total: total,
+        ...(nights > 0 ? { valor_diaria: Number((total / nights).toFixed(2)) } : {}),
+      }
+    : {};
   if (reservation.status === "cancelado") {
+    if (total > 0 && parseCurrency(reservation.valor_total) <= 0) {
+      await supabase
+        .from("reservations")
+        .update(financialUpdates)
+        .eq("id", reservation.id)
+        .eq("company_id", companyId);
+    }
     await markEvent(eventId, {
       status: "already_cancelled",
       reservation_id: reservation.id,
@@ -272,7 +288,7 @@ async function processCancellation(eventId: string, companyId: string, bookingCo
   const observations = [reservation.observacoes_importacao, note].filter(Boolean).join("\n");
   const { error: updateError } = await supabase
     .from("reservations")
-    .update({ status: "cancelado", observacoes_importacao: observations })
+    .update({ status: "cancelado", observacoes_importacao: observations, ...financialUpdates })
     .eq("id", reservation.id)
     .eq("company_id", companyId)
     .eq("status", "reservado");
@@ -301,7 +317,7 @@ async function processCancellation(eventId: string, companyId: string, bookingCo
 async function findReservation(companyId: string, bookingCode: string, payload?: BookingPayload) {
   const { data: byCode, error: codeError } = await supabase
     .from("reservations")
-    .select("id,status,cliente_id,cliente_nome,checkin,checkout,canal,codigo_externo,observacoes_importacao")
+    .select("id,status,cliente_id,cliente_nome,checkin,checkout,canal,codigo_externo,observacoes_importacao,valor_total,valor_diaria")
     .eq("company_id", companyId)
     .eq("codigo_externo", bookingCode)
     .limit(2);
@@ -315,7 +331,7 @@ async function findReservation(companyId: string, bookingCode: string, payload?:
 
   const { data: candidates, error } = await supabase
     .from("reservations")
-    .select("id,status,cliente_id,cliente_nome,checkin,checkout,canal,codigo_externo,observacoes_importacao")
+    .select("id,status,cliente_id,cliente_nome,checkin,checkout,canal,codigo_externo,observacoes_importacao,valor_total,valor_diaria")
     .eq("company_id", companyId)
     .eq("checkin", checkin)
     .eq("checkout", checkout)
@@ -328,7 +344,7 @@ async function findReservation(companyId: string, bookingCode: string, payload?:
 
   const { data: overlapping, error: overlapError } = await supabase
     .from("reservations")
-    .select("id,status,cliente_id,cliente_nome,checkin,checkout,canal,codigo_externo,observacoes_importacao,quarto")
+    .select("id,status,cliente_id,cliente_nome,checkin,checkout,canal,codigo_externo,observacoes_importacao,quarto,valor_total,valor_diaria")
     .eq("company_id", companyId)
     .in("status", ["reservado", "ocupado"])
     .lt("checkin", checkout)
@@ -344,7 +360,7 @@ async function findReservation(companyId: string, bookingCode: string, payload?:
 async function reconcileExistingReservation(reservation: any, companyId: string, bookingCode: string, payload?: BookingPayload) {
   const checkin = parseBookingDate(payload?.checkin_text);
   const checkout = parseBookingDate(payload?.checkout_text);
-  const total = parseCurrency(payload?.total_text);
+  const total = parseGrossTotal(payload);
   const people = parseGuests(payload?.guests_text);
   const updates: Record<string, unknown> = {};
   const legacyCode = String(reservation.codigo_externo ?? "").replace(/\D/g, "");
@@ -471,10 +487,36 @@ function parseBookingDate(value: unknown) {
 }
 
 function parseCurrency(value: unknown) {
-  const text = String(value ?? "").trim();
-  const normalized = text.replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".");
+  const text = String(value ?? "").trim().replace(/[^0-9,.-]/g, "");
+  if (!text) return 0;
+  const comma = text.lastIndexOf(",");
+  const dot = text.lastIndexOf(".");
+  let normalized = text;
+  if (comma >= 0 && dot >= 0) normalized = comma > dot ? text.replace(/\./g, "").replace(",", ".") : text.replace(/,/g, "");
+  else if (comma >= 0) normalized = text.length - comma - 1 === 3 ? text.replace(/,/g, "") : text.replace(",", ".");
+  else if (dot >= 0) normalized = text.length - dot - 1 === 3 ? text.replace(/\./g, "") : text;
   const amount = Number(normalized);
   return Number.isFinite(amount) ? amount : 0;
+}
+
+function parseGrossTotal(payload?: BookingPayload) {
+  const headline = parseCurrency(payload?.total_text);
+  if (headline > 0) return headline;
+
+  const raw = String(payload?.raw_excerpt ?? "").replace(/\u00a0/g, " ");
+  for (const pattern of [
+    /(?:preço total do quarto|total room price)\s*(R\$\s*[0-9][0-9.,]*)/i,
+    /subtotal\s*(R\$\s*[0-9][0-9.,]*)/i,
+  ]) {
+    const match = raw.match(pattern);
+    const amount = parseCurrency(match?.[1]);
+    if (amount > 0) return amount;
+  }
+  return 0;
+}
+
+function formatCurrency(value: number) {
+  return `R$ ${value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function parseGuests(value: unknown) {

@@ -421,8 +421,15 @@ function parseBookingDate(value: string | null) {
 }
 
 function parseMoney(value: string | null) {
-  const cleaned = String(value ?? "0").replace(/[^0-9,.-]/g, "").replace(/\./g, "").replace(",", ".");
-  const number = Number(cleaned);
+  const text = String(value ?? "").replace(/[^0-9,.-]/g, "");
+  if (!text) return 0;
+  const comma = text.lastIndexOf(",");
+  const dot = text.lastIndexOf(".");
+  let normalized = text;
+  if (comma >= 0 && dot >= 0) normalized = comma > dot ? text.replace(/\./g, "").replace(",", ".") : text.replace(/,/g, "");
+  else if (comma >= 0) normalized = text.length - comma - 1 === 3 ? text.replace(/,/g, "") : text.replace(",", ".");
+  else if (dot >= 0) normalized = text.length - dot - 1 === 3 ? text.replace(/\./g, "") : text;
+  const number = Number(normalized);
   return Number.isFinite(number) ? number : 0;
 }
 

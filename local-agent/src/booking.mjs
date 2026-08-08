@@ -13,7 +13,7 @@ function parseReservationFromText(text, url) {
     for (let i = 0; i < lines.length; i += 1) {
       const current = lines[i];
       const lower = current.toLocaleLowerCase('pt-BR');
-      const label = normalized.find((x) => lower === x || lower.startsWith(`${x}:`));
+      const label = normalized.find((x) => lower === x || lower.startsWith(`${x}:`) || lower.startsWith(`${x} `));
       if (!label) continue;
       const inline = clean(current.slice(label.length).replace(/^\s*:\s*/, ''));
       if (inline) return inline;
@@ -25,6 +25,21 @@ function parseReservationFromText(text, url) {
       }
     }
     return null;
+  };
+
+  const moneyAmount = (value) => {
+    const normalized = clean(value).replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
+    const amount = Number(normalized);
+    return Number.isFinite(amount) ? amount : 0;
+  };
+  const grossTotal = () => {
+    const headline = after(['Preço total', 'Valor total', 'Total price', 'Total da reserva']);
+    if (moneyAmount(headline) > 0) return headline;
+    for (const labels of [['Preço total do quarto', 'Total room price'], ['Subtotal']]) {
+      const candidate = after(labels, 2);
+      if (moneyAmount(candidate) > 0) return candidate;
+    }
+    return headline;
   };
 
   const u = new URL(url);
@@ -49,7 +64,7 @@ function parseReservationFromText(text, url) {
     guest_phone: guestPhone,
     checkin_text: after(['Check-in', 'Entrada', 'Arrival'], 2),
     checkout_text: after(['Check-out', 'Saída', 'Departure'], 2),
-    total_text: after(['Preço total', 'Valor total', 'Total price', 'Total da reserva']),
+    total_text: grossTotal(),
     guests_text: after(['Total de hóspedes', 'Hóspedes', 'Guests', 'Adultos e crianças']),
     room_type: roomType,
     status_text: status,

@@ -15,6 +15,8 @@ type Filters = {
   category: string;
 };
 type ReservationRow = {
+  id: string;
+  codigo_externo: string | null;
   status: string | null;
   presence_status: string | null;
   checkin: string;
@@ -26,6 +28,12 @@ type ReservationRow = {
 };
 type RoomRow = { numero: number; configuracao: string | null };
 type ClientRow = { id: string; estado: string | null };
+type BookingCancellationRow = {
+  booking_code: string;
+  reservation_id: string | null;
+  checkin_text: string | null;
+  total_text: string | null;
+};
 
 const ALL_FILTERS: Filters = {
   payment: "all",
@@ -61,7 +69,7 @@ export function ExecutiveCancellationImpact() {
       const panel = filterTitle?.closest("section");
       if (!panel) return;
 
-      const next = { ...filters };
+      const next = { ...ALL_FILTERS };
       panel.querySelectorAll<HTMLLabelElement>("label").forEach((label) => {
         const select = label.querySelector<HTMLSelectElement>("select");
         if (!select) return;
@@ -143,10 +151,10 @@ export function ExecutiveCancellationImpact() {
     enabled: Boolean(company.data?.id && range),
     staleTime: 60_000,
     queryFn: async () => {
-      const [reservationsResult, roomsResult, clientsResult] = await Promise.all([
+      const [reservationsResult, roomsResult, clientsResult, bookingResult] = await Promise.all([
         (supabase as any)
           .from("reservations")
-          .select("status,presence_status,checkin,quarto,valor_total,pagamento,canal,cliente_id")
+          .select("id,codigo_externo,status,presence_status,checkin,quarto,valor_total,pagamento,canal,cliente_id")
           .eq("company_id", company.data!.id)
           .gte("checkin", range!.start)
           .lte("checkin", range!.end),
@@ -158,14 +166,21 @@ export function ExecutiveCancellationImpact() {
           .from("clients")
           .select("id,estado")
           .eq("company_id", company.data!.id),
+        (supabase as any)
+          .from("booking_browser_events")
+          .select("booking_code,reservation_id,checkin_text,total_text")
+          .eq("company_id", company.data!.id)
+          .eq("event_type", "cancellation_details"),
       ]);
       if (reservationsResult.error) throw reservationsResult.error;
       if (roomsResult.error) throw roomsResult.error;
       if (clientsResult.error) throw clientsResult.error;
+      if (bookingResult.error) throw bookingResult.error;
       return {
         reservations: (reservationsResult.data ?? []) as ReservationRow[],
         rooms: (roomsResult.data ?? []) as RoomRow[],
         clients: (clientsResult.data ?? []) as ClientRow[],
+        bookingCancellations: (bookingResult.data ?? []) as BookingCancellationRow[],
       };
     },
   });
@@ -175,11 +190,26 @@ export function ExecutiveCancellationImpact() {
     const roomMap = new Map(query.data.rooms.map((room) => [room.numero, room]));
     const clientMap = new Map(query.data.clients.map((client) => [client.id, client]));
     const rows = query.data.reservations.filter((row) => matchesFilters(row, filters, roomMap, clientMap));
+    const cancelledRows = rows.filter((row) => isCancelled(row.status));
+    const countedReservationIds = new Set(cancelledRows.map((row) => row.id));
+    const countedBookingCodes = new Set(cancelledRows.map((row) => String(row.codigo_externo ?? "").replace(/\D/g, "")).filter(Boolean));
+    const allowExternalBooking = (filters.channel === "all" || filters.channel === "Booking.com")
+      && filters.payment === "all" && filters.state === "all" && filters.room === "all" && filters.category === "all";
+    const externalBookingLoss = (allowExternalBooking ? query.data.bookingCancellations : [])
+      .map((event) => ({ ...event, checkin: parseBookingDate(event.checkin_text) }))
+      .filter((event) => event.checkin
+        && range
+        && event.checkin >= range.start
+        && event.checkin <= range.end
+        && (filters.weekday === "all" || String(parseDate(event.checkin).getUTCDay()) === filters.weekday)
+        && (!event.reservation_id || !countedReservationIds.has(event.reservation_id))
+        && !countedBookingCodes.has(String(event.booking_code).replace(/\D/g, "")))
+      .reduce((sum, event) => sum + parseMoney(event.total_text), 0);
     return {
-      cancelled: rows.filter((row) => isCancelled(row.status)).reduce((sum, row) => sum + number(row.valor_total), 0),
+      cancelled: cancelledRows.reduce((sum, row) => sum + number(row.valor_total), 0) + externalBookingLoss,
       noShow: rows.filter((row) => isNoShow(row.status, row.presence_status)).reduce((sum, row) => sum + number(row.valor_total), 0),
     };
-  }, [filters, query.data]);
+  }, [filters, query.data, range]);
 
   return (
     <>
@@ -266,6 +296,35 @@ function normalize(value: string | null | undefined) {
 }
 function number(value: unknown) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0; }
 function parseDate(value: string) { return new Date(`${value}T00:00:00Z`); }
+function parseMoney(value: unknown) {
+  const text = String(value ?? "").replace(/[^0-9,.-]/g, "");
+  if (!text) return 0;
+  const comma = text.lastIndexOf(",");
+  const dot = text.lastIndexOf(".");
+  let normalized = text;
+  if (comma >= 0 && dot >= 0) normalized = comma > dot ? text.replace(/\./g, "").replace(",", ".") : text.replace(/,/g, "");
+  else if (comma >= 0) normalized = text.length - comma - 1 === 3 ? text.replace(/,/g, "") : text.replace(",", ".");
+  else if (dot >= 0) normalized = text.length - dot - 1 === 3 ? text.replace(/\./g, "") : text;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function parseBookingDate(value: unknown) {
+  const text = String(value ?? "").toLocaleLowerCase("pt-BR");
+  const months: Record<string, string> = {
+    jan: "01", fev: "02", mar: "03", abr: "04", mai: "05", jun: "06",
+    jul: "07", ago: "08", set: "09", out: "10", nov: "11", dez: "12",
+    apr: "04", may: "05", aug: "08", sep: "09", oct: "10", dec: "12",
+  };
+  const portuguese = text.match(/(\d{1,2})\s+de\s+([a-zç.]+)\s+de\s+(\d{4})/i);
+  if (portuguese) {
+    const month = months[portuguese[2].replace(/\./g, "").slice(0, 3)];
+    return month ? `${portuguese[3]}-${month}-${portuguese[1].padStart(2, "0")}` : null;
+  }
+  const english = text.match(/\b([a-z]{3,9})\s+(\d{1,2}),\s*(\d{4})/i);
+  if (!english) return null;
+  const month = months[english[1].slice(0, 3)];
+  return month ? `${english[3]}-${month}-${english[2].padStart(2, "0")}` : null;
+}
 function stateCode(value: string) {
   const clean = normalize(value).toUpperCase();
   const aliases: Record<string, string> = {
