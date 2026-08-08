@@ -6,27 +6,61 @@ import { supabase } from "@/integrations/supabase/client";
 export const Route = createFileRoute("/checkin-print")({ ssr: false, component: CheckinPrint });
 
 type InviteData = {
-  status: string; submitted_at: string | null; form_data: Record<string, string>;
-  signature_data_url: string | null; company_name: string; company_document?: string | null;
-  company_email?: string | null; company_phone?: string | null; company_address?: string | null;
-  company_city?: string | null; company_state?: string | null; reservation_code: string;
-  room: number; checkin: string; checkout: string; adults: number; children: number;
+  status: string;
+  submitted_at: string | null;
+  form_data: Record<string, string>;
+  signature_data_url: string | null;
+  company_name: string;
+  company_document?: string | null;
+  company_email?: string | null;
+  company_phone?: string | null;
+  company_address?: string | null;
+  company_city?: string | null;
+  company_state?: string | null;
+  reservation_code: string;
+  room: number;
+  checkin: string;
+  checkout: string;
+  adults: number;
+  children: number;
 };
 
-type Companion = { nome?: string; tipo?: string; parentesco?: string; cpf?: string; data_nascimento?: string; telefone?: string; email?: string; sexo?: string };
+type Companion = {
+  nome?: string;
+  tipo?: string;
+  parentesco?: string;
+  cpf?: string;
+  data_nascimento?: string;
+  telefone?: string;
+  email?: string;
+  sexo?: string;
+};
 
-const LABELS: Array<[string, string]> = [
-  ["nome_completo", "Nome completo"], ["telefone", "Telefone / WhatsApp"], ["email", "E-mail"],
-  ["nascimento", "Data de nascimento"], ["genero", "Gênero"], ["estado_civil", "Estado civil"],
-  ["profissao", "Profissão"], ["nacionalidade", "Nacionalidade"], ["raca_cor", "Raça/Cor"],
-  ["tipo_documento", "Tipo de documento"], ["numero_documento", "Número do documento"],
-  ["endereco", "Endereço"], ["numero", "Número"], ["complemento", "Complemento"],
-  ["bairro", "Bairro"], ["cep", "CEP"], ["cidade", "Cidade"], ["estado", "Estado"],
-  ["pais", "País"], ["ultimo_destino", "Último destino"], ["proximo_destino", "Próximo destino"],
-  ["motivo_viagem", "Motivo da viagem"], ["transporte", "Meio de transporte"],
-  ["placa_veiculo", "Placa do veículo"], ["deficiencia", "Pessoa com deficiência"],
-  ["tipo_deficiencia", "Tipo de deficiência"],
-];
+const TRAVEL_REASON_MAP: Record<string, string> = {
+  lazer: "ferias",
+  férias: "ferias",
+  ferias: "ferias",
+  negócios: "negocios",
+  negocios: "negocios",
+  evento: "congresso",
+  congresso: "congresso",
+  estudo: "estudos",
+  estudos: "estudos",
+  saúde: "saude",
+  saude: "saude",
+};
+
+const TRANSPORT_MAP: Record<string, string> = {
+  automóvel: "automovel",
+  automovel: "automovel",
+  avião: "aviao",
+  aviao: "aviao",
+  "navio/barco": "navio",
+  navio: "navio",
+  ônibus: "onibus",
+  onibus: "onibus",
+  trem: "trem",
+};
 
 function CheckinPrint() {
   const token = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("token") : null;
@@ -35,103 +69,381 @@ function CheckinPrint() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!token) { setError("Link de impressão incompleto."); setLoading(false); return; }
-    (supabase as any).rpc("get_guest_checkin", { p_token: token })
+    if (!token) {
+      setError("Link de impressão incompleto.");
+      setLoading(false);
+      return;
+    }
+
+    (supabase as any)
+      .rpc("get_guest_checkin", { p_token: token })
       .then(({ data: payload, error: requestError }: { data: InviteData | null; error: Error | null }) => {
-        if (requestError || !payload) { setError("Não foi possível carregar a ficha assinada."); return; }
+        if (requestError || !payload) {
+          setError("Não foi possível carregar a ficha assinada.");
+          return;
+        }
         setData(payload);
-      }).finally(() => setLoading(false));
+      })
+      .finally(() => setLoading(false));
   }, [token]);
 
   const companions = useMemo(() => parseCompanions(data?.form_data?.acompanhantes_detalhes), [data]);
-  if (loading) return <main className="grid min-h-screen place-items-center bg-neutral-100"><Loader2 className="h-8 w-8 animate-spin" /></main>;
-  if (error || !data) return <main className="grid min-h-screen place-items-center bg-neutral-100 p-6"><div className="rounded-lg border bg-white p-6 text-center text-sm text-red-700">{error}</div></main>;
+
+  if (loading) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-neutral-100">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </main>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-neutral-100 p-6">
+        <div className="rounded-lg border bg-white p-6 text-center text-sm text-red-700">{error}</div>
+      </main>
+    );
+  }
 
   const form = data.form_data ?? {};
-  const totalGuests = Math.max(1, 1 + companions.length, Number(data.adults ?? 1) + Number(data.children ?? 0));
+  const expectedCompanions = Math.max(0, Number(data.adults ?? 1) + Number(data.children ?? 0) - 1);
+  const companionCount = Math.max(companions.length, expectedCompanions, Number(form.acompanhantes || 0));
+  const normalizedDocumentType = normalize(form.tipo_documento);
+  const cpf = form.cpf || (normalizedDocumentType === "cpf" ? form.numero_documento : "");
+  const identityNumber = normalizedDocumentType !== "cpf" ? form.numero_documento || "" : form.numero_identidade || "";
+  const identityType = normalizedDocumentType !== "cpf" ? form.tipo_documento || "" : form.tipo_identidade || "";
+  const issuer = form.orgao_expedidor || form.orgao_emissor || "";
+  const travelReason = TRAVEL_REASON_MAP[normalize(form.motivo_viagem)] || "outro";
+  const transport = TRANSPORT_MAP[normalize(form.transporte)] || "outro";
+  const address = [form.endereco, form.numero, form.complemento, form.bairro].filter((item) => item?.trim()).join(", ");
+  const companyAddress = [data.company_address, data.company_city, data.company_state].filter(Boolean).join(", ");
 
-  return <main className="min-h-screen bg-neutral-100 py-5 print:bg-white print:py-0">
-    <style>{`
-      @page { size: A4 portrait; margin: 0; }
-      @media print {
-        html, body { width: 210mm; min-height: 297mm; margin: 0 !important; background: #fff !important; color: #000 !important; }
-        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .no-print { display: none !important; }
-        .print-sheet {
-          box-shadow: none !important;
-          box-sizing: border-box !important;
-          display: flex !important;
-          flex-direction: column !important;
-          width: 210mm !important;
-          max-width: 210mm !important;
-          min-height: 297mm !important;
-          margin: 0 !important;
-          padding: 6mm !important;
-          color: #000 !important;
-          background: #fff !important;
+  return (
+    <main className="min-h-screen bg-[#eef1f5] py-5 print:bg-white print:py-0">
+      <style>{`
+        @page { size: A4 portrait; margin: 0; }
+        @media print {
+          html, body { width: 210mm; height: 297mm; margin: 0 !important; background: #fff !important; }
+          body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .no-print { display: none !important; }
+          .fnrh-sheet {
+            box-shadow: none !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            min-height: 297mm !important;
+            margin: 0 !important;
+          }
         }
-        .print-sheet, .print-sheet * { color: #000 !important; }
-        .print-sheet header { border-color: #000 !important; }
-        .print-sheet h2 { border-color: #000 !important; }
-        .holder-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 2mm !important; }
-        .print-section { margin-top: 4mm !important; }
-        .print-sheet h2 { margin-bottom: 2mm !important; padding-bottom: 1.5mm !important; font-size: 12px !important; }
-        .print-row > p { margin-bottom: 1mm !important; font-size: 8px !important; }
-        .print-row > div { min-height: 8mm !important; padding: 1.5mm 2mm !important; font-size: 10px !important; line-height: 1.25 !important; }
-        .print-row > div, .companion-card { border-color: #000 !important; background: #fff !important; }
-        .signature-block > div > div { border-color: #000 !important; }
-        .signature-block { margin-top: auto !important; padding-top: 7mm !important; }
-        .print-section, .print-row, .signature-block, .companion-card { break-inside: avoid; page-break-inside: avoid; }
-        img { filter: grayscale(1) contrast(1.2); }
-      }
-    `}</style>
+        .fnrh-sheet {
+          box-sizing: border-box;
+          width: 210mm;
+          min-height: 297mm;
+          padding: 8mm 10mm 9mm;
+          background: #fff;
+          color: #243b5a;
+          font-family: Arial, Helvetica, sans-serif;
+        }
+        .fnrh-title {
+          margin: 0 0 5mm;
+          text-align: center;
+          color: #243b5a;
+          font-size: 6.5mm;
+          line-height: 1.08;
+          font-weight: 800;
+          letter-spacing: -0.15mm;
+        }
+        .fnrh-hotel-card {
+          display: grid;
+          grid-template-columns: 25mm 1fr;
+          gap: 4mm;
+          align-items: center;
+          min-height: 29mm;
+          padding: 3.2mm;
+          border-radius: 4mm;
+          background: #e9eff7;
+        }
+        .fnrh-logo-box {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 23mm;
+          height: 23mm;
+          border-radius: 3mm;
+          background: #fff;
+        }
+        .fnrh-logo-box img { width: 20mm; height: 18mm; object-fit: contain; }
+        .fnrh-company-name { margin: 0 0 1.4mm; font-size: 4.6mm; line-height: 1; font-weight: 800; }
+        .fnrh-company-line { margin: 0.7mm 0 0; font-size: 3.25mm; line-height: 1.25; }
+        .fnrh-company-document { margin-top: 1.7mm; font-weight: 700; }
+        .fnrh-section { margin-top: 5.5mm; }
+        .fnrh-section-heading {
+          display: flex;
+          align-items: center;
+          gap: 4mm;
+          margin-bottom: 3.2mm;
+        }
+        .fnrh-section-heading h2 {
+          flex: 0 0 auto;
+          margin: 0;
+          color: #243b5a;
+          font-size: 4.8mm;
+          line-height: 1;
+          font-weight: 800;
+        }
+        .fnrh-section-heading::after {
+          content: "";
+          height: 0.35mm;
+          flex: 1;
+          background: #e2e8f0;
+        }
+        .fnrh-stay-grid {
+          display: grid;
+          grid-template-columns: 2.05fr 1fr 1fr 0.48fr 1fr 0.48fr;
+          gap: 1.4mm;
+        }
+        .fnrh-guest-grid {
+          display: grid;
+          grid-template-columns: repeat(12, minmax(0, 1fr));
+          gap: 2.4mm 1.4mm;
+        }
+        .fnrh-field { min-width: 0; }
+        .fnrh-label {
+          display: block;
+          margin-bottom: 1.05mm;
+          color: #243b5a;
+          font-size: 2.8mm;
+          line-height: 1.05;
+          font-weight: 700;
+        }
+        .fnrh-box {
+          display: flex;
+          align-items: center;
+          min-height: 8.6mm;
+          box-sizing: border-box;
+          padding: 1.25mm 2mm;
+          overflow: hidden;
+          border: 0.35mm solid #8091a8;
+          border-radius: 1.7mm;
+          color: #243b5a;
+          background: #fff;
+          font-size: 3.15mm;
+          line-height: 1.15;
+          font-weight: 500;
+          white-space: nowrap;
+          text-overflow: ellipsis;
+        }
+        .fnrh-subheading {
+          margin: 0.5mm 0 1.2mm;
+          font-size: 3.3mm;
+          line-height: 1;
+          font-weight: 800;
+        }
+        .fnrh-options-title {
+          margin: 3.6mm 0 2.5mm;
+          font-size: 3.25mm;
+          line-height: 1;
+          font-weight: 800;
+        }
+        .fnrh-options {
+          display: grid;
+          grid-template-columns: repeat(6, 1fr);
+          gap: 2mm;
+          align-items: center;
+        }
+        .fnrh-option {
+          display: flex;
+          align-items: center;
+          gap: 2.2mm;
+          min-width: 0;
+          color: #5b6f89;
+          font-size: 3.15mm;
+          line-height: 1.05;
+          white-space: nowrap;
+        }
+        .fnrh-checkbox {
+          position: relative;
+          flex: 0 0 auto;
+          width: 5.2mm;
+          height: 5.2mm;
+          box-sizing: border-box;
+          border: 0.35mm solid #8091a8;
+          border-radius: 0.8mm;
+          background: #fff;
+        }
+        .fnrh-checkbox.checked::after {
+          content: "✓";
+          position: absolute;
+          left: 50%;
+          top: 48%;
+          transform: translate(-50%, -50%);
+          color: #243b5a;
+          font-size: 4.2mm;
+          font-weight: 900;
+        }
+        .fnrh-signature {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 14mm;
+        }
+        .fnrh-signature-box { width: 98mm; text-align: center; }
+        .fnrh-signature-line {
+          display: flex;
+          align-items: flex-end;
+          justify-content: center;
+          height: 20mm;
+          border-bottom: 0.35mm solid #8091a8;
+        }
+        .fnrh-signature-line img {
+          max-width: 88mm;
+          max-height: 18mm;
+          object-fit: contain;
+        }
+        .fnrh-signature-label {
+          margin-top: 2.2mm;
+          color: #5b6f89;
+          font-size: 4.1mm;
+          line-height: 1;
+          font-weight: 400;
+        }
+      `}</style>
 
-    <div className="no-print mx-auto mb-3 flex max-w-[210mm] justify-end px-3">
-      <button type="button" onClick={() => window.print()} className="btn-primary flex items-center gap-2"><Printer className="h-4 w-4" /> Imprimir ou salvar em PDF</button>
-    </div>
+      <div className="no-print mx-auto mb-3 flex max-w-[210mm] justify-end px-3">
+        <button type="button" onClick={() => window.print()} className="btn-primary flex items-center gap-2">
+          <Printer className="h-4 w-4" /> Imprimir ou salvar em PDF
+        </button>
+      </div>
 
-    <article className="print-sheet mx-auto min-h-[297mm] w-full max-w-[210mm] bg-white px-[10mm] py-[9mm] text-black shadow-xl">
-      <header className="print-section border-b-2 border-black pb-3">
-        <div className="grid grid-cols-[68px_1fr] gap-3">
-          <img src="/hotel-real-logo.png" alt={data.company_name} className="h-[60px] w-[68px] object-contain grayscale contrast-125" />
-          <div><h1 className="text-center text-[17px] font-black uppercase tracking-tight text-black">Ficha Nacional de Registro de Hóspedes</h1>
-            <div className="mt-2 grid grid-cols-2 gap-x-4 text-[8.5px] leading-4 text-black">
-              <div><strong>{data.company_name}</strong>{data.company_document ? ` · CNPJ ${data.company_document}` : ""}</div><div className="text-right">Reserva {data.reservation_code}</div>
-              <div>{data.company_email || "—"} · {data.company_phone || "—"}</div><div className="text-right">{[data.company_address, data.company_city, data.company_state].filter(Boolean).join(", ")}</div>
-            </div>
+      <article className="fnrh-sheet mx-auto shadow-xl">
+        <h1 className="fnrh-title">FICHA NACIONAL DE REGISTRO DE HÓSPEDES</h1>
+
+        <header className="fnrh-hotel-card">
+          <div className="fnrh-logo-box">
+            <img src="/hotel-real-logo.png" alt={data.company_name} />
           </div>
-        </div>
-      </header>
+          <div>
+            <p className="fnrh-company-name">{data.company_name}</p>
+            <p className="fnrh-company-line">{[data.company_email, data.company_phone].filter(Boolean).join(" / ")}</p>
+            <p className="fnrh-company-line">{companyAddress}</p>
+            <p className="fnrh-company-line fnrh-company-document">{data.company_document ? `CNPJ:${data.company_document}` : ""}</p>
+          </div>
+        </header>
 
-      <Section title="Hospedagem"><div className="grid grid-cols-5 gap-1.5">
-        <Field label="UH" value={String(data.room)} /><Field label="Total de hóspedes" value={String(totalGuests)} />
-        <Field label="Entrada" value={formatDate(data.checkin)} /><Field label="Saída" value={formatDate(data.checkout)} />
-        <Field label="Recebida em" value={formatDateTime(data.submitted_at)} />
-      </div></Section>
+        <section className="fnrh-section">
+          <div className="fnrh-section-heading"><h2>Informações da hospedagem</h2></div>
+          <div className="fnrh-stay-grid">
+            <Field label="UH Nº (Local)" value={String(data.room ?? "")} />
+            <Field label="NºAcompanhantes" value={String(companionCount)} />
+            <Field label="Data de entrada" value={formatDate(data.checkin)} />
+            <Field label="Hora" value={form.hora_entrada || formatHour(data.checkin)} />
+            <Field label="Data de saída" value={formatDate(data.checkout)} />
+            <Field label="Hora" value={form.hora_saida || formatHour(data.checkout)} />
+          </div>
+        </section>
 
-      <Section title="Hóspede titular"><div className="holder-grid grid grid-cols-4 gap-1.5">{LABELS.map(([key, label]) => <Field key={key} label={label} value={displayValue(key, form[key])} className={wideField(key)} />)}</div></Section>
+        <section className="fnrh-section">
+          <div className="fnrh-section-heading"><h2>Informações do hóspede</h2></div>
+          <div className="fnrh-guest-grid">
+            <Field label="Nome Completo" value={form.nome_completo} span={12} />
+            <Field label="E-mail" value={form.email} span={9} />
+            <Field label="Nascimento" value={formatDate(form.nascimento)} span={3} />
+            <Field label="Profissão" value={form.profissao} span={4} />
+            <Field label="Nacionalidade" value={form.nacionalidade} span={4} />
+            <Field label="Sexo" value={form.genero} span={1} />
+            <Field label="CPF" value={cpf} span={3} />
 
-      <Section title={`Acompanhantes (${companions.length})`}>
-        {companions.length === 0 ? <div className="rounded border border-black px-2 py-2 text-[9px] text-black">Reserva somente para o titular.</div> : <div className="space-y-2">{companions.map((guest, index) => <div key={`${guest.nome}-${index}`} className="companion-card grid grid-cols-4 gap-1.5 rounded border border-black bg-white p-2 text-black">
-          <Field label={`Acompanhante ${index + 1}`} value={guest.nome || "Não informado"} className="col-span-2" />
-          <Field label="Tipo / parentesco" value={[guest.tipo, guest.parentesco].filter(Boolean).join(" · ") || "Não informado"} />
-          <Field label="Documento" value={guest.cpf || "Não informado"} /><Field label="Nascimento" value={formatDate(guest.data_nascimento)} />
-          <Field label="Telefone" value={guest.telefone || "Não informado"} /><Field label="E-mail" value={guest.email || "Não informado"} /><Field label="Gênero" value={guest.sexo || "Não informado"} />
-        </div>)}</div>}
-      </Section>
+            <div style={{ gridColumn: "span 12" }}>
+              <p className="fnrh-subheading">Documento de Identidade</p>
+              <div className="fnrh-guest-grid">
+                <Field label="Número" value={identityNumber} span={4} />
+                <Field label="Tipo" value={identityType} span={4} />
+                <Field label="Órgão Expedidor" value={issuer} span={4} />
+              </div>
+            </div>
 
-      <section className="signature-block mt-4 grid grid-cols-[1fr_78mm] items-end gap-5 text-black">
-        <div className="text-[8px] leading-4 text-black"><p><strong>Declaração:</strong> o hóspede declara que as informações fornecidas são verdadeiras e autoriza seu tratamento para reserva, hospedagem, identificação, segurança, FNRH e cumprimento de obrigações legais.</p><p className="mt-1"><strong>Proteção de dados:</strong> acesso restrito a pessoas autorizadas e tratamento conforme a LGPD e as finalidades informadas.</p></div>
-        <div><div className="flex h-[28mm] items-center justify-center border-b border-black">{data.signature_data_url ? <img src={data.signature_data_url} alt="Assinatura do hóspede" className="max-h-[23mm] max-w-[72mm] object-contain grayscale contrast-125" /> : <span className="text-[9px] text-black">Assinatura não encontrada</span>}</div><p className="pt-1 text-center text-[9px] font-semibold text-black">Assinatura do hóspede titular</p></div>
-      </section>
-    </article>
-  </main>;
+            <Field label="Endereço" value={address} span={9} />
+            <Field label="Fone" value={form.telefone} span={3} />
+            <Field label="CEP" value={form.cep} span={2} />
+            <Field label="Cidade" value={form.cidade} span={4} />
+            <Field label="Estado" value={form.estado} span={3} />
+            <Field label="País" value={form.pais} span={3} />
+            <Field label="Último destino (Cidade, País)" value={form.ultimo_destino} span={6} />
+            <Field label="Próximo destino (Cidade, País)" value={form.proximo_destino} span={6} />
+          </div>
+
+          <p className="fnrh-options-title">Motivo da Viagem</p>
+          <div className="fnrh-options">
+            <Option label="Férias" checked={travelReason === "ferias"} />
+            <Option label="Negócios" checked={travelReason === "negocios"} />
+            <Option label="Congresso" checked={travelReason === "congresso"} />
+            <Option label="Estudos" checked={travelReason === "estudos"} />
+            <Option label="Saúde" checked={travelReason === "saude"} />
+            <Option label="Outro" checked={travelReason === "outro"} />
+          </div>
+
+          <p className="fnrh-options-title">Meio de Transporte</p>
+          <div className="fnrh-options">
+            <Option label="Automóvel" checked={transport === "automovel"} />
+            <Option label="Avião" checked={transport === "aviao"} />
+            <Option label="Navio" checked={transport === "navio"} />
+            <Option label="Ônibus" checked={transport === "onibus"} />
+            <Option label="Trem" checked={transport === "trem"} />
+            <Option label="Outro" checked={transport === "outro"} />
+          </div>
+        </section>
+
+        <section className="fnrh-signature">
+          <div className="fnrh-signature-box">
+            <div className="fnrh-signature-line">
+              {data.signature_data_url ? <img src={data.signature_data_url} alt="Assinatura do hóspede" /> : null}
+            </div>
+            <p className="fnrh-signature-label">assinatura do hóspede</p>
+          </div>
+        </section>
+      </article>
+    </main>
+  );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) { return <section className="print-section mt-3 text-black"><h2 className="mb-1.5 border-b border-black pb-1 text-[11px] font-black uppercase tracking-wide text-black">{title}</h2>{children}</section>; }
-function Field({ label, value, className = "" }: { label: string; value: string; className?: string }) { return <div className={`print-row ${className}`}><p className="mb-0.5 text-[7px] font-black uppercase tracking-wide text-black">{label}</p><div className="min-h-[21px] rounded border border-black bg-white px-1.5 py-1 text-[8.5px] font-medium leading-3.5 text-black">{value || "Não informado"}</div></div>; }
-function parseCompanions(value?: string): Companion[] { if (!value) return []; try { const parsed = JSON.parse(value); return Array.isArray(parsed) ? parsed : []; } catch { return []; } }
-function displayValue(key: string, value?: string) { if (!value?.trim()) return "Não informado"; if (key === "nascimento") return formatDate(value); if (key === "deficiencia") return value === "nao" ? "Não" : value === "sim" ? "Sim" : "Prefere não informar"; return value; }
-function wideField(key: string) { if (["nome_completo", "endereco", "email", "complemento"].includes(key)) return "col-span-2"; return ""; }
-function formatDate(value?: string | null) { if (!value) return "Não informado"; const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/); return match ? `${match[3]}/${match[2]}/${match[1]}` : value; }
-function formatDateTime(value?: string | null) { if (!value) return "Não informado"; return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value)); }
+function Field({ label, value, span }: { label: string; value?: string | number | null; span?: number }) {
+  return (
+    <div className="fnrh-field" style={span ? { gridColumn: `span ${span}` } : undefined}>
+      <span className="fnrh-label">{label}</span>
+      <div className="fnrh-box">{value == null ? "" : String(value)}</div>
+    </div>
+  );
+}
+
+function Option({ label, checked }: { label: string; checked: boolean }) {
+  return (
+    <div className="fnrh-option">
+      <span className={`fnrh-checkbox${checked ? " checked" : ""}`} aria-hidden="true" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function parseCompanions(value?: string): Companion[] {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalize(value?: string | null) {
+  return String(value || "").trim().toLocaleLowerCase("pt-BR");
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "";
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
+function formatHour(value?: string | null) {
+  if (!value) return "";
+  const match = value.match(/T(\d{2}):(\d{2})/);
+  return match ? `${match[1]}:${match[2]}` : "";
+}
