@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRole, useSession } from "@/hooks/use-auth";
 import { useCurrentCompany } from "@/lib/data";
 import { BRAND_STORAGE_PREFIX } from "@/lib/brand";
+import { ReceptionSalesCorrectionPanel } from "@/components/ReceptionSalesCorrectionPanel";
+
+const DELETE_ACTION_RE = /\b(excluir|exclus[aã]o|apagar|remover|delete)\b/i;
 
 export function SystemMonitor() {
   const company = useCurrentCompany();
@@ -117,6 +120,43 @@ export function SystemMonitor() {
       window.removeEventListener("unhandledrejection", onUnhandledRejection);
     };
   }, [companyId]);
+
+  useEffect(() => {
+    if (role !== "recepcao") return;
+
+    const hidden = new Set<HTMLElement>();
+    const applyGuard = () => {
+      document.querySelectorAll<HTMLElement>('button,[role="menuitem"],a').forEach((element) => {
+        if (element.dataset.receptionDeleteHidden === "1") return;
+        const label = [
+          element.textContent ?? "",
+          element.getAttribute("title") ?? "",
+          element.getAttribute("aria-label") ?? "",
+        ].join(" ");
+        if (!DELETE_ACTION_RE.test(label)) return;
+        element.dataset.receptionDeleteHidden = "1";
+        element.style.setProperty("display", "none", "important");
+        hidden.add(element);
+      });
+    };
+
+    applyGuard();
+    const observer = new MutationObserver(applyGuard);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      hidden.forEach((element) => {
+        if (element.dataset.receptionDeleteHidden !== "1") return;
+        element.style.removeProperty("display");
+        delete element.dataset.receptionDeleteHidden;
+      });
+    };
+  }, [path, role]);
+
+  if (role === "recepcao" && companyId && path.startsWith("/vendas")) {
+    return <ReceptionSalesCorrectionPanel companyId={companyId} />;
+  }
 
   return null;
 }
