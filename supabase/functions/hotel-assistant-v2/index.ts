@@ -356,7 +356,7 @@ function deterministicAnswer(question: string, context: RecordRow) {
 }
 
 function isHistoricalQuestion(value: string) {
-  return /\b(sazonal|sazonalidade|previs|forecast|ocupacao|ocupação|adr|diaria|diária|demanda|pickup|booking|alta temporada|baixa temporada|mes mais|mês mais|meses mais|meses menos)\b/.test(value);
+  return /\b(sazonal|sazonalidade|previs|forecast|histor|tendencia|tendência|pickup|alta temporada|baixa temporada|mes mais|mês mais|meses mais|meses menos|proximo mes|próximo mês|proximos meses|próximos meses)\b/.test(value) || (/\bbooking\b/.test(value) && /\b(lead|janela|anteced|cancel|no.?show|adr|diaria|diária|sazon|histor|previs|demanda|pickup|taxa)\b/.test(value));
 }
 
 function localHistoricalAnswer(question: string, context: RecordRow) {
