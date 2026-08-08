@@ -3,8 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.110.2";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "content-type, apikey, x-client-info",
+  "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
 
 const NOTE_KEYS = [
@@ -36,6 +37,9 @@ Deno.serve(async (req) => {
     }
 
     const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: companyRow, error: companyError } = await admin.from("companies").select("id").eq("id", companyId).maybeSingle();
+    if (companyError || !companyRow) return reply({ ok: false, error: "Hotel não identificado." }, 400);
+
     const { data: roomRow, error: roomError } = await admin.from("rooms").select("id").eq("company_id", companyId).eq("numero", room).maybeSingle();
     if (roomError) return reply({ ok: false, error: "Não foi possível validar o quarto." }, 500);
     if (!roomRow) return reply({ ok: false, error: "Este quarto não pertence ao hotel informado." }, 400);
@@ -43,11 +47,14 @@ Deno.serve(async (req) => {
     const forwarded = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
     const sourceHash = await sha256(`${serviceKey.slice(0, 24)}|${forwarded}`);
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
     const [{ count: sourceCount }, { count: roomCount }] = await Promise.all([
       admin.from("public_feedback_submissions").select("id", { count: "exact", head: true }).eq("source_hash", sourceHash).gte("created_at", oneHourAgo),
       admin.from("public_feedback_submissions").select("id", { count: "exact", head: true }).eq("source_hash", sourceHash).eq("company_id", companyId).eq("room_number", room).gte("created_at", oneHourAgo),
     ]);
-    if ((sourceCount ?? 0) >= 20 || (roomCount ?? 0) >= 5) return reply({ ok: false, error: "Muitas avaliações foram enviadas em pouco tempo. Tente novamente mais tarde." }, 429);
+    if ((sourceCount ?? 0) >= 20 || (roomCount ?? 0) >= 5) {
+      return reply({ ok: false, error: "Muitas avaliações foram enviadas em pouco tempo. Tente novamente mais tarde." }, 429);
+    }
 
     const clean = {
       company_id: companyId,
@@ -79,8 +86,14 @@ Deno.serve(async (req) => {
     };
 
     const { data: feedback, error: insertError } = await admin.from("feedbacks").insert(clean).select("id").single();
-    if (insertError) return reply({ ok: false, error: "Não foi possível registrar a avaliação." }, 400);
-    await admin.from("public_feedback_submissions").insert({ company_id: companyId, room_number: room, source_hash: sourceHash });
+    if (insertError) {
+      console.error("feedback insert failed", insertError);
+      return reply({ ok: false, error: "Não foi possível registrar a avaliação." }, 500);
+    }
+
+    const { error: auditError } = await admin.from("public_feedback_submissions").insert({ company_id: companyId, room_number: room, source_hash: sourceHash });
+    if (auditError) console.warn("feedback audit insert failed", auditError);
+
     return reply({ ok: true, id: feedback.id }, 201);
   } catch (error) {
     console.error("submit-feedback", error);
