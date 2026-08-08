@@ -34,25 +34,21 @@ export function useRole(user: User | null) {
   return useQuery({
     queryKey: ["role", user?.id],
     enabled: !!user,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
     queryFn: async (): Promise<AppRole | null> => {
-      const { data: memberRoles, error: memberError } = await supabase
+      const { data: memberRoles, error } = await supabase
         .from("company_members" as never)
-        .select("role")
+        .select("role,ativo")
         .eq("user_id", user!.id);
-      if (!memberError && memberRoles?.length) {
-        const roles = memberRoles as unknown as { role: AppRole }[];
-        if (roles.some((r) => r.role === "dono")) return "dono";
-        if (roles.some((r) => r.role === "recepcao")) return "recepcao";
-        if (roles.some((r) => r.role === "limpeza")) return "limpeza";
-        if (roles.some((r) => r.role === "cafe")) return "cafe";
-      }
-
-      const { data, error } = await supabase.from("user_roles").select("role").eq("user_id", user!.id);
       if (error) throw error;
-      if (data?.some((r) => r.role === "dono")) return "dono";
-      if (data?.some((r) => r.role === "recepcao")) return "recepcao";
-      if (data?.some((r) => r.role === "limpeza")) return "limpeza";
-      if (data?.some((r) => r.role === "cafe")) return "cafe";
+
+      const roles = (memberRoles ?? []) as unknown as { role: AppRole; ativo: boolean }[];
+      const activeRoles = roles.filter((row) => row.ativo);
+      if (activeRoles.some((row) => row.role === "dono")) return "dono";
+      if (activeRoles.some((row) => row.role === "recepcao")) return "recepcao";
+      if (activeRoles.some((row) => row.role === "limpeza")) return "limpeza";
+      if (activeRoles.some((row) => row.role === "cafe")) return "cafe";
       return null;
     },
   });
