@@ -33,6 +33,7 @@ type PortalRow = {
   error: string | null;
   received_at: string;
   guest_name: string | null;
+  guest_phone: string | null;
   room_type: string | null;
   checkin_text: string | null;
   checkout_text: string | null;
@@ -78,7 +79,7 @@ function BookingEventos() {
           .order("created_at", { ascending: false }),
         (supabase as any)
           .from("booking_browser_events")
-          .select("id,booking_code,status,event_type,reservation_id,previous_status,new_status,error,guest_name,checkin_text,checkout_text,total_text,guests_text,room_type,booking_status_text,captured_at")
+          .select("id,booking_code,status,event_type,reservation_id,previous_status,new_status,error,guest_name,guest_phone,checkin_text,checkout_text,total_text,guests_text,room_type,booking_status_text,captured_at")
           .eq("company_id", companyId)
           .order("captured_at", { ascending: false }),
       ]);
@@ -98,6 +99,7 @@ function BookingEventos() {
         error: event.error,
         received_at: event.received_at ?? event.created_at,
         guest_name: null,
+        guest_phone: null,
         room_type: null,
         checkin_text: null,
         checkout_text: null,
@@ -118,6 +120,7 @@ function BookingEventos() {
         error: event.error,
         received_at: event.captured_at,
         guest_name: event.guest_name,
+        guest_phone: event.guest_phone,
         room_type: event.room_type,
         checkin_text: event.checkin_text,
         checkout_text: event.checkout_text,
@@ -171,12 +174,21 @@ function BookingEventos() {
       const companyId = current.data.id;
       const { data: existing } = await (supabase as any)
         .from("reservations")
-        .select("id,status")
+        .select("id,status,cliente_id,cliente_nome")
         .eq("company_id", companyId)
         .eq("codigo_externo", event.booking_code)
         .maybeSingle();
 
       if (existing?.id) {
+        const clientId = await ensureBookingClient(companyId, existing.cliente_nome, event.guest_phone, (await supabase.auth.getUser()).data.user?.id ?? null);
+        if (clientId && !existing.cliente_id) {
+          const { error: linkError } = await (supabase as any)
+            .from("reservations")
+            .update({ cliente_id: clientId })
+            .eq("company_id", companyId)
+            .eq("id", existing.id);
+          if (linkError) throw linkError;
+        }
         await (supabase as any)
           .from("booking_browser_events")
           .update({ status: "processed", reservation_id: existing.id, processed_at: new Date().toISOString(), error: null })
@@ -204,11 +216,13 @@ function BookingEventos() {
       const total = parseMoney(event.total_text);
       const people = parsePeople(event.guests_text);
       const { data: auth } = await supabase.auth.getUser();
+      const clientId = await ensureBookingClient(companyId, event.guest_name, event.guest_phone, auth.user?.id ?? null);
 
       const { data: reservation, error: reservationError } = await (supabase as any)
         .from("reservations")
         .insert({
           quarto: roomNumber,
+          cliente_id: clientId,
           cliente_nome: event.guest_name,
           checkin,
           checkout,
@@ -263,7 +277,7 @@ function BookingEventos() {
     <div>
       <PageHeader
         title="Portal de Eventos da Booking"
-        subtitle="Eventos recebidos por e-mail e pela extensão do Chrome para a empresa atual."
+        subtitle="Reservas, cancelamentos e telefones capturados para conferência e envio da FNRH."
       />
 
       <div className="mb-5 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
@@ -299,7 +313,7 @@ function BookingEventos() {
               {rows.map((event) => (
                 <tr key={`${event.source}-${event.id}`} className="border-b border-border/50 align-top">
                   <td className="p-2">{sourceBadge(event.source)}<span className="mt-1 block text-muted-foreground">{fmtDate(event.received_at.slice(0, 10))}</span></td>
-                  <td className="break-words p-2 font-semibold">{event.guest_name ?? event.reservation?.cliente_nome ?? "Reserva não localizada"}<span className="mt-1 block font-mono text-[10px] font-normal text-muted-foreground">{event.booking_code}</span></td>
+                  <td className="break-words p-2 font-semibold">{event.guest_name ?? event.reservation?.cliente_nome ?? "Reserva não localizada"}{event.guest_phone ? <span className="mt-1 block font-normal text-emerald-700">WhatsApp: {formatPhone(event.guest_phone)}</span> : null}<span className="mt-1 block font-mono text-[10px] font-normal text-muted-foreground">{event.booking_code}</span></td>
                   <td className="p-2 text-muted-foreground"><span className="block"><strong className="text-foreground">Entrada:</strong> {event.checkin_text ?? (event.reservation?.checkin ? fmtDate(event.reservation.checkin) : "—")}</span><span className="mt-1 block"><strong className="text-foreground">Saída:</strong> {event.checkout_text ?? (event.reservation?.checkout ? fmtDate(event.reservation.checkout) : "—")}</span></td>
                   <td className="break-words p-2"><span className="block">{event.reservation?.quarto ? `Quarto ${event.reservation.quarto}` : event.room_type ?? "—"}</span><strong className="mt-1 block">{event.total_text ?? "—"}</strong></td>
                   <td className="p-2">
@@ -391,14 +405,19 @@ function resultLabel(event: PortalRow) {
 function parseBookingDate(value: string | null) {
   const text = String(value ?? "").toLocaleLowerCase("pt-BR");
   const match = text.match(/(\d{1,2})\s+de\s+([a-zç.]+)\s+de\s+(\d{4})/i);
-  if (!match) return null;
   const months: Record<string, string> = {
     jan: "01", fev: "02", mar: "03", abr: "04", mai: "05", jun: "06",
     jul: "07", ago: "08", set: "09", out: "10", nov: "11", dez: "12",
+    apr: "04", may: "05", aug: "08", sep: "09", oct: "10", dec: "12",
   };
-  const month = months[match[2].replace(/\./g, "").slice(0, 3)];
-  if (!month) return null;
-  return `${match[3]}-${month}-${match[1].padStart(2, "0")}`;
+  if (match) {
+    const month = months[match[2].replace(/\./g, "").slice(0, 3)];
+    return month ? `${match[3]}-${month}-${match[1].padStart(2, "0")}` : null;
+  }
+  const english = text.match(/\b([a-z]{3,9})\s+(\d{1,2}),\s*(\d{4})/i);
+  if (!english) return null;
+  const month = months[english[1].slice(0, 3)];
+  return month ? `${english[3]}-${month}-${english[2].padStart(2, "0")}` : null;
 }
 
 function parseMoney(value: string | null) {
@@ -408,6 +427,65 @@ function parseMoney(value: string | null) {
 }
 
 function parsePeople(value: string | null) {
-  const match = String(value ?? "").match(/\d+/);
+  const text = String(value ?? "");
+  const groups = [...text.matchAll(/(\d+)\s*(?:adult(?:o|os)?|adults?|crianças?|children|child)/gi)];
+  if (groups.length) return Math.max(1, groups.reduce((total, match) => total + Number(match[1]), 0));
+  const match = text.match(/\d+/);
   return Math.max(1, Number(match?.[0] ?? 1));
+}
+
+async function ensureBookingClient(companyId: string, guestName: string, phoneValue: string | null, createdBy: string | null) {
+  const phone = normalizePhone(phoneValue);
+  if (!phone) return null;
+
+  const { data: clients, error } = await (supabase as any)
+    .from("clients")
+    .select("id,nome,telefone")
+    .eq("company_id", companyId)
+    .limit(1000);
+  if (error) throw error;
+
+  const byPhone = (clients ?? []).find((client: any) => normalizePhone(client.telefone) === phone);
+  if (byPhone?.id) return byPhone.id as string;
+
+  const sameName = (clients ?? []).filter((client: any) => normalizeName(client.nome) === normalizeName(guestName));
+  if (sameName.length === 1 && !normalizePhone(sameName[0].telefone)) {
+    const { error: updateError } = await (supabase as any)
+      .from("clients")
+      .update({ telefone: phone })
+      .eq("company_id", companyId)
+      .eq("id", sameName[0].id);
+    if (updateError) throw updateError;
+    return sameName[0].id as string;
+  }
+
+  const { data: created, error: createError } = await (supabase as any)
+    .from("clients")
+    .insert({ company_id: companyId, nome: guestName, telefone: phone, created_by: createdBy })
+    .select("id")
+    .single();
+  if (createError) throw createError;
+  return created.id as string;
+}
+
+function normalizePhone(value: string | null | undefined) {
+  let digits = String(value ?? "").replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.length === 10 || digits.length === 11) digits = `55${digits}`;
+  return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null;
+}
+
+function normalizeName(value: string | null | undefined) {
+  return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function formatPhone(value: string) {
+  const normalized = normalizePhone(value);
+  if (!normalized) return value;
+  const digits = normalized.slice(1);
+  if (digits.startsWith("55") && digits.length >= 12) {
+    const local = digits.slice(2);
+    return `+55 (${local.slice(0, 2)}) ${local.slice(2, -4)}-${local.slice(-4)}`;
+  }
+  return normalized;
 }

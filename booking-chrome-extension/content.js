@@ -64,6 +64,54 @@ function bookingCode(lines, flatText) {
   );
 }
 
+function validPhone(value) {
+  const text = clean(value);
+  const digits = text.replace(/\D/g, "");
+  return digits.length >= 8 && digits.length <= 15 ? text : null;
+}
+
+function findGuestPhone(lines) {
+  const labels = [
+    "Telefone",
+    "Telefone do hóspede",
+    "Número de telefone",
+    "Phone",
+    "Phone number",
+    "Guest phone",
+    "Mobile phone",
+  ];
+  const normalizedLabels = labels.map((label) => label.toLocaleLowerCase("pt-BR"));
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const current = lines[index];
+    const lower = current.toLocaleLowerCase("pt-BR");
+    const label = normalizedLabels.find((candidate) => lower === candidate || lower.startsWith(`${candidate}:`));
+    if (!label || /mostrar|show|reveal/i.test(current)) continue;
+
+    const inline = validPhone(current.slice(label.length).replace(/^\s*:\s*/, ""));
+    if (inline) return inline;
+
+    for (let offset = 1; offset <= 4; offset += 1) {
+      const candidate = lines[index + offset];
+      if (!candidate) break;
+      const phone = validPhone(candidate);
+      if (phone) return phone;
+      if (/^[A-Za-zÀ-ÿ][A-Za-zÀ-ÿ /-]{1,40}:?$/.test(candidate)) break;
+    }
+  }
+  return null;
+}
+
+function revealGuestPhone() {
+  const control = [...document.querySelectorAll("button, a, [role='button']")].find((element) =>
+    /^(mostrar|exibir|revelar)\s+(o\s+)?(telefone|número de telefone)|^show\s+(guest\s+)?phone( number)?$/i.test(clean(element.textContent)),
+  );
+  if (!control || control.dataset.hospedamaisPhoneRequested === "true") return false;
+  control.dataset.hospedamaisPhoneRequested = "true";
+  control.click();
+  return true;
+}
+
 function stripCancellation(value) {
   return clean(String(value ?? "").replace(/\s+(?:cancelad[oa](?:\s+pelo\s+hóspede)?|cancell?ed(?:\s+by\s+guest)?)\s*$/i, ""));
 }
@@ -134,6 +182,7 @@ function extractBookingReservation() {
   ]);
   const roomType = findRoomType(lines);
   const status = findStatus(lines, flatText);
+  const guestPhone = findGuestPhone(lines);
 
   return {
     source: "booking_extranet_chrome",
@@ -142,6 +191,7 @@ function extractBookingReservation() {
     page_title: title,
     booking_code: code,
     guest_name: guestName,
+    guest_phone: guestPhone,
     checkin_text: checkin,
     checkout_text: checkout,
     total_text: total,
@@ -162,6 +212,7 @@ function candidateKey(payload) {
     payload?.checkin_text || "",
     payload?.checkout_text || "",
     payload?.total_text || "",
+    payload?.guest_phone || "",
   ].join("|");
 }
 
@@ -169,6 +220,10 @@ function scheduleAutomaticCapture(delay = 2200) {
   window.clearTimeout(autoTimer);
   autoTimer = window.setTimeout(() => {
     try {
+      if (revealGuestPhone()) {
+        scheduleAutomaticCapture(900);
+        return;
+      }
       const payload = extractBookingReservation();
       if (!payload.booking_code) return;
       const key = candidateKey(payload);
@@ -186,15 +241,19 @@ function scheduleAutomaticCapture(delay = 2200) {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type !== "HOSPEDAMAIS_EXTRACT_BOOKING") return;
-  try {
-    const payload = extractBookingReservation();
-    sendResponse({ ok: true, payload });
-  } catch (error) {
-    sendResponse({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }
+  const extractAndRespond = () => {
+    try {
+      const payload = extractBookingReservation();
+      sendResponse({ ok: true, payload });
+    } catch (error) {
+      sendResponse({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+  if (revealGuestPhone()) window.setTimeout(extractAndRespond, 900);
+  else extractAndRespond();
   return true;
 });
 

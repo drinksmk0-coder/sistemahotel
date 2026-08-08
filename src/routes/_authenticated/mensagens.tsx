@@ -57,7 +57,7 @@ const KIND_META: Record<
 > = {
   fnrh: {
     title: "Enviar FNRH",
-    description: "Reservas com sinal confirmado aguardando pré-check-in.",
+    description: "Reservas confirmadas, inclusive Booking, aguardando pré-check-in.",
     icon: FileSignature,
     tone: "text-primary bg-primary/10",
   },
@@ -107,9 +107,10 @@ function GuestMessages() {
       const account = buildGuestAccount(reservation, sales);
       const total = Math.max(0, Number(reservation.valor_total) || 0);
       const signalConfirmed = total > 0 && Number(reservation.valor_pago) >= total * 0.5;
+      const bookingConfirmed = String(reservation.canal ?? "").toLocaleLowerCase("pt-BR").includes("booking");
 
       if (
-        signalConfirmed &&
+        (signalConfirmed || bookingConfirmed) &&
         reservation.status === "reservado" &&
         reservation.checkin >= today
       ) {

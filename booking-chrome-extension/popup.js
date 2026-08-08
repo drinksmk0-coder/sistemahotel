@@ -14,7 +14,16 @@ async function config() {
 }
 
 function field(label, value) {
-  return `<div class="row"><b>${label}</b>${value || "Não encontrado"}</div>`;
+  return `<div class="row"><b>${escapeHtml(label)}</b>${escapeHtml(value || "Não encontrado")}</div>`;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 function render(payload) {
@@ -23,6 +32,7 @@ function render(payload) {
   $("preview").innerHTML = [
     field("Código Booking", payload.booking_code),
     field("Hóspede", payload.guest_name),
+    field("Telefone / WhatsApp", payload.guest_phone),
     field("Check-in", payload.checkin_text),
     field("Check-out", payload.checkout_text),
     field("Valor", payload.total_text),

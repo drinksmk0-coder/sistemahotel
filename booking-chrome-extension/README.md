@@ -1,7 +1,7 @@
 # HospedaMais Booking Connector
 
 ## Objetivo
-Capturar, com confirmação humana, os dados visíveis de uma reserva aberta em `admin.booking.com` e enviá-los para a Central de Entradas do HospedaMais. A extensão usa a sessão já autenticada do Chrome e nunca armazena a senha da Booking.
+Capturar reservas e cancelamentos visíveis em `admin.booking.com` e enviá-los ao HospedaMais. Quando a Booking disponibiliza o telefone, a extensão aciona **Mostrar telefone**, captura o número e o vincula ao hóspede para que a recepção possa enviar o check-in online/FNRH. A extensão usa a sessão já autenticada do Chrome e nunca armazena a senha da Booking.
 
 ## Instalação no computador do hotel
 1. Baixe esta pasta do repositório.
@@ -20,14 +20,13 @@ Na extensão, informe:
 1. Abra o link de uma reserva recebido por e-mail.
 2. Faça login normalmente na Booking, quando necessário.
 3. Abra a extensão.
-4. Confira código, hóspede, datas, valor, hóspedes, acomodação e status.
+4. Confira código, hóspede, telefone, datas, valor, hóspedes, acomodação e status.
 5. Clique em **Enviar para conferência**.
 
-O evento será gravado como `needs_review`. Nenhuma reserva será criada, cancelada ou excluída automaticamente.
+Reservas com categoria mapeada e quarto livre são criadas automaticamente; cancelamentos confirmados atualizam o status sem excluir o histórico. Casos ambíguos permanecem em revisão manual.
 
 ## Supabase
-Aplicar a migration:
-`20260806032000_create_booking_browser_events.sql`
+Aplicar também as migrations de telefone e acesso privado da pasta `supabase/migrations`.
 
 Publicar a Edge Function:
 `booking-browser-ingest`

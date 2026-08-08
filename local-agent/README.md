@@ -20,7 +20,7 @@ Serviço local para tarefas que dependem da sessão autenticada do PC do hotel. 
 O instalador registra uma tarefa do Windows para iniciar o agente no logon.
 
 ## Booking
-O agente abre a página inicial oficial da Extranet. Depois do login e do 2FA, abra o menu **Reservas** uma vez no navegador controlado pelo agente. Ele não força mais o endereço antigo `hoteladmin/reservations.html`, que pode causar a mensagem de página inexistente. O agente reutiliza uma única aba de leitura e limita a quantidade por ciclo para reduzir o uso de memória. O intervalo padrão é 5 minutos.
+O agente abre a página inicial oficial da Extranet. Depois do login e do 2FA, abra o menu **Reservas** uma vez no navegador controlado pelo agente. Ele não força mais o endereço antigo `hoteladmin/reservations.html`, que pode causar a mensagem de página inexistente. O agente reutiliza uma única aba de leitura, limita a quantidade por ciclo para reduzir o uso de memória e revela o telefone disponível na reserva para vinculá-lo ao hóspede e à fila de FNRH. O intervalo padrão é 5 minutos.
 
 ## Gmail
 O módulo Gmail deve usar a API oficial do Google/OAuth, não automação visual do navegador. Ele poderá classificar e encaminhar ao HospedaMais e-mails de despesas, fornecedores, Booking e documentos. As credenciais OAuth ainda precisam ser configuradas para ativar esse módulo.

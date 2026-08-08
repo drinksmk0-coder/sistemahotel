@@ -35,6 +35,10 @@ function parseReservationFromText(text, url) {
   const explicitRoom = after(['Tipo de quarto', 'Room type', 'Acomodação']);
   const roomLine = lines.find((line) => /^(?:\d+\s+)?(?:quarto|suíte|suite|apartamento|chalé|chale|studio|estúdio)\b/i.test(line) || /\b(?:room|suite|apartment|studio)\s*$/i.test(stripCancellation(line) || ''));
   const roomType = stripCancellation(explicitRoom || roomLine)?.replace(/^\d+\s+/, '') || null;
+  const phoneLabels = ['Telefone', 'Telefone do hóspede', 'Número de telefone', 'Phone', 'Phone number', 'Guest phone', 'Mobile phone'];
+  const phoneCandidate = after(phoneLabels, 4);
+  const phoneDigits = clean(phoneCandidate).replace(/\D/g, '');
+  const guestPhone = phoneDigits.length >= 8 && phoneDigits.length <= 15 ? phoneCandidate : null;
 
   return {
     source: 'booking_extranet_local_agent',
@@ -42,6 +46,7 @@ function parseReservationFromText(text, url) {
     page_url: url,
     booking_code: code,
     guest_name: after(['Nome do hóspede', 'Guest name', 'Hóspede principal']) || after(['Reservado por', 'Booked by']),
+    guest_phone: guestPhone,
     checkin_text: after(['Check-in', 'Entrada', 'Arrival'], 2),
     checkout_text: after(['Check-out', 'Saída', 'Departure'], 2),
     total_text: after(['Preço total', 'Valor total', 'Total price', 'Total da reserva']),
@@ -53,7 +58,7 @@ function parseReservationFromText(text, url) {
 }
 
 function fingerprint(payload) {
-  return [payload.booking_code, payload.status_text, payload.checkin_text, payload.checkout_text, payload.total_text].map((v) => clean(v)).join('|');
+  return [payload.booking_code, payload.status_text, payload.checkin_text, payload.checkout_text, payload.total_text, payload.guest_phone].map((v) => clean(v)).join('|');
 }
 
 function isSafeToSend(payload) {
@@ -139,6 +144,11 @@ export async function startBookingWatcher(cfg) {
         try {
           await detail.goto(link, { waitUntil: 'domcontentloaded', timeout: 60000 });
           await detail.waitForTimeout(700);
+          const revealPhone = detail.locator('button, a, [role="button"]').filter({ hasText: /mostrar|exibir|revelar|show/i }).filter({ hasText: /telefone|phone/i }).first();
+          if (await revealPhone.count()) {
+            await revealPhone.click().catch(() => {});
+            await detail.waitForTimeout(500);
+          }
           const text = await detail.locator('body').innerText();
           const payload = parseReservationFromText(text, detail.url());
           if (isSafeToSend(payload)) await send(payload);
