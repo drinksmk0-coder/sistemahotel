@@ -3,6 +3,7 @@ import { ExecutiveDashboardFinalPolish } from "@/components/executive/ExecutiveD
 import { ExecutiveDashboardInteractions } from "@/components/executive/ExecutiveDashboardInteractions";
 import { ExecutiveDashboardReference } from "@/components/executive/ExecutiveDashboardReference";
 import { ExecutiveDashboardUiGuard } from "@/components/executive/ExecutiveDashboardUiGuard";
+import { ExecutiveDataCoverageNotice } from "@/components/executive/ExecutiveDataCoverageNotice";
 import { ExecutiveDonutLegendStandardizer } from "@/components/executive/ExecutiveDonutLegendStandardizer";
 import { ExecutiveRevenueExpenseGopChart } from "@/components/executive/ExecutiveRevenueExpenseGopChart";
 import { ExecutiveStrategyScorecardPortal } from "@/components/executive/ExecutiveStrategyScorecardPortal";
@@ -23,6 +24,7 @@ export function ExecutiveBiDashboardReadable() {
       data-executive-dashboard
     >
       <ExecutiveDashboardReference />
+      <ExecutiveDataCoverageNotice />
       <ExecutiveStrategyScorecardPortal />
       <ExecutiveDashboardInteractions />
       <ExecutiveRevenueExpenseGopChart />
