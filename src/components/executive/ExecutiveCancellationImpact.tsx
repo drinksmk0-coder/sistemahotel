@@ -28,11 +28,12 @@ type ReservationRow = {
 };
 type RoomRow = { numero: number; configuracao: string | null };
 type ClientRow = { id: string; estado: string | null };
-type BookingCancellationRow = {
+type BookingImpactRow = {
   booking_code: string;
   reservation_id: string | null;
   checkin_text: string | null;
   total_text: string | null;
+  event_type: "cancellation_details" | "no_show";
 };
 
 const ALL_FILTERS: Filters = {
@@ -168,9 +169,9 @@ export function ExecutiveCancellationImpact() {
           .eq("company_id", company.data!.id),
         (supabase as any)
           .from("booking_browser_events")
-          .select("booking_code,reservation_id,checkin_text,total_text")
+          .select("booking_code,reservation_id,checkin_text,total_text,event_type")
           .eq("company_id", company.data!.id)
-          .eq("event_type", "cancellation_details"),
+          .in("event_type", ["cancellation_details", "no_show"]),
       ]);
       if (reservationsResult.error) throw reservationsResult.error;
       if (roomsResult.error) throw roomsResult.error;
@@ -180,7 +181,7 @@ export function ExecutiveCancellationImpact() {
         reservations: (reservationsResult.data ?? []) as ReservationRow[],
         rooms: (roomsResult.data ?? []) as RoomRow[],
         clients: (clientsResult.data ?? []) as ClientRow[],
-        bookingCancellations: (bookingResult.data ?? []) as BookingCancellationRow[],
+        bookingImpacts: (bookingResult.data ?? []) as BookingImpactRow[],
       };
     },
   });
@@ -191,23 +192,38 @@ export function ExecutiveCancellationImpact() {
     const clientMap = new Map(query.data.clients.map((client) => [client.id, client]));
     const rows = query.data.reservations.filter((row) => matchesFilters(row, filters, roomMap, clientMap));
     const cancelledRows = rows.filter((row) => isCancelled(row.status));
-    const countedReservationIds = new Set(cancelledRows.map((row) => row.id));
-    const countedBookingCodes = new Set(cancelledRows.map((row) => String(row.codigo_externo ?? "").replace(/\D/g, "")).filter(Boolean));
+    const noShowRows = rows.filter((row) => isNoShow(row.status, row.presence_status));
     const allowExternalBooking = (filters.channel === "all" || filters.channel === "Booking.com")
       && filters.payment === "all" && filters.state === "all" && filters.room === "all" && filters.category === "all";
-    const externalBookingLoss = (allowExternalBooking ? query.data.bookingCancellations : [])
-      .map((event) => ({ ...event, checkin: parseBookingDate(event.checkin_text) }))
-      .filter((event) => event.checkin
-        && range
-        && event.checkin >= range.start
-        && event.checkin <= range.end
-        && (filters.weekday === "all" || String(parseDate(event.checkin).getUTCDay()) === filters.weekday)
-        && (!event.reservation_id || !countedReservationIds.has(event.reservation_id))
-        && !countedBookingCodes.has(String(event.booking_code).replace(/\D/g, "")))
-      .reduce((sum, event) => sum + parseMoney(event.total_text), 0);
+
+    const externalBookingLoss = (
+      eventType: BookingImpactRow["event_type"],
+      internalRows: ReservationRow[],
+    ) => {
+      const countedReservationIds = new Set(internalRows.map((row) => row.id));
+      const countedBookingCodes = new Set(
+        internalRows
+          .map((row) => String(row.codigo_externo ?? "").replace(/\D/g, ""))
+          .filter(Boolean),
+      );
+      return (allowExternalBooking ? query.data.bookingImpacts : [])
+        .filter((event) => event.event_type === eventType)
+        .map((event) => ({ ...event, checkin: parseBookingDate(event.checkin_text) }))
+        .filter((event) => event.checkin
+          && range
+          && event.checkin >= range.start
+          && event.checkin <= range.end
+          && (filters.weekday === "all" || String(parseDate(event.checkin).getUTCDay()) === filters.weekday)
+          && (!event.reservation_id || !countedReservationIds.has(event.reservation_id))
+          && !countedBookingCodes.has(String(event.booking_code).replace(/\D/g, "")))
+        .reduce((sum, event) => sum + parseMoney(event.total_text), 0);
+    };
+
     return {
-      cancelled: cancelledRows.reduce((sum, row) => sum + number(row.valor_total), 0) + externalBookingLoss,
-      noShow: rows.filter((row) => isNoShow(row.status, row.presence_status)).reduce((sum, row) => sum + number(row.valor_total), 0),
+      cancelled: cancelledRows.reduce((sum, row) => sum + number(row.valor_total), 0)
+        + externalBookingLoss("cancellation_details", cancelledRows),
+      noShow: noShowRows.reduce((sum, row) => sum + number(row.valor_total), 0)
+        + externalBookingLoss("no_show", noShowRows),
     };
   }, [filters, query.data, range]);
 
@@ -227,7 +243,7 @@ export function ExecutiveCancellationImpact() {
           value={impact.noShow}
           label="receita potencial perdida"
           tone="purple"
-          title="Valor bruto das reservas classificadas como no-show. Valores cobrados antecipadamente podem reduzir a perda real."
+          title="Valor bruto das reservas classificadas como no-show, incluindo eventos confirmados do Booking mesmo quando não existe UH interna vinculada. Valores cobrados antecipadamente podem reduzir a perda real."
         />,
         noShowHost,
       )}
@@ -310,6 +326,8 @@ function parseMoney(value: unknown) {
 }
 function parseBookingDate(value: unknown) {
   const text = String(value ?? "").toLocaleLowerCase("pt-BR");
+  const iso = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
   const months: Record<string, string> = {
     jan: "01", fev: "02", mar: "03", abr: "04", mai: "05", jun: "06",
     jul: "07", ago: "08", set: "09", out: "10", nov: "11", dez: "12",
