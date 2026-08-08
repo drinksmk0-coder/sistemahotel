@@ -56,3 +56,18 @@ patch("src/routes/_authenticated/vendas.tsx", [
     '  const [room, setRoom] = useState<number | null>(initialRoom ?? rooms[0]?.numero ?? null);',
   ],
 ]);
+
+patch("src/components/AppLayout.tsx", [
+  [
+    '  | "Inteligência"\n  | "Configurações";',
+    '  | "Inteligência"\n  | "Configurações"\n  | "Plataforma";',
+  ],
+  [
+    '  "Inteligência",\n  "Configurações",\n];',
+    '  "Inteligência",\n  "Configurações",\n  "Plataforma",\n];',
+  ],
+  [
+    'const PLATFORM_ADMIN_TAB: NavigationItem = {\n  to: "/admin-plataforma",\n  label: "Administração HospedaMais",\n  icon: ShieldCheck,\n  roles: ["dono"],\n  group: "Configurações",\n};',
+    'const PLATFORM_ADMIN_TAB: NavigationItem = {\n  to: "/admin-plataforma",\n  label: "Administração HospedaMais",\n  icon: ShieldCheck,\n  roles: ["dono"],\n  group: "Plataforma",\n};',
+  ],
+]);
