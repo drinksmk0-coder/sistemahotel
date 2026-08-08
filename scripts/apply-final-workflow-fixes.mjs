@@ -71,3 +71,5 @@ patch("src/components/AppLayout.tsx", [
     'const PLATFORM_ADMIN_TAB: NavigationItem = {\n  to: "/admin-plataforma",\n  label: "Administração HospedaMais",\n  icon: ShieldCheck,\n  roles: ["dono"],\n  group: "Plataforma",\n};',
   ],
 ]);
+
+await import("./fix-booking-noshow-dashboard.mjs");
