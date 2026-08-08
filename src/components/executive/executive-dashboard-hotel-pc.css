@@ -165,6 +165,43 @@
   }
 }
 
+/* No celular, a página inteira é o único contêiner vertical. A regra fica no
+   último arquivo carregado para não ser anulada pelos ajustes de desktop. */
+@media (max-width: 639px) {
+  html:has([data-executive-dashboard]),
+  body:has([data-executive-dashboard]) {
+    height: auto !important;
+    min-height: 100% !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto !important;
+    touch-action: pan-y !important;
+  }
+
+  body:has([data-executive-dashboard]) > #root,
+  body:has([data-executive-dashboard]) .app-main,
+  .executive-readable-root,
+  .executive-readable-root > .executive-dashboard-shell {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    overscroll-behavior-y: auto !important;
+    touch-action: pan-y !important;
+  }
+
+  body:has([data-executive-dashboard]) .app-main {
+    min-height: 100dvh !important;
+  }
+
+  .executive-readable-root {
+    scrollbar-gutter: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 @media print {
   .executive-readable-root [data-executive-goal-grid],
   .executive-readable-root [data-executive-kpi-grid] {
