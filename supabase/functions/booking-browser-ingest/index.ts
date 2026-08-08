@@ -40,12 +40,43 @@ Deno.serve(async (request) => {
     return respond({ ok: false, error: "Invalid connector token" }, 401);
   }
 
-  const body = await request.json().catch(() => null) as { company_id?: string; payload?: BookingPayload } | null;
+  const body = await request.json().catch(() => null) as {
+    company_id?: string;
+    action?: string;
+    payload?: BookingPayload;
+  } | null;
   const companyId = String(body?.company_id ?? "").trim();
+
+  if (!companyId) {
+    return respond({ ok: false, error: "company_id é obrigatório" }, 400);
+  }
+
+  if (body?.action === "list_known_reservations") {
+    const { data, error } = await supabase
+      .from("booking_browser_events")
+      .select("booking_code,page_url,captured_at")
+      .eq("company_id", companyId)
+      .eq("event_type", "reservation_details")
+      .not("page_url", "is", null)
+      .order("captured_at", { ascending: false })
+      .limit(200);
+    if (error) return respond({ ok: false, error: error.message }, 500);
+
+    const seen = new Set<string>();
+    const reservations = (data ?? []).flatMap((row) => {
+      const code = String(row.booking_code ?? "").replace(/\D/g, "");
+      const pageUrl = String(row.page_url ?? "").trim();
+      if (!code || seen.has(code) || !/^https:\/\/admin\.booking\.com\//i.test(pageUrl)) return [];
+      seen.add(code);
+      return [{ booking_code: code, page_url: pageUrl }];
+    });
+    return respond({ ok: true, reservations });
+  }
+
   const payload = body?.payload;
   const bookingCode = String(payload?.booking_code ?? "").replace(/\D/g, "");
 
-  if (!companyId || !bookingCode) {
+  if (!bookingCode) {
     return respond({ ok: false, error: "company_id e booking_code são obrigatórios" }, 400);
   }
   if (!/^https:\/\/admin\.booking\.com\//i.test(String(payload?.page_url ?? ""))) {
