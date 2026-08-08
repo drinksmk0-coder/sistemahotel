@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Coffee, Sparkles, Wrench } from "lucide-react";
+import { CalendarDays, CheckCircle2, Coffee, Minus, Plus, Sparkles, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useRole, useSession } from "@/hooks/use-auth";
@@ -24,6 +24,10 @@ type BoardRow = {
   pessoas: number;
   checkin: string | null;
   checkout: string | null;
+  breakfast_reservation_id: string | null;
+  breakfast_guests: number;
+  breakfast_served: number;
+  breakfast_remaining: number;
   ocorrencias_ativas: number;
   principal_ocorrencia: string | null;
 };
@@ -100,6 +104,25 @@ export function RoomOperationsBoard() {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const updateBreakfast = useMutation({
+    mutationFn: async ({ reservationId, servedGuests }: { reservationId: string; servedGuests: number }) => {
+      const { error } = await (supabase as any).rpc("set_breakfast_served", {
+        p_company_id: company.data!.id,
+        p_reservation_id: reservationId,
+        p_service_date: date,
+        p_served_guests: servedGuests,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Café atualizado");
+      void queryClient.invalidateQueries({
+        queryKey: ["operational-room-board", company.data?.id],
+      });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   const rows = useMemo(() => {
     const source = board.data ?? [];
     return source
@@ -120,6 +143,7 @@ export function RoomOperationsBoard() {
 
   const summary = useMemo(() => {
     const source = board.data ?? [];
+    const breakfastRows = source.filter((row) => row.breakfast_reservation_id);
     return {
       occupied: source.filter((row) => row.ocupacao_status === "ocupado").length,
       guests: source
@@ -133,6 +157,11 @@ export function RoomOperationsBoard() {
         (sum, row) => sum + Number(row.ocorrencias_ativas || 0),
         0,
       ),
+      breakfastServed: breakfastRows.reduce((sum, row) => sum + Number(row.breakfast_served || 0), 0),
+      breakfastRemaining: breakfastRows.reduce((sum, row) => sum + Number(row.breakfast_remaining || 0), 0),
+      breakfastCompleteRooms: breakfastRows.filter(
+        (row) => Number(row.breakfast_guests || 0) > 0 && Number(row.breakfast_remaining || 0) === 0,
+      ).length,
     };
   }, [board.data]);
 
@@ -163,7 +192,9 @@ export function RoomOperationsBoard() {
                 : "Quadro de Governança"}
             </h1>
             <p className="text-[10px] text-muted-foreground">
-              Somente informações operacionais. Nomes, pagamentos e valores não são carregados.
+              {isBreakfast
+                ? "Marque quantos hóspedes de cada quarto já tomaram café. A informação fica sincronizada entre os aparelhos."
+                : "Somente informações operacionais. Nomes, pagamentos e valores não são carregados."}
             </p>
           </div>
           <label className="relative">
@@ -194,16 +225,33 @@ export function RoomOperationsBoard() {
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
           <Summary label="Ocupados" value={summary.occupied} />
           <Summary label="Hóspedes" value={summary.guests} />
-          <Summary label="Chegadas" value={summary.arrivals} />
-          <Summary label="Limpeza" value={summary.cleaning} />
-          <Summary label="Manutenção" value={summary.maintenance} />
-          <Summary label="Ocorrências" value={summary.issues} danger={summary.issues > 0} />
+          {isBreakfast ? (
+            <>
+              <Summary label="Já tomaram café" value={summary.breakfastServed} />
+              <Summary label="Faltam café" value={summary.breakfastRemaining} danger={summary.breakfastRemaining > 0} />
+              <Summary label="Quartos concluídos" value={summary.breakfastCompleteRooms} />
+              <Summary label="Ocorrências" value={summary.issues} danger={summary.issues > 0} />
+            </>
+          ) : (
+            <>
+              <Summary label="Chegadas" value={summary.arrivals} />
+              <Summary label="Limpeza" value={summary.cleaning} />
+              <Summary label="Manutenção" value={summary.maintenance} />
+              <Summary label="Ocorrências" value={summary.issues} danger={summary.issues > 0} />
+            </>
+          )}
         </div>
       </section>
 
       <section className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
         {rows.map((room) => {
           const style = STATUS[room.ocupacao_status];
+          const breakfastExpected = Number(room.breakfast_guests || 0);
+          const breakfastServed = Number(room.breakfast_served || 0);
+          const breakfastRemaining = Number(room.breakfast_remaining || 0);
+          const breakfastComplete = Boolean(
+            room.breakfast_reservation_id && breakfastExpected > 0 && breakfastRemaining === 0,
+          );
           return (
             <article
               key={room.numero}
@@ -239,6 +287,60 @@ export function RoomOperationsBoard() {
                 <div className="mt-3 flex items-center gap-2 rounded-lg bg-white/60 px-2 py-1.5 text-xs font-bold text-pine-dark">
                   {isBreakfast ? <Coffee className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
                   {room.pessoas || 0} hóspede(s)
+                </div>
+              )}
+
+              {isBreakfast && room.ocupacao_status === "ocupado" && (
+                <div className={`mt-2 rounded-lg border px-2.5 py-2 ${breakfastComplete ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
+                  {!room.breakfast_reservation_id ? (
+                    <p className="text-[10px] font-bold">Café não previsto para esta hospedagem nesta data.</p>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="flex items-center gap-1 text-[10px] font-black uppercase">
+                            {breakfastComplete && <CheckCircle2 className="h-3.5 w-3.5" />}
+                            {breakfastComplete ? "Café concluído" : "Controle do café"}
+                          </p>
+                          <p className="mt-0.5 text-xs font-bold">
+                            {breakfastServed}/{breakfastExpected} tomaram
+                            {!breakfastComplete && ` · ${breakfastRemaining} faltam`}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="grid h-8 w-8 place-items-center rounded-md border border-current/20 bg-white/80 disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label={`Diminuir cafés servidos do quarto ${room.numero}`}
+                            disabled={updateBreakfast.isPending || breakfastServed <= 0}
+                            onClick={() => updateBreakfast.mutate({ reservationId: room.breakfast_reservation_id!, servedGuests: breakfastServed - 1 })}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            className="grid h-8 w-8 place-items-center rounded-md border border-current/20 bg-white/80 disabled:cursor-not-allowed disabled:opacity-30"
+                            aria-label={`Adicionar café servido no quarto ${room.numero}`}
+                            disabled={updateBreakfast.isPending || breakfastServed >= breakfastExpected}
+                            onClick={() => updateBreakfast.mutate({ reservationId: room.breakfast_reservation_id!, servedGuests: breakfastServed + 1 })}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={`mt-2 w-full rounded-md px-2 py-1.5 text-[10px] font-black ${breakfastComplete ? "border border-emerald-300 bg-white/75 text-emerald-800" : "bg-emerald-700 text-white"}`}
+                        disabled={updateBreakfast.isPending}
+                        onClick={() => updateBreakfast.mutate({
+                          reservationId: room.breakfast_reservation_id!,
+                          servedGuests: breakfastComplete ? 0 : breakfastExpected,
+                        })}
+                      >
+                        {breakfastComplete ? "Desmarcar café" : breakfastExpected === 1 ? "✓ Hóspede tomou café" : "✓ Todos tomaram café"}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 
