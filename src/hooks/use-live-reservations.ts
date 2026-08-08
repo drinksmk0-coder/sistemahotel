@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentCompany } from "@/lib/data";
 
-const RESERVATION_REFRESH_INTERVAL_MS = 30_000;
+const OPERATION_REFRESH_INTERVAL_MS = 15_000;
 
 export function useLiveReservations() {
   const queryClient = useQueryClient();
@@ -14,16 +14,34 @@ export function useLiveReservations() {
     if (!companyId) return;
 
     const refreshOperationalData = () => {
-      queryClient.invalidateQueries({ queryKey: ["reservations", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["rooms", companyId] });
-      queryClient.invalidateQueries({ queryKey: ["sales", companyId] });
+      [
+        "reservations",
+        "rooms",
+        "sales",
+        "operational-room-board",
+        "company_members",
+        "company_invites",
+        "complaints",
+        "kitchen_items",
+        "kitchen_productions",
+        "guest_checkins",
+      ].forEach((key) => {
+        void queryClient.invalidateQueries({ queryKey: [key] });
+      });
+      void queryClient.invalidateQueries({ queryKey: ["role"] });
+    };
+
+    const refreshBoard = () => {
+      void queryClient.invalidateQueries({ queryKey: ["operational-room-board", companyId] });
+      void queryClient.invalidateQueries({ queryKey: ["reservations", companyId] });
+      void queryClient.invalidateQueries({ queryKey: ["rooms", companyId] });
     };
 
     refreshOperationalData();
 
     const intervalId = window.setInterval(
       refreshOperationalData,
-      RESERVATION_REFRESH_INTERVAL_MS,
+      OPERATION_REFRESH_INTERVAL_MS,
     );
 
     const handleVisibilityChange = () => {
@@ -35,15 +53,40 @@ export function useLiveReservations() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     const channel = supabase
-      .channel(`hotel-reservations-${companyId}`)
+      .channel(`hotel-live-${companyId}`)
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "reservations",
-          filter: `company_id=eq.${companyId}`,
-        },
+        { event: "*", schema: "public", table: "reservations", filter: `company_id=eq.${companyId}` },
+        refreshBoard,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "rooms", filter: `company_id=eq.${companyId}` },
+        refreshBoard,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sales", filter: `company_id=eq.${companyId}` },
+        refreshOperationalData,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "company_members", filter: `company_id=eq.${companyId}` },
+        refreshOperationalData,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "complaints", filter: `company_id=eq.${companyId}` },
+        refreshOperationalData,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "kitchen_items", filter: `company_id=eq.${companyId}` },
+        refreshOperationalData,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "kitchen_productions", filter: `company_id=eq.${companyId}` },
         refreshOperationalData,
       )
       .subscribe();
