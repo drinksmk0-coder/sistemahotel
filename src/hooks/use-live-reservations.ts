@@ -25,6 +25,7 @@ export function useLiveReservations() {
         "kitchen_items",
         "kitchen_productions",
         "guest_checkins",
+        "breakfast_attendance",
       ].forEach((key) => {
         void queryClient.invalidateQueries({ queryKey: [key] });
       });
@@ -62,6 +63,11 @@ export function useLiveReservations() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "rooms", filter: `company_id=eq.${companyId}` },
+        refreshBoard,
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "breakfast_attendance", filter: `company_id=eq.${companyId}` },
         refreshBoard,
       )
       .on(
