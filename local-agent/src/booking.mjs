@@ -89,7 +89,44 @@ export async function startBookingWatcher(cfg) {
   });
   let page = context.pages()[0] || await context.newPage();
   const sent = new Map();
+  const knownLinks = new Map();
+  const lastScanned = new Map();
+  let lastKnownRefresh = 0;
   let navigationWarningShown = false;
+
+  const refreshKnownReservations = async () => {
+    if (Date.now() - lastKnownRefresh < 30 * 60_000) return;
+    const response = await fetch(cfg.endpoint, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-booking-connector-token': cfg.token,
+      },
+      body: JSON.stringify({ company_id: cfg.companyId, action: 'list_known_reservations' }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    for (const row of body.reservations || []) {
+      const code = String(row.booking_code || '').replace(/\D/g, '');
+      const pageUrl = String(row.page_url || '');
+      if (code && pageUrl.startsWith('https://admin.booking.com/')) knownLinks.set(code, pageUrl);
+    }
+    lastKnownRefresh = Date.now();
+  };
+
+  const withCurrentSession = (storedUrl, currentUrl) => {
+    try {
+      const target = new URL(storedUrl);
+      const current = new URL(currentUrl);
+      for (const key of ['ses', 'lang', 'hotel_id']) {
+        const value = current.searchParams.get(key);
+        if (value) target.searchParams.set(key, value);
+      }
+      return target.toString();
+    } catch {
+      return storedUrl;
+    }
+  };
 
   const send = async (payload) => {
     const key = fingerprint(payload);
@@ -132,10 +169,19 @@ export async function startBookingWatcher(cfg) {
         return;
       }
 
-      const reservationLinks = await page.locator('a[href*="res_id="]').evaluateAll((nodes) => [...new Set(nodes.map((n) => n.href).filter(Boolean))]);
-      if (!reservationLinks.length && /res_id=/.test(page.url())) reservationLinks.push(page.url());
+      await refreshKnownReservations().catch((error) => {
+        console.warn('[Booking] Não foi possível atualizar a lista histórica:', error?.message || error);
+      });
+      const visibleLinks = await page.locator('a[href*="res_id="]').evaluateAll((nodes) => [...new Set(nodes.map((n) => n.href).filter(Boolean))]);
+      if (!visibleLinks.length && /[?&]res_id=/.test(page.url())) visibleLinks.push(page.url());
+      for (const link of visibleLinks) {
+        try {
+          const code = new URL(link).searchParams.get('res_id')?.replace(/\D/g, '');
+          if (code) knownLinks.set(code, link);
+        } catch {}
+      }
 
-      if (!reservationLinks.length) {
+      if (!knownLinks.size) {
         const reservationsMenu = page.locator('a, button').filter({ hasText: /^(reservas|reservations)$/i }).first();
         if (await reservationsMenu.count()) {
           console.log('[Booking] Abrindo o menu Reservas automaticamente...');
@@ -154,9 +200,13 @@ export async function startBookingWatcher(cfg) {
       navigationWarningShown = false;
       const currentPageIsReservation = /[?&]res_id=/.test(page.url());
       const detail = currentPageIsReservation ? page : await context.newPage();
+      const reservationLinks = [...knownLinks.entries()]
+        .sort(([codeA], [codeB]) => (lastScanned.get(codeA) || 0) - (lastScanned.get(codeB) || 0))
+        .slice(0, cfg.maxReservationsPerCycle);
 
-      for (const link of reservationLinks.slice(0, cfg.maxReservationsPerCycle)) {
+      for (const [knownCode, storedLink] of reservationLinks) {
         try {
+          const link = withCurrentSession(storedLink, page.url());
           await detail.goto(link, { waitUntil: 'domcontentloaded', timeout: 60000 });
           await detail.waitForTimeout(700);
           const revealPhone = detail.locator('button, a, [role="button"]').filter({ hasText: /mostrar|exibir|revelar|show/i }).filter({ hasText: /telefone|phone/i }).first();
@@ -166,9 +216,12 @@ export async function startBookingWatcher(cfg) {
           }
           const text = await detail.locator('body').innerText();
           const payload = parseReservationFromText(text, detail.url());
+          if (payload.booking_code) knownLinks.set(payload.booking_code, detail.url());
           if (isSafeToSend(payload)) await send(payload);
         } catch (error) {
           console.error('[Booking] Falha ao processar reserva:', error?.message || error);
+        } finally {
+          lastScanned.set(knownCode, Date.now());
         }
       }
       if (!currentPageIsReservation) await detail.close().catch(() => {});
