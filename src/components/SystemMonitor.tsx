@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useRole, useSession } from "@/hooks/use-auth";
+import { useLiveReservations } from "@/hooks/use-live-reservations";
 import { useCurrentCompany } from "@/lib/data";
 import { BRAND_STORAGE_PREFIX } from "@/lib/brand";
 import { ReceptionSalesCorrectionPanel } from "@/components/ReceptionSalesCorrectionPanel";
@@ -9,6 +10,7 @@ import { ReceptionSalesCorrectionPanel } from "@/components/ReceptionSalesCorrec
 const DELETE_ACTION_RE = /\b(excluir|exclus[aã]o|apagar|remover|delete)\b/i;
 
 export function SystemMonitor() {
+  useLiveReservations();
   const company = useCurrentCompany();
   const { user } = useSession();
   const { data: role } = useRole(user);
