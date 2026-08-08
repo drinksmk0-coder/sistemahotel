@@ -73,3 +73,4 @@ patch("src/components/AppLayout.tsx", [
 ]);
 
 await import("./fix-booking-noshow-dashboard.mjs");
+await import("./apply-guest-data-quality.mjs");
