@@ -1,0 +1,173 @@
+/* Ajuste por largura útil para o computador da recepção e desktops equivalentes.
+   As regras usam o contêiner do painel: sidebar, escala do Windows e barras do
+   navegador deixam de alterar a composição de forma imprevisível. */
+
+@container (min-width: 74rem) {
+  .executive-readable-root [data-executive-header] {
+    display: grid !important;
+    grid-template-columns: minmax(15rem, 0.62fr) minmax(0, 1.38fr) !important;
+    align-items: center !important;
+    gap: 0.75rem !important;
+    padding: 0.7rem 0.9rem !important;
+  }
+
+  .executive-readable-root [data-executive-header] > div:last-child {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+    gap: 0.45rem !important;
+  }
+
+  .executive-readable-root [data-executive-header] > div:last-child > label {
+    min-width: 20rem !important;
+    flex: 1 1 23rem !important;
+  }
+
+  .executive-readable-root [data-executive-header] > div:last-child > label > div {
+    width: 100% !important;
+  }
+
+  .executive-readable-root [data-executive-header] input[type="date"] {
+    width: min(8.5rem, 42%) !important;
+    flex: 1 1 0 !important;
+  }
+
+  .executive-readable-root .executive-dashboard-controls-host {
+    flex: 0 0 auto !important;
+    white-space: nowrap;
+  }
+
+  /* A tela de 1536 px do hotel comporta os cinco objetivos sem empilhamento. */
+  .executive-readable-root [data-executive-goal-grid] {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .executive-readable-root [data-executive-goal-card] {
+    min-height: 13.25rem !important;
+    padding: 0.68rem !important;
+  }
+
+  .executive-readable-root [data-executive-goal-card] h3 {
+    min-height: 2rem !important;
+    font-size: 0.79rem !important;
+  }
+
+  .executive-readable-root [data-executive-goal-card] > p:nth-of-type(2) {
+    min-height: 2.15rem !important;
+    font-size: 0.59rem !important;
+    line-height: 0.9rem !important;
+  }
+
+  .executive-readable-root [data-executive-goal-metric] {
+    padding: 0.55rem !important;
+  }
+
+  .executive-readable-root [data-executive-goal-metric] strong {
+    font-size: 1rem !important;
+  }
+
+  .executive-readable-root [data-executive-goal-action] {
+    min-height: 3.75rem !important;
+    padding: 0.5rem 0.55rem !important;
+  }
+
+  .executive-readable-root [data-executive-goal-action] > p:last-child {
+    font-size: 0.59rem !important;
+    line-height: 0.9rem !important;
+  }
+
+  /* Os sete indicadores permanecem na mesma faixa e nenhum valor é cortado. */
+  .executive-readable-root [data-executive-kpi-grid] {
+    grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
+  }
+
+  .executive-readable-root [data-executive-kpi-grid] article {
+    min-height: 5rem !important;
+    gap: 0.5rem !important;
+    padding: 0.6rem !important;
+  }
+
+  .executive-readable-root [data-executive-kpi-grid] article > div:first-child {
+    width: 2.15rem !important;
+    height: 2.15rem !important;
+  }
+
+  .executive-readable-root [data-executive-kpi-grid] article strong {
+    font-size: 0.9rem !important;
+  }
+
+  .executive-readable-root [data-executive-kpi-grid] article p,
+  .executive-readable-root [data-executive-kpi-grid] article span {
+    font-size: 0.56rem !important;
+  }
+
+  .executive-readable-root [data-executive-detail-grid="financial"],
+  .executive-readable-root [data-executive-detail-grid="operations"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .executive-readable-root [data-executive-progress-bars="true"] > div {
+    grid-template-columns: minmax(6.25rem, 0.95fr) minmax(5rem, 1.55fr) minmax(3rem, auto) !important;
+  }
+
+  .executive-readable-root [data-executive-progress-bars="true"] strong {
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  .executive-readable-root [data-executive-donut-layout="true"] {
+    grid-template-columns: minmax(9.5rem, 0.9fr) minmax(0, 1.1fr) !important;
+  }
+
+  .executive-readable-root [data-executive-donut-chart="true"] {
+    min-width: 9.5rem !important;
+    height: clamp(12.5rem, 20vh, 15.5rem) !important;
+  }
+
+  .executive-readable-root [data-executive-map-layout="true"] {
+    grid-template-columns: minmax(12rem, 1.08fr) minmax(10rem, 0.92fr) !important;
+  }
+}
+
+/* Faixa intermediária: não comprime o conteúdo; reorganiza com equilíbrio. */
+@container (min-width: 56rem) and (max-width: 73.999rem) {
+  .executive-readable-root [data-executive-goal-grid] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .executive-readable-root [data-executive-kpi-grid] {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  }
+
+  .executive-readable-root [data-executive-detail-grid] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Em monitores baixos, reduz altura mantendo a leitura e o número de colunas. */
+@media (min-width: 1184px) and (max-height: 900px) {
+  .executive-readable-root [data-executive-goal-card] {
+    min-height: 11.75rem !important;
+  }
+
+  .executive-readable-root [data-executive-goal-action] {
+    min-height: 3.25rem !important;
+  }
+
+  .executive-readable-root [data-executive-chart="main"] {
+    height: 15rem !important;
+  }
+
+  .executive-readable-root [data-executive-chart="detail"] {
+    height: 12rem !important;
+  }
+}
+
+@media print {
+  .executive-readable-root [data-executive-goal-grid],
+  .executive-readable-root [data-executive-kpi-grid] {
+    grid-template-columns: inherit;
+  }
+}
