@@ -9,7 +9,7 @@ export type ExportScope =
 
 export function ExportPeriodButton({
   onExport,
-  label = "Excel",
+  label = "CSV",
 }: {
   onExport: (scope: ExportScope) => void;
   label?: string;
@@ -27,10 +27,10 @@ export function ExportPeriodButton({
       >
         <Download className="h-4 w-4" /> {label}
       </button>
-      <Modal open={open} onClose={() => setOpen(false)} title="Exportar para Excel">
+      <Modal open={open} onClose={() => setOpen(false)} title="Exportar para CSV">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Escolha entre uma data específica ou todo o histórico disponível.
+            O arquivo CSV é moderno, leve e abre normalmente no Excel. Escolha uma data específica ou todo o histórico disponível.
           </p>
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -71,7 +71,7 @@ export function ExportPeriodButton({
                 setOpen(false);
               }}
             >
-              Baixar Excel
+              Baixar CSV
             </button>
           </div>
         </div>
