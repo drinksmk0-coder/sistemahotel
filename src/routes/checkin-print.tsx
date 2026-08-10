@@ -2,28 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Loader2, Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { clearFnrhPrintSession, loadFnrhPrintSession, type FnrhPrintData } from "@/lib/fnrh-print-session";
 
 export const Route = createFileRoute("/checkin-print")({ ssr: false, component: CheckinPrint });
 
-type InviteData = {
-  status: string;
-  submitted_at: string | null;
-  form_data: Record<string, string>;
-  signature_data_url: string | null;
-  company_name: string;
-  company_document?: string | null;
-  company_email?: string | null;
-  company_phone?: string | null;
-  company_address?: string | null;
-  company_city?: string | null;
-  company_state?: string | null;
-  reservation_code: string;
-  room: number;
-  checkin: string;
-  checkout: string;
-  adults: number;
-  children: number;
-};
+type InviteData = FnrhPrintData;
 
 type Companion = {
   nome?: string;
@@ -63,31 +46,64 @@ const TRANSPORT_MAP: Record<string, string> = {
 };
 
 function CheckinPrint() {
-  const token = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("token") : null;
+  const [source] = useState(() => {
+    if (typeof window === "undefined") return { local: false, token: null as string | null };
+    const params = new URLSearchParams(window.location.search);
+    return {
+      local: params.get("local") === "1",
+      token: params.get("token"),
+    };
+  });
   const [data, setData] = useState<InviteData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!token) {
+    if (source.local) {
+      const localData = loadFnrhPrintSession();
+      if (!localData) {
+        setError("A cópia temporária desta FNRH não está mais disponível. A recepção pode imprimir a ficha pelo acesso autenticado.");
+        setLoading(false);
+        return;
+      }
+
+      setData(localData);
+      setLoading(false);
+      window.history.replaceState(window.history.state, "", "/checkin-print");
+
+      const clearOnLeave = () => clearFnrhPrintSession();
+      window.addEventListener("pagehide", clearOnLeave, { once: true });
+      return () => window.removeEventListener("pagehide", clearOnLeave);
+    }
+
+    if (!source.token) {
       setError("Link de impressão incompleto.");
       setLoading(false);
       return;
     }
 
     (supabase as any)
-      .rpc("get_guest_checkin", { p_token: token })
+      .rpc("get_guest_checkin", { p_token: source.token })
       .then(({ data: payload, error: requestError }: { data: InviteData | null; error: Error | null }) => {
         if (requestError || !payload) {
-          setError("Não foi possível carregar a ficha assinada.");
+          setError("Não foi possível carregar a ficha assinada. Use o acesso autenticado da recepção.");
           return;
         }
         setData(payload);
       })
       .finally(() => setLoading(false));
-  }, [token]);
+  }, [source]);
 
   const companions = useMemo(() => parseCompanions(data?.form_data?.acompanhantes_detalhes), [data]);
+
+  function printDocument() {
+    window.print();
+    if (source.local) {
+      clearFnrhPrintSession();
+      setData(null);
+      setError("A cópia temporária foi encerrada após a tentativa de impressão. A recepção pode reimprimir pela área autenticada.");
+    }
+  }
 
   if (loading) {
     return (
@@ -100,7 +116,7 @@ function CheckinPrint() {
   if (error || !data) {
     return (
       <main className="grid min-h-screen place-items-center bg-neutral-100 p-6">
-        <div className="rounded-lg border bg-white p-6 text-center text-sm text-red-700">{error}</div>
+        <div className="max-w-md rounded-lg border bg-white p-6 text-center text-sm text-red-700">{error}</div>
       </main>
     );
   }
@@ -308,7 +324,7 @@ function CheckinPrint() {
       `}</style>
 
       <div className="no-print mx-auto mb-3 flex max-w-[210mm] justify-end px-3">
-        <button type="button" onClick={() => window.print()} className="btn-primary flex items-center gap-2">
+        <button type="button" onClick={printDocument} className="btn-primary flex items-center gap-2">
           <Printer className="h-4 w-4" /> Imprimir ou salvar em PDF
         </button>
       </div>
