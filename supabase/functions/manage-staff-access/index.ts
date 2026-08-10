@@ -14,7 +14,7 @@ type ManageBody = {
   user_id?: string;
 };
 
-const RESET_URL = "https://sistemahotel-three.vercel.app/auth?redefinir=1";
+const RESET_URL = "https://sistemahotel-two.vercel.app/auth?redefinir=1";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return json({ ok: true });
