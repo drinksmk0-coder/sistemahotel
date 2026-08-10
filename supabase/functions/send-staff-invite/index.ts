@@ -17,7 +17,7 @@ type InviteBody = {
 
 type AdminClient = ReturnType<typeof createClient>;
 
-const FALLBACK_APP_URL = "https://sistemahotel-three.vercel.app";
+const APP_URL = "https://sistemahotel-two.vercel.app";
 const BRAND_NAME = "HospedaMais";
 
 Deno.serve(async (req) => {
@@ -310,36 +310,8 @@ function json(payload: unknown, status = 200) {
   });
 }
 
-function safeSystemRedirect(value?: string) {
-  const configured = normalizeAppUrl(
-    Deno.env.get("HOSPEDAMAIS_APP_URL")?.trim() || FALLBACK_APP_URL,
-  );
-  const allowedHosts = new Set([
-    configured.hostname,
-    "sistemahotel-three.vercel.app",
-    "sistemahotel-maivk.vercel.app",
-  ]);
-
-  try {
-    const candidate = new URL(value || configured.toString());
-    if (!allowedHosts.has(candidate.hostname)) {
-      return `${configured.origin}/auth?convite=1`;
-    }
-    candidate.pathname = "/auth";
-    candidate.search = "?convite=1";
-    candidate.hash = "";
-    return candidate.toString();
-  } catch {
-    return `${configured.origin}/auth?convite=1`;
-  }
-}
-
-function normalizeAppUrl(value: string) {
-  try {
-    return new URL(value);
-  } catch {
-    return new URL(FALLBACK_APP_URL);
-  }
+function safeSystemRedirect(_value?: string) {
+  return `${APP_URL}/auth?convite=1`;
 }
 
 async function findUserByEmail(admin: AdminClient, email: string) {
