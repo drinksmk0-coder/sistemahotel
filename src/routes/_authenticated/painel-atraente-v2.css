@@ -21,12 +21,6 @@ body:has(.painel-v2-shell:fullscreen) {
   overflow: hidden;
 }
 
-.painel-v2-summary {
-  display: grid;
-  gap: .45rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
 .painel-v2-kpi {
   min-width: 0;
   border: 1px solid var(--v2-line);
@@ -46,103 +40,494 @@ body:has(.painel-v2-shell:fullscreen) {
   font-weight: 850;
 }
 
-.painel-v2-chart {
-  height: 13rem;
+/* V4: o próprio painel vira um container responsivo. */
+.painel-v4-shell {
+  container-type: inline-size;
+  container-name: hotel-bi;
+  width: 100%;
 }
 
-.painel-v2-compare-chart {
-  height: 11.5rem;
+.painel-v4-header {
+  position: relative;
+  z-index: 5;
 }
 
-.painel-v2-comparison-grid {
+.painel-v4-header-inner {
+  padding: clamp(.48rem, .7vw, .8rem) clamp(.6rem, 1vw, 1.15rem);
+}
+
+.painel-v4-tabs {
+  order: 3;
+  display: flex;
+  width: 100%;
+  gap: .3rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  padding-top: .2rem;
+}
+
+.painel-v4-tab,
+.painel-v4-action {
+  display: inline-flex;
+  height: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: .55rem;
+  padding-inline: .65rem;
+  font-size: .625rem;
+  line-height: 1;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: background-color .16s ease, color .16s ease, opacity .16s ease;
+}
+
+.painel-v4-tab:hover,
+.painel-v4-action:hover {
+  background: color-mix(in srgb, var(--primary-foreground) 10%, transparent);
+}
+
+.painel-v4-tab.is-active {
+  border-color: transparent;
+  background: var(--primary-foreground);
+  color: var(--primary);
+}
+
+.painel-v4-content {
+  width: 100%;
+  gap: clamp(.45rem, .75vw, .8rem);
+  padding: clamp(.5rem, .8vw, 1rem);
+}
+
+.painel-v4-panel {
+  padding: clamp(.55rem, .75vw, .85rem);
+  min-width: 0;
+}
+
+.painel-v4-kpi-grid,
+.painel-v4-card-grid,
+.painel-v4-channel-grid,
+.painel-v4-two-grid,
+.painel-v4-guest-grid,
+.painel-v4-expense-grid,
+.painel-v4-summary-grid,
+.painel-v4-room-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(.4rem, .65vw, .7rem);
+  min-width: 0;
+}
+
+.painel-v4-kpi-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+}
+
+.painel-v4-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15.5rem), 1fr));
+}
+
+.painel-v4-channel-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr));
+}
+
+.painel-v4-two-grid,
+.painel-v4-guest-grid,
+.painel-v4-expense-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 25rem), 1fr));
+}
+
+.painel-v4-summary-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.painel-v4-room-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.painel-v4-room-rankings {
+  display: grid;
+  gap: clamp(.4rem, .65vw, .7rem);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+}
+
+.painel-v4-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
   gap: .4rem;
 }
 
-.painel-v2-table-row td {
-  padding-top: .48rem;
-  padding-bottom: .48rem;
+.painel-v4-kpi {
+  padding: clamp(.42rem, .62vw, .7rem);
 }
 
-@media (min-width: 768px) {
-  .painel-v2-summary {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .painel-v2-comparison-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+.painel-v4-kpi-hint {
+  font-size: clamp(.46rem, .55vw, .58rem);
 }
 
-@media (min-width: 1180px) {
-  .painel-v2-summary {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-  }
-
-  .painel-v2-comparison-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
+.painel-v4-chart-small {
+  height: clamp(10rem, 19vw, 14rem);
 }
 
-@media (min-width: 1024px) and (max-height: 850px) {
-  .painel-v2-header {
-    padding-top: .55rem !important;
-    padding-bottom: .55rem !important;
+.painel-v4-chart-tall {
+  height: clamp(20rem, 34vw, 32rem);
+}
+
+.painel-v4-daily-scroll {
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.painel-v4-daily-chart {
+  width: 100%;
+  min-width: 46rem;
+  height: clamp(13rem, 25vw, 22rem);
+}
+
+.painel-v4-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem .7rem;
+  padding-top: .35rem;
+  font-size: .5rem;
+  color: var(--muted-foreground);
+}
+
+.painel-v4-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: .28rem;
+}
+
+.painel-v4-chart-legend i {
+  display: inline-block;
+  width: .8rem;
+  height: .18rem;
+  border-radius: 999px;
+}
+
+.painel-v4-donut-layout {
+  display: grid;
+  grid-template-columns: minmax(8.5rem, .92fr) minmax(0, 1.08fr);
+  align-items: center;
+  gap: .45rem;
+}
+
+.painel-v4-donut-chart {
+  height: clamp(9.5rem, 16vw, 13rem);
+  min-width: 0;
+}
+
+.painel-v4-donut-layout.is-large .painel-v4-donut-chart {
+  height: clamp(13rem, 20vw, 18rem);
+}
+
+.painel-v4-ranking {
+  display: flex;
+  flex-direction: column;
+  gap: .48rem;
+}
+
+.painel-v4-ranking-row {
+  min-width: 0;
+}
+
+.painel-v4-buyer-list {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+.painel-v4-buyer-row {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .45rem;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+  background: color-mix(in srgb, var(--background) 75%, transparent);
+  padding: .42rem .5rem;
+}
+
+.painel-v4-rank {
+  font-size: .52rem;
+  font-weight: 900;
+  color: var(--muted-foreground);
+}
+
+/* Celular: cabe em uma coluna, KPIs em dois, abas roláveis e gráfico diário preserva todos os dias. */
+@container hotel-bi (max-width: 639px) {
+  .painel-v4-header-inner {
+    padding: .48rem .5rem;
   }
 
-  .painel-v2-content {
-    gap: .45rem !important;
-    padding-top: .45rem !important;
-    padding-bottom: .6rem !important;
+  .painel-v4-actions {
+    margin-left: auto;
   }
 
-  .painel-v2-kpi {
-    padding: .38rem .46rem;
-    border-radius: .65rem;
-  }
-
-  .painel-v2-kpi-value {
-    font-size: .9rem;
-  }
-
-  .painel-v2-kpi-hint {
+  .painel-v4-action-label {
     display: none;
   }
 
-  .painel-v2-chart {
-    height: 9.8rem;
+  .painel-v4-tabs {
+    order: 3;
+    margin-inline: -.5rem;
+    width: calc(100% + 1rem);
+    padding-inline: .5rem;
   }
 
-  .painel-v2-compare-chart {
-    height: 9.7rem;
+  .painel-v4-kpi-grid,
+  .painel-v4-kpi-grid-6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .painel-v2-operations {
-    padding-top: .4rem !important;
-    padding-bottom: .4rem !important;
+  .painel-v4-kpi {
+    min-height: 4.1rem;
+  }
+
+  .painel-v2-kpi-value {
+    font-size: .92rem;
+  }
+
+  .painel-v4-card-grid,
+  .painel-v4-channel-grid,
+  .painel-v4-two-grid,
+  .painel-v4-guest-grid,
+  .painel-v4-expense-grid,
+  .painel-v4-room-grid,
+  .painel-v4-room-rankings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .painel-v4-donut-layout,
+  .painel-v4-donut-layout.is-large {
+    grid-template-columns: minmax(7.5rem, .85fr) minmax(0, 1.15fr);
+  }
+
+  .painel-v4-donut-chart,
+  .painel-v4-donut-layout.is-large .painel-v4-donut-chart {
+    height: 10.5rem;
+  }
+
+  .painel-v4-daily-chart {
+    min-width: 44rem;
+    height: 14rem;
+  }
+
+  .painel-v4-chart-tall {
+    height: 22rem;
+  }
+
+  .painel-v4-buyer-row {
+    grid-template-columns: 1.4rem minmax(0, 1fr);
+  }
+
+  .painel-v4-buyer-row > div:last-child {
+    grid-column: 2;
+    text-align: left;
   }
 }
 
-@media (min-width: 1024px) and (min-height: 851px) {
-  .painel-v2-chart {
+/* Tablet: duas colunas de análise e cabeçalho já mais horizontal. */
+@container hotel-bi (min-width: 640px) and (max-width: 1023px) {
+  .painel-v4-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .painel-v4-kpi-grid-6 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .painel-v4-tabs {
+    order: 3;
+    width: 100%;
+  }
+
+  .painel-v4-card-grid,
+  .painel-v4-two-grid,
+  .painel-v4-guest-grid,
+  .painel-v4-expense-grid,
+  .painel-v4-room-rankings {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .painel-v4-channel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .painel-v4-room-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .painel-v4-daily-chart {
+    min-width: 100%;
+  }
+}
+
+/* Notebook e desktop: resumo equilibrado, rankings lado a lado. */
+@container hotel-bi (min-width: 1024px) {
+  .painel-v4-tabs {
+    order: 0;
+    width: auto;
+    margin-left: .35rem;
+    padding-top: 0;
+  }
+
+  .painel-v4-kpi-grid {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+
+  .painel-v4-kpi-grid-6 {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .painel-v4-summary-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(22rem, .65fr);
+  }
+
+  .painel-v4-room-grid {
+    grid-template-columns: minmax(0, 1.25fr) minmax(22rem, .75fr);
+  }
+
+  .painel-v4-room-rankings {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .painel-v4-guest-grid,
+  .painel-v4-expense-grid,
+  .painel-v4-two-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .painel-v4-channel-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .painel-v4-daily-chart {
+    min-width: 100%;
+  }
+}
+
+/* Notebook de baixa altura: reduz densidade vertical automaticamente. */
+@media (min-width: 1024px) and (max-height: 820px) {
+  .painel-v4-header-inner {
+    padding-block: .42rem;
+  }
+
+  .painel-v4-content {
+    gap: .38rem;
+    padding-block: .42rem;
+  }
+
+  .painel-v4-panel {
+    padding: .48rem .55rem;
+  }
+
+  .painel-v4-kpi {
+    padding: .34rem .42rem;
+  }
+
+  .painel-v2-kpi-value {
+    font-size: .86rem;
+  }
+
+  .painel-v4-kpi-hint {
+    display: none;
+  }
+
+  .painel-v4-daily-chart {
+    height: 12.6rem;
+  }
+
+  .painel-v4-chart-small {
+    height: 9.5rem;
+  }
+
+  .painel-v4-chart-tall {
+    height: 20rem;
+  }
+}
+
+/* Full HD e TVs: aproveita a largura sem esticar demais os cards. */
+@media (min-width: 1800px) and (min-height: 900px) {
+  .painel-v4-header-inner,
+  .painel-v4-content {
+    max-width: 2200px;
+  }
+
+  .painel-v4-panel {
+    padding: .82rem .9rem;
+  }
+
+  .painel-v4-kpi {
+    padding: .62rem .72rem;
+  }
+
+  .painel-v2-kpi-value {
+    font-size: 1.12rem;
+  }
+
+  .painel-v4-daily-chart {
+    height: 20rem;
+  }
+
+  .painel-v4-chart-small {
+    height: 14rem;
+  }
+
+  .painel-v4-chart-tall {
+    height: 31rem;
+  }
+
+  .painel-v4-donut-chart {
     height: 13.5rem;
   }
 
-  .painel-v2-compare-chart {
-    height: 12rem;
+  .painel-v4-donut-layout.is-large .painel-v4-donut-chart {
+    height: 18rem;
   }
 }
 
-.painel-v2-shell:fullscreen .painel-v2-chart {
-  height: clamp(12.5rem, 25vh, 17rem);
+/* Telas 2K/4K: aumenta escala moderadamente e limita linha de leitura. */
+@media (min-width: 2400px) {
+  .painel-v4-header-inner,
+  .painel-v4-content {
+    max-width: 2400px;
+  }
+
+  .painel-v4-tab,
+  .painel-v4-action {
+    height: 2.2rem;
+    font-size: .7rem;
+  }
+
+  .painel-v2-kpi-value {
+    font-size: 1.24rem;
+  }
+
+  .painel-v4-panel h2 {
+    font-size: .88rem;
+  }
+
+  .painel-v4-daily-chart {
+    height: 22rem;
+  }
 }
 
-.painel-v2-shell:fullscreen .painel-v2-compare-chart {
-  height: clamp(11rem, 22vh, 15rem);
-}
-
-.painel-v2-shell:fullscreen .painel-v2-content {
-  max-width: 1920px;
+.painel-v4-shell:fullscreen .painel-v4-content {
+  max-width: 2400px;
   margin-inline: auto;
+}
+
+.painel-v4-shell:fullscreen .painel-v4-daily-chart {
+  height: clamp(15rem, 32vh, 24rem);
+}
+
+.painel-v4-shell:fullscreen .painel-v4-chart-tall {
+  height: clamp(24rem, 52vh, 38rem);
 }
