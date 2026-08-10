@@ -418,8 +418,8 @@ export function SaleImportModal({
     setResult(null);
     try {
       const extension = file.name.split(".").pop()?.toLowerCase();
-      if (extension === "xls") {
-        throw new Error("Salve o arquivo .xls antigo como .xlsx antes de importar.");
+      if (!extension || !["xlsx", "csv"].includes(extension)) {
+        throw new Error("Formato não suportado. Use somente .xlsx ou .csv.");
       }
       const sheet =
         extension === "csv"
@@ -446,21 +446,20 @@ export function SaleImportModal({
   }
 
   return (
-    <Modal open onClose={onClose} title="Importar vendas extras">
+    <Modal open onClose={onClose} title="Importar vendas extras (.xlsx ou .csv)">
       <div className="space-y-4">
         <div className="rounded-xl border border-dashed border-border bg-muted/40 p-5 text-center">
           <FileSpreadsheet className="mx-auto mb-2 h-8 w-8 text-primary" />
           <p className="text-sm font-semibold">Relatório financeiro do Hospedin ou planilha de vendas</p>
           <p className="mx-auto mb-3 max-w-xl text-xs leading-relaxed text-muted-foreground">
-            Importa somente receitas extras, como água, bebidas, lavanderia e serviços. Despesas são
-            ignoradas. Receitas de hospedagem também são ignoradas para não duplicar o valor das reservas.
+            Importa somente arquivos .xlsx ou .csv. Receitas extras, como água, bebidas, lavanderia e serviços, são aceitas. Despesas são ignoradas e receitas de hospedagem também são ignoradas para não duplicar o valor das reservas.
           </p>
           <label className="btn-ghost inline-flex cursor-pointer items-center gap-2">
             <Upload className="h-4 w-4" />
             {busy ? "Lendo…" : "Escolher .xlsx ou .csv"}
             <input
               type="file"
-              accept=".xlsx,.csv,.xls"
+              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
               className="hidden"
               disabled={busy}
               onChange={(event) => void choose(event.target.files?.[0])}
