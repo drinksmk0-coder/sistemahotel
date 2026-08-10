@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { Printer } from "lucide-react";
 import { useCurrentCompany, useRooms } from "@/lib/data";
 import { fmtBRL } from "@/lib/format";
+import { publicAppUrl } from "@/lib/brand";
 import { PageHeader } from "@/components/AppLayout";
 
 export const Route = createFileRoute("/_authenticated/qrcodes")({
@@ -14,16 +15,15 @@ function QrCodes() {
   const { data: rooms = [] } = useRooms();
   const current = useCurrentCompany();
   const [codes, setCodes] = useState<Record<number, string>>({});
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
 
   const urls = useMemo(
     () =>
       rooms.reduce<Record<number, string>>((acc, r) => {
         const empresa = current.data?.id ? `&empresa=${current.data.id}` : "";
-        acc[r.numero] = `${origin}/avaliar?quarto=${r.numero}${empresa}`;
+        acc[r.numero] = publicAppUrl(`/avaliar?quarto=${r.numero}${empresa}`);
         return acc;
       }, {}),
-    [rooms, origin, current.data?.id],
+    [rooms, current.data?.id],
   );
 
   useEffect(() => {
