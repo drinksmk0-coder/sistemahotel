@@ -2,27 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { CheckCircle2, Eraser, Loader2, Plus, Printer, ShieldCheck, Trash2, UsersRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { saveFnrhPrintSession, type FnrhPrintData } from "@/lib/fnrh-print-session";
 
 export const Route = createFileRoute("/checkin-online")({ ssr: false, component: CheckinOnline });
 
-type InviteData = {
-  status: string;
-  submitted_at: string | null;
-  form_data: Record<string, string>;
-  signature_data_url: string | null;
-  company_name: string;
-  company_document?: string | null;
-  company_email?: string | null;
-  company_phone?: string | null;
-  company_address?: string | null;
-  company_city?: string | null;
-  company_state?: string | null;
-  reservation_code: string;
-  room: number;
-  checkin: string;
-  checkout: string;
-  adults: number;
-  children: number;
+type InviteData = FnrhPrintData & {
   guest: Record<string, string | null>;
 };
 
@@ -56,7 +40,9 @@ const EMPTY_FORM = {
 type FormKey = keyof typeof EMPTY_FORM;
 
 function CheckinOnline() {
-  const token = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("token") : null;
+  const publicToken = useRef<string | null>(
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("token") : null,
+  );
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [companions, setCompanions] = useState<Companion[]>([]);
@@ -66,8 +52,10 @@ function CheckinOnline() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
+  const [printReady, setPrintReady] = useState(false);
 
   useEffect(() => {
+    const token = publicToken.current;
     if (!token) { setError("Este link de check-in está incompleto."); setLoading(false); return; }
     (supabase as any).rpc("get_guest_checkin", { p_token: token })
       .then(({ data, error: requestError }: { data: InviteData | null; error: Error | null }) => {
@@ -80,7 +68,7 @@ function CheckinOnline() {
           ...EMPTY_COMPANION,
           tipo: index < Math.max(0, Number(data.adults ?? 1) - 1) ? "adulto" as const : "crianca" as const,
         }));
-        setInvite(data);
+        setInvite({ ...data, guest });
         setCompanions(initial);
         setForm({
           ...EMPTY_FORM,
@@ -96,13 +84,14 @@ function CheckinOnline() {
         setConsent(data.status !== "enviado");
         setSent(data.status !== "enviado");
       }).finally(() => setLoading(false));
-  }, [token]);
+  }, []);
 
   const set = (name: FormKey, value: string) => setForm((current) => ({ ...current, [name]: value }));
   const updateCompanion = (index: number, patch: Partial<Companion>) => setCompanions((current) => current.map((item, i) => i === index ? { ...item, ...patch } : item));
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    const token = publicToken.current;
     if (!token || !signature) return setError("Assine no campo indicado antes de enviar.");
     if (!consent) return setError("Leia e aceite a declaração de tratamento dos dados.");
     if (!form.nome_completo.trim() || !form.telefone.trim() || !form.numero_documento.trim() || !form.nascimento || !form.cidade.trim() || !form.pais.trim()) {
@@ -110,6 +99,8 @@ function CheckinOnline() {
     }
     const invalid = companions.findIndex((item) => !item.nome.trim());
     if (invalid >= 0) return setError(`Informe o nome do acompanhante ${invalid + 1}.`);
+    if (!invite) return setError("Não foi possível validar os dados da hospedagem.");
+
     const payload = { ...form, acompanhantes: String(companions.length), acompanhantes_detalhes: JSON.stringify(companions) };
     setSaving(true); setError("");
     const { error: submitError } = await (supabase as any).rpc("submit_guest_checkin", {
@@ -117,8 +108,32 @@ function CheckinOnline() {
     });
     setSaving(false);
     if (submitError) return setError(submitError.message);
-    setForm(payload); setSent(true);
-    setInvite((current) => current ? { ...current, status: "preenchido", submitted_at: new Date().toISOString(), form_data: payload, signature_data_url: signature } : current);
+
+    const submittedAt = new Date().toISOString();
+    const localPrintReady = saveFnrhPrintSession({
+      ...invite,
+      status: "preenchido",
+      submitted_at: submittedAt,
+      form_data: payload,
+      signature_data_url: signature,
+    });
+
+    publicToken.current = null;
+    window.history.replaceState(window.history.state, "", "/checkin-online?concluido=1");
+    setPrintReady(localPrintReady);
+    setSent(true);
+    setForm(EMPTY_FORM);
+    setCompanions([]);
+    setSignature("");
+    setConsent(false);
+    setInvite((current) => current ? {
+      ...current,
+      status: "preenchido",
+      submitted_at: submittedAt,
+      form_data: {},
+      signature_data_url: null,
+      guest: { name: current.guest?.name ?? null },
+    } : current);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -127,7 +142,7 @@ function CheckinOnline() {
   if (!invite) return null;
 
   return <main className="min-h-screen bg-muted px-3 py-5">
-    <form onSubmit={submit} className="mx-auto max-w-[210mm] rounded-2xl border bg-white p-4 shadow-xl sm:p-7">
+    <form onSubmit={submit} autoComplete="off" className="mx-auto max-w-[210mm] rounded-2xl border bg-white p-4 shadow-xl sm:p-7">
       <header className="mb-5">
         <h1 className="text-center text-xl font-black uppercase tracking-tight text-[#243b5a] sm:text-2xl">Ficha Nacional de Registro de Hóspedes</h1>
         <div className="mt-4 grid gap-3 rounded-xl bg-[#e9eff7] p-3 text-[#243b5a] sm:grid-cols-[92px_1fr_1.15fr]">
@@ -137,9 +152,9 @@ function CheckinOnline() {
         </div>
       </header>
 
-      {sent && <div className="mb-5 flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><span><strong>Ficha enviada e assinatura salva.</strong> A recepção fará a conferência. Use o botão abaixo apenas para gerar a cópia A4.</span></div>}
+      {sent && <div className="mb-5 flex items-start gap-2 rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-800"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" /><span><strong>Ficha enviada com segurança.</strong> O link público foi encerrado imediatamente. {printReady ? "A cópia A4 fica disponível por até 15 minutos somente neste navegador." : "A recepção poderá imprimir a ficha pelo acesso autenticado."}</span></div>}
 
-      <fieldset disabled={sent} className="space-y-5 disabled:opacity-90">
+      {!sent && <fieldset className="space-y-5">
         <FormSection title="Informações da hospedagem">
           <ReadField label="UH Nº" value={String(invite.room)} /><ReadField label="Total de hóspedes" value={String(1 + companions.length)} />
           <ReadField label="Data de entrada" value={formatDate(invite.checkin)} /><ReadField label="Data de saída" value={formatDate(invite.checkout)} />
@@ -200,11 +215,11 @@ function CheckinOnline() {
           <p className="mt-1 text-xs leading-5"><strong>Proteção dos dados:</strong> as informações ficam salvas no sistema com acesso restrito aos funcionários autorizados. Elas não devem ser usadas para finalidade diferente da hospedagem sem base legal ou autorização adequada, conforme a LGPD.</p>
         </section>
 
-        <section><h2 className="mb-2 text-sm font-extrabold text-pine-dark">Assinatura do hóspede titular</h2>{sent && signature ? <img src={signature} alt="Assinatura do hóspede" className="h-36 w-full rounded-lg border bg-white object-contain" /> : <SignaturePad onChange={setSignature} />}<label className="mt-3 flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" className="mt-0.5" checked={consent} onChange={(e) => setConsent(e.target.checked)} required />Li as informações acima, confirmo que os dados são verdadeiros e autorizo seu tratamento para hospedagem, FNRH e obrigações legais.</label></section>
-      </fieldset>
+        <section><h2 className="mb-2 text-sm font-extrabold text-pine-dark">Assinatura do hóspede titular</h2><SignaturePad onChange={setSignature} /><label className="mt-3 flex items-start gap-2 text-xs text-muted-foreground"><input type="checkbox" className="mt-0.5" checked={consent} onChange={(e) => setConsent(e.target.checked)} required />Li as informações acima, confirmo que os dados são verdadeiros e autorizo seu tratamento para hospedagem, FNRH e obrigações legais.</label></section>
+      </fieldset>}
 
       {error && invite && <p className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
-      <footer className="mt-5 flex flex-wrap justify-end gap-2">{sent && <button type="button" className="btn-primary flex items-center gap-1.5" onClick={() => window.open(`/checkin-print?token=${encodeURIComponent(token ?? "")}`, "_blank", "noopener")}><Printer className="h-4 w-4" /> Gerar FNRH para impressão (PDF/A4)</button>}{!sent && <button type="submit" className="btn-primary flex items-center gap-1.5" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Assinar e enviar</button>}</footer>
+      <footer className="mt-5 flex flex-wrap justify-end gap-2">{sent && printReady && <button type="button" className="btn-primary flex items-center gap-1.5" onClick={() => window.location.assign("/checkin-print?local=1")}><Printer className="h-4 w-4" /> Gerar FNRH para impressão (PDF/A4)</button>}{!sent && <button type="submit" className="btn-primary flex items-center gap-1.5" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />} Assinar e enviar</button>}</footer>
     </form>
   </main>;
 }
@@ -221,7 +236,7 @@ function SignaturePad({ onChange }: { onChange: (value: string) => void }) {
 }
 
 function FormSection({ title, children }: { title: string; children: React.ReactNode }) { return <section><h2 className="mb-2 border-b pb-1 text-sm font-extrabold text-pine-dark">{title}</h2><div className="grid gap-3 sm:grid-cols-2">{children}</div></section>; }
-function Input({ label, value, onChange, type = "text", wide = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; wide?: boolean }) { return <label className={wide ? "sm:col-span-2" : ""}><span className="mb-1 block text-[10px] font-bold uppercase text-muted-foreground">{label}</span><input className="field" type={type} value={value} onChange={(e) => onChange(e.target.value)} /></label>; }
+function Input({ label, value, onChange, type = "text", wide = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; wide?: boolean }) { return <label className={wide ? "sm:col-span-2" : ""}><span className="mb-1 block text-[10px] font-bold uppercase text-muted-foreground">{label}</span><input className="field" autoComplete="off" type={type} value={value} onChange={(e) => onChange(e.target.value)} /></label>; }
 function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) { return <label><span className="mb-1 block text-[10px] font-bold uppercase text-muted-foreground">{label}</span><select className="field" value={value} onChange={(e) => onChange(e.target.value)}>{options.map((option) => <option key={option} value={option}>{option || "Selecione"}</option>)}</select></label>; }
 function ReadField({ label, value }: { label: string; value: string }) { return <label><span className="mb-1 block text-[10px] font-bold uppercase text-muted-foreground">{label}</span><input className="field" value={value} readOnly /></label>; }
 function formatDate(value: string) { const [year, month, day] = value.split("-"); return year && month && day ? `${day}/${month}/${year}` : value; }
