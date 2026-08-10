@@ -62,7 +62,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     reportLovableError(error, {
       boundary: "tanstack_root_error_component",
       outdated_bundle: outdatedBundle,
-      page_url: typeof window !== "undefined" ? window.location.href : null,
+      page_url:
+        typeof window !== "undefined"
+          ? `${window.location.origin}${window.location.pathname}`
+          : null,
     });
 
     if (!outdatedBundle || typeof window === "undefined") return;
