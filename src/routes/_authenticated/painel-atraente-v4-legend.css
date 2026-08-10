@@ -76,6 +76,15 @@
   content: "Média móvel das despesas (7 dias)";
 }
 
+.painel-v4-operational-comparison-slot {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.painel-v4-operational-comparison {
+  width: 100%;
+}
+
 @container hotel-bi (max-width: 639px) {
   .painel-v4-chart-legend {
     display: grid;
