@@ -50,6 +50,16 @@ body:has(.painel-v2-shell:fullscreen) {
   height: 13rem;
 }
 
+.painel-v2-compare-chart {
+  height: 11.5rem;
+}
+
+.painel-v2-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .4rem;
+}
+
 .painel-v2-table-row td {
   padding-top: .48rem;
   padding-bottom: .48rem;
@@ -59,10 +69,18 @@ body:has(.painel-v2-shell:fullscreen) {
   .painel-v2-summary {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .painel-v2-comparison-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 1180px) {
   .painel-v2-summary {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
+
+  .painel-v2-comparison-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
@@ -80,12 +98,12 @@ body:has(.painel-v2-shell:fullscreen) {
   }
 
   .painel-v2-kpi {
-    padding: .42rem .52rem;
+    padding: .38rem .46rem;
     border-radius: .65rem;
   }
 
   .painel-v2-kpi-value {
-    font-size: .94rem;
+    font-size: .9rem;
   }
 
   .painel-v2-kpi-hint {
@@ -93,23 +111,35 @@ body:has(.painel-v2-shell:fullscreen) {
   }
 
   .painel-v2-chart {
-    height: 10.2rem;
+    height: 9.8rem;
+  }
+
+  .painel-v2-compare-chart {
+    height: 9.7rem;
   }
 
   .painel-v2-operations {
-    padding-top: .45rem !important;
-    padding-bottom: .45rem !important;
+    padding-top: .4rem !important;
+    padding-bottom: .4rem !important;
   }
 }
 
 @media (min-width: 1024px) and (min-height: 851px) {
   .painel-v2-chart {
-    height: 14rem;
+    height: 13.5rem;
+  }
+
+  .painel-v2-compare-chart {
+    height: 12rem;
   }
 }
 
 .painel-v2-shell:fullscreen .painel-v2-chart {
-  height: clamp(13rem, 27vh, 18rem);
+  height: clamp(12.5rem, 25vh, 17rem);
+}
+
+.painel-v2-shell:fullscreen .painel-v2-compare-chart {
+  height: clamp(11rem, 22vh, 15rem);
 }
 
 .painel-v2-shell:fullscreen .painel-v2-content {
