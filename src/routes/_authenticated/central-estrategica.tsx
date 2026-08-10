@@ -5,5 +5,5 @@ export const Route = createFileRoute("/_authenticated/central-estrategica")({
 });
 
 function CentralEstrategicaRedirect() {
-  return <Navigate to="/painel-atraente" replace />;
+  return <Navigate to="/painel-executivo" replace />;
 }
