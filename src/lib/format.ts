@@ -74,12 +74,17 @@ function localDateParts(date: Date) {
   };
 }
 
-// CSV export with formula-injection protection (fixes the CSV injection flaw).
+// CSV UTF-8 compatível com Excel/LibreOffice, com proteção contra formula injection.
 function csvCell(value: unknown): string {
   let s = value == null ? "" : String(value);
   if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   if (/[",\n;]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
   return s;
+}
+
+function csvFilename(filename: string) {
+  const normalized = filename.trim() || "dados";
+  return normalized.replace(/\.(xlsx?|csv)$/i, "") + ".csv";
 }
 
 export function downloadCSV(filename: string, rows: (string | number | null)[][]) {
@@ -88,47 +93,13 @@ export function downloadCSV(filename: string, rows: (string | number | null)[][]
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = filename;
+  a.download = csvFilename(filename);
   a.click();
   URL.revokeObjectURL(url);
 }
 
-function xmlCell(value: string | number | null): string {
-  const content = value == null ? "" : String(value);
-  return content
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
+// Compatibilidade com telas antigas: chamadas que ainda usam downloadExcel ou nome .xls
+// passam a gerar CSV moderno. Não geramos mais o formato Excel 97-2003 (.xls).
 export function downloadExcel(filename: string, rows: (string | number | null)[][]) {
-  const tableRows = rows
-    .map(
-      (row, rowIndex) =>
-        `<Row>${row
-          .map((value) => {
-            const isNumber = typeof value === "number" && Number.isFinite(value);
-            const style = rowIndex === 0 ? ' ss:StyleID="Header"' : "";
-            return `<Cell${style}><Data ss:Type="${isNumber ? "Number" : "String"}">${xmlCell(value)}</Data></Cell>`;
-          })
-          .join("")}</Row>`,
-    )
-    .join("");
-  const content = `<?xml version="1.0"?>
-<?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
- <Styles>
-  <Style ss:ID="Header"><Font ss:Bold="1"/><Interior ss:Color="#D0B25B" ss:Pattern="Solid"/></Style>
- </Styles>
- <Worksheet ss:Name="Dados"><Table>${tableRows}</Table></Worksheet>
-</Workbook>`;
-  const blob = new Blob(["\uFEFF" + content], { type: "application/vnd.ms-excel;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename.endsWith(".xls") ? filename : `${filename}.xls`;
-  anchor.click();
-  URL.revokeObjectURL(url);
+  downloadCSV(filename, rows);
 }
