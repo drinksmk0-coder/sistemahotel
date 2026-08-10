@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createFileRoute, Outlet, redirect, useRouterState } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/AppLayout";
 import { GlobalHistoryNavigation } from "@/components/GlobalHistoryNavigation";
@@ -29,11 +29,27 @@ export const Route = createFileRoute("/_authenticated")({
 
     return { user: auth.user };
   },
-  component: () => (
+  component: AuthenticatedShell,
+});
+
+function AuthenticatedShell() {
+  const path = useRouterState({ select: (state) => state.location.pathname });
+
+  // Na branch de demonstração, o painel atraente precisa ser visualmente independente
+  // do layout legado para reproduzir de verdade a proposta enviada pelo usuário.
+  if (path === "/painel-atraente") {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] text-[#ede9df]">
+        <Outlet />
+      </div>
+    );
+  }
+
+  return (
     <AppLayout>
       <OwnerStrategicRedirect />
       <GlobalHistoryNavigation />
       <Outlet />
     </AppLayout>
-  ),
-});
+  );
+}
