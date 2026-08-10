@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { PainelAtraenteDashboardV4 } from "@/components/executive/PainelAtraenteDashboardV4";
+import { PainelAtraenteDashboardV5 } from "@/components/executive/PainelAtraenteDashboardV5";
 import "./painel-atraente-v2.css";
 import "./painel-atraente-v4-legend.css";
 
@@ -8,5 +8,5 @@ export const Route = createFileRoute("/_authenticated/painel-atraente")({
 });
 
 function PainelAtraente() {
-  return <PainelAtraenteDashboardV4 />;
+  return <PainelAtraenteDashboardV5 />;
 }
