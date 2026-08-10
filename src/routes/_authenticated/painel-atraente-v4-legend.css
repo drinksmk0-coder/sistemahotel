@@ -1,0 +1,110 @@
+.painel-v4-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem .5rem;
+  margin-top: .45rem;
+  padding: .5rem .6rem;
+  border: 1px solid var(--border);
+  border-radius: .65rem;
+  background: color-mix(in srgb, var(--background) 74%, var(--primary) 4%);
+  color: var(--foreground);
+  font-size: clamp(.62rem, .68vw, .75rem);
+  font-weight: 750;
+  line-height: 1.15;
+}
+
+.painel-v4-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: .38rem;
+  min-height: 1.55rem;
+  padding: .22rem .42rem;
+  border: 1px solid color-mix(in srgb, var(--border) 88%, var(--primary) 12%);
+  border-radius: .5rem;
+  background: var(--card);
+  white-space: nowrap;
+}
+
+.painel-v4-chart-legend i {
+  display: inline-block;
+  width: 1.55rem;
+  height: .22rem;
+  flex: 0 0 1.55rem;
+  border-radius: 999px;
+}
+
+.painel-v4-chart-legend span:nth-child(1) i {
+  background: var(--primary) !important;
+}
+
+.painel-v4-chart-legend span:nth-child(2) i {
+  background: var(--destructive) !important;
+}
+
+.painel-v4-chart-legend span:nth-child(3) i {
+  height: 0;
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 3px dashed var(--primary) !important;
+  border-radius: 0;
+}
+
+.painel-v4-chart-legend span:nth-child(4) i {
+  height: 0;
+  background: transparent !important;
+  border: 0 !important;
+  border-top: 3px dashed var(--destructive) !important;
+  border-radius: 0;
+}
+
+.painel-v4-chart-legend span:nth-child(3),
+.painel-v4-chart-legend span:nth-child(4) {
+  font-size: 0;
+}
+
+.painel-v4-chart-legend span:nth-child(3)::after,
+.painel-v4-chart-legend span:nth-child(4)::after {
+  font-size: clamp(.62rem, .68vw, .75rem);
+}
+
+.painel-v4-chart-legend span:nth-child(3)::after {
+  content: "Média móvel da receita (7 dias)";
+}
+
+.painel-v4-chart-legend span:nth-child(4)::after {
+  content: "Média móvel das despesas (7 dias)";
+}
+
+@container hotel-bi (max-width: 639px) {
+  .painel-v4-chart-legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    position: sticky;
+    left: 0;
+    width: min(100%, 28rem);
+    font-size: .62rem;
+  }
+
+  .painel-v4-chart-legend span {
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .painel-v4-chart-legend span:nth-child(3)::after,
+  .painel-v4-chart-legend span:nth-child(4)::after {
+    font-size: .62rem;
+  }
+}
+
+@media (min-width: 1800px) and (min-height: 900px) {
+  .painel-v4-chart-legend {
+    font-size: .78rem;
+    padding: .58rem .7rem;
+  }
+
+  .painel-v4-chart-legend span:nth-child(3)::after,
+  .painel-v4-chart-legend span:nth-child(4)::after {
+    font-size: .78rem;
+  }
+}
