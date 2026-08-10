@@ -330,8 +330,8 @@ export function ReservationImportModal({
     setResult(null);
     try {
       const extension = file.name.split(".").pop()?.toLowerCase();
-      if (extension === "xls") {
-        throw new Error("Salve o arquivo .xls antigo como .xlsx antes de importar.");
+      if (!extension || !["xlsx", "csv"].includes(extension)) {
+        throw new Error("Formato não suportado. Use somente .xlsx ou .csv.");
       }
       const sheet =
         extension === "csv"
@@ -356,21 +356,21 @@ export function ReservationImportModal({
   }
 
   return (
-    <Modal open onClose={onClose} title="Importar reservas do Hospedin ou Excel">
+    <Modal open onClose={onClose} title="Importar reservas (.xlsx ou .csv)">
       <div className="space-y-4">
         <div className="rounded-xl border border-dashed border-border bg-muted/40 p-5 text-center">
           <FileSpreadsheet className="mx-auto mb-2 h-8 w-8 text-primary" />
           <p className="text-sm font-semibold">Planilha .xlsx ou .csv</p>
           <p className="mb-3 text-xs text-muted-foreground">
             Reconhece o relatório do Hospedin com Código da reserva, Situação, Nome completo,
-            Data de entrada, Data de saída, Hóspedes, UH e Observações.
+            Data de entrada, Data de saída, Hóspedes, UH e Observações. O formato antigo .xls não é usado.
           </p>
           <label className="btn-ghost inline-flex cursor-pointer items-center gap-2">
             <Upload className="h-4 w-4" />
-            {busy ? "Lendo…" : "Escolher planilha"}
+            {busy ? "Lendo…" : "Escolher .xlsx ou .csv"}
             <input
               type="file"
-              accept=".xlsx,.csv,.xls"
+              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
               className="hidden"
               disabled={busy}
               onChange={(event) => void choose(event.target.files?.[0])}
