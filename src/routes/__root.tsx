@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Toaster } from "@/components/ui/sonner";
 import { HotelAiReportReaderEnhancer } from "@/components/HotelAiReportReaderEnhancer";
 import { useInspectorGuard } from "@/hooks/use-inspector-guard";
-import { BRAND, brandedPageTitle } from "@/lib/brand";
+import { BRAND, brandedPageTitle, canonicalUrlForCurrentLocation } from "@/lib/brand";
 
 function NotFoundComponent() {
   return (
@@ -176,6 +176,11 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const router = useRouter();
   useInspectorGuard();
+
+  useEffect(() => {
+    const canonicalUrl = canonicalUrlForCurrentLocation();
+    if (canonicalUrl) window.location.replace(canonicalUrl);
+  }, []);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
