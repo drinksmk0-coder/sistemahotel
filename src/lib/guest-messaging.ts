@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Client, Reservation } from "@/lib/data";
 import type { GuestAccount } from "@/lib/guest-account";
 import { fmtBRL, fmtDate } from "@/lib/format";
+import { publicAppUrl } from "@/lib/brand";
 
 export type GuestMessageKind = "fnrh" | "cobranca" | "avaliacao";
 
@@ -48,7 +49,7 @@ export async function createFnrhMessage(
     token = created.data.public_token;
   }
 
-  const formUrl = `${window.location.origin}/checkin-online?token=${token}`;
+  const formUrl = publicAppUrl(`/checkin-online?token=${encodeURIComponent(token)}`);
   return [
     `Olá, ${firstName(client.nome || reservation.cliente_nome)}!`,
     `Recebemos o sinal da sua reserva no Hotel Real Cruzília, de ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}.`,
@@ -91,7 +92,7 @@ export function createReviewMessage(
 ) {
   const reviewUrl =
     configuredReviewUrl.trim() ||
-    `${window.location.origin}/avaliar?quarto=${reservation.quarto}&empresa=${reservation.company_id}`;
+    publicAppUrl(`/avaliar?quarto=${reservation.quarto}&empresa=${reservation.company_id}`);
   return [
     `Olá, ${firstName(client.nome || reservation.cliente_nome)}!`,
     "Agradecemos por se hospedar no Hotel Real Cruzília. Esperamos que tenha aproveitado sua estadia!",
