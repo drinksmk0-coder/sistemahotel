@@ -49,7 +49,9 @@ export async function createFnrhMessage(
     token = created.data.public_token;
   }
 
-  const formUrl = publicAppUrl(`/checkin-online?token=${encodeURIComponent(token)}`);
+  // O token fica no fragmento (#), que não é enviado ao servidor HTTP.
+  // A rota ainda aceita o formato antigo ?token= por compatibilidade com links já enviados.
+  const formUrl = publicAppUrl(`/checkin-online#token=${encodeURIComponent(token)}`);
   return [
     `Olá, ${firstName(client.nome || reservation.cliente_nome)}!`,
     `Recebemos o sinal da sua reserva no Hotel Real Cruzília, de ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}.`,
