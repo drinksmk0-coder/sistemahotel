@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { MapaQuartos } from "@/components/MapaQuartos";
 import { RoomOperationsBoard } from "@/components/RoomOperationsBoard";
 import { useRole, useSession } from "@/hooks/use-auth";
+import "./mapa-mobile.css";
 
 export const Route = createFileRoute("/_authenticated/mapa")({
   component: MapaPorFuncao,
@@ -20,8 +21,16 @@ function MapaPorFuncao() {
   }
 
   if (role === "limpeza" || role === "cafe") {
-    return <RoomOperationsBoard />;
+    return (
+      <div className="mobile-map-route">
+        <RoomOperationsBoard />
+      </div>
+    );
   }
 
-  return <MapaQuartos />;
+  return (
+    <div className="mobile-map-route">
+      <MapaQuartos />
+    </div>
+  );
 }
