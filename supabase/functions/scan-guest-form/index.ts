@@ -111,8 +111,18 @@ Responda EXCLUSIVAMENTE com JSON válido, sem markdown, usando estas chaves:
   "cep": string|null,
   "bairro": string|null,
   "estado_civil": "solteiro"|"casado"|"divorciado"|"viuvo"|"uniao_estavel"|null,
-  "sexo": "feminino"|"masculino"|"outro"|null
+  "sexo": "feminino"|"masculino"|"outro"|null,
+  "quarto": number|null,
+  "data_checkin": "YYYY-MM-DD"|null,
+  "horario_checkin": "HH:MM"|null,
+  "horario_checkin_confiavel": boolean,
+  "pagamento": "pix"|"crédito"|"débito"|"dinheiro"|"transferência"|null,
+  "pagamento_confiavel": boolean,
+  "valor_pago": number|null,
+  "valor_pago_confiavel": boolean
 }
+Observe também papéis, recibos ou comprovantes visíveis sobre/ao lado da ficha. Se estiver claramente escrito Pix, crédito ou débito, extraia a forma de pagamento; extraia o valor somente se ele estiver inequivocamente associado ao pagamento da hospedagem.
+Marque *_confiavel como true SOMENTE quando o campo estiver claramente legível e sem ambiguidade. Horário como 08:00/18:00 duvidoso deve ser null ou confiavel=false.
 Se houver CPF, copie os 11 dígitos exatamente como aparecem. Se a imagem estiver ilegível, use null no campo.
 `.trim();
 
@@ -166,8 +176,12 @@ Se houver CPF, copie os 11 dígitos exatamente como aparecem. Se a imagem estive
       const text = extractGeminiText(payload);
       const guest = parseGuest(text);
       if (guest) {
+        const reservationUpdate = await applyReservationScan(admin, companyId, guest);
         return json(request, {
           guest,
+          reservation_updated: reservationUpdate.updated,
+          reservation_id: reservationUpdate.reservation_id,
+          applied_fields: reservationUpdate.applied_fields,
           provider: "gemini",
           model,
           image_stored_by_hospedamais: false,
@@ -244,10 +258,98 @@ function parseGuest(text: string) {
       cidade: value("cidade"), estado: normalizeState(value("estado")), pais: value("pais"),
       cep: value("cep"), bairro: value("bairro"), estado_civil: normalizeCivil(value("estado_civil")),
       sexo: normalizeSex(value("sexo")),
+      quarto: normalizeRoom(raw.quarto),
+      data_checkin: normalizeDate(value("data_checkin")),
+      horario_checkin: normalizeTime(value("horario_checkin")),
+      horario_checkin_confiavel: raw.horario_checkin_confiavel === true,
+      pagamento: normalizePayment(value("pagamento")),
+      pagamento_confiavel: raw.pagamento_confiavel === true,
+      valor_pago: normalizeMoney(raw.valor_pago),
+      valor_pago_confiavel: raw.valor_pago_confiavel === true,
     };
   } catch {
     return null;
   }
+}
+
+async function applyReservationScan(admin: ReturnType<typeof createClient>, companyId: string, guest: RecordRow) {
+  const room = Number(guest.quarto);
+  if (!Number.isInteger(room) || room <= 0) return { updated: false, reservation_id: null, applied_fields: [] as string[] };
+
+  let query = admin
+    .from("reservations")
+    .select("id,cliente_nome,quarto,checkin,valor_total,valor_pago,status")
+    .eq("company_id", companyId)
+    .eq("quarto", room)
+    .in("status", ["reservado", "ocupado"])
+    .order("checkin", { ascending: false })
+    .limit(8);
+  if (guest.data_checkin) query = query.eq("checkin", String(guest.data_checkin));
+  const { data, error } = await query;
+  if (error || !data?.length) return { updated: false, reservation_id: null, applied_fields: [] as string[] };
+
+  const scannedName = normalizeName(String(guest.nome ?? ""));
+  const candidates = scannedName
+    ? data.filter((row) => normalizeName(String(row.cliente_nome ?? "")) === scannedName)
+    : data;
+  if (candidates.length !== 1) return { updated: false, reservation_id: null, applied_fields: [] as string[] };
+
+  const reservation = candidates[0] as RecordRow;
+  const patch: RecordRow = {};
+  const applied: string[] = [];
+  if (guest.horario_checkin_confiavel === true && guest.horario_checkin) {
+    patch.horario_checkin = guest.horario_checkin;
+    patch.status = "ocupado";
+    patch.presence_status = "no_hotel";
+    patch.checkin_at = new Date().toISOString();
+    applied.push("horario_checkin", "checkin");
+  }
+  if (guest.pagamento_confiavel === true && guest.pagamento) {
+    patch.pagamento = guest.pagamento;
+    applied.push("pagamento");
+  }
+  if (guest.valor_pago_confiavel === true && typeof guest.valor_pago === "number") {
+    const paid = Math.max(0, guest.valor_pago);
+    patch.valor_pago = paid;
+    patch.pago = Number(reservation.valor_total ?? 0) > 0 && paid >= Number(reservation.valor_total ?? 0);
+    applied.push("valor_pago");
+  }
+  if (!applied.length) return { updated: false, reservation_id: reservation.id, applied_fields: [] as string[] };
+
+  const updated = await admin.from("reservations").update(patch).eq("id", reservation.id).eq("company_id", companyId);
+  if (updated.error) return { updated: false, reservation_id: reservation.id, applied_fields: [] as string[] };
+  if (patch.status === "ocupado") {
+    await admin.from("rooms").update({ situacao: "ocupado" }).eq("company_id", companyId).eq("numero", room);
+  }
+  return { updated: true, reservation_id: reservation.id, applied_fields: applied };
+}
+
+function normalizeName(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z ]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function normalizeRoom(value: unknown) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+function normalizeTime(value: string | null) {
+  if (!value) return null;
+  const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  return match ? match[0] : null;
+}
+function normalizePayment(value: string | null) {
+  const clean = String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  if (clean === "pix") return "pix";
+  if (clean.includes("credito")) return "crédito";
+  if (clean.includes("debito")) return "débito";
+  if (clean.includes("dinheiro")) return "dinheiro";
+  if (clean.includes("transfer")) return "transferência";
+  return null;
+}
+function normalizeMoney(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) return Math.round(value * 100) / 100;
+  if (typeof value !== "string") return null;
+  const parsed = Number(value.replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : null;
 }
 
 function normalizeMime(value: string) {

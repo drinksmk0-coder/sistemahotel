@@ -93,6 +93,15 @@ function Reservas() {
   const [moving, setMoving] = useState<Reservation | null>(null);
   const [filter, setFilter] = useState("ativas");
   const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    const reservationId = new URLSearchParams(window.location.search).get("editar");
+    if (!reservationId || !reservations.length) return;
+    const reservation = reservations.find((item) => item.id === reservationId);
+    if (!reservation) return;
+    setEditing(reservation);
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [reservations]);
   const [dateFilter, setDateFilter] = useState("");
 
   useEffect(() => {
@@ -138,6 +147,13 @@ function Reservas() {
       );
     }
 
+
+    if (dateFilter) {
+      filteredRows = filteredRows.filter(
+        (reservation) =>
+          reservation.checkin <= dateFilter && reservation.checkout >= dateFilter,
+      );
+    }
 
     const term = search.trim().toLocaleLowerCase("pt-BR");
     if (!term) return filteredRows;
@@ -439,7 +455,21 @@ function Reservas() {
             </button>
           )}
         </label>
-        <div className="flex flex-wrap gap-1 text-xs">
+        <div className="flex flex-wrap items-center gap-1 text-xs">
+          <label className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1">
+            <span className="font-semibold text-muted-foreground">Na data</span>
+            <input
+              type="date"
+              value={dateFilter}
+              onChange={(event) => setDateFilter(event.target.value)}
+              className="bg-transparent text-xs outline-none"
+            />
+          </label>
+          {dateFilter && (
+            <button type="button" className="rounded-full bg-muted px-2.5 py-1.5 font-semibold" onClick={() => setDateFilter("")}>
+              Limpar data
+            </button>
+          )}
           {["ativas", "saidas", "pendencias", "reservado", "ocupado", "finalizado", "todas"].map((f) => (
             <button
               key={f}
@@ -706,6 +736,30 @@ function RowActions({
   const receiptUrl = whatsappReceiptUrl(reservation, client);
   const reviewUrl = whatsappReviewUrl(reservation, client);
 
+  function markGuestDeparted() {
+    update.mutate(
+      {
+        id: reservation.id,
+        patch: {
+          status: "saida_pendente",
+          presence_status: "checkout",
+          horario_checkout: currentTime(),
+          checkout_at: new Date().toISOString(),
+        },
+      },
+      {
+        onSuccess: () => {
+          updateRoom.mutate(
+            { id: reservation.quarto, patch: { situacao: "limpeza" } },
+            { onError: (e: Error) => toast.error(`Saída registrada, mas falhou ao enviar o quarto para limpeza: ${e.message}`) },
+          );
+          toast.success(balance > 0 ? `Hóspede saiu. Saldo pendente: ${fmtBRL(balance)}.` : "Hóspede saiu; quarto enviado para limpeza.");
+        },
+        onError: (e: Error) => toast.error(e.message),
+      },
+    );
+  }
+
   function finishCheckout(
     extraPatch: Record<string, unknown> = {},
     options?: { companyBilling?: boolean },
@@ -822,6 +876,15 @@ function RowActions({
           title={balance > 0 ? "O pagamento será acompanhado na conta do hóspede." : undefined}
         >
           Check-in
+        </button>
+      )}
+      {reservation.status === "ocupado" && (
+        <button
+          className="rounded-md bg-brass-bg px-2 py-1 text-xs font-bold text-pine-dark"
+          onClick={markGuestDeparted}
+          title="Registrar que o hóspede deixou fisicamente o hotel; a conta pode continuar pendente"
+        >
+          O hóspede saiu
         </button>
       )}
       {departureStage && (

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Camera, Loader2, ScanLine, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +19,14 @@ export type GuestScanResult = {
   bairro?: string | null;
   estado_civil?: string | null;
   sexo?: string | null;
+  quarto?: number | null;
+  data_checkin?: string | null;
+  horario_checkin?: string | null;
+  horario_checkin_confiavel?: boolean;
+  pagamento?: string | null;
+  pagamento_confiavel?: boolean;
+  valor_pago?: number | null;
+  valor_pago_confiavel?: boolean;
 };
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
@@ -32,6 +41,7 @@ export function GuestFormScanner({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const company = useCurrentCompany();
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
 
   async function readFile(file: File) {
@@ -57,7 +67,15 @@ export function GuestFormScanner({
         throw new Error(data?.error || "Não foi possível ler a ficha.");
       }
       onResult(data.guest as GuestScanResult);
-      toast.success("Ficha lida. Confira os dados antes de salvar.");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["reservations"] }),
+        queryClient.invalidateQueries({ queryKey: ["rooms"] }),
+      ]);
+      toast.success(
+        data.reservation_updated
+          ? "Ficha lida. Horário/pagamento aplicados e reserva atualizada automaticamente."
+          : "Ficha lida. Confira os dados antes de salvar.",
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Falha ao ler a ficha.");
     } finally {
@@ -100,7 +118,7 @@ export function GuestFormScanner({
         <div className="mt-2 flex items-start gap-1.5 rounded-md border border-primary/15 bg-background/60 px-2 py-1.5 text-[10px] leading-relaxed text-muted-foreground">
           <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
           <p>
-            <strong className="text-foreground">Privacidade:</strong> a foto é enviada temporariamente ao provedor de IA configurado (Google Gemini) somente para extrair os campos. O HospedaMais não grava a imagem no banco. Use o scanner apenas para hóspedes cuja ficha precise ser digitalizada e confira nome, documento e datas antes de salvar.
+            <strong className="text-foreground">Privacidade:</strong> a foto é enviada temporariamente ao provedor de IA configurado (Google Gemini) somente para extrair os campos. O HospedaMais não grava a imagem no banco. Use o scanner apenas para hóspedes cuja ficha precise ser digitalizada. A IA também pode reconhecer horário de entrada e comprovantes visíveis (Pix, crédito ou débito e valor pago); campos incertos não são aplicados automaticamente.
           </p>
         </div>
       )}
