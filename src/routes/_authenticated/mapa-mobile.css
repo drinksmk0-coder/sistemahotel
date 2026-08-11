@@ -1,0 +1,144 @@
+@media (max-width: 639px) {
+  .mobile-map-route {
+    min-width: 0;
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .mobile-map-route > div {
+    min-width: 0;
+  }
+
+  .mobile-map-route > div > section:first-child {
+    border-radius: 0.9rem;
+    padding: 0.65rem !important;
+  }
+
+  .mobile-map-route > div > section:first-child > div:first-child {
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+  }
+
+  .mobile-map-route > div > section:first-child h1 {
+    width: 100%;
+    margin-right: 0 !important;
+    font-size: 1rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .mobile-map-route > div > section:first-child button {
+    min-height: 2.6rem;
+    border-radius: 0.7rem;
+    padding-inline: 0.75rem !important;
+    font-size: 0.72rem !important;
+  }
+
+  .mobile-map-route > div > section:first-child > div:nth-child(2) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .mobile-map-route > div > section:first-child input,
+  .mobile-map-route > div > section:first-child select {
+    min-height: 2.8rem !important;
+    width: 100% !important;
+    font-size: 0.82rem !important;
+  }
+
+  .mobile-map-route > div > section:first-child > div:nth-child(3) {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.2rem;
+    scrollbar-width: none;
+  }
+
+  .mobile-map-route > div > section:first-child > div:nth-child(3)::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-map-route > div > section:first-child > div:nth-child(3) > * {
+    flex: 0 0 auto;
+  }
+
+  .mobile-map-route > div > section:first-child > div:nth-child(3) > span.ml-auto {
+    display: none !important;
+  }
+
+  .mobile-map-route > div > section.space-y-3 article {
+    padding: 0.65rem !important;
+    border-radius: 0.9rem;
+  }
+
+  .mobile-map-route > div > section.space-y-3 article > div:first-child {
+    align-items: flex-start !important;
+  }
+
+  .mobile-map-route > div > section.space-y-3 article > div:first-child > div:first-child {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .mobile-map-route > div > section.space-y-3 article > div:last-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem !important;
+  }
+
+  .mobile-map-route > div > section.space-y-3 article > div:last-child > button {
+    min-height: 9.5rem !important;
+    padding: 0.65rem !important;
+    border-radius: 0.9rem !important;
+  }
+
+  .mobile-map-route [data-room-timeline-root] {
+    border-radius: 0.9rem !important;
+    overflow: hidden;
+  }
+
+  .mobile-map-route [data-room-timeline-root] > div:first-child {
+    padding: 0.65rem !important;
+  }
+
+  .mobile-map-route [data-room-timeline-root] > div:first-child > div:first-child {
+    gap: 0.55rem !important;
+  }
+
+  .mobile-map-route [data-room-timeline-root] > div:first-child > div:first-child > div:last-child {
+    width: 100%;
+    justify-content: space-between;
+    gap: 0.35rem !important;
+  }
+
+  .mobile-map-route [data-room-timeline-root] > div:first-child button,
+  .mobile-map-route [data-room-timeline-root] > div:first-child label {
+    min-height: 2.65rem !important;
+  }
+
+  .mobile-map-route [data-room-timeline-root] .overflow-x-auto {
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+}
+
+@media (max-width: 374px) {
+  .mobile-map-route > div > section:first-child > div:nth-child(2),
+  .mobile-map-route > div > section.space-y-3 article > div:last-child {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .mobile-map-route > div > section.space-y-3 article > div:last-child > button {
+    min-height: 8.75rem !important;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .mobile-map-route > div > section:first-child > div:nth-child(2) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .mobile-map-route > div > section.space-y-3 article > div:last-child {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
