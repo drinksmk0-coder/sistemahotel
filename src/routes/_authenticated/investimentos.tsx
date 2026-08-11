@@ -24,37 +24,34 @@ function InvestmentAI() {
     setLoading(true);
     setAnswer("");
 
-    const body = { company_id: company.data.id, question };
-    const primary = await supabase.functions.invoke("hotel-investment-analyst", { body });
-
-    if (!primary.error && primary.data?.answer) {
-      setAnswer(String(primary.data.answer));
-      setLoading(false);
-      return;
-    }
-
-    const fallbackQuestion = [
+    const hotelAiQuestion = [
       "ANÁLISE DE INVESTIMENTO DO PROPRIETÁRIO.",
-      "Responda como HotelAI analista do hotel. Use os dados reais disponíveis do hotel e faça uma análise preliminar de viabilidade.",
-      "Calcule investimento, impacto em quartos/ocupação, receita perdida em obra, receita incremental, custos, payback e ROI quando houver dados.",
-      "Separe dado real de premissa e diga claramente quais dados ainda faltam. Não responda com instruções de navegação.",
-      "Projeto:",
+      "Responda como a HotelAI estratégica do próprio hotel, não como tutorial de navegação.",
+      "Use todos os dados reais disponíveis do hotel: reservas, ocupação, quartos, receitas, despesas, histórico, sazonalidade e canais.",
+      "Avalie viabilidade financeira e operacional do projeto informado.",
+      "Calcule, quando possível: investimento inicial (CAPEX), custo mensal incremental (OPEX), quartos/dias fora de operação, receita perdida durante obra, impacto permanente de reduzir quantidade de quartos, receita incremental, margem, payback, ROI anual e ponto de equilíbrio.",
+      "Monte cenários pessimista, base e otimista. Separe claramente DADO DO HOTEL, PREMISSA e DADO EXTERNO/PESQUISA quando houver.",
+      "Se faltar um valor externo atual (obra, hidromassagem, equipamento, energia, restaurante etc.), não invente como fato: informe a faixa necessária e deixe claro que precisa de pesquisa atual para fechar o cálculo.",
+      "Termine com VEREDITO: Viável, Viável com condições ou Não recomendado agora; inclua chance de retorno como faixa justificada, principais riscos, dados faltantes e próximo teste de baixo custo.",
+      "Projeto a avaliar:",
       question,
     ].join("\n");
 
-    const fallback = await supabase.functions.invoke("hotel-assistant-v2", {
+    const result = await supabase.functions.invoke("hotel-assistant-v2", {
       body: {
         company_id: company.data.id,
         mode: "analysis",
-        question: fallbackQuestion,
+        question: hotelAiQuestion,
         conversation: [],
       },
     });
 
-    if (!fallback.error && fallback.data?.answer) {
-      setAnswer(String(fallback.data.answer));
+    if (!result.error && result.data?.answer) {
+      setAnswer(String(result.data.answer));
     } else {
-      setAnswer("A HotelAI não conseguiu concluir a análise agora. Tente novamente; se persistir, a conexão com o provedor de IA precisa ser verificada.");
+      setAnswer(
+        "A HotelAI não conseguiu concluir a análise agora. Atualize a página e tente novamente; se continuar, a conexão da HotelAI precisa ser verificada.",
+      );
     }
     setLoading(false);
   }
@@ -62,14 +59,14 @@ function InvestmentAI() {
   return <div className="mx-auto max-w-5xl space-y-4 pb-10">
     <header className="rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center gap-2"><Sparkles className="text-primary"/><h1 className="text-xl font-extrabold text-pine-dark">HotelAI · Viabilidade de investimentos</h1></div>
-      <p className="mt-1 text-sm text-muted-foreground">Cruza reservas, receita, despesas e quartos do hotel com pesquisa atual na internet para estimar retorno, risco, obra parada, payback e ROI.</p>
+      <p className="mt-1 text-sm text-muted-foreground">A própria HotelAI cruza os dados reais do hotel para avaliar retorno, risco, obra parada, payback e ROI.</p>
     </header>
     <div className="grid gap-2 sm:grid-cols-2">{examples.map((x) => <button key={x} onClick={() => setQuestion(x)} className="rounded-xl border border-border bg-card p-3 text-left text-xs hover:border-primary">{x}</button>)}</div>
     <section className="rounded-2xl border border-border bg-card p-4">
       <label className="text-xs font-bold uppercase text-muted-foreground">Projeto que o proprietário quer avaliar</label>
       <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={5} className="mt-2 w-full rounded-xl border border-border bg-background p-3 text-sm" />
       <button onClick={analyze} disabled={loading} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 py-2 font-bold text-primary-foreground disabled:opacity-50">
-        {loading ? <Search className="h-4 w-4 animate-pulse"/> : <Calculator className="h-4 w-4"/>}{loading ? "HotelAI pesquisando e calculando..." : "Perguntar à HotelAI"}
+        {loading ? <Search className="h-4 w-4 animate-pulse"/> : <Calculator className="h-4 w-4"/>}{loading ? "HotelAI calculando..." : "Perguntar à HotelAI"}
       </button>
     </section>
     {answer && <article className="whitespace-pre-wrap rounded-2xl border border-border bg-card p-4 text-sm leading-6">{answer}</article>}
