@@ -26,7 +26,6 @@ export const Route = createFileRoute("/_authenticated/fichas-checkin")({
 type GuestCheckin = {
   id: string;
   reservation_id: string;
-  public_token: string;
   status: string;
   submitted_at: string | null;
   reviewed_at: string | null;
@@ -100,7 +99,7 @@ function FichasCheckin() {
       const checkinsResult = await (supabase as any)
         .from("guest_checkins")
         .select(
-          "id,reservation_id,public_token,status,submitted_at,reviewed_at,signature_data_url,form_data,created_at",
+          "id,reservation_id,status,submitted_at,reviewed_at,signature_data_url,form_data,created_at",
         )
         .eq("company_id", company.data!.id)
         .order("submitted_at", { ascending: false, nullsFirst: false })
@@ -117,8 +116,6 @@ function FichasCheckin() {
         .order("titular", { ascending: false })
         .order("created_at", { ascending: true });
 
-      // A ficha assinada é a fonte principal. Uma falha na lista auxiliar de
-      // acompanhantes não pode impedir a recepção de abrir e conferir a ficha.
       return {
         checkins: (checkinsResult.data ?? []) as GuestCheckin[],
         guests: guestsResult.error
@@ -157,7 +154,6 @@ function FichasCheckin() {
   );
 
   function openForm(row: GuestCheckin) {
-    // Abrir não significa conferir. O alerta só desaparece após confirmação explícita.
     setSelected(row);
   }
 
@@ -321,35 +317,12 @@ function FichasCheckin() {
                 </div>
 
                 <dl className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-muted/40 p-3 text-xs">
-                  <Info
-                    label="Entrada"
-                    value={reservation ? fmtDate(reservation.checkin) : "—"}
-                  />
-                  <Info
-                    label="Saída"
-                    value={reservation ? fmtDate(reservation.checkout) : "—"}
-                  />
-                  <Info
-                    label="Total de hóspedes"
-                    value={String(
-                      Math.max(
-                        reservation?.pessoas ?? 1,
-                        1 + companionCount,
-                      ),
-                    )}
-                  />
-                  <Info
-                    label="Acompanhantes identificados"
-                    value={String(companionCount)}
-                  />
-                  <Info
-                    label="Assinatura"
-                    value={row.signature_data_url ? "Recebida" : "Não encontrada"}
-                  />
-                  <Info
-                    label="Recebida em"
-                    value={formatDateTime(row.submitted_at)}
-                  />
+                  <Info label="Entrada" value={reservation ? fmtDate(reservation.checkin) : "—"} />
+                  <Info label="Saída" value={reservation ? fmtDate(reservation.checkout) : "—"} />
+                  <Info label="Total de hóspedes" value={String(Math.max(reservation?.pessoas ?? 1, 1 + companionCount))} />
+                  <Info label="Acompanhantes identificados" value={String(companionCount)} />
+                  <Info label="Assinatura" value={row.signature_data_url ? "Recebida" : "Não encontrada"} />
+                  <Info label="Recebida em" value={formatDateTime(row.submitted_at)} />
                 </dl>
 
                 <button
@@ -422,11 +395,7 @@ function FichaDetalhes({
         <h3 className="mb-2 flex items-center gap-2 text-sm font-bold text-foreground">
           <UserRound className="h-4 w-4" /> Titular
         </h3>
-        {holder ? (
-          <GuestCard guest={holder} />
-        ) : (
-          <FormGuestCard form={row.form_data} />
-        )}
+        {holder ? <GuestCard guest={holder} /> : <FormGuestCard form={row.form_data} />}
       </section>
 
       <section>
@@ -434,64 +403,35 @@ function FichaDetalhes({
           <h3 className="flex items-center gap-2 text-sm font-bold text-foreground">
             <UsersRound className="h-4 w-4" /> Acompanhantes
           </h3>
-          <Badge tone="slate">
-            {Math.max(syncedCompanions.length, formCompanions.length)}
-          </Badge>
+          <Badge tone="slate">{Math.max(syncedCompanions.length, formCompanions.length)}</Badge>
         </div>
         {syncedCompanions.length > 0 ? (
-          <div className="space-y-2">
-            {syncedCompanions.map((guest) => (
-              <GuestCard key={guest.id} guest={guest} />
-            ))}
-          </div>
+          <div className="space-y-2">{syncedCompanions.map((guest) => <GuestCard key={guest.id} guest={guest} />)}</div>
         ) : formCompanions.length > 0 ? (
-          <div className="space-y-2">
-            {formCompanions.map((guest, index) => (
-              <FormCompanionCard key={`${guest.nome}-${index}`} guest={guest} />
-            ))}
-          </div>
+          <div className="space-y-2">{formCompanions.map((guest, index) => <FormCompanionCard key={`${guest.nome}-${index}`} guest={guest} />)}</div>
         ) : (
-          <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-            Nenhum acompanhante informado.
-          </div>
+          <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">Nenhum acompanhante informado.</div>
         )}
       </section>
 
       <section>
-        <h3 className="mb-2 text-sm font-bold text-foreground">
-          Dados complementares da ficha
-        </h3>
+        <h3 className="mb-2 text-sm font-bold text-foreground">Dados complementares da ficha</h3>
         <dl className="grid gap-2 sm:grid-cols-2">
           {FORM_FIELDS.map(([key, label]) => (
-            <div
-              key={key}
-              className="rounded-lg border border-border bg-muted/30 px-3 py-2"
-            >
-              <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {label}
-              </dt>
-              <dd className="mt-1 break-words text-sm font-semibold text-foreground">
-                {displayFormValue(key, row.form_data?.[key])}
-              </dd>
+            <div key={key} className="rounded-lg border border-border bg-muted/30 px-3 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</dt>
+              <dd className="mt-1 break-words text-sm font-semibold text-foreground">{displayFormValue(key, row.form_data?.[key])}</dd>
             </div>
           ))}
         </dl>
       </section>
 
       <section>
-        <h3 className="mb-2 text-sm font-bold text-foreground">
-          Assinatura do hóspede titular
-        </h3>
+        <h3 className="mb-2 text-sm font-bold text-foreground">Assinatura do hóspede titular</h3>
         {row.signature_data_url ? (
-          <img
-            src={row.signature_data_url}
-            alt="Assinatura do hóspede"
-            className="h-40 w-full rounded-lg border border-border bg-white object-contain"
-          />
+          <img src={row.signature_data_url} alt="Assinatura do hóspede" className="h-40 w-full rounded-lg border border-border bg-white object-contain" />
         ) : (
-          <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-6 text-center text-sm text-destructive">
-            Assinatura não encontrada.
-          </div>
+          <div className="rounded-lg border border-dashed border-destructive/40 bg-destructive/5 p-6 text-center text-sm text-destructive">Assinatura não encontrada.</div>
         )}
       </section>
 
@@ -506,20 +446,12 @@ function FichaDetalhes({
           <Trash2 className="h-4 w-4" />
           {deleting ? "Excluindo…" : "Excluir ficha"}
         </button>
-        <button type="button" className="btn-ghost" onClick={onClose} disabled={deleting}>
-          Fechar
-        </button>
+        <button type="button" className="btn-ghost" onClick={onClose} disabled={deleting}>Fechar</button>
         <button
           type="button"
           className="btn-ghost flex items-center gap-2"
           disabled={deleting}
-          onClick={() =>
-            window.open(
-              `/checkin-print?token=${row.public_token}`,
-              "_blank",
-              "noopener",
-            )
-          }
+          onClick={() => window.open(`/checkin-print?id=${row.id}`, "_blank", "noopener")}
         >
           <ExternalLink className="h-4 w-4" /> Abrir para impressão
         </button>
@@ -544,18 +476,11 @@ function GuestCard({ guest }: { guest: ReservationGuest }) {
     <div className="rounded-lg border border-border bg-card p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <strong className="text-sm text-foreground">{guest.nome}</strong>
-        <Badge tone={guest.titular ? "sage" : "slate"}>
-          {guest.titular ? "Titular" : guest.parentesco || "Acompanhante"}
-        </Badge>
+        <Badge tone={guest.titular ? "sage" : "slate"}>{guest.titular ? "Titular" : guest.parentesco || "Acompanhante"}</Badge>
       </div>
       <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
         <span>Documento: {guest.cpf || "não informado"}</span>
-        <span>
-          Nascimento:{" "}
-          {guest.data_nascimento
-            ? fmtDate(guest.data_nascimento)
-            : "não informado"}
-        </span>
+        <span>Nascimento: {guest.data_nascimento ? fmtDate(guest.data_nascimento) : "não informado"}</span>
         <span>Telefone: {guest.telefone || "não informado"}</span>
         <span>E-mail: {guest.email || "não informado"}</span>
       </div>
@@ -567,9 +492,7 @@ function FormGuestCard({ form }: { form: Record<string, string> }) {
   return (
     <div className="rounded-lg border border-border bg-card p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <strong className="text-sm text-foreground">
-          {form.nome_completo || "Hóspede titular"}
-        </strong>
+        <strong className="text-sm text-foreground">{form.nome_completo || "Hóspede titular"}</strong>
         <Badge tone="sage">Titular</Badge>
       </div>
       <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
@@ -586,19 +509,12 @@ function FormCompanionCard({ guest }: { guest: FormCompanion }) {
   return (
     <div className="rounded-lg border border-border bg-card p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <strong className="text-sm text-foreground">
-          {guest.nome || "Acompanhante"}
-        </strong>
+        <strong className="text-sm text-foreground">{guest.nome || "Acompanhante"}</strong>
         <Badge tone="slate">{guest.parentesco || "Acompanhante"}</Badge>
       </div>
       <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
         <span>Documento: {guest.cpf || "não informado"}</span>
-        <span>
-          Nascimento:{" "}
-          {guest.data_nascimento
-            ? displayFormValue("nascimento", guest.data_nascimento)
-            : "não informado"}
-        </span>
+        <span>Nascimento: {guest.data_nascimento ? displayFormValue("nascimento", guest.data_nascimento) : "não informado"}</span>
         <span>Telefone: {guest.telefone || "não informado"}</span>
         <span>E-mail: {guest.email || "não informado"}</span>
       </div>
@@ -611,21 +527,14 @@ function parseFormCompanions(form: Record<string, string>): FormCompanion[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.filter((item) => item && typeof item === "object")
-      : [];
+    return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === "object") : [];
   } catch {
     return [];
   }
 }
 
 function Info({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-semibold text-foreground">{value}</dd>
-    </div>
-  );
+  return <div><dt className="text-muted-foreground">{label}</dt><dd className="font-semibold text-foreground">{value}</dd></div>;
 }
 
 function displayFormValue(key: string, value?: string | null) {
@@ -646,8 +555,5 @@ function statusLabel(row: GuestCheckin) {
 
 function formatDateTime(value: string | null) {
   if (!value) return "Ainda não enviada";
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
