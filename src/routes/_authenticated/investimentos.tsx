@@ -26,13 +26,17 @@ function InvestmentAI() {
 
     const hotelAiQuestion = [
       "ANÁLISE DE INVESTIMENTO DO PROPRIETÁRIO.",
+      "A pergunta abaixo é uma decisão de investimento. NÃO responda apenas com relatório de ocupação, padrão temporal ou resumo de dados.",
       "Responda como a HotelAI estratégica do próprio hotel, não como tutorial de navegação.",
-      "Use todos os dados reais disponíveis do hotel: reservas, ocupação, quartos, receitas, despesas, histórico, sazonalidade e canais.",
-      "Avalie viabilidade financeira e operacional do projeto informado.",
-      "Calcule, quando possível: investimento inicial (CAPEX), custo mensal incremental (OPEX), quartos/dias fora de operação, receita perdida durante obra, impacto permanente de reduzir quantidade de quartos, receita incremental, margem, payback, ROI anual e ponto de equilíbrio.",
-      "Monte cenários pessimista, base e otimista. Separe claramente DADO DO HOTEL, PREMISSA e DADO EXTERNO/PESQUISA quando houver.",
-      "Se faltar um valor externo atual (obra, hidromassagem, equipamento, energia, restaurante etc.), não invente como fato: informe a faixa necessária e deixe claro que precisa de pesquisa atual para fechar o cálculo.",
-      "Termine com VEREDITO: Viável, Viável com condições ou Não recomendado agora; inclua chance de retorno como faixa justificada, principais riscos, dados faltantes e próximo teste de baixo custo.",
+      "Use os dados reais disponíveis do hotel como insumos do cálculo: reservas, ocupação, quartos, receitas, despesas, padrões de demanda ao longo do tempo e canais.",
+      "Sua obrigação é transformar esses dados em uma DECISÃO FINANCEIRA E OPERACIONAL sobre o projeto informado.",
+      "Calcule, quando possível: investimento inicial (CAPEX), custo mensal incremental (OPEX), quartos/dias fora de operação, receita perdida durante obra, impacto permanente de reduzir quantidade de quartos, diária atual versus diária necessária após a melhoria, receita incremental, margem, payback, ROI anual e ponto de equilíbrio.",
+      "Use os meses de menor demanda para sugerir a melhor janela de obra e estime como isso reduz a perda de receita.",
+      "Monte cenários pessimista, base e otimista. Separe claramente DADO DO HOTEL, PREMISSA e DADO EXTERNO quando houver.",
+      "Se faltar custo de obra/equipamento ou outro valor externo, NÃO encerre a resposta. Faça o cálculo com uma faixa de premissas claramente identificada e diga quais cotações precisam ser obtidas para fechar a decisão.",
+      "A resposta deve conter obrigatoriamente: 1) diagnóstico; 2) impacto da obra; 3) cálculo financeiro; 4) três cenários; 5) melhor época para executar; 6) riscos; 7) dados faltantes; 8) VEREDITO.",
+      "Termine com VEREDITO: Viável, Viável com condições ou Não recomendado agora; inclua chance de retorno como faixa justificada e próximo teste de baixo custo.",
+      "Nunca encerre a resposta apenas descrevendo os dados do hotel.",
       "Projeto a avaliar:",
       question,
     ].join("\n");
@@ -47,12 +51,36 @@ function InvestmentAI() {
     });
 
     if (!result.error && result.data?.answer) {
-      setAnswer(String(result.data.answer));
-    } else {
-      setAnswer(
-        "A HotelAI não conseguiu concluir a análise agora. Atualize a página e tente novamente; se continuar, a conexão da HotelAI precisa ser verificada.",
-      );
+      const response = String(result.data.answer);
+      const historicalOnly = response.includes("# Leitura histórica") && !/VEREDITO|payback|ROI|investimento inicial|vi[aá]vel/i.test(response);
+      if (!historicalOnly) {
+        setAnswer(response);
+        setLoading(false);
+        return;
+      }
+
+      const retry = await supabase.functions.invoke("hotel-assistant-v2", {
+        body: {
+          company_id: company.data.id,
+          mode: "analysis",
+          question: [
+            "CORREÇÃO DE RESPOSTA: a resposta anterior ficou apenas descritiva.",
+            "Ignore qualquer formato de 'Leitura histórica' como resposta final.",
+            "Use os dados já disponíveis somente como base e entregue agora a análise de VIABILIDADE do investimento, com CAPEX/OPEX, perda de receita, aumento de diária necessário, payback, ROI, cenários e VEREDITO.",
+            "Projeto:",
+            question,
+          ].join("\n"),
+          conversation: [],
+        },
+      });
+      setAnswer(!retry.error && retry.data?.answer ? String(retry.data.answer) : response);
+      setLoading(false);
+      return;
     }
+
+    setAnswer(
+      "A HotelAI não conseguiu concluir a análise agora. Atualize a página e tente novamente; se continuar, a conexão da HotelAI precisa ser verificada.",
+    );
     setLoading(false);
   }
 
@@ -66,7 +94,7 @@ function InvestmentAI() {
       <label className="text-xs font-bold uppercase text-muted-foreground">Projeto que o proprietário quer avaliar</label>
       <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={5} className="mt-2 w-full rounded-xl border border-border bg-background p-3 text-sm" />
       <button onClick={analyze} disabled={loading} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 py-2 font-bold text-primary-foreground disabled:opacity-50">
-        {loading ? <Search className="h-4 w-4 animate-pulse"/> : <Calculator className="h-4 w-4"/>}{loading ? "HotelAI calculando..." : "Perguntar à HotelAI"}
+        {loading ? <Search className="h-4 w-4 animate-pulse"/> : <Calculator className="h-4 w-4"/>}{loading ? "HotelAI calculando viabilidade..." : "Perguntar à HotelAI"}
       </button>
     </section>
     {answer && <article className="whitespace-pre-wrap rounded-2xl border border-border bg-card p-4 text-sm leading-6">{answer}</article>}
