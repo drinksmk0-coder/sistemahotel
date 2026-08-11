@@ -21,9 +21,41 @@ function InvestmentAI() {
 
   async function analyze() {
     if (!company.data?.id || !question.trim()) return;
-    setLoading(true); setAnswer("");
-    const { data, error } = await supabase.functions.invoke("hotel-investment-analyst", { body: { company_id: company.data.id, question } });
-    setAnswer(error ? `Não foi possível analisar: ${error.message}` : String(data?.answer || "Sem resposta."));
+    setLoading(true);
+    setAnswer("");
+
+    const body = { company_id: company.data.id, question };
+    const primary = await supabase.functions.invoke("hotel-investment-analyst", { body });
+
+    if (!primary.error && primary.data?.answer) {
+      setAnswer(String(primary.data.answer));
+      setLoading(false);
+      return;
+    }
+
+    const fallbackQuestion = [
+      "ANÁLISE DE INVESTIMENTO DO PROPRIETÁRIO.",
+      "Responda como HotelAI analista do hotel. Use os dados reais disponíveis do hotel e faça uma análise preliminar de viabilidade.",
+      "Calcule investimento, impacto em quartos/ocupação, receita perdida em obra, receita incremental, custos, payback e ROI quando houver dados.",
+      "Separe dado real de premissa e diga claramente quais dados ainda faltam. Não responda com instruções de navegação.",
+      "Projeto:",
+      question,
+    ].join("\n");
+
+    const fallback = await supabase.functions.invoke("hotel-assistant-v2", {
+      body: {
+        company_id: company.data.id,
+        mode: "analysis",
+        question: fallbackQuestion,
+        conversation: [],
+      },
+    });
+
+    if (!fallback.error && fallback.data?.answer) {
+      setAnswer(String(fallback.data.answer));
+    } else {
+      setAnswer("A HotelAI não conseguiu concluir a análise agora. Tente novamente; se persistir, a conexão com o provedor de IA precisa ser verificada.");
+    }
     setLoading(false);
   }
 
@@ -37,7 +69,7 @@ function InvestmentAI() {
       <label className="text-xs font-bold uppercase text-muted-foreground">Projeto que o proprietário quer avaliar</label>
       <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={5} className="mt-2 w-full rounded-xl border border-border bg-background p-3 text-sm" />
       <button onClick={analyze} disabled={loading} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 py-2 font-bold text-primary-foreground disabled:opacity-50">
-        {loading ? <Search className="h-4 w-4 animate-pulse"/> : <Calculator className="h-4 w-4"/>}{loading ? "Pesquisando e calculando..." : "Analisar viabilidade"}
+        {loading ? <Search className="h-4 w-4 animate-pulse"/> : <Calculator className="h-4 w-4"/>}{loading ? "HotelAI pesquisando e calculando..." : "Perguntar à HotelAI"}
       </button>
     </section>
     {answer && <article className="whitespace-pre-wrap rounded-2xl border border-border bg-card p-4 text-sm leading-6">{answer}</article>}
