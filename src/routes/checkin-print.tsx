@@ -47,11 +47,11 @@ const TRANSPORT_MAP: Record<string, string> = {
 
 function CheckinPrint() {
   const [source] = useState(() => {
-    if (typeof window === "undefined") return { local: false, token: null as string | null };
+    if (typeof window === "undefined") return { local: false, checkinId: null as string | null };
     const params = new URLSearchParams(window.location.search);
     return {
       local: params.get("local") === "1",
-      token: params.get("token"),
+      checkinId: params.get("id"),
     };
   });
   const [data, setData] = useState<InviteData | null>(null);
@@ -76,20 +76,21 @@ function CheckinPrint() {
       return () => window.removeEventListener("pagehide", clearOnLeave);
     }
 
-    if (!source.token) {
-      setError("Link de impressão incompleto.");
+    if (!source.checkinId) {
+      setError("Impressão da recepção exige uma sessão autenticada e uma ficha válida.");
       setLoading(false);
       return;
     }
 
     (supabase as any)
-      .rpc("get_guest_checkin", { p_token: source.token })
+      .rpc("get_guest_checkin_staff", { p_checkin_id: source.checkinId })
       .then(({ data: payload, error: requestError }: { data: InviteData | null; error: Error | null }) => {
         if (requestError || !payload) {
-          setError("Não foi possível carregar a ficha assinada. Use o acesso autenticado da recepção.");
+          setError("Não foi possível carregar a ficha assinada. Entre no HospedaMais como dono ou recepção e tente novamente.");
           return;
         }
         setData(payload);
+        window.history.replaceState(window.history.state, "", "/checkin-print");
       })
       .finally(() => setLoading(false));
   }, [source]);

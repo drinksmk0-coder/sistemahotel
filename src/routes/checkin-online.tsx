@@ -39,10 +39,16 @@ const EMPTY_FORM = {
 
 type FormKey = keyof typeof EMPTY_FORM;
 
+function readPublicToken() {
+  if (typeof window === "undefined") return null;
+  const queryToken = new URLSearchParams(window.location.search).get("token");
+  if (queryToken) return queryToken;
+  const fragment = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  return new URLSearchParams(fragment).get("token");
+}
+
 function CheckinOnline() {
-  const publicToken = useRef<string | null>(
-    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("token") : null,
-  );
+  const publicToken = useRef<string | null>(readPublicToken());
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [companions, setCompanions] = useState<Companion[]>([]);
@@ -60,6 +66,7 @@ function CheckinOnline() {
     (supabase as any).rpc("get_guest_checkin", { p_token: token })
       .then(({ data, error: requestError }: { data: InviteData | null; error: Error | null }) => {
         if (requestError || !data) { setError("Este link é inválido ou não está mais disponível."); return; }
+        window.history.replaceState(window.history.state, "", "/checkin-online");
         const guest = data.guest ?? {};
         const saved = data.form_data ?? {};
         const expected = Math.max(0, Number(data.adults ?? 1) + Number(data.children ?? 0) - 1);

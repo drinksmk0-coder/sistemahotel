@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Camera, Loader2, ScanLine } from "lucide-react";
+import { Camera, Loader2, ScanLine, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentCompany } from "@/lib/data";
@@ -20,6 +20,9 @@ export type GuestScanResult = {
   sexo?: string | null;
 };
 
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/jpg", "image/png", "image/webp"]);
+const MAX_SOURCE_FILE_BYTES = 12 * 1024 * 1024;
+
 export function GuestFormScanner({
   onResult,
   compact = false,
@@ -33,7 +36,12 @@ export function GuestFormScanner({
 
   async function readFile(file: File) {
     if (!company.data?.id) return toast.error("Empresa não encontrada.");
-    if (!file.type.startsWith("image/")) return toast.error("Selecione uma foto da ficha.");
+    if (!ALLOWED_IMAGE_TYPES.has(file.type.toLowerCase())) {
+      return toast.error("Use uma foto JPG, PNG ou WebP.");
+    }
+    if (file.size > MAX_SOURCE_FILE_BYTES) {
+      return toast.error("A foto original ficou grande demais. Tire outra foto mais próxima da ficha.");
+    }
 
     setBusy(true);
     try {
@@ -63,7 +71,7 @@ export function GuestFormScanner({
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept="image/jpeg,image/png,image/webp"
         capture="environment"
         className="hidden"
         onChange={(event) => {
@@ -77,6 +85,7 @@ export function GuestFormScanner({
           className="btn-ghost inline-flex items-center gap-2 text-xs"
           disabled={busy}
           onClick={() => inputRef.current?.click()}
+          title="A foto é processada temporariamente pelo provedor de IA e não é salva como imagem no banco do HospedaMais."
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
           {busy ? "Lendo ficha…" : "Ler ficha pela câmera"}
@@ -88,9 +97,12 @@ export function GuestFormScanner({
         )}
       </div>
       {!compact && (
-        <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
-          A foto é processada por IA apenas para extrair os campos. O HospedaMais não grava a imagem no banco. Revise nome, CPF e datas antes de confirmar.
-        </p>
+        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-primary/15 bg-background/60 px-2 py-1.5 text-[10px] leading-relaxed text-muted-foreground">
+          <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+          <p>
+            <strong className="text-foreground">Privacidade:</strong> a foto é enviada temporariamente ao provedor de IA configurado (Google Gemini) somente para extrair os campos. O HospedaMais não grava a imagem no banco. Use o scanner apenas para hóspedes cuja ficha precise ser digitalizada e confira nome, documento e datas antes de salvar.
+          </p>
+        </div>
       )}
     </div>
   );

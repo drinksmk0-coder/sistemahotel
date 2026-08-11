@@ -1,24 +1,53 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.110.2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const STATIC_ALLOWED_ORIGINS = new Set([
+  "https://sistemahotel-two.vercel.app",
+  "https://sistemahotel-sdk13.vercel.app",
+  "https://sistemahotel-git-main-sdk13.vercel.app",
+  "https://sistemahotel-git-security-fnrh-hardening-sdk13.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:5173",
+]);
+
+const MAX_REQUEST_BYTES = 10_000_000;
+const MAX_BASE64_CHARS = 8_000_000;
 
 type RecordRow = Record<string, unknown>;
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") return json({ ok: true });
-  if (request.method !== "POST") return json({ error: "Método não permitido." }, 405);
+  const origin = request.headers.get("Origin");
+
+  if (request.method === "OPTIONS") {
+    if (origin && !isAllowedOrigin(origin)) {
+      return json(request, { error: "Origem não autorizada." }, 403);
+    }
+    return json(request, { ok: true });
+  }
+
+  if (request.method !== "POST") {
+    return json(request, { error: "Método não permitido." }, 405);
+  }
+
+  if (origin && !isAllowedOrigin(origin)) {
+    return json(request, { error: "Origem não autorizada." }, 403);
+  }
+
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+    return json(request, { error: "A foto ficou grande demais." }, 413);
+  }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const authorization = request.headers.get("Authorization");
-    if (!supabaseUrl || !serviceRoleKey) return json({ error: "Ambiente Supabase incompleto." }, 500);
-    if (!authorization) return json({ error: "Login obrigatório." }, 401);
+    if (!supabaseUrl || !serviceRoleKey) {
+      return json(request, { error: "Ambiente Supabase incompleto." }, 500);
+    }
+    if (!authorization || !/^Bearer\s+\S+/i.test(authorization)) {
+      return json(request, { error: "Login obrigatório." }, 401);
+    }
 
     const body = (await request.json().catch(() => ({}))) as {
       company_id?: string;
@@ -26,18 +55,26 @@ Deno.serve(async (request) => {
     };
     const companyId = String(body.company_id ?? "").trim();
     const imageDataUrl = String(body.image_data_url ?? "");
-    if (!companyId) return json({ error: "Empresa não informada." }, 400);
+    if (!isUuid(companyId)) {
+      return json(request, { error: "Empresa inválida." }, 400);
+    }
 
     const match = imageDataUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
-    if (!match) return json({ error: "Envie uma foto JPG, PNG ou WebP válida." }, 400);
-    if (match[2].length > 8_000_000) return json({ error: "A foto ficou grande demais. Tente novamente aproximando a ficha." }, 413);
+    if (!match) {
+      return json(request, { error: "Envie uma foto JPG, PNG ou WebP válida." }, 400);
+    }
+    if (match[2].length > MAX_BASE64_CHARS) {
+      return json(request, { error: "A foto ficou grande demais. Tente novamente aproximando a ficha." }, 413);
+    }
 
     const admin = createClient(supabaseUrl, serviceRoleKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const jwt = authorization.replace(/^Bearer\s+/i, "");
     const { data: authData, error: authError } = await admin.auth.getUser(jwt);
-    if (authError || !authData.user) return json({ error: "Sessão inválida." }, 401);
+    if (authError || !authData.user) {
+      return json(request, { error: "Sessão inválida." }, 401);
+    }
 
     const { data: membership, error: membershipError } = await admin
       .from("company_members")
@@ -46,13 +83,17 @@ Deno.serve(async (request) => {
       .eq("user_id", authData.user.id)
       .eq("ativo", true)
       .maybeSingle();
-    if (membershipError) return json({ error: membershipError.message }, 500);
+    if (membershipError) {
+      return json(request, { error: "Não foi possível validar a permissão." }, 500);
+    }
     if (!membership || !["dono", "recepcao"].includes(String(membership.role))) {
-      return json({ error: "Acesso negado." }, 403);
+      return json(request, { error: "Acesso negado." }, 403);
     }
 
     const apiKey = await loadGeminiKey(admin);
-    if (!apiKey) return json({ error: "Leitura por câmera ainda não está configurada no servidor." }, 503);
+    if (!apiKey) {
+      return json(request, { error: "Leitura por câmera ainda não está configurada no servidor." }, 503);
+    }
 
     const prompt = `
 Leia esta foto de uma ficha de cadastro/hospedagem. Extraia somente dados que estejam realmente legíveis. Não adivinhe nem complete campos ausentes.
@@ -81,32 +122,43 @@ Se houver CPF, copie os 11 dígitos exatamente como aparecem. Se a imagem estive
       "gemini-3.5-flash-lite",
     ].filter((value): value is string => Boolean(value)))];
 
-    let lastMessage = "Não foi possível interpretar a ficha.";
+    let providerUnavailable = false;
     for (const model of models) {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: JSON.stringify({
-            contents: [{
-              role: "user",
-              parts: [
-                { text: prompt },
-                { inlineData: { mimeType: normalizeMime(match[1]), data: match[2] } },
-              ],
-            }],
-            generationConfig: {
-              temperature: 0,
-              maxOutputTokens: 1400,
-              responseMimeType: "application/json",
+      let response: Response;
+      try {
+        response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": apiKey,
             },
-          }),
-        },
-      );
+            body: JSON.stringify({
+              contents: [{
+                role: "user",
+                parts: [
+                  { text: prompt },
+                  { inlineData: { mimeType: normalizeMime(match[1]), data: match[2] } },
+                ],
+              }],
+              generationConfig: {
+                temperature: 0,
+                maxOutputTokens: 1400,
+                responseMimeType: "application/json",
+              },
+            }),
+            signal: AbortSignal.timeout(30_000),
+          },
+        );
+      } catch {
+        providerUnavailable = true;
+        continue;
+      }
+
       const payload = (await response.json().catch(() => ({}))) as RecordRow;
       if (!response.ok) {
-        lastMessage = nestedString(payload, ["error", "message"]) || `Falha no modelo ${model}.`;
+        providerUnavailable = true;
         if ([401, 403].includes(response.status)) break;
         continue;
       }
@@ -114,7 +166,7 @@ Se houver CPF, copie os 11 dígitos exatamente como aparecem. Se a imagem estive
       const text = extractGeminiText(payload);
       const guest = parseGuest(text);
       if (guest) {
-        return json({
+        return json(request, {
           guest,
           provider: "gemini",
           model,
@@ -122,13 +174,16 @@ Se houver CPF, copie os 11 dígitos exatamente como aparecem. Se a imagem estive
           warning: "Confira os campos extraídos antes de salvar.",
         });
       }
-      lastMessage = "A IA respondeu, mas não retornou campos utilizáveis.";
     }
 
-    return json({ error: lastMessage.slice(0, 220) }, 502);
+    return json(
+      request,
+      { error: providerUnavailable ? "O provedor de leitura está temporariamente indisponível." : "A imagem não retornou campos legíveis." },
+      502,
+    );
   } catch (error) {
-    console.error("scan-guest-form", error instanceof Error ? error.message : "unknown");
-    return json({ error: "Não foi possível ler a ficha agora." }, 500);
+    console.error("scan-guest-form", error instanceof Error ? error.name : "unknown");
+    return json(request, { error: "Não foi possível ler a ficha agora." }, 500);
   }
 });
 
@@ -137,6 +192,33 @@ async function loadGeminiKey(admin: ReturnType<typeof createClient>) {
   return Deno.env.get("GEMINI_API_KEY")?.trim()
     || Deno.env.get("GOOGLE_GENERATIVE_AI_API_KEY")?.trim()
     || (typeof data === "string" ? data.trim() : "");
+}
+
+function isAllowedOrigin(origin: string) {
+  if (STATIC_ALLOWED_ORIGINS.has(origin)) return true;
+  return /^https:\/\/sistemahotel-[a-z0-9-]+-sdk13\.vercel\.app$/i.test(origin);
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function responseHeaders(request: Request) {
+  const headers: Record<string, string> = {
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+    "Pragma": "no-cache",
+    "Vary": "Origin",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+    "Content-Type": "application/json; charset=utf-8",
+  };
+  const origin = request.headers.get("Origin");
+  if (origin && isAllowedOrigin(origin)) {
+    headers["Access-Control-Allow-Origin"] = origin;
+  }
+  return headers;
 }
 
 function extractGeminiText(payload: RecordRow) {
@@ -187,17 +269,9 @@ function normalizeSex(value: string | null) {
   const clean = String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   return ["feminino", "masculino", "outro"].includes(clean) ? clean : null;
 }
-function nestedString(payload: RecordRow, path: string[]) {
-  let current: unknown = payload;
-  for (const key of path) {
-    if (!current || typeof current !== "object") return "";
-    current = (current as RecordRow)[key];
-  }
-  return typeof current === "string" ? current : "";
-}
-function json(payload: unknown, status = 200) {
+function json(request: Request, payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: responseHeaders(request),
   });
 }
