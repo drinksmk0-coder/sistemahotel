@@ -60,6 +60,7 @@ function CheckinOnline() {
     (supabase as any).rpc("get_guest_checkin", { p_token: token })
       .then(({ data, error: requestError }: { data: InviteData | null; error: Error | null }) => {
         if (requestError || !data) { setError("Este link é inválido ou não está mais disponível."); return; }
+        window.history.replaceState(window.history.state, "", "/checkin-online");
         const guest = data.guest ?? {};
         const saved = data.form_data ?? {};
         const expected = Math.max(0, Number(data.adults ?? 1) + Number(data.children ?? 0) - 1);
