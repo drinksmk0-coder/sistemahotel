@@ -1,0 +1,162 @@
+/*
+ * HospedaMais mobile system layer.
+ *
+ * Everything in this file is intentionally scoped to phone-sized viewports.
+ * Desktop styles remain owned by the existing design system.
+ */
+
+@media (max-width: 767px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
+
+  body {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  .app-main {
+    width: 100%;
+    max-width: 100vw;
+    min-width: 0;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .app-main > div,
+  .app-main section,
+  .app-main article,
+  .app-main form,
+  .app-main fieldset {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .app-main h1,
+  .app-main h2,
+  .app-main h3,
+  .app-main h4,
+  .app-main p,
+  .app-main span,
+  .app-main label {
+    overflow-wrap: anywhere;
+  }
+
+  /* Comfortable controls and no iOS form zoom. */
+  .app-main input,
+  .app-main select,
+  .app-main textarea {
+    max-width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .app-main input[type="checkbox"],
+  .app-main input[type="radio"] {
+    min-height: initial;
+  }
+
+  .app-main button,
+  .app-main a {
+    touch-action: manipulation;
+  }
+
+  /* Forms become a single readable flow on phones. */
+  .app-main form .grid-cols-2,
+  .app-main form .grid-cols-3,
+  .app-main form .grid-cols-4,
+  .app-main form .grid-cols-5,
+  .app-main form .grid-cols-6 {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Dense dashboards keep two compact cards instead of overflowing. */
+  .app-main .grid-cols-3,
+  .app-main .grid-cols-4,
+  .app-main .grid-cols-5,
+  .app-main .grid-cols-6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-main .card-surface,
+  .app-main .chart-surface,
+  .app-main .stat-card {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Legacy desktop tables remain complete, but scroll inside themselves. */
+  .app-main table {
+    display: block;
+    width: 100%;
+    min-width: 100% !important;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  .app-main table thead,
+  .app-main table tbody,
+  .app-main table tfoot {
+    width: max-content;
+    min-width: 100%;
+  }
+
+  /* Dialogs, sheets and popovers must fit the visual viewport. */
+  [role="dialog"] {
+    max-width: calc(100vw - 1rem) !important;
+    max-height: calc(100dvh - 1rem) !important;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-radix-popper-content-wrapper] {
+    max-width: calc(100vw - 1rem) !important;
+  }
+
+  [data-radix-popper-content-wrapper] > * {
+    max-width: 100%;
+  }
+
+  /* Charts inherit the phone width instead of their desktop intrinsic size. */
+  .app-main .recharts-responsive-container,
+  .app-main .recharts-wrapper,
+  .app-main .recharts-surface {
+    max-width: 100% !important;
+  }
+
+  /* Bottom navigation and side drawer stay above device safe areas. */
+  nav.fixed.inset-x-0.bottom-0 {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+
+  .app-sidebar {
+    max-width: 92vw;
+  }
+
+  /* Fixed assistant/help controls must not cover the mobile navigation. */
+  .app-main + div.fixed {
+    max-width: calc(100vw - 1.5rem);
+  }
+}
+
+@media (max-width: 420px) {
+  .app-main .grid-cols-3,
+  .app-main .grid-cols-4,
+  .app-main .grid-cols-5,
+  .app-main .grid-cols-6 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-main {
+    padding-left: 0.625rem !important;
+    padding-right: 0.625rem !important;
+  }
+}
