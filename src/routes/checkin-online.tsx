@@ -39,10 +39,16 @@ const EMPTY_FORM = {
 
 type FormKey = keyof typeof EMPTY_FORM;
 
+function readPublicToken() {
+  if (typeof window === "undefined") return null;
+  const queryToken = new URLSearchParams(window.location.search).get("token");
+  if (queryToken) return queryToken;
+  const fragment = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  return new URLSearchParams(fragment).get("token");
+}
+
 function CheckinOnline() {
-  const publicToken = useRef<string | null>(
-    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("token") : null,
-  );
+  const publicToken = useRef<string | null>(readPublicToken());
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [companions, setCompanions] = useState<Companion[]>([]);
