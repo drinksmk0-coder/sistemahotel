@@ -5,6 +5,7 @@ import { GlobalHistoryNavigation } from "@/components/GlobalHistoryNavigation";
 import { OwnerStrategicRedirect } from "@/components/OwnerStrategicRedirect";
 import { getValidAuth } from "@/lib/auth";
 import "@/components/app-floating-tools.css";
+import "@/components/mobile-system-shell.css";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
