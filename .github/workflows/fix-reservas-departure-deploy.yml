@@ -1,0 +1,53 @@
+name: Fix reservas departure deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-reservas-departure-deploy.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Remove duplicated reservas state/effect
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/routes/_authenticated/reservas.tsx')
+          s = p.read_text()
+          effect = '''  useEffect(() => {\n    const reservationId = new URLSearchParams(window.location.search).get("editar");\n    if (!reservationId || !reservations.length) return;\n    const reservation = reservations.find((item) => item.id === reservationId);\n    if (!reservation) return;\n    setEditing(reservation);\n    window.history.replaceState({}, "", window.location.pathname);\n  }, [reservations]);\n'''
+          # Keep only one copy of the edit-from-query effect.
+          first = s.find(effect)
+          if first >= 0:
+              tail = s[first + len(effect):]
+              tail = tail.replace(effect, '', 1)
+              s = s[:first + len(effect)] + tail
+          # Keep only one dateFilter state declaration if a previous patch duplicated it.
+          decl = '  const [dateFilter, setDateFilter] = useState("");\n'
+          first = s.find(decl)
+          if first >= 0:
+              tail = s[first + len(decl):].replace(decl, '', 1)
+              s = s[:first + len(decl)] + tail
+          p.write_text(s)
+          PY
+      - name: Validate build
+        run: |
+          npm ci
+          npm run build
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/_authenticated/reservas.tsx
+          if ! git diff --cached --quiet; then
+            git commit -m "remove duplicação que bloqueava deploy de reservas"
+            git push origin HEAD:main
+          fi
