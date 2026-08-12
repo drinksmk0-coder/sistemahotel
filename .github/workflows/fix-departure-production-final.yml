@@ -1,0 +1,63 @@
+name: Fix departure production final
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-departure-production-final.yml'
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Fix reservas and build script
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/routes/_authenticated/reservas.tsx')
+          s=p.read_text()
+          effect='''  useEffect(() => {\n    const reservationId = new URLSearchParams(window.location.search).get("editar");\n    if (!reservationId || !reservations.length) return;\n    const reservation = reservations.find((item) => item.id === reservationId);\n    if (!reservation) return;\n    setEditing(reservation);\n    window.history.replaceState({}, "", window.location.pathname);\n  }, [reservations]);\n'''
+          first=s.find(effect)
+          if first>=0:
+              rest=s[first+len(effect):]
+              rest=rest.replace(effect,'',1)
+              s=s[:first+len(effect)]+rest
+          decl='  const [dateFilter, setDateFilter] = useState("");\n'
+          first=s.find(decl)
+          if first>=0:
+              rest=s[first+len(decl):]
+              while decl in rest:
+                  rest=rest.replace(decl,'',1)
+              s=s[:first+len(decl)]+rest
+          block='''    if (dateFilter) {\n      filteredRows = filteredRows.filter(\n        (reservation) =>\n          reservation.checkin <= dateFilter && reservation.checkout >= dateFilter,\n      );\n    }\n'''
+          first=s.find(block)
+          if first>=0:
+              rest=s[first+len(block):]
+              while block in rest:
+                  rest=rest.replace(block,'',1)
+              s=s[:first+len(block)]+rest
+          p.write_text(s)
+
+          q=Path('scripts/apply-final-workflow-fixes.mjs')
+          t=q.read_text()
+          start=t.find('patch("src/routes/_authenticated/reservas.tsx", [')
+          if start>=0:
+              end=t.find('\n\npatch("src/components/MapaQuartos.tsx"', start)
+              if end>=0:
+                  t=t[:start]+t[end+2:]
+          q.write_text(t)
+          PY
+      - name: Validate build
+        run: |
+          npm ci
+          npm run build
+      - name: Commit fixes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/routes/_authenticated/reservas.tsx scripts/apply-final-workflow-fixes.mjs
+          git diff --cached --quiet || git commit -m 'corrige botão de saída e build de reservas'
+          git push origin main
