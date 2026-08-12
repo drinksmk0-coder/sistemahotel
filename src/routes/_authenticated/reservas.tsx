@@ -104,14 +104,6 @@ function Reservas() {
   }, [reservations]);
   const [dateFilter, setDateFilter] = useState("");
 
-  useEffect(() => {
-    const reservationId = new URLSearchParams(window.location.search).get("editar");
-    if (!reservationId || !reservations.length) return;
-    const reservation = reservations.find((item) => item.id === reservationId);
-    if (!reservation) return;
-    setEditing(reservation);
-    window.history.replaceState({}, "", window.location.pathname);
-  }, [reservations]);
 
   const overdueDepartures = reservations.filter(
     (reservation) =>
@@ -148,12 +140,6 @@ function Reservas() {
     }
 
 
-    if (dateFilter) {
-      filteredRows = filteredRows.filter(
-        (reservation) =>
-          reservation.checkin <= dateFilter && reservation.checkout >= dateFilter,
-      );
-    }
 
     const term = search.trim().toLocaleLowerCase("pt-BR");
     if (!term) return filteredRows;

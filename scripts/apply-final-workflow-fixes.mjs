@@ -8,25 +8,6 @@ function patch(path, changes) {
   fs.writeFileSync(path, source);
 }
 
-patch("src/routes/_authenticated/reservas.tsx", [
-  [
-    '  const [search, setSearch] = useState("");',
-    '  const [search, setSearch] = useState("");\n  const [dateFilter, setDateFilter] = useState("");',
-  ],
-  [
-    '    const term = search.trim().toLocaleLowerCase("pt-BR");',
-    '    if (dateFilter) {\n      filteredRows = filteredRows.filter(\n        (reservation) =>\n          reservation.checkin <= dateFilter && reservation.checkout >= dateFilter,\n      );\n    }\n\n    const term = search.trim().toLocaleLowerCase("pt-BR");',
-  ],
-  [
-    '  }, [reservations, sales, filter, search]);',
-    '  }, [reservations, sales, filter, search, dateFilter]);',
-  ],
-  [
-    '        <div className="flex flex-wrap gap-1 text-xs">',
-    '        <div className="flex flex-wrap items-center gap-1 text-xs">\n          <label className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1">\n            <span className="font-semibold text-muted-foreground">Na data</span>\n            <input\n              type="date"\n              value={dateFilter}\n              onChange={(event) => setDateFilter(event.target.value)}\n              className="bg-transparent text-xs outline-none"\n            />\n          </label>\n          {dateFilter && (\n            <button type="button" className="rounded-full bg-muted px-2.5 py-1.5 font-semibold" onClick={() => setDateFilter("")}>\n              Limpar data\n            </button>\n          )}',
-  ],
-]);
-
 patch("src/components/MapaQuartos.tsx", [
   [
     '            {whatsapp && (',
