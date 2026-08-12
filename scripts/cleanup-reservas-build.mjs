@@ -31,5 +31,10 @@ keepFirst(`    if (dateFilter) {
     }
 `);
 
+source = source.replace(
+  '["ativas", "saidas", "pendencias", "reservado", "ocupado", "finalizado", "todas"]',
+  '["ativas", "saidas", "pendencias", "reservado", "ocupado", "cancelado", "finalizado", "todas"]',
+);
+
 fs.writeFileSync(path, source);
-console.log("Reservas: duplicações removidas antes do build.");
+console.log("Reservas: duplicações removidas e filtro Cancelado garantido antes do build.");
