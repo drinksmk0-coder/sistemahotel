@@ -1,0 +1,63 @@
+name: Publish departure button
+on:
+  push:
+    paths:
+      - '.github/workflows/publish-departure-button.yml'
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Repair source and dependency
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          p=Path('src/routes/_authenticated/reservas.tsx')
+          s=p.read_text()
+          effect='''  useEffect(() => {\n    const reservationId = new URLSearchParams(window.location.search).get("editar");\n    if (!reservationId || !reservations.length) return;\n    const reservation = reservations.find((item) => item.id === reservationId);\n    if (!reservation) return;\n    setEditing(reservation);\n    window.history.replaceState({}, "", window.location.pathname);\n  }, [reservations]);\n'''
+          while s.count(effect)>1:
+              pos=s.rfind(effect)
+              s=s[:pos]+s[pos+len(effect):]
+          decl='  const [dateFilter, setDateFilter] = useState("");\n'
+          while s.count(decl)>1:
+              pos=s.rfind(decl)
+              s=s[:pos]+s[pos+len(decl):]
+          block='''    if (dateFilter) {\n      filteredRows = filteredRows.filter(\n        (reservation) =>\n          reservation.checkin <= dateFilter && reservation.checkout >= dateFilter,\n      );\n    }\n'''
+          while s.count(block)>1:
+              pos=s.rfind(block)
+              s=s[:pos]+s[pos+len(block):]
+          p.write_text(s)
+
+          q=Path('scripts/apply-final-workflow-fixes.mjs')
+          t=q.read_text()
+          start=t.find('patch("src/routes/_authenticated/reservas.tsx", [')
+          if start>=0:
+              end=t.find('\n\npatch("src/components/MapaQuartos.tsx"', start)
+              if end>=0:
+                  t=t[:start]+t[end+2:]
+          q.write_text(t)
+
+          pkg=Path('package.json')
+          data=json.loads(pkg.read_text())
+          data['dependencies']['use-stick-to-bottom']='^1.1.6'
+          pkg.write_text(json.dumps(data, ensure_ascii=False, indent=2)+'\n')
+          PY
+      - name: Refresh lockfile
+        run: npm install --package-lock-only
+      - name: Validate production build
+        run: |
+          npm ci
+          npm run build
+      - name: Commit and push
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/routes/_authenticated/reservas.tsx scripts/apply-final-workflow-fixes.mjs package.json package-lock.json
+          git diff --cached --quiet || git commit -m 'publica botão de saída do hóspede'
+          git push origin main
