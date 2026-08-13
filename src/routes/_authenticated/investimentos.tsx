@@ -26,57 +26,50 @@ function InvestmentAI() {
 
     const hotelAiQuestion = [
       "ANÁLISE DE INVESTIMENTO DO PROPRIETÁRIO.",
-      "A pergunta abaixo é uma decisão de investimento. NÃO responda apenas com relatório de ocupação, padrão temporal ou resumo de dados.",
-      "Responda em linguagem simples, como se estivesse explicando diretamente ao dono do hotel. Comece pela conclusão e depois explique os números. Evite termos técnicos sem explicar.",
+      "A pergunta abaixo é uma decisão de investimento. NÃO responda com previsão de cancelamento, Random Forest, risco de reserva ou previsão de ocupação como resposta principal.",
+      "Responda em linguagem simples, como se estivesse explicando diretamente ao dono do hotel. Comece pela conclusão e depois explique os números.",
       "REGRA DO HOTEL: todos os quartos cadastrados com diária de R$ 80 devem ser considerados quartos sem banheiro privativo.",
-      "REGRA DE EVIDÊNCIA: para os quartos de R$ 80, considere como hospedagem comprovada apenas as reservas realmente registradas no sistema no período de Carnaval. Fora desse período, não invente ocupação nem suponha que houve hospedagem sem evidência do banco.",
+      "REGRA DE EVIDÊNCIA: para os quartos de R$ 80, considere como hospedagem comprovada apenas as reservas realmente registradas no sistema. Não invente ocupação nem suponha hospedagem sem evidência do banco.",
       "Busque no sistema quantos quartos de R$ 80 existem e use essa quantidade real; nunca invente uma quantidade fixa de quartos.",
       "Use os dados reais disponíveis do hotel como insumos do cálculo: reservas, ocupação, quartos, receitas, despesas, padrões de demanda ao longo do tempo e canais.",
       "Sua obrigação é transformar esses dados em uma DECISÃO FINANCEIRA E OPERACIONAL sobre o projeto informado.",
       "Calcule, quando possível: investimento inicial, custo mensal adicional, quartos/dias fora de operação, receita perdida durante obra, impacto permanente de reduzir quantidade de quartos, diária atual versus diária necessária após a melhoria, receita incremental, margem, prazo para recuperar o investimento, retorno anual e ponto de equilíbrio.",
       "Use os meses de menor demanda para sugerir a melhor janela de obra e estime como isso reduz a perda de receita.",
-      "Monte cenários pessimista, base e otimista. Separe claramente: DADO DO HOTEL, PREMISSA e DADO EXTERNO quando houver.",
-      "Se faltar custo de obra/equipamento ou outro valor externo, NÃO encerre a resposta. Faça o cálculo com uma faixa de premissas claramente identificada e diga quais cotações precisam ser obtidas para fechar a decisão.",
-      "A resposta deve conter obrigatoriamente: 1) resposta curta 'vale ou não vale'; 2) quantos quartos de R$80 foram encontrados; 3) o que esses quartos realmente venderam no Carnaval; 4) impacto da obra; 5) cálculo financeiro em linguagem simples; 6) três cenários; 7) melhor época para executar; 8) riscos; 9) dados faltantes; 10) VEREDITO.",
-      "Nunca marque como DADO DO HOTEL algo que seja estimativa. Se usar R$ 80, deixe claro que vem da regra do hotel/cadastro dos quartos. Se usar custo de obra ou futura diária, marque como PREMISSA ou DADO EXTERNO.",
+      "Monte cenários pessimista, base e otimista. Separe claramente: DADO DO HOTEL, PESQUISA WEB e PREMISSA.",
+      "Se faltar custo de obra/equipamento ou outro valor externo, NÃO encerre a resposta. Pesquise faixas atuais quando possível, identifique-as como PESQUISA WEB ou PREMISSA e diga quais cotações precisam ser obtidas para fechar a decisão.",
+      "A resposta deve conter: 1) resposta curta vale ou não vale; 2) dados reais encontrados; 3) impacto operacional; 4) cálculo financeiro; 5) três cenários; 6) melhor época para executar; 7) riscos; 8) dados faltantes; 9) VEREDITO.",
+      "Nunca marque como DADO DO HOTEL algo que seja estimativa.",
       "Termine com VEREDITO: Viável, Viável com condições ou Não recomendado agora; inclua chance de retorno como faixa justificada e próximo teste de baixo custo.",
-      "Nunca encerre a resposta apenas descrevendo os dados do hotel.",
       "Projeto a avaliar:",
       question,
     ].join("\n");
 
-    const result = await supabase.functions.invoke("hotel-assistant-v2", {
+    const result = await supabase.functions.invoke("hotel-investment-analyst", {
       body: {
         company_id: company.data.id,
-        mode: "analysis",
         question: hotelAiQuestion,
-        conversation: [],
       },
     });
 
     if (!result.error && result.data?.answer) {
       const response = String(result.data.answer);
-      const historicalOnly = response.includes("# Leitura histórica") && !/VEREDITO|payback|ROI|investimento inicial|vi[aá]vel/i.test(response);
-      if (!historicalOnly) {
+      const wrongModel = /Random Forest|Modelo de cancelamento|Reservas com maior risco|Previsão do HotelAI/i.test(response);
+      if (!wrongModel) {
         setAnswer(response);
         setLoading(false);
         return;
       }
 
-      const retry = await supabase.functions.invoke("hotel-assistant-v2", {
+      const retry = await supabase.functions.invoke("hotel-investment-analyst", {
         body: {
           company_id: company.data.id,
-          mode: "analysis",
           question: [
-            "CORREÇÃO DE RESPOSTA: a resposta anterior ficou apenas descritiva.",
-            "Ignore qualquer formato de 'Leitura histórica' como resposta final.",
-            "REGRA DO HOTEL: quartos de R$80 = quartos sem banheiro privativo. Use a quantidade real cadastrada no sistema.",
-            "REGRA DE EVIDÊNCIA: para esses quartos de R$80, só trate como hospedagem comprovada o que estiver realmente registrado no Carnaval; fora disso, não presuma ocupação.",
-            "Explique em linguagem simples e entregue a análise de VIABILIDADE do investimento, com investimento inicial, perda de receita, aumento de diária necessário, prazo de retorno, cenários e VEREDITO.",
+            "CORREÇÃO OBRIGATÓRIA: a resposta anterior veio de um modelo errado.",
+            "NÃO use Random Forest, cancelamento de reservas ou previsão de ocupação como resposta.",
+            "Entregue exclusivamente uma análise de VIABILIDADE DO INVESTIMENTO com dados do hotel, pesquisa web quando necessária, CAPEX, OPEX, receita incremental, perda de receita, ROI, payback, cenários e VEREDITO.",
             "Projeto:",
             question,
           ].join("\n"),
-          conversation: [],
         },
       });
       setAnswer(!retry.error && retry.data?.answer ? String(retry.data.answer) : response);
@@ -85,7 +78,9 @@ function InvestmentAI() {
     }
 
     setAnswer(
-      "A HotelAI não conseguiu concluir a análise agora. Atualize a página e tente novamente; se continuar, a conexão da HotelAI precisa ser verificada.",
+      result.error?.message ||
+        result.data?.error ||
+        "A HotelAI não conseguiu concluir a análise agora. Atualize a página e tente novamente; se continuar, a conexão da HotelAI Investimentos precisa ser verificada.",
     );
     setLoading(false);
   }
