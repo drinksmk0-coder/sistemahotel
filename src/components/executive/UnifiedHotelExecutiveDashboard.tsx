@@ -1,232 +1,389 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart,
-  ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer,
+  Tooltip, XAxis, YAxis,
 } from "recharts";
-import {
-  Activity, BadgeDollarSign, BedDouble, CircleDollarSign, Percent, TrendingUp,
-  Star, ShoppingBasket, ThumbsUp, AlertTriangle,
-} from "lucide-react";
+import { CalendarDays, Filter, TrendingDown, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentCompany } from "@/lib/data";
 import { fmtBRL } from "@/lib/format";
 
 type Daily = {
-  data: string; quartos_ocupados: number; quartos_total: number; ocupacao_pct: number;
-  receita_total: number; despesas: number; gop: number; adr: number; revpar: number;
-  cancelamentos: number; no_shows: number;
+  data: string;
+  quartos_ocupados: number;
+  quartos_total: number;
+  ocupacao_pct: number;
+  receita_hospedagem: number;
+  receita_extras: number;
+  receita_total: number;
+  despesas: number;
+  gop: number;
+  adr: number;
+  revpar: number;
+  cancelamentos: number;
+  no_shows: number;
 };
 
-type Cross = {
-  canal: string; tipo_quarto: string | null; faixa_diaria: string; perfil_familiar: string;
-  motivo_estadia: string; quantidade_filhos: number; status: string; reservas: number;
-  receita_bruta: number; adr: number; taxa_cancelamento: number; taxa_no_show: number;
+type RevenueSource = { data: string; origem_receita: string; receita: number };
+type Reservation = {
+  reserva_id: string;
+  cliente_id: string | null;
+  cliente_nome: string | null;
+  quarto: number | null;
+  checkin: string;
+  checkout: string;
+  data_reserva: string;
+  diarias: number;
+  hospedes: number;
+  adultos: number;
+  criancas: number;
+  possui_filhos: boolean;
+  quantidade_filhos: number;
+  perfil_familiar: string;
+  idade: number | null;
+  faixa_idade: string;
+  motivo_estadia: string;
+  canal_analitico: string;
+  elegivel_cancelamento_pre_checkin: boolean;
+  status: string;
+  cancelado_flag: number;
+  valor_diaria_real: number;
+  tarifa_base_quarto: number;
+  faixa_preco_base: string;
+  valor_total: number;
+  valor_pago: number;
+  corporativo: boolean;
 };
 
-type Journey = {
-  data: string; receita_extras: number; reservas_com_consumo: number; ticket_medio_extras: number;
-  respostas_experiencia: number; csat_medio: number | null; taxa_recomendacao: number | null;
-  avaliacoes_atencao: number; problemas_reportados: number;
+type Sale = {
+  data: string;
+  total: number;
+  comprador_tipo: string | null;
+  status: string | null;
 };
 
-type Forecast = { date: string; expected_occupancy: number; lower: number; upper: number };
+type Expense = { data: string; categoria: string | null; descricao: string | null; valor: number };
+type Room = {
+  quarto: number;
+  configuracao: string | null;
+  preco: number;
+  banheiro: boolean | null;
+  hospedagens: number;
+  diarias: number;
+  receita_operacional_recente: number;
+  adr_atual: number | null;
+  avaliacoes: number;
+  nota_media_10: number | null;
+  nivel_uso: string;
+};
+type Forecast = { date: string; expected_occupancy: number; confirmed_rooms: number };
 
-const pct = (n: number) => `${Number.isFinite(n) ? n.toFixed(1) : "0,0"}%`;
-const labelDate = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+type SourceBundle = {
+  daily: Daily[];
+  revenueSources: RevenueSource[];
+  reservations: Reservation[];
+  sales: Sale[];
+  expenses: Expense[];
+  rooms: Room[];
+  forecast: Forecast[];
+};
+
+type DeltaTone = "green" | "red" | "blue";
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const monthStart = (iso: string) => `${iso.slice(0, 7)}-01`;
+const brDate = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+const monthLabel = (iso: string) => new Date(`${iso}-01T12:00:00`).toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }).replace(". de ", "/");
+const num = (v: unknown) => Number(v || 0);
+const pct = (v: number) => `${Number.isFinite(v) ? v.toFixed(1).replace(".", ",") : "0,0"}%`;
+const daysBetween = (a: string, b: string) => Math.max(1, Math.floor((new Date(`${b}T12:00:00`).getTime() - new Date(`${a}T12:00:00`).getTime()) / 86400000) + 1);
+const inRange = (iso: string, start: string, end: string) => iso >= start && iso <= end;
 
 export function UnifiedHotelExecutiveDashboard() {
   const company = useCurrentCompany();
   const companyId = company.data?.id;
+  const today = todayISO();
+  const [start, setStart] = useState(monthStart(today));
+  const [end, setEnd] = useState(today);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [channel, setChannel] = useState("Todos");
 
-  const daily = useQuery({
-    queryKey: ["unified-executive-daily", companyId], enabled: !!companyId,
-    queryFn: async () => {
-      const since = new Date(); since.setDate(since.getDate() - 59);
-      const { data, error } = await (supabase as any).from("bi_dashboard_diario")
-        .select("data,quartos_ocupados,quartos_total,ocupacao_pct,receita_total,despesas,gop,adr,revpar,cancelamentos,no_shows")
-        .eq("company_id", companyId).gte("data", since.toISOString().slice(0, 10)).order("data");
-      if (error) throw error;
-      return (data ?? []) as Daily[];
+  const source = useQuery({
+    queryKey: ["decision-dashboard-v2", companyId],
+    enabled: !!companyId,
+    staleTime: 60_000,
+    queryFn: async (): Promise<SourceBundle> => {
+      const [daily, revenueSources, reservations, sales, expenses, rooms, forecast] = await Promise.all([
+        (supabase as any).from("bi_dashboard_diario")
+          .select("data,quartos_ocupados,quartos_total,ocupacao_pct,receita_hospedagem,receita_extras,receita_total,despesas,gop,adr,revpar,cancelamentos,no_shows")
+          .eq("company_id", companyId).lte("data", today).order("data"),
+        (supabase as any).from("bi_receita_origem_diaria")
+          .select("data,origem_receita,receita").eq("company_id", companyId).lte("data", today).order("data"),
+        (supabase as any).from("bi_reservas_decisao").select("*").eq("company_id", companyId).limit(5000),
+        (supabase as any).from("sales").select("data,total,comprador_tipo,status").eq("company_id", companyId).limit(5000),
+        (supabase as any).from("expenses").select("data,categoria,descricao,valor").eq("company_id", companyId).limit(5000),
+        (supabase as any).from("bi_quarto_decisao").select("*").eq("company_id", companyId).order("hospedagens", { ascending: false }),
+        supabase.functions.invoke("hotel-random-forest", { body: { company_id: companyId } }),
+      ]);
+      for (const r of [daily, revenueSources, reservations, sales, expenses, rooms]) if (r.error) throw r.error;
+      return {
+        daily: (daily.data ?? []) as Daily[],
+        revenueSources: (revenueSources.data ?? []) as RevenueSource[],
+        reservations: (reservations.data ?? []) as Reservation[],
+        sales: (sales.data ?? []) as Sale[],
+        expenses: (expenses.data ?? []) as Expense[],
+        rooms: (rooms.data ?? []) as Room[],
+        forecast: (((forecast.data as any)?.occupancy?.forecast ?? []) as Forecast[]),
+      };
     },
-  });
-
-  const crossings = useQuery({
-    queryKey: ["unified-executive-crossings", companyId], enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).from("bi_dashboard_cruzamentos")
-        .select("canal,tipo_quarto,faixa_diaria,perfil_familiar,motivo_estadia,quantidade_filhos,status,reservas,receita_bruta,adr,taxa_cancelamento,taxa_no_show")
-        .eq("company_id", companyId);
-      if (error) throw error;
-      return (data ?? []) as Cross[];
-    },
-  });
-
-  const journey = useQuery({
-    queryKey: ["unified-executive-journey", companyId], enabled: !!companyId,
-    queryFn: async () => {
-      const since = new Date(); since.setDate(since.getDate() - 59);
-      const { data, error } = await (supabase as any).from("bi_guest_journey_daily")
-        .select("data,receita_extras,reservas_com_consumo,ticket_medio_extras,respostas_experiencia,csat_medio,taxa_recomendacao,avaliacoes_atencao,problemas_reportados")
-        .eq("company_id", companyId).gte("data", since.toISOString().slice(0,10)).order("data");
-      if (error) throw error;
-      return (data ?? []) as Journey[];
-    },
-  });
-
-  const forecast = useQuery({
-    queryKey: ["unified-executive-forecast", companyId], enabled: !!companyId,
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("hotel-random-forest", { body: { company_id: companyId } });
-      if (error) throw error;
-      return ((data as any)?.occupancy?.forecast ?? []) as Forecast[];
-    }, staleTime: 5 * 60_000,
   });
 
   const model = useMemo(() => {
-    const rows = daily.data ?? [];
-    const current = rows.slice(-30);
-    const previous = rows.slice(-60, -30);
-    const sum = (arr: Daily[], key: keyof Daily) => arr.reduce((s, r) => s + Number(r[key] || 0), 0);
-    const avg = (arr: Daily[], key: keyof Daily) => arr.length ? sum(arr, key) / arr.length : 0;
-    const availableRoomNights = current.reduce((s, r) => s + Number(r.quartos_total || 0), 0);
-    const revenue = sum(current, "receita_total");
-    const gop = sum(current, "gop");
-    const occupied = sum(current, "quartos_ocupados");
-    const adrWeighted = occupied ? current.reduce((s, r) => s + Number(r.adr || 0) * Number(r.quartos_ocupados || 0), 0) / occupied : avg(current, "adr");
-    const revpar = availableRoomNights ? revenue / availableRoomNights : avg(current, "revpar");
-    const cancellationRows = crossings.data ?? [];
-    const totalReservations = cancellationRows.reduce((s, r) => s + Number(r.reservas || 0), 0);
-    const cancelled = cancellationRows.reduce((s, r) => s + Number(r.reservas || 0) * Number(r.taxa_cancelamento || 0) / 100, 0);
-    const cancellation = totalReservations ? cancelled / totalReservations * 100 : 0;
+    const data = source.data;
+    if (!data) return null;
+    const selectedDays = daysBetween(start, end);
+    const prevEndDate = new Date(`${start}T12:00:00`);
+    prevEndDate.setDate(prevEndDate.getDate() - 1);
+    const prevEnd = prevEndDate.toISOString().slice(0, 10);
+    const prevStartDate = new Date(`${prevEnd}T12:00:00`);
+    prevStartDate.setDate(prevStartDate.getDate() - selectedDays + 1);
+    const prevStart = prevStartDate.toISOString().slice(0, 10);
 
-    const trend = (value: number, prev: number) => prev ? ((value - prev) / Math.abs(prev)) * 100 : 0;
-    const prevRevenue = sum(previous, "receita_total");
-    const prevOcc = avg(previous, "ocupacao_pct");
-    const prevAdr = avg(previous, "adr");
-    const prevAvail = previous.reduce((s, r) => s + Number(r.quartos_total || 0), 0);
-    const prevRevpar = prevAvail ? prevRevenue / prevAvail : avg(previous, "revpar");
+    const filteredReservations = data.reservations.filter((r) => inRange(r.checkin, start, end) && (channel === "Todos" || r.canal_analitico === channel));
+    const previousReservations = data.reservations.filter((r) => inRange(r.checkin, prevStart, prevEnd) && (channel === "Todos" || r.canal_analitico === channel));
+    const selectedDaily = data.daily.filter((r) => inRange(r.data, start, end));
+    const previousDaily = data.daily.filter((r) => inRange(r.data, prevStart, prevEnd));
+    const selectedSources = data.revenueSources.filter((r) => inRange(r.data, start, end));
+    const selectedSales = data.sales.filter((r) => inRange(r.data, start, end) && (r.status ?? "") !== "cancelado");
+    const selectedExpenses = data.expenses.filter((r) => inRange(r.data, start, end));
 
-    const channelMap = new Map<string, { reservas: number; receita: number; cancelWeighted: number; adrWeighted: number }>();
-    const familyMap = new Map<string, { reservas: number; receita: number }>();
-    const reasonMap = new Map<string, { reservas: number; receita: number }>();
-    const roomMap = new Map<string, { reservas: number; receita: number }>();
-    for (const r of cancellationRows) {
-      const n = Number(r.reservas || 0), rev = Number(r.receita_bruta || 0);
-      const ch = r.canal || "Não informado";
-      const c = channelMap.get(ch) ?? { reservas: 0, receita: 0, cancelWeighted: 0, adrWeighted: 0 };
-      c.reservas += n; c.receita += rev; c.cancelWeighted += n * Number(r.taxa_cancelamento || 0); c.adrWeighted += n * Number(r.adr || 0); channelMap.set(ch, c);
-      const fam = r.perfil_familiar || "Não informado"; const f = familyMap.get(fam) ?? { reservas: 0, receita: 0 }; f.reservas += n; f.receita += rev; familyMap.set(fam, f);
-      const reason = r.motivo_estadia || "Não informado"; const m = reasonMap.get(reason) ?? { reservas: 0, receita: 0 }; m.reservas += n; m.receita += rev; reasonMap.set(reason, m);
-      const room = r.tipo_quarto || "Não informado"; const rm = roomMap.get(room) ?? { reservas: 0, receita: 0 }; rm.reservas += n; rm.receita += rev; roomMap.set(room, rm);
+    const valid = filteredReservations.filter((r) => r.status !== "cancelado");
+    const prevValid = previousReservations.filter((r) => r.status !== "cancelado");
+    const roomCount = Math.max(1, data.rooms.length);
+    const availableRoomNights = Math.max(1, roomCount * selectedDays);
+    const previousAvailableRoomNights = Math.max(1, roomCount * selectedDays);
+
+    const hospitalityRevenue = selectedDaily.reduce((s, r) => s + num(r.receita_hospedagem), 0);
+    const extrasRevenue = selectedSales.reduce((s, r) => s + num(r.total), 0);
+    const totalRevenue = hospitalityRevenue + extrasRevenue;
+    const recordedExpenses = selectedExpenses.reduce((s, r) => s + num(r.valor), 0);
+    const occupiedRoomNights = selectedDaily.reduce((s, r) => s + num(r.quartos_ocupados), 0);
+    const occupancy = availableRoomNights ? occupiedRoomNights / availableRoomNights * 100 : 0;
+    const adr = occupiedRoomNights ? hospitalityRevenue / occupiedRoomNights : 0;
+    const revpar = hospitalityRevenue / availableRoomNights;
+    const trevpar = totalRevenue / availableRoomNights;
+    const actualGop = totalRevenue - recordedExpenses;
+    const goppar = actualGop / availableRoomNights;
+
+    const prevHospitality = previousDaily.reduce((s, r) => s + num(r.receita_hospedagem), 0);
+    const prevExtras = data.sales.filter((r) => inRange(r.data, prevStart, prevEnd) && (r.status ?? "") !== "cancelado").reduce((s, r) => s + num(r.total), 0);
+    const prevRevenue = prevHospitality + prevExtras;
+    const prevOccupied = previousDaily.reduce((s, r) => s + num(r.quartos_ocupados), 0);
+    const prevOccupancy = previousAvailableRoomNights ? prevOccupied / previousAvailableRoomNights * 100 : 0;
+    const prevAdr = prevOccupied ? prevHospitality / prevOccupied : 0;
+    const prevRevpar = prevHospitality / previousAvailableRoomNights;
+    const prevTrevpar = prevRevenue / previousAvailableRoomNights;
+
+    const delta = (cur: number, prev: number) => prev ? (cur - prev) / Math.abs(prev) * 100 : 0;
+
+    const sourceMap = new Map<string, number>();
+    for (const r of selectedSources) sourceMap.set(r.origem_receita, (sourceMap.get(r.origem_receita) ?? 0) + num(r.receita));
+    const revenueBySource = [...sourceMap].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+
+    const dailyMap = new Map<string, { data: string; hospedagem: number; produtos: number; despesas: number }>();
+    for (const d of selectedDaily) dailyMap.set(d.data, { data: d.data, hospedagem: num(d.receita_hospedagem), produtos: 0, despesas: num(d.despesas) });
+    for (const s of selectedSales) {
+      const row = dailyMap.get(s.data) ?? { data: s.data, hospedagem: 0, produtos: 0, despesas: 0 };
+      row.produtos += num(s.total); dailyMap.set(s.data, row);
     }
-    const channels = [...channelMap].map(([canal, v]) => ({ canal, receita: v.receita, reservas: v.reservas, adr: v.reservas ? v.adrWeighted / v.reservas : 0, cancelamento: v.reservas ? v.cancelWeighted / v.reservas : 0 })).sort((a,b) => b.receita-a.receita).slice(0,8);
-    const families = [...familyMap].map(([perfil, v]) => ({ perfil, ...v })).sort((a,b)=>b.reservas-a.reservas).slice(0,6);
-    const reasons = [...reasonMap].map(([motivo, v]) => ({ motivo, ...v })).sort((a,b)=>b.reservas-a.reservas).slice(0,6);
-    const roomTypes = [...roomMap].map(([tipo, v]) => ({ tipo, ...v })).sort((a,b)=>b.reservas-a.reservas).slice(0,6);
+    const revenueEvolution = aggregateTimeline([...dailyMap.values()], start, end, (r) => ({ hospedagem: r.hospedagem, produtos: r.produtos, despesas: r.despesas }));
 
-    const actualForecast = current.slice(-14).map(r => ({ data: labelDate(r.data), real: Number(r.ocupacao_pct || 0), previsto: null as number | null }));
-    const future = (forecast.data ?? []).slice(0,14).map(r => ({ data: labelDate(r.date), real: null as number | null, previsto: Number(r.expected_occupancy || 0) }));
+    const actualOccupancy = aggregateOccupancy(selectedDaily, start, end);
+    const forecastRows = data.forecast
+      .filter((f) => f.date > today && f.date <= end)
+      .map((f) => ({ iso: f.date, label: brDate(f.date), real: null as number | null, previsto: num(f.expected_occupancy), confirmados: num(f.confirmed_rooms) }));
+    const occupancyTimeline = [
+      ...actualOccupancy.map((r) => ({ iso: r.iso, label: r.label, real: r.value, previsto: null as number | null, confirmados: null as number | null })),
+      ...forecastRows,
+    ].sort((a, b) => a.iso.localeCompare(b.iso));
 
-    const journeyCurrent = (journey.data ?? []).slice(-30);
-    const extrasRevenue = journeyCurrent.reduce((s,r)=>s+Number(r.receita_extras||0),0);
-    const consumptionReservations = journeyCurrent.reduce((s,r)=>s+Number(r.reservas_com_consumo||0),0);
-    const extrasTicket = consumptionReservations ? extrasRevenue / consumptionReservations : 0;
-    const experienceAnswers = journeyCurrent.reduce((s,r)=>s+Number(r.respostas_experiencia||0),0);
-    const csat = experienceAnswers ? journeyCurrent.reduce((s,r)=>s+Number(r.csat_medio||0)*Number(r.respostas_experiencia||0),0)/experienceAnswers : 0;
-    const recommendation = experienceAnswers ? journeyCurrent.reduce((s,r)=>s+Number(r.taxa_recomendacao||0)*Number(r.respostas_experiencia||0),0)/experienceAnswers : 0;
-    const attentionReviews = journeyCurrent.reduce((s,r)=>s+Number(r.avaliacoes_atencao||0),0);
-    const reportedProblems = journeyCurrent.reduce((s,r)=>s+Number(r.problemas_reportados||0),0);
-    const extrasTrend = journeyCurrent.slice(-14).map(r=>({data:labelDate(r.data),receita:Number(r.receita_extras||0),ticket:Number(r.ticket_medio_extras||0)}));
+    const channelMap = new Map<string, { reservas: number; receita: number; canc: number; eligible: number }>();
+    for (const r of filteredReservations) {
+      const x = channelMap.get(r.canal_analitico) ?? { reservas: 0, receita: 0, canc: 0, eligible: 0 };
+      x.reservas += 1;
+      if (r.status !== "cancelado") x.receita += num(r.valor_total);
+      if (r.elegivel_cancelamento_pre_checkin) { x.eligible += 1; x.canc += num(r.cancelado_flag); }
+      channelMap.set(r.canal_analitico, x);
+    }
+    const channelPerformance = [...channelMap].map(([canal, x]) => ({
+      canal,
+      receita: x.receita,
+      reservas: x.reservas,
+      cancelamento: x.eligible ? x.canc / x.eligible * 100 : null,
+    })).sort((a, b) => b.receita - a.receita);
+
+    const profileMap = new Map<string, number>();
+    const ageMap = new Map<string, number>();
+    const childMap = new Map<string, number>();
+    for (const r of valid) {
+      profileMap.set(r.perfil_familiar, (profileMap.get(r.perfil_familiar) ?? 0) + 1);
+      ageMap.set(r.faixa_idade, (ageMap.get(r.faixa_idade) ?? 0) + 1);
+      const k = r.quantidade_filhos <= 0 ? "Sem filhos informados" : r.quantidade_filhos === 1 ? "1 filho" : "2+ filhos";
+      childMap.set(k, (childMap.get(k) ?? 0) + 1);
+    }
+    const profiles = [...profileMap].map(([name, value]) => ({ name, value })).sort((a,b)=>b.value-a.value);
+    const ages = [...ageMap].map(([name, value]) => ({ name, value })).sort((a,b)=>ageOrder(a.name)-ageOrder(b.name));
+    const children = [...childMap].map(([name, value]) => ({ name, value }));
+
+    const productSegments = ["hospede", "funcionario", "empresa", "outro"].map((kind) => {
+      const values = selectedSales.filter((s) => normalizeBuyer(s.comprador_tipo) === kind).map((s) => num(s.total)).filter((v) => v > 0).sort((a,b)=>a-b);
+      return {
+        name: buyerLabel(kind),
+        compras: values.length,
+        total: values.reduce((a,b)=>a+b,0),
+        mediana: median(values),
+        mediaAparada: trimmedMean(values, .1),
+      };
+    }).filter((r) => r.compras > 0);
+
+    const topRooms = [...data.rooms].sort((a,b) => num(b.hospedagens)-num(a.hospedagens)).slice(0,10);
+    const lowRooms = [...data.rooms].sort((a,b) => num(a.hospedagens)-num(b.hospedagens)).slice(0,10);
+
+    const nonPayrollRecorded = selectedExpenses.filter((e) => !/(sal[aá]rio|pessoal|folguista|padaria|caf[eé]|alimento)/i.test(`${e.categoria ?? ""} ${e.descricao ?? ""}`)).reduce((s,e)=>s+num(e.valor),0);
+    const monthsEquivalent = selectedDays / 30.44;
+    const rentEstimated = totalRevenue * .20;
+    const salaryEstimated = (4 * 17000 + 1900) * monthsEquivalent;
+    const reliefEstimated = 500 * selectedDays / 7;
+    const bakeryEstimated = 2050 * monthsEquivalent;
+    const projectedExpenses = nonPayrollRecorded + rentEstimated + salaryEstimated + reliefEstimated + bakeryEstimated;
+    const projectedGop = totalRevenue - projectedExpenses;
+
+    const eligible = filteredReservations.filter((r) => r.elegivel_cancelamento_pre_checkin);
+    const cancellations = eligible.reduce((s,r)=>s+num(r.cancelado_flag),0);
+    const cancellationRate = eligible.length ? cancellations / eligible.length * 100 : 0;
 
     return {
-      current, revenue, gop, occupancy: avg(current, "ocupacao_pct"), adr: adrWeighted, revpar,
-      goppar: availableRoomNights ? gop / availableRoomNights : 0, cancellation,
-      trends: { revenue: trend(revenue, prevRevenue), occupancy: trend(avg(current,"ocupacao_pct"), prevOcc), adr: trend(adrWeighted, prevAdr), revpar: trend(revpar, prevRevpar) },
-      channels, families, reasons, roomTypes, occupancyChart: [...actualForecast, ...future],
-      extrasRevenue, extrasTicket, experienceAnswers, csat, recommendation, attentionReviews, reportedProblems, extrasTrend,
+      kpis: {
+        totalRevenue, occupancy, adr, revpar, trevpar, goppar,
+        deltas: {
+          revenue: delta(totalRevenue, prevRevenue), occupancy: occupancy - prevOccupancy,
+          adr: delta(adr, prevAdr), revpar: delta(revpar, prevRevpar), trevpar: delta(trevpar, prevTrevpar),
+        },
+      },
+      hospitalityRevenue, extrasRevenue, recordedExpenses, actualGop, projectedExpenses, projectedGop,
+      revenueBySource, revenueEvolution, occupancyTimeline, channelPerformance,
+      profiles, ages, children, productSegments, topRooms, lowRooms,
+      cancellationRate, cancellationEligible: eligible.length,
+      ageCoverage: valid.length ? valid.filter(r=>r.idade != null).length/valid.length*100 : 0,
+      selectedDays,
+      validReservations: valid.length,
+      prevValidReservations: prevValid.length,
     };
-  }, [daily.data, crossings.data, forecast.data, journey.data]);
+  }, [source.data, start, end, channel, today]);
 
-  if (daily.isLoading || crossings.isLoading || journey.isLoading) return <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">Carregando painel executivo...</div>;
+  if (source.isLoading || company.isLoading) return <State text="Carregando painel..." />;
+  if (source.error || !model) return <State text="Não foi possível carregar o painel." />;
+
+  const channels = ["Todos", "Booking", "WhatsApp", "Direto / Recepção"];
 
   return (
-    <main className="space-y-4 px-2 pb-8 sm:px-3" data-unified-executive-dashboard>
-      <header className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-primary">Painel único de decisão</p><h1 className="text-2xl font-black text-pine-dark">Pulso Executivo do Hotel</h1><p className="mt-1 max-w-3xl text-xs text-muted-foreground">Demanda, preço, rentabilidade, canal, perfil, experiência e consumo em uma única leitura.</p></div>
-          <div className="rounded-xl bg-muted px-3 py-2 text-right text-[10px] text-muted-foreground"><strong className="block text-foreground">Janela principal</strong> últimos 30 dias</div>
+    <main className="space-y-3 px-2 pb-8 sm:px-3" data-unified-executive-dashboard>
+      <header className="relative flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-border bg-card p-3 shadow-sm">
+        <h1 className="text-xl font-black text-pine-dark">Pulso do Hotel</h1>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-border bg-background px-3 py-2 text-[11px] font-bold text-muted-foreground">{brDate(start)} — {brDate(end)}</span>
+          <button type="button" onClick={() => setFiltersOpen(v=>!v)} className="relative inline-flex h-9 items-center gap-1.5 rounded-full border border-border bg-background px-3 text-xs font-extrabold text-foreground shadow-sm hover:bg-muted">
+            <Filter className="h-3.5 w-3.5" /> Filtros
+          </button>
         </div>
+        {filtersOpen && (
+          <div className="absolute right-3 top-14 z-30 w-[min(92vw,340px)] rounded-2xl border border-border bg-card p-3 shadow-2xl">
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground">De<input className="field mt-1 h-9 text-xs" type="date" value={start} onChange={(e)=>setStart(e.target.value)} /></label>
+              <label className="text-[10px] font-bold uppercase text-muted-foreground">Até<input className="field mt-1 h-9 text-xs" type="date" value={end} onChange={(e)=>setEnd(e.target.value)} /></label>
+              <label className="text-[10px] font-bold uppercase text-muted-foreground">Mês<input className="field mt-1 h-9 text-xs" type="month" value={start.slice(0,7)} onChange={(e)=>{ const v=e.target.value; if(!v)return; setStart(`${v}-01`); const last=new Date(Number(v.slice(0,4)),Number(v.slice(5,7)),0).toISOString().slice(0,10); setEnd(last>today?today:last); }} /></label>
+              <label className="text-[10px] font-bold uppercase text-muted-foreground">Ano<select className="field mt-1 h-9 text-xs" value={start.slice(0,4)} onChange={(e)=>{ const y=e.target.value; setStart(`${y}-01-01`); setEnd(y===today.slice(0,4)?today:`${y}-12-31`); }}><option>2024</option><option>2025</option><option>2026</option></select></label>
+              <label className="col-span-2 text-[10px] font-bold uppercase text-muted-foreground">Canal<select className="field mt-1 h-9 text-xs" value={channel} onChange={(e)=>setChannel(e.target.value)}>{channels.map(c=><option key={c}>{c}</option>)}</select></label>
+            </div>
+          </div>
+        )}
       </header>
 
-      <section className="grid grid-cols-2 gap-2 lg:grid-cols-6">
-        <Kpi icon={<BedDouble />} label="Ocupação" value={pct(model.occupancy)} delta={model.trends.occupancy} hint="Uso dos quartos disponíveis" />
-        <Kpi icon={<BadgeDollarSign />} label="ADR" value={fmtBRL(model.adr)} delta={model.trends.adr} hint="Diária média vendida" />
-        <Kpi icon={<Activity />} label="RevPAR" value={fmtBRL(model.revpar)} delta={model.trends.revpar} hint="Receita por quarto disponível" />
-        <Kpi icon={<CircleDollarSign />} label="Receita" value={fmtBRL(model.revenue)} delta={model.trends.revenue} hint="Hospedagem + extras" />
-        <Kpi icon={<TrendingUp />} label="GOP / GOPPAR" value={`${fmtBRL(model.gop)} · ${fmtBRL(model.goppar)}`} hint="Lucro operacional e por quarto disponível" />
-        <Kpi icon={<Percent />} label="Cancelamento" value={pct(model.cancellation)} hint="Risco comercial histórico" />
+      <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
+        <Kpi title="Receita" value={fmtBRL(model.kpis.totalRevenue)} delta={model.kpis.deltas.revenue} />
+        <Kpi title="Ocupação" value={pct(model.kpis.occupancy)} delta={model.kpis.deltas.occupancy} points />
+        <Kpi title="ADR" value={fmtBRL(model.kpis.adr)} delta={model.kpis.deltas.adr} />
+        <Kpi title="RevPAR" value={fmtBRL(model.kpis.revpar)} delta={model.kpis.deltas.revpar} />
+        <Kpi title="TRevPAR" value={fmtBRL(model.kpis.trevpar)} delta={model.kpis.deltas.trevpar} />
+        <Kpi title="GOPPAR registrado" value={fmtBRL(model.kpis.goppar)} />
       </section>
 
       <section className="grid gap-3 xl:grid-cols-2">
-        <ChartCard title="1. Demanda: estamos enchendo ou esvaziando?" subtitle="Ocupação real recente + previsão Random Forest. A previsão é apoio, não garantia.">
-          <ResponsiveContainer width="100%" height={260}><LineChart data={model.occupancyChart}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="data" tick={{fontSize:10}}/><YAxis domain={[0,100]} tick={{fontSize:10}} unit="%"/><Tooltip/><Legend/><Line type="monotone" dataKey="real" name="Real" strokeWidth={2} connectNulls={false}/><Line type="monotone" dataKey="previsto" name="Previsto" strokeWidth={2} strokeDasharray="5 4" connectNulls={false}/></LineChart></ResponsiveContainer>
+        <ChartCard title="Receita por dia e mês">
+          <ResponsiveContainer width="100%" height={280}><ComposedChart data={model.revenueEvolution}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="label" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}}/><Tooltip formatter={(v:any)=>fmtBRL(num(v))}/><Legend/><Bar dataKey="hospedagem" name="Hospedagem" stackId="r"/><Bar dataKey="produtos" name="Produtos" stackId="r"/><Line type="monotone" dataKey="total" name="Receita total" strokeWidth={2}/></ComposedChart></ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="2. Dinheiro: receita está virando resultado?" subtitle="Receita total versus GOP diário. Se receita sobe e GOP não acompanha, o custo precisa ser investigado.">
-          <ResponsiveContainer width="100%" height={260}><AreaChart data={model.current.slice(-30).map(r=>({data:labelDate(r.data),receita:Number(r.receita_total||0),gop:Number(r.gop||0)}))}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="data" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}}/><Tooltip formatter={(v:any)=>fmtBRL(Number(v))}/><Legend/><Area type="monotone" dataKey="receita" name="Receita" fillOpacity={0.15}/><Area type="monotone" dataKey="gop" name="GOP" fillOpacity={0.08}/></AreaChart></ResponsiveContainer>
+        <ChartCard title="De onde vem a receita">
+          <ResponsiveContainer width="100%" height={280}><BarChart data={model.revenueBySource} layout="vertical" margin={{left:24,right:20}}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={132} tick={{fontSize:10}}/><Tooltip formatter={(v:any)=>fmtBRL(num(v))}/><Bar dataKey="value" name="Receita"/></BarChart></ResponsiveContainer>
         </ChartCard>
       </section>
 
       <section className="grid gap-3 xl:grid-cols-2">
-        <ChartCard title="3. Canal: quem traz dinheiro com menos cancelamento?" subtitle="Ranking por receita; ADR e cancelamento aparecem na leitura abaixo.">
-          <ResponsiveContainer width="100%" height={260}><BarChart data={model.channels} layout="vertical" margin={{left:10}}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" tick={{fontSize:10}}/><YAxis type="category" dataKey="canal" width={90} tick={{fontSize:10}}/><Tooltip formatter={(v:any)=>fmtBRL(Number(v))}/><Bar dataKey="receita" name="Receita" radius={[0,6,6,0]}/></BarChart></ResponsiveContainer>
-          <div className="mt-2 grid gap-1 sm:grid-cols-2">{model.channels.slice(0,6).map(c=><div key={c.canal} className="flex items-center justify-between rounded-lg bg-muted/55 px-2.5 py-1.5 text-[10px]"><strong>{c.canal}</strong><span>ADR {fmtBRL(c.adr)} · canc. {pct(c.cancelamento)}</span></div>)}</div>
+        <ChartCard title="Ocupação real e previsão">
+          <ResponsiveContainer width="100%" height={280}><LineChart data={model.occupancyTimeline}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="label" tick={{fontSize:10}}/><YAxis domain={[0,100]} unit="%" tick={{fontSize:10}}/><Tooltip/><Legend/><Line type="monotone" dataKey="real" name="Real" strokeWidth={2} connectNulls={false}/><Line type="monotone" dataKey="previsto" name="Previsto" strokeWidth={2} strokeDasharray="5 4" connectNulls={false}/></LineChart></ResponsiveContainer>
         </ChartCard>
-        <ChartCard title="4. Público: quem compra qual produto?" subtitle="Perfil familiar, motivo da viagem e tipo de quarto. Use para preço, campanhas e reformas.">
-          <div className="grid gap-3 sm:grid-cols-3"><MiniRanking title="Perfil familiar" rows={model.families.map(x=>[x.perfil,x.reservas])}/><MiniRanking title="Motivo da viagem" rows={model.reasons.map(x=>[x.motivo,x.reservas])}/><MiniRanking title="Tipo de quarto" rows={model.roomTypes.map(x=>[x.tipo,x.reservas])}/></div>
-        </ChartCard>
-      </section>
-
-      <section className="grid gap-3 xl:grid-cols-[1.1fr_.9fr]">
-        <ChartCard title="5. Jornada: o hóspede está consumindo além da diária?" subtitle="Receita adicional e ticket médio de extras ligados às vendas registradas no hotel.">
-          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <MicroKpi icon={<ShoppingBasket/>} label="Receita extras" value={fmtBRL(model.extrasRevenue)} />
-            <MicroKpi icon={<BadgeDollarSign/>} label="Ticket médio extras" value={fmtBRL(model.extrasTicket)} />
-            <MicroKpi icon={<Star/>} label="Satisfação média" value={model.experienceAnswers ? `${model.csat.toFixed(2)}/5` : "Sem respostas"} />
-            <MicroKpi icon={<ThumbsUp/>} label="Recomendaria" value={model.experienceAnswers ? pct(model.recommendation) : "Sem respostas"} />
-          </div>
-          <ResponsiveContainer width="100%" height={210}><BarChart data={model.extrasTrend}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="data" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}}/><Tooltip formatter={(v:any)=>fmtBRL(Number(v))}/><Bar dataKey="receita" name="Receita de extras" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer>
-        </ChartCard>
-        <ChartCard title="6. Experiência: onde a qualidade pode estar derrubando receita?" subtitle="Acompanhamento qualitativo. Taxa de recomendação não é NPS; NPS exige pergunta 0–10 específica.">
-          <div className="grid grid-cols-2 gap-2">
-            <MicroKpi icon={<Star/>} label="Respostas" value={String(model.experienceAnswers)} />
-            <MicroKpi icon={<ThumbsUp/>} label="Recomendação" value={model.experienceAnswers ? pct(model.recommendation) : "—"} />
-            <MicroKpi icon={<AlertTriangle/>} label="Avaliações atenção" value={String(model.attentionReviews)} />
-            <MicroKpi icon={<AlertTriangle/>} label="Problemas reportados" value={String(model.reportedProblems)} />
-          </div>
-          <div className="mt-3 rounded-xl bg-muted/55 p-3 text-xs text-muted-foreground">
-            {model.experienceAnswers === 0 ? "Ainda não há volume de respostas suficiente para relacionar satisfação com receita, canal ou quarto." : model.attentionReviews > 0 ? "Há avaliações que exigem atenção. Cruze o quarto e a categoria do problema antes de investir em preço ou reforma." : "A experiência registrada está estável. Continue acompanhando limpeza, atendimento, conforto e custo-benefício junto da receita."}
-          </div>
+        <ChartCard title="Receita e cancelamento por canal">
+          <ResponsiveContainer width="100%" height={280}><ComposedChart data={model.channelPerformance}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="canal" tick={{fontSize:10}}/><YAxis yAxisId="money" tick={{fontSize:10}}/><YAxis yAxisId="pct" orientation="right" domain={[0,100]} unit="%" tick={{fontSize:10}}/><Tooltip formatter={(v:any,n:any)=>n==="Cancelamento"?pct(num(v)):fmtBRL(num(v))}/><Legend/><Bar yAxisId="money" dataKey="receita" name="Receita"/><Line yAxisId="pct" type="monotone" dataKey="cancelamento" name="Cancelamento" strokeWidth={2}/></ComposedChart></ResponsiveContainer>
         </ChartCard>
       </section>
 
-      <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-        <h2 className="text-sm font-black text-pine-dark">Leitura para decisão</h2>
-        <div className="mt-2 grid gap-2 md:grid-cols-4 text-xs">
-          <Decision title="Preço e demanda" text={model.occupancy < 30 ? "Ocupação baixa: priorize demanda e canal antes de elevar tarifa de forma ampla." : model.occupancy > 65 ? "Ocupação forte: há espaço para testar tarifa maior nas datas/quartos mais procurados." : "Equilíbrio intermediário: ajuste preço por data e tipo de quarto, não de forma geral."}/>
-          <Decision title="Rentabilidade" text={model.gop < 0 ? "GOP negativo: não basta aumentar reservas; despesas e margem precisam ser tratadas antes de expandir." : `GOP positivo de ${fmtBRL(model.gop)}. Acompanhe GOPPAR junto do RevPAR para não crescer receita destruindo margem.`}/>
-          <Decision title="Canal" text={model.channels[0] ? `${model.channels[0].canal} lidera receita. Compare ADR ${fmtBRL(model.channels[0].adr)} e cancelamento ${pct(model.channels[0].cancelamento)} antes de colocar mais verba nesse canal.` : "Ainda faltam dados de canal para uma recomendação confiável."}/>
-          <Decision title="Jornada do hóspede" text={model.extrasRevenue > 0 ? `Extras geraram ${fmtBRL(model.extrasRevenue)} no período, com ticket médio de ${fmtBRL(model.extrasTicket)}. Use perfil e motivo da viagem para direcionar ofertas.` : "Ainda há pouca receita adicional registrada. Integrar consumo e serviços à reserva permitirá medir ticket médio real além da diária."}/>
-        </div>
+      <section className="grid gap-3 xl:grid-cols-3">
+        <ChartCard title="Perfil dos hóspedes"><SimpleBar rows={model.profiles}/></ChartCard>
+        <ChartCard title="Faixa etária"><SimpleBar rows={model.ages}/><div className="mt-1 text-right text-[10px] text-muted-foreground">Cobertura de idade: {pct(model.ageCoverage)}</div></ChartCard>
+        <ChartCard title="Filhos"><SimpleBar rows={model.children}/></ChartCard>
+      </section>
+
+      <section className="grid gap-3 xl:grid-cols-2">
+        <ChartCard title="Gasto com produtos por comprador">
+          <div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="border-b text-left text-muted-foreground"><th className="py-2">Comprador</th><th>Compras</th><th>Total</th><th>Mediana</th><th>Média aparada</th></tr></thead><tbody>{model.productSegments.map(r=><tr key={r.name} className="border-b last:border-0"><td className="py-2 font-bold">{r.name}</td><td>{r.compras}</td><td>{fmtBRL(r.total)}</td><td>{fmtBRL(r.mediana)}</td><td>{fmtBRL(r.mediaAparada)}</td></tr>)}</tbody></table></div>
+        </ChartCard>
+        <ChartCard title="Resultado operacional">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <Mini title="Receita" value={fmtBRL(model.kpis.totalRevenue)}/><Mini title="Despesas registradas" value={fmtBRL(model.recordedExpenses)}/><Mini title="GOP registrado" value={fmtBRL(model.actualGop)}/><Mini title="Custos estimados" value={fmtBRL(model.projectedExpenses)}/><Mini title="GOP estimado" value={fmtBRL(model.projectedGop)}/><Mini title="Cancelamento antecipado" value={`${pct(model.cancellationRate)} · ${model.cancellationEligible} reservas`}/>
+          </div>
+          <details className="mt-3 rounded-xl border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground"><summary className="cursor-pointer font-bold text-foreground">Premissas provisórias</summary><p className="mt-2">Aluguel: 20% da receita. Salários: 4 × R$ 17.000 + 1 × R$ 1.900/mês. Folguistas: R$ 500/semana. Padaria: R$ 2.050/mês. As despesas reais continuam separadas para não mascarar o resultado.</p></details>
+        </ChartCard>
+      </section>
+
+      <section className="grid gap-3 xl:grid-cols-2">
+        <RoomTable title="Quartos com mais hospedagens" rooms={model.topRooms}/>
+        <RoomTable title="Quartos com pouco ou nenhum uso" rooms={model.lowRooms}/>
       </section>
     </main>
   );
 }
 
-function Kpi({ icon, label, value, delta, hint }: { icon: React.ReactNode; label: string; value: string; delta?: number; hint: string }) {
-  return <article className="rounded-2xl border border-border bg-card p-3 shadow-sm"><div className="flex items-center gap-2 text-primary">{icon}<span className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">{label}</span></div><p className="mt-2 text-lg font-black text-pine-dark">{value}</p>{delta !== undefined && <p className={`text-[10px] font-bold ${delta >= 0 ? "text-sage" : "text-brick"}`}>{delta >= 0 ? "+" : ""}{delta.toFixed(1)}% vs. 30 dias anteriores</p>}<p className="mt-1 text-[9px] text-muted-foreground">{hint}</p></article>;
+function Kpi({ title, value, delta, points=false }: { title:string; value:string; delta?:number; points?:boolean }) {
+  const tone: DeltaTone = delta == null || Math.abs(delta) < .05 ? "blue" : delta > 0 ? "green" : "red";
+  const cls = tone === "green" ? "text-emerald-700 bg-emerald-50" : tone === "red" ? "text-red-700 bg-red-50" : "text-blue-700 bg-blue-50";
+  return <div className="rounded-2xl border border-border bg-card p-3 shadow-sm"><div className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">{title}</div><div className="mt-1 text-lg font-black text-foreground">{value}</div>{delta != null && <div className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-extrabold ${cls}`}>{delta>0?<TrendingUp className="h-3 w-3"/>:delta<0?<TrendingDown className="h-3 w-3"/>:null}{delta>0?"+":""}{delta.toFixed(1).replace(".",",")}{points?" p.p.":"%"}</div>}</div>;
 }
-function MicroKpi({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) { return <div className="rounded-xl border border-border bg-muted/35 p-2.5"><div className="flex items-center gap-1.5 text-primary">{icon}<span className="text-[8px] font-black uppercase text-muted-foreground">{label}</span></div><strong className="mt-1 block text-sm text-pine-dark">{value}</strong></div>; }
-function ChartCard({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) { return <article className="rounded-2xl border border-border bg-card p-4 shadow-sm"><h2 className="text-sm font-black text-pine-dark">{title}</h2><p className="mb-3 text-[10px] text-muted-foreground">{subtitle}</p>{children}</article>; }
-function MiniRanking({ title, rows }: { title: string; rows: [string, number][] }) { const max=Math.max(1,...rows.map(r=>r[1])); return <div><h3 className="mb-2 text-[10px] font-black uppercase text-muted-foreground">{title}</h3><div className="space-y-2">{rows.slice(0,5).map(([name,value])=><div key={name}><div className="flex justify-between gap-2 text-[10px]"><span className="truncate">{name}</span><strong>{value}</strong></div><div className="mt-1 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{width:`${Math.max(4,value/max*100)}%`}}/></div></div>)}</div></div>; }
-function Decision({ title, text }: { title: string; text: string }) { return <div className="rounded-xl border border-primary/15 bg-card p-3"><strong className="text-primary">{title}</strong><p className="mt-1 text-muted-foreground">{text}</p></div>; }
+
+function ChartCard({ title, children }: { title:string; children:React.ReactNode }) { return <section className="rounded-2xl border border-border bg-card p-3 shadow-sm"><h2 className="mb-2 text-sm font-black text-primary">{title}</h2>{children}</section>; }
+function State({ text }: { text:string }) { return <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">{text}</div>; }
+function Mini({title,value}:{title:string;value:string}) { return <div className="rounded-xl border border-border bg-background p-3"><div className="text-[10px] font-bold uppercase text-muted-foreground">{title}</div><div className="mt-1 text-sm font-black text-foreground">{value}</div></div>; }
+
+function SimpleBar({ rows }: { rows:{name:string;value:number}[] }) { return <ResponsiveContainer width="100%" height={230}><BarChart data={rows} layout="vertical" margin={{left:18,right:18}}><CartesianGrid strokeDasharray="3 3" horizontal={false}/><XAxis type="number" allowDecimals={false} tick={{fontSize:10}}/><YAxis type="category" dataKey="name" width={128} tick={{fontSize:10}}/><Tooltip/><Bar dataKey="value" name="Reservas"/></BarChart></ResponsiveContainer>; }
+
+function RoomTable({ title, rooms }: { title:string; rooms:Room[] }) { return <section className="rounded-2xl border border-border bg-card p-3 shadow-sm"><h2 className="mb-2 text-sm font-black text-primary">{title}</h2><div className="overflow-x-auto"><table className="w-full text-xs"><thead><tr className="border-b text-left text-muted-foreground"><th className="py-2">Quarto</th><th>Hospedagens</th><th>Diárias</th><th>Receita recente</th><th>Avaliação</th></tr></thead><tbody>{rooms.map(r=><tr key={r.quarto} className="border-b last:border-0"><td className="py-2 font-black">{r.quarto}</td><td>{r.hospedagens}</td><td>{r.diarias}</td><td>{fmtBRL(num(r.receita_operacional_recente))}</td><td>{r.avaliacoes ? `${num(r.nota_media_10).toFixed(1).replace(".",",")} (${r.avaliacoes})` : "—"}</td></tr>)}</tbody></table></div></section>; }
+
+function aggregateTimeline(rows:{data:string;hospedagem:number;produtos:number;despesas:number}[], start:string, end:string) {
+  if (daysBetween(start,end) <= 62) return rows.sort((a,b)=>a.data.localeCompare(b.data)).map(r=>({label:brDate(r.data),hospedagem:r.hospedagem,produtos:r.produtos,total:r.hospedagem+r.produtos,despesas:r.despesas}));
+  const m=new Map<string,{hospedagem:number;produtos:number;despesas:number}>(); for(const r of rows){const k=r.data.slice(0,7),x=m.get(k)??{hospedagem:0,produtos:0,despesas:0};x.hospedagem+=r.hospedagem;x.produtos+=r.produtos;x.despesas+=r.despesas;m.set(k,x)} return [...m].sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>({label:monthLabel(k),...x,total:x.hospedagem+x.produtos}));
+}
+function aggregateOccupancy(rows:Daily[],start:string,end:string){ if(daysBetween(start,end)<=62)return rows.sort((a,b)=>a.data.localeCompare(b.data)).map(r=>({iso:r.data,label:brDate(r.data),value:num(r.ocupacao_pct)})); const m=new Map<string,{sum:number,n:number}>();for(const r of rows){const k=r.data.slice(0,7),x=m.get(k)??{sum:0,n:0};x.sum+=num(r.ocupacao_pct);x.n++;m.set(k,x)}return [...m].sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>({iso:`${k}-01`,label:monthLabel(k),value:x.n?x.sum/x.n:0})); }
+function median(values:number[]){if(!values.length)return 0;const n=values.length,m=Math.floor(n/2);return n%2?values[m]:(values[m-1]+values[m])/2;}
+function trimmedMean(values:number[],trim:number){if(!values.length)return 0;const cut=Math.floor(values.length*trim),v=values.slice(cut,Math.max(cut+1,values.length-cut));return v.reduce((a,b)=>a+b,0)/v.length;}
+function normalizeBuyer(v:string|null){const x=(v??"").toLowerCase();if(x.includes("hosp"))return "hospede";if(x.includes("func"))return "funcionario";if(x.includes("empresa"))return "empresa";return "outro";}
+function buyerLabel(v:string){return v==="hospede"?"Hóspedes":v==="funcionario"?"Funcionários":v==="empresa"?"Empresas":"Outros";}
+function ageOrder(v:string){return ["Até 24","25–34","35–44","45–54","55–64","65+","Não informado"].indexOf(v);}
