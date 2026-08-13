@@ -24,6 +24,14 @@ function InvestmentAI() {
     setLoading(true);
     setAnswer("");
 
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (sessionError || !accessToken) {
+      setAnswer("Sua sessão expirou. Faça login novamente para usar a HotelAI de investimentos.");
+      setLoading(false);
+      return;
+    }
+
     const hotelAiQuestion = [
       "ANÁLISE DE INVESTIMENTO DO PROPRIETÁRIO.",
       "A pergunta abaixo é uma decisão de investimento. NÃO responda com previsão de cancelamento, Random Forest, risco de reserva ou previsão de ocupação como resposta principal.",
@@ -44,11 +52,16 @@ function InvestmentAI() {
       question,
     ].join("\n");
 
+    const invokeOptions = {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    };
+
     const result = await supabase.functions.invoke("hotel-investment-analyst", {
       body: {
         company_id: company.data.id,
         question: hotelAiQuestion,
       },
+      ...invokeOptions,
     });
 
     if (!result.error && result.data?.answer) {
@@ -71,6 +84,7 @@ function InvestmentAI() {
             question,
           ].join("\n"),
         },
+        ...invokeOptions,
       });
       setAnswer(!retry.error && retry.data?.answer ? String(retry.data.answer) : response);
       setLoading(false);
