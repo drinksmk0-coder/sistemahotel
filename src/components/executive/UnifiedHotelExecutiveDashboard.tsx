@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer,
+  Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, LineChart, ResponsiveContainer,
   Tooltip, XAxis, YAxis,
 } from "recharts";
 import { CalendarDays, Filter, TrendingDown, TrendingUp } from "lucide-react";
@@ -253,7 +253,7 @@ export function UnifiedHotelExecutiveDashboard() {
     const nonPayrollRecorded = selectedExpenses.filter((e) => !/(sal[aá]rio|pessoal|folguista|padaria|caf[eé]|alimento)/i.test(`${e.categoria ?? ""} ${e.descricao ?? ""}`)).reduce((s,e)=>s+num(e.valor),0);
     const monthsEquivalent = selectedDays / 30.44;
     const rentEstimated = totalRevenue * .20;
-    const salaryEstimated = (4 * 17000 + 1900) * monthsEquivalent;
+    const salaryEstimated = (4 * 1700 + 1900) * monthsEquivalent;
     const reliefEstimated = 500 * selectedDays / 7;
     const bakeryEstimated = 2050 * monthsEquivalent;
     const projectedExpenses = nonPayrollRecorded + rentEstimated + salaryEstimated + reliefEstimated + bakeryEstimated;
@@ -351,7 +351,7 @@ export function UnifiedHotelExecutiveDashboard() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Mini title="Receita" value={fmtBRL(model.kpis.totalRevenue)}/><Mini title="Despesas registradas" value={fmtBRL(model.recordedExpenses)}/><Mini title="GOP registrado" value={fmtBRL(model.actualGop)}/><Mini title="Custos estimados" value={fmtBRL(model.projectedExpenses)}/><Mini title="GOP estimado" value={fmtBRL(model.projectedGop)}/><Mini title="Cancelamento antecipado" value={`${pct(model.cancellationRate)} · ${model.cancellationEligible} reservas`}/>
           </div>
-          <details className="mt-3 rounded-xl border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground"><summary className="cursor-pointer font-bold text-foreground">Premissas provisórias</summary><p className="mt-2">Aluguel: 20% da receita. Salários: 4 × R$ 17.000 + 1 × R$ 1.900/mês. Folguistas: R$ 500/semana. Padaria: R$ 2.050/mês. As despesas reais continuam separadas para não mascarar o resultado.</p></details>
+          <details className="mt-3 rounded-xl border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground"><summary className="cursor-pointer font-bold text-foreground">Premissas provisórias</summary><p className="mt-2">Aluguel: 20% da receita. Salários: 4 × R$ 1.700 + 1 × R$ 1.900/mês. Folguistas: R$ 500/semana. Padaria: R$ 2.050/mês. As despesas reais continuam separadas para não mascarar o resultado.</p></details>
         </ChartCard>
       </section>
 
