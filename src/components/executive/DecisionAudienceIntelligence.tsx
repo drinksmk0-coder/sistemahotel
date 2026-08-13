@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Users, BedDouble, BadgeDollarSign, CircleCheck, Ban, UserX, Waypoints } from "lucide-react";
+import { Users, BedDouble, BadgeDollarSign, CircleCheck, Ban, UserX, Waypoints, Baby, BriefcaseBusiness } from "lucide-react";
 import { useCurrentCompany, useRooms } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtBRL } from "@/lib/format";
@@ -11,6 +11,9 @@ type Crossing = {
   tipo_quarto: string | null;
   faixa_diaria: string;
   perfil_hospede_provavel: string;
+  perfil_familiar: string;
+  motivo_estadia: string;
+  quantidade_filhos: number;
   status: string;
   reservas: number;
   hospedes: number;
@@ -33,7 +36,7 @@ export function DecisionAudienceIntelligence() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from("bi_dashboard_cruzamentos")
-        .select("canal,quarto_numero,tipo_quarto,faixa_diaria,perfil_hospede_provavel,status,reservas,hospedes,diarias,receita_bruta,recebido,saldo,adr,antecedencia_media,taxa_cancelamento,taxa_no_show")
+        .select("canal,quarto_numero,tipo_quarto,faixa_diaria,perfil_hospede_provavel,perfil_familiar,motivo_estadia,quantidade_filhos,status,reservas,hospedes,diarias,receita_bruta,recebido,saldo,adr,antecedencia_media,taxa_cancelamento,taxa_no_show")
         .eq("company_id", company.data!.id);
       if (error) throw error;
       return (data ?? []) as Crossing[];
@@ -42,9 +45,12 @@ export function DecisionAudienceIntelligence() {
 
   const data = useMemo(() => {
     const profile = new Map<string, number>();
+    const family = new Map<string, number>();
+    const purpose = new Map<string, number>();
     const room = new Map<string, number>();
     const band = new Map<string, number>();
     const channel = new Map<string, number>();
+    const children = new Map<string, number>();
     const status = { ok: 0, cancelado: 0, noShow: 0 };
     let revenue = 0;
     let reservations = 0;
@@ -54,9 +60,14 @@ export function DecisionAudienceIntelligence() {
       reservations += n;
       revenue += Number(row.receita_bruta || 0);
       profile.set(row.perfil_hospede_provavel || "Não informado", (profile.get(row.perfil_hospede_provavel || "Não informado") ?? 0) + n);
+      family.set(row.perfil_familiar || "Não informado", (family.get(row.perfil_familiar || "Não informado") ?? 0) + n);
+      purpose.set(row.motivo_estadia || "Não informado", (purpose.get(row.motivo_estadia || "Não informado") ?? 0) + n);
       room.set(String(row.quarto_numero ?? "Sem quarto"), (room.get(String(row.quarto_numero ?? "Sem quarto")) ?? 0) + n);
       band.set(row.faixa_diaria || "Não informado", (band.get(row.faixa_diaria || "Não informado") ?? 0) + n);
       channel.set(row.canal || "Não informado", (channel.get(row.canal || "Não informado") ?? 0) + n);
+      const qtdFilhos = Math.max(0, Number(row.quantidade_filhos || 0));
+      const childrenLabel = qtdFilhos === 0 ? "Sem filhos cadastrados" : qtdFilhos === 1 ? "1 filho" : `${qtdFilhos} filhos`;
+      children.set(childrenLabel, (children.get(childrenLabel) ?? 0) + n);
       const s = String(row.status || "").toLowerCase();
       if (s.includes("cancel")) status.cancelado += n;
       else if (Number(row.taxa_no_show || 0) > 0 || s.includes("no_show") || s.includes("no-show")) status.noShow += n;
@@ -74,6 +85,9 @@ export function DecisionAudienceIntelligence() {
 
     return {
       profile: sort(profile),
+      family: sort(family),
+      purpose: sort(purpose),
+      children: sort(children),
       room: sort(room).slice(0, 10),
       band: sort(band),
       channel: sort(channel),
@@ -86,7 +100,7 @@ export function DecisionAudienceIntelligence() {
   }, [crossings.data]);
 
   const total = data.reservations || 1;
-  const topProfile = data.profile[0];
+  const topProfile = data.family[0] ?? data.profile[0];
   const topRoom = data.room[0];
   const avgTicket = data.revenue / total;
 
@@ -95,7 +109,7 @@ export function DecisionAudienceIntelligence() {
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-lg font-extrabold text-pine-dark">Quem compra e o que vende</h2>
-          <p className="text-xs text-muted-foreground">Agora calculado pela camada analítica em modelo estrela: canal × quarto × perfil × faixa de diária × status.</p>
+          <p className="text-xs text-muted-foreground">Modelo estrela: canal × quarto × perfil familiar × filhos × motivo da viagem × faixa de diária × status.</p>
         </div>
         <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary">Fonte BI · modelo estrela</span>
       </div>
@@ -113,7 +127,7 @@ export function DecisionAudienceIntelligence() {
             <Insight
               icon={<Waypoints />}
               title="Segmento mais frequente"
-              text={`${data.topSegment.canal} · ${data.topSegment.perfil_hospede_provavel} · ${data.topSegment.faixa_diaria}`}
+              text={`${data.topSegment.canal} · ${data.topSegment.perfil_familiar || data.topSegment.perfil_hospede_provavel} · ${data.topSegment.motivo_estadia}`}
               detail={`${data.topSegment.reservas} reservas · ADR ${fmtBRL(Number(data.topSegment.adr || 0))}`}
             />
           )}
@@ -121,15 +135,17 @@ export function DecisionAudienceIntelligence() {
             <Insight
               icon={<Ban />}
               title="Ponto para investigar"
-              text={`${data.cancelHotspot.canal} · ${data.cancelHotspot.perfil_hospede_provavel} · quarto ${data.cancelHotspot.quarto_numero}`}
-              detail={`${Number(data.cancelHotspot.taxa_cancelamento || 0).toFixed(1)}% de cancelamento nesse cruzamento`}
+              text={`${data.cancelHotspot.canal} · ${data.cancelHotspot.perfil_familiar || data.cancelHotspot.perfil_hospede_provavel} · quarto ${data.cancelHotspot.quarto_numero}`}
+              detail={`${Number(data.cancelHotspot.taxa_cancelamento || 0).toFixed(1)}% de cancelamento · ${data.cancelHotspot.motivo_estadia}`}
             />
           )}
         </div>
       )}
 
       <div className="grid gap-3 lg:grid-cols-2">
-        <Bars title="Perfil provável do hóspede" rows={data.profile} total={total} />
+        <Bars title="Perfil familiar" rows={data.family} total={total} icon={<Baby />} />
+        <Bars title="Motivo da viagem" rows={data.purpose} total={total} icon={<BriefcaseBusiness />} />
+        <Bars title="Quantidade de filhos" rows={data.children} total={total} />
         <Bars title="Reservas por quarto" rows={data.room} total={total} />
         <Bars title="Faixa da diária" rows={data.band} total={total} />
         <Bars title="Canal de venda" rows={data.channel} total={total} />
@@ -142,7 +158,7 @@ export function DecisionAudienceIntelligence() {
       </div>
 
       <div className="rounded-xl border border-border bg-card p-3 text-xs text-muted-foreground">
-        <strong className="text-foreground">Como ler:</strong> “Casal provável” e “Família/Grupo” são segmentos comerciais inferidos pela quantidade de hóspedes, não relações pessoais confirmadas. Os cruzamentos vêm de uma única camada BI, evitando que cada gráfico aplique uma regra diferente.
+        <strong className="text-foreground">Como ler:</strong> quantidade de filhos vem do cadastro do hóspede. Quando o campo não foi preenchido, o painel não inventa filhos. O motivo da viagem vem da reserva; registros antigos sem essa informação aparecem como “Não informado”. Assim, pessoas no mesmo quarto podem ser separadas entre casal sem filhos e famílias com filhos.
       </div>
     </section>
   );
@@ -154,9 +170,9 @@ function Kpi({ icon, label, value, detail }: { icon: React.ReactNode; label: str
 function Insight({ icon, title, text, detail }: { icon: React.ReactNode; title: string; text: string; detail: string }) {
   return <article className="rounded-xl border border-primary/20 bg-primary/5 p-3"><div className="flex items-center gap-2 text-primary">{icon}<strong className="text-xs">{title}</strong></div><p className="mt-1 text-sm font-extrabold text-pine-dark">{text}</p><p className="mt-1 text-[10px] text-muted-foreground">{detail}</p></article>;
 }
-function Bars({ title, rows, total }: { title: string; rows: [string, number][]; total: number }) {
+function Bars({ title, rows, total, icon }: { title: string; rows: [string, number][]; total: number; icon?: React.ReactNode }) {
   const max = Math.max(...rows.map((r) => r[1]), 1);
-  return <article className="rounded-xl border border-border bg-card p-3"><h3 className="text-sm font-bold text-pine-dark">{title}</h3><div className="mt-3 space-y-2">{rows.slice(0, 10).map(([name, value]) => <div key={name}><div className="mb-1 flex justify-between text-[11px]"><span>{name}</span><strong>{value} · {((value / total) * 100).toFixed(0)}%</strong></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(3, (value / max) * 100)}%` }} /></div></div>)}</div></article>;
+  return <article className="rounded-xl border border-border bg-card p-3"><h3 className="flex items-center gap-2 text-sm font-bold text-pine-dark">{icon}{title}</h3><div className="mt-3 space-y-2">{rows.slice(0, 10).map(([name, value]) => <div key={name}><div className="mb-1 flex justify-between text-[11px]"><span>{name}</span><strong>{value} · {((value / total) * 100).toFixed(0)}%</strong></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(3, (value / max) * 100)}%` }} /></div></div>)}</div></article>;
 }
 function Status({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
   return <div className="rounded-xl border border-border bg-card p-3 text-center"><span className="mx-auto flex w-fit text-primary">{icon}</span><p className="mt-1 text-xl font-extrabold">{value}</p><p className="text-[10px] text-muted-foreground">{label}</p></div>;
