@@ -4,7 +4,10 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { Activity, BadgeDollarSign, BedDouble, CircleDollarSign, Percent, TrendingUp } from "lucide-react";
+import {
+  Activity, BadgeDollarSign, BedDouble, CircleDollarSign, Percent, TrendingUp,
+  Star, ShoppingBasket, ThumbsUp, AlertTriangle,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentCompany } from "@/lib/data";
 import { fmtBRL } from "@/lib/format";
@@ -19,6 +22,12 @@ type Cross = {
   canal: string; tipo_quarto: string | null; faixa_diaria: string; perfil_familiar: string;
   motivo_estadia: string; quantidade_filhos: number; status: string; reservas: number;
   receita_bruta: number; adr: number; taxa_cancelamento: number; taxa_no_show: number;
+};
+
+type Journey = {
+  data: string; receita_extras: number; reservas_com_consumo: number; ticket_medio_extras: number;
+  respostas_experiencia: number; csat_medio: number | null; taxa_recomendacao: number | null;
+  avaliacoes_atencao: number; problemas_reportados: number;
 };
 
 type Forecast = { date: string; expected_occupancy: number; lower: number; upper: number };
@@ -50,6 +59,18 @@ export function UnifiedHotelExecutiveDashboard() {
         .eq("company_id", companyId);
       if (error) throw error;
       return (data ?? []) as Cross[];
+    },
+  });
+
+  const journey = useQuery({
+    queryKey: ["unified-executive-journey", companyId], enabled: !!companyId,
+    queryFn: async () => {
+      const since = new Date(); since.setDate(since.getDate() - 59);
+      const { data, error } = await (supabase as any).from("bi_guest_journey_daily")
+        .select("data,receita_extras,reservas_com_consumo,ticket_medio_extras,respostas_experiencia,csat_medio,taxa_recomendacao,avaliacoes_atencao,problemas_reportados")
+        .eq("company_id", companyId).gte("data", since.toISOString().slice(0,10)).order("data");
+      if (error) throw error;
+      return (data ?? []) as Journey[];
     },
   });
 
@@ -107,21 +128,33 @@ export function UnifiedHotelExecutiveDashboard() {
     const actualForecast = current.slice(-14).map(r => ({ data: labelDate(r.data), real: Number(r.ocupacao_pct || 0), previsto: null as number | null }));
     const future = (forecast.data ?? []).slice(0,14).map(r => ({ data: labelDate(r.date), real: null as number | null, previsto: Number(r.expected_occupancy || 0) }));
 
+    const journeyCurrent = (journey.data ?? []).slice(-30);
+    const extrasRevenue = journeyCurrent.reduce((s,r)=>s+Number(r.receita_extras||0),0);
+    const consumptionReservations = journeyCurrent.reduce((s,r)=>s+Number(r.reservas_com_consumo||0),0);
+    const extrasTicket = consumptionReservations ? extrasRevenue / consumptionReservations : 0;
+    const experienceAnswers = journeyCurrent.reduce((s,r)=>s+Number(r.respostas_experiencia||0),0);
+    const csat = experienceAnswers ? journeyCurrent.reduce((s,r)=>s+Number(r.csat_medio||0)*Number(r.respostas_experiencia||0),0)/experienceAnswers : 0;
+    const recommendation = experienceAnswers ? journeyCurrent.reduce((s,r)=>s+Number(r.taxa_recomendacao||0)*Number(r.respostas_experiencia||0),0)/experienceAnswers : 0;
+    const attentionReviews = journeyCurrent.reduce((s,r)=>s+Number(r.avaliacoes_atencao||0),0);
+    const reportedProblems = journeyCurrent.reduce((s,r)=>s+Number(r.problemas_reportados||0),0);
+    const extrasTrend = journeyCurrent.slice(-14).map(r=>({data:labelDate(r.data),receita:Number(r.receita_extras||0),ticket:Number(r.ticket_medio_extras||0)}));
+
     return {
       current, revenue, gop, occupancy: avg(current, "ocupacao_pct"), adr: adrWeighted, revpar,
       goppar: availableRoomNights ? gop / availableRoomNights : 0, cancellation,
       trends: { revenue: trend(revenue, prevRevenue), occupancy: trend(avg(current,"ocupacao_pct"), prevOcc), adr: trend(adrWeighted, prevAdr), revpar: trend(revpar, prevRevpar) },
       channels, families, reasons, roomTypes, occupancyChart: [...actualForecast, ...future],
+      extrasRevenue, extrasTicket, experienceAnswers, csat, recommendation, attentionReviews, reportedProblems, extrasTrend,
     };
-  }, [daily.data, crossings.data, forecast.data]);
+  }, [daily.data, crossings.data, forecast.data, journey.data]);
 
-  if (daily.isLoading || crossings.isLoading) return <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">Carregando painel executivo...</div>;
+  if (daily.isLoading || crossings.isLoading || journey.isLoading) return <div className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">Carregando painel executivo...</div>;
 
   return (
     <main className="space-y-4 px-2 pb-8 sm:px-3" data-unified-executive-dashboard>
       <header className="rounded-2xl border border-border bg-card p-4 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-primary">Painel único de decisão</p><h1 className="text-2xl font-black text-pine-dark">Pulso Executivo do Hotel</h1><p className="mt-1 max-w-3xl text-xs text-muted-foreground">Poucos KPIs, cada gráfico responde uma pergunta: demanda, preço, rentabilidade, canal e perfil de hóspede.</p></div>
+          <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-primary">Painel único de decisão</p><h1 className="text-2xl font-black text-pine-dark">Pulso Executivo do Hotel</h1><p className="mt-1 max-w-3xl text-xs text-muted-foreground">Demanda, preço, rentabilidade, canal, perfil, experiência e consumo em uma única leitura.</p></div>
           <div className="rounded-xl bg-muted px-3 py-2 text-right text-[10px] text-muted-foreground"><strong className="block text-foreground">Janela principal</strong> últimos 30 dias</div>
         </div>
       </header>
@@ -154,12 +187,36 @@ export function UnifiedHotelExecutiveDashboard() {
         </ChartCard>
       </section>
 
+      <section className="grid gap-3 xl:grid-cols-[1.1fr_.9fr]">
+        <ChartCard title="5. Jornada: o hóspede está consumindo além da diária?" subtitle="Receita adicional e ticket médio de extras ligados às vendas registradas no hotel.">
+          <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <MicroKpi icon={<ShoppingBasket/>} label="Receita extras" value={fmtBRL(model.extrasRevenue)} />
+            <MicroKpi icon={<BadgeDollarSign/>} label="Ticket médio extras" value={fmtBRL(model.extrasTicket)} />
+            <MicroKpi icon={<Star/>} label="Satisfação média" value={model.experienceAnswers ? `${model.csat.toFixed(2)}/5` : "Sem respostas"} />
+            <MicroKpi icon={<ThumbsUp/>} label="Recomendaria" value={model.experienceAnswers ? pct(model.recommendation) : "Sem respostas"} />
+          </div>
+          <ResponsiveContainer width="100%" height={210}><BarChart data={model.extrasTrend}><CartesianGrid strokeDasharray="3 3" vertical={false}/><XAxis dataKey="data" tick={{fontSize:10}}/><YAxis tick={{fontSize:10}}/><Tooltip formatter={(v:any)=>fmtBRL(Number(v))}/><Bar dataKey="receita" name="Receita de extras" radius={[5,5,0,0]}/></BarChart></ResponsiveContainer>
+        </ChartCard>
+        <ChartCard title="6. Experiência: onde a qualidade pode estar derrubando receita?" subtitle="Acompanhamento qualitativo. Taxa de recomendação não é NPS; NPS exige pergunta 0–10 específica.">
+          <div className="grid grid-cols-2 gap-2">
+            <MicroKpi icon={<Star/>} label="Respostas" value={String(model.experienceAnswers)} />
+            <MicroKpi icon={<ThumbsUp/>} label="Recomendação" value={model.experienceAnswers ? pct(model.recommendation) : "—"} />
+            <MicroKpi icon={<AlertTriangle/>} label="Avaliações atenção" value={String(model.attentionReviews)} />
+            <MicroKpi icon={<AlertTriangle/>} label="Problemas reportados" value={String(model.reportedProblems)} />
+          </div>
+          <div className="mt-3 rounded-xl bg-muted/55 p-3 text-xs text-muted-foreground">
+            {model.experienceAnswers === 0 ? "Ainda não há volume de respostas suficiente para relacionar satisfação com receita, canal ou quarto." : model.attentionReviews > 0 ? "Há avaliações que exigem atenção. Cruze o quarto e a categoria do problema antes de investir em preço ou reforma." : "A experiência registrada está estável. Continue acompanhando limpeza, atendimento, conforto e custo-benefício junto da receita."}
+          </div>
+        </ChartCard>
+      </section>
+
       <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
         <h2 className="text-sm font-black text-pine-dark">Leitura para decisão</h2>
-        <div className="mt-2 grid gap-2 md:grid-cols-3 text-xs">
+        <div className="mt-2 grid gap-2 md:grid-cols-4 text-xs">
           <Decision title="Preço e demanda" text={model.occupancy < 30 ? "Ocupação baixa: priorize demanda e canal antes de elevar tarifa de forma ampla." : model.occupancy > 65 ? "Ocupação forte: há espaço para testar tarifa maior nas datas/quartos mais procurados." : "Equilíbrio intermediário: ajuste preço por data e tipo de quarto, não de forma geral."}/>
           <Decision title="Rentabilidade" text={model.gop < 0 ? "GOP negativo: não basta aumentar reservas; despesas e margem precisam ser tratadas antes de expandir." : `GOP positivo de ${fmtBRL(model.gop)}. Acompanhe GOPPAR junto do RevPAR para não crescer receita destruindo margem.`}/>
           <Decision title="Canal" text={model.channels[0] ? `${model.channels[0].canal} lidera receita. Compare ADR ${fmtBRL(model.channels[0].adr)} e cancelamento ${pct(model.channels[0].cancelamento)} antes de colocar mais verba nesse canal.` : "Ainda faltam dados de canal para uma recomendação confiável."}/>
+          <Decision title="Jornada do hóspede" text={model.extrasRevenue > 0 ? `Extras geraram ${fmtBRL(model.extrasRevenue)} no período, com ticket médio de ${fmtBRL(model.extrasTicket)}. Use perfil e motivo da viagem para direcionar ofertas.` : "Ainda há pouca receita adicional registrada. Integrar consumo e serviços à reserva permitirá medir ticket médio real além da diária."}/>
         </div>
       </section>
     </main>
@@ -169,6 +226,7 @@ export function UnifiedHotelExecutiveDashboard() {
 function Kpi({ icon, label, value, delta, hint }: { icon: React.ReactNode; label: string; value: string; delta?: number; hint: string }) {
   return <article className="rounded-2xl border border-border bg-card p-3 shadow-sm"><div className="flex items-center gap-2 text-primary">{icon}<span className="text-[9px] font-black uppercase tracking-wide text-muted-foreground">{label}</span></div><p className="mt-2 text-lg font-black text-pine-dark">{value}</p>{delta !== undefined && <p className={`text-[10px] font-bold ${delta >= 0 ? "text-sage" : "text-brick"}`}>{delta >= 0 ? "+" : ""}{delta.toFixed(1)}% vs. 30 dias anteriores</p>}<p className="mt-1 text-[9px] text-muted-foreground">{hint}</p></article>;
 }
+function MicroKpi({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) { return <div className="rounded-xl border border-border bg-muted/35 p-2.5"><div className="flex items-center gap-1.5 text-primary">{icon}<span className="text-[8px] font-black uppercase text-muted-foreground">{label}</span></div><strong className="mt-1 block text-sm text-pine-dark">{value}</strong></div>; }
 function ChartCard({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) { return <article className="rounded-2xl border border-border bg-card p-4 shadow-sm"><h2 className="text-sm font-black text-pine-dark">{title}</h2><p className="mb-3 text-[10px] text-muted-foreground">{subtitle}</p>{children}</article>; }
 function MiniRanking({ title, rows }: { title: string; rows: [string, number][] }) { const max=Math.max(1,...rows.map(r=>r[1])); return <div><h3 className="mb-2 text-[10px] font-black uppercase text-muted-foreground">{title}</h3><div className="space-y-2">{rows.slice(0,5).map(([name,value])=><div key={name}><div className="flex justify-between gap-2 text-[10px]"><span className="truncate">{name}</span><strong>{value}</strong></div><div className="mt-1 h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{width:`${Math.max(4,value/max*100)}%`}}/></div></div>)}</div></div>; }
 function Decision({ title, text }: { title: string; text: string }) { return <div className="rounded-xl border border-primary/15 bg-card p-3"><strong className="text-primary">{title}</strong><p className="mt-1 text-muted-foreground">{text}</p></div>; }
