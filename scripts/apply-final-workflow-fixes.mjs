@@ -56,3 +56,4 @@ patch("src/components/AppLayout.tsx", [
 await import("./fix-booking-noshow-dashboard.mjs");
 await import("./patch-executive-financial-kpis.mjs");
 await import("./apply-guest-data-quality.mjs");
+await import("./fix-executive-forecast.mjs");
