@@ -15,9 +15,16 @@ replaceOnce(
   "estado",
 );
 
+const dateFilterMarker = src.includes('  const [dateFilter, setDateFilter] = useState(() => todayISO());')
+  ? '  const [dateFilter, setDateFilter] = useState(() => todayISO());\n\n\n  const overdueDepartures'
+  : '  const [dateFilter, setDateFilter] = useState("");\n\n\n  const overdueDepartures';
+const dateFilterState = src.includes('  const [dateFilter, setDateFilter] = useState(() => todayISO());')
+  ? '  const [dateFilter, setDateFilter] = useState(() => todayISO());'
+  : '  const [dateFilter, setDateFilter] = useState("");';
+
 replaceOnce(
-  '  const [dateFilter, setDateFilter] = useState("");\n\n\n  const overdueDepartures',
-  `  const [dateFilter, setDateFilter] = useState("");\n\n  const reservationRiskKey = reservations\n    .filter((reservation) => reservation.status === "reservado")\n    .map((reservation) => reservation.id)\n    .sort()\n    .join("|");\n\n  useEffect(() => {\n    const companyId = currentCompany.data?.id;\n    if (!companyId) return;\n    let cancelled = false;\n    setAiRiskLoading(true);\n    (supabase as any).functions\n      .invoke("hotel-random-forest", { body: { company_id: companyId } })\n      .then(({ data, error }: any) => {\n        if (cancelled) return;\n        if (error) throw error;\n        const next: Record<string, number> = {};\n        for (const item of data?.cancellation?.risks ?? []) {\n          if (item?.reservation_id) next[String(item.reservation_id)] = Number(item.probability ?? 0);\n        }\n        setAiRisks(next);\n      })\n      .catch(() => {\n        if (!cancelled) setAiRisks({});\n      })\n      .finally(() => {\n        if (!cancelled) setAiRiskLoading(false);\n      });\n    return () => { cancelled = true; };\n  }, [currentCompany.data?.id, reservationRiskKey]);\n\n  const overdueDepartures`,
+  dateFilterMarker,
+  `${dateFilterState}\n\n  const reservationRiskKey = reservations\n    .filter((reservation) => reservation.status === "reservado")\n    .map((reservation) => reservation.id)\n    .sort()\n    .join("|");\n\n  useEffect(() => {\n    const companyId = currentCompany.data?.id;\n    if (!companyId) return;\n    let cancelled = false;\n    setAiRiskLoading(true);\n    (supabase as any).functions\n      .invoke("hotel-random-forest", { body: { company_id: companyId } })\n      .then(({ data, error }: any) => {\n        if (cancelled) return;\n        if (error) throw error;\n        const next: Record<string, number> = {};\n        for (const item of data?.cancellation?.risks ?? []) {\n          if (item?.reservation_id) next[String(item.reservation_id)] = Number(item.probability ?? 0);\n        }\n        setAiRisks(next);\n      })\n      .catch(() => {\n        if (!cancelled) setAiRisks({});\n      })\n      .finally(() => {\n        if (!cancelled) setAiRiskLoading(false);\n      });\n    return () => { cancelled = true; };\n  }, [currentCompany.data?.id, reservationRiskKey]);\n\n  const overdueDepartures`,
   "efeito",
 );
 
