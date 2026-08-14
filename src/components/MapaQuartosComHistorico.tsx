@@ -40,7 +40,9 @@ export function MapaQuartosComHistorico() {
       .map((reservation) => ({ reservation, account: buildGuestAccount(reservation, sales) }))
       .filter((item) => item.account.balance > 0.009);
 
-    const roomStates = rooms.map((room) => String(roomStatusToday(room, reservations) ?? room.situacao ?? "livre"));
+    const roomStates = rooms.map((room) =>
+      String(roomStatusToday(reservations, room.numero, today, room.situacao) ?? room.situacao ?? "livre"),
+    );
     const maintenance = roomStates.filter((status) => status.includes("manutencao")).length;
     const cleaning = roomStates.filter((status) => status.includes("limpeza")).length;
     const occupiedRooms = new Set(occupied.map((reservation) => Number(reservation.quarto))).size;
