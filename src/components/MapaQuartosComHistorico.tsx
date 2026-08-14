@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type ReactNode } from "react";
 import { AlertTriangle, BedDouble, CalendarCheck2, CheckCircle2, Clock3, Sparkles } from "lucide-react";
 import { MapaQuartos } from "@/components/MapaQuartos";
 import { buildGuestAccount } from "@/lib/guest-account";
@@ -163,7 +163,7 @@ export function MapaQuartosComHistorico() {
   );
 }
 
-function Metric({ label, value, icon, tone = "neutral" }: { label: string; value: number; icon: React.ReactNode; tone?: "neutral" | "ok" | "warn" | "danger" }) {
+function Metric({ label, value, icon, tone = "neutral" }: { label: string; value: number; icon: ReactNode; tone?: "neutral" | "ok" | "warn" | "danger" }) {
   const toneClass = tone === "ok" ? "bg-sage-bg text-pine-dark" : tone === "warn" ? "bg-brass-bg text-[oklch(0.42_0.08_75)]" : tone === "danger" ? "bg-brick-bg text-brick" : "bg-muted text-foreground";
   return <div className="rounded-xl border border-border/70 p-2.5"><div className={`mb-2 grid h-7 w-7 place-items-center rounded-lg ${toneClass}`}>{icon}</div><strong className="block text-xl leading-none text-pine-dark">{value}</strong><span className="mt-1 block text-[10px] font-semibold text-muted-foreground">{label}</span></div>;
 }
