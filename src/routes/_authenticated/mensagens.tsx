@@ -1,14 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Check,
-  ClipboardCheck,
-  CreditCard,
+  CheckCircle2,
+  Clock3,
   ExternalLink,
-  FileSignature,
   MessageCircle,
-  RefreshCcw,
-  Settings2,
+  Search,
+  Send,
   Star,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -22,354 +21,286 @@ import {
   type Client,
   type Reservation,
 } from "@/lib/data";
-import { buildGuestAccount, type GuestAccount } from "@/lib/guest-account";
-import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
-import {
-  createDebtMessage,
-  createFnrhMessage,
-  createReviewMessage,
-  type GuestMessageKind,
-  type GuestMessageSettings,
-  whatsappPhone,
-  whatsappUrl,
-} from "@/lib/guest-messaging";
+import { buildGuestAccount } from "@/lib/guest-account";
+import { fmtDate, todayISO } from "@/lib/format";
+import { createReviewMessage, whatsappPhone, whatsappUrl } from "@/lib/guest-messaging";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/mensagens")({
-  component: GuestMessages,
+  component: WhatsappCrm,
 });
 
-type MessageLog = {
-  reservationId: string;
-  kind: GuestMessageKind;
-  preparedAt: string;
+type CrmKind = "checkin_confirmation" | "review_request";
+type CrmStatus = "opened" | "sent" | "confirmed" | "replied";
+type CrmEvent = {
+  id: string;
+  company_id: string;
+  reservation_id: string;
+  client_id: string | null;
+  kind: CrmKind;
+  status: CrmStatus;
+  phone: string | null;
+  message: string | null;
+  metadata: Record<string, unknown>;
+  occurred_at: string;
 };
-
-type QueueItem = {
+type CrmItem = {
   reservation: Reservation;
   client: Client;
-  account: GuestAccount;
-  kind: GuestMessageKind;
+  kind: CrmKind;
 };
 
-const KIND_META: Record<
-  GuestMessageKind,
-  { title: string; description: string; icon: typeof MessageCircle; tone: string }
-> = {
-  fnrh: {
-    title: "Enviar FNRH",
-    description: "Reservas confirmadas, inclusive Booking, aguardando pré-check-in.",
-    icon: FileSignature,
-    tone: "text-primary bg-primary/10",
+const KIND_META: Record<CrmKind, { title: string; description: string; icon: typeof MessageCircle }> = {
+  checkin_confirmation: {
+    title: "Confirmar check-in",
+    description: "Reservas futuras com WhatsApp para confirmar chegada e horário aproximado.",
+    icon: CheckCircle2,
   },
-  cobranca: {
-    title: "Cobrar saldo",
-    description: "Hóspedes em estadia ou check-out com hospedagem/consumos pendentes.",
-    icon: CreditCard,
-    tone: "text-brick bg-brick-bg",
-  },
-  avaliacao: {
+  review_request: {
     title: "Pedir avaliação",
-    description: "Check-outs concluídos e totalmente quitados.",
+    description: "Hospedagens finalizadas e quitadas que já podem receber o pedido de avaliação.",
     icon: Star,
-    tone: "text-[oklch(0.48_0.12_78)] bg-brass-bg",
   },
 };
 
-function GuestMessages() {
+function WhatsappCrm() {
   const company = useCurrentCompany();
+  const companyId = company.data?.id;
   const { data: reservations = [] } = useReservations();
   const { data: clients = [] } = useClients();
   const { data: sales = [] } = useSales();
-  const companyId = company.data?.id ?? "default";
-  const [activeKind, setActiveKind] = useState<GuestMessageKind>("cobranca");
-  const [showSettings, setShowSettings] = useState(false);
-  const [showPrepared, setShowPrepared] = useState(false);
-  const [settings, setSettings] = useState<GuestMessageSettings>(() =>
-    readSettings(companyId),
-  );
-  const [logs, setLogs] = useState<MessageLog[]>(() => readLogs(companyId));
+  const queryClient = useQueryClient();
+  const [kind, setKind] = useState<CrmKind>("checkin_confirmation");
+  const [search, setSearch] = useState("");
+  const [showDone, setShowDone] = useState(false);
+
+  const eventsQuery = useQuery({
+    queryKey: ["whatsapp-crm-events", companyId],
+    enabled: Boolean(companyId),
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("whatsapp_crm_events")
+        .select("id,company_id,reservation_id,client_id,kind,status,phone,message,metadata,occurred_at")
+        .eq("company_id", companyId)
+        .order("occurred_at", { ascending: false })
+        .limit(5000);
+      if (error) throw error;
+      return (data ?? []) as CrmEvent[];
+    },
+  });
+
+  const logEvent = useMutation({
+    mutationFn: async ({ item, status, message }: { item: CrmItem; status: CrmStatus; message?: string }) => {
+      const phone = whatsappPhone(item.client.telefone);
+      const { error } = await (supabase as any).from("whatsapp_crm_events").insert({
+        company_id: item.reservation.company_id,
+        reservation_id: item.reservation.id,
+        client_id: item.client.id,
+        kind: item.kind,
+        status,
+        phone: phone || null,
+        message: message || null,
+        metadata: {
+          room: item.reservation.quarto,
+          checkin: item.reservation.checkin,
+          checkout: item.reservation.checkout,
+        },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["whatsapp-crm-events", companyId] }),
+  });
+
   const clientById = useMemo(() => new Map(clients.map((client) => [client.id, client])), [clients]);
+  const latestByKey = useMemo(() => {
+    const map = new Map<string, CrmEvent>();
+    for (const event of eventsQuery.data ?? []) {
+      const key = `${event.reservation_id}:${event.kind}`;
+      if (!map.has(key)) map.set(key, event);
+    }
+    return map;
+  }, [eventsQuery.data]);
 
   const queues = useMemo(() => {
-    const result: Record<GuestMessageKind, QueueItem[]> = {
-      fnrh: [],
-      cobranca: [],
-      avaliacao: [],
-    };
+    const result: Record<CrmKind, CrmItem[]> = { checkin_confirmation: [], review_request: [] };
     const today = todayISO();
-
-    reservations.forEach((reservation) => {
-      if (reservation.status === "cancelado" || reservation.status === "manutencao") return;
+    for (const reservation of reservations) {
+      if (["cancelado", "manutencao"].includes(reservation.status)) continue;
       const client = reservation.cliente_id
         ? clientById.get(reservation.cliente_id)
-        : clients.find((item) => item.nome === reservation.cliente_nome);
-      if (!client || !whatsappPhone(client.telefone)) return;
+        : clients.find((candidate) => candidate.nome === reservation.cliente_nome);
+      if (!client || !whatsappPhone(client.telefone)) continue;
+
+      if (reservation.status === "reservado" && reservation.checkin >= today) {
+        result.checkin_confirmation.push({ reservation, client, kind: "checkin_confirmation" });
+      }
+
       const account = buildGuestAccount(reservation, sales);
-      const total = Math.max(0, Number(reservation.valor_total) || 0);
-      const signalConfirmed = total > 0 && Number(reservation.valor_pago) >= total * 0.5;
-      const bookingConfirmed = String(reservation.canal ?? "").toLocaleLowerCase("pt-BR").includes("booking");
-
-      if (
-        (signalConfirmed || bookingConfirmed) &&
-        reservation.status === "reservado" &&
-        reservation.checkin >= today
-      ) {
-        result.fnrh.push({ reservation, client, account, kind: "fnrh" });
+      if (reservation.status === "finalizado" && account.balance <= 0.009) {
+        result.review_request.push({ reservation, client, kind: "review_request" });
       }
-      if (
-        account.balance > 0 &&
-        (reservation.status === "ocupado" ||
-          reservation.status === "finalizado" ||
-          reservation.checkout <= today)
-      ) {
-        result.cobranca.push({ reservation, client, account, kind: "cobranca" });
-      }
-      if (reservation.status === "finalizado" && account.balance <= 0) {
-        result.avaliacao.push({ reservation, client, account, kind: "avaliacao" });
-      }
-    });
-
-    result.fnrh.sort((a, b) => a.reservation.checkin.localeCompare(b.reservation.checkin));
-    result.cobranca.sort((a, b) => b.account.balance - a.account.balance);
-    result.avaliacao.sort((a, b) => b.reservation.checkout.localeCompare(a.reservation.checkout));
+    }
+    result.checkin_confirmation.sort((a, b) => a.reservation.checkin.localeCompare(b.reservation.checkin));
+    result.review_request.sort((a, b) => b.reservation.checkout.localeCompare(a.reservation.checkout));
     return result;
   }, [clientById, clients, reservations, sales]);
 
-  const visibleItems = queues[activeKind].filter(
-    (item) => showPrepared || !wasPrepared(logs, item.reservation.id, activeKind),
-  );
+  const counts = useMemo(() => {
+    return {
+      checkin_confirmation: queues.checkin_confirmation.filter((item) => !isDone(item, latestByKey)).length,
+      review_request: queues.review_request.filter((item) => !isDone(item, latestByKey)).length,
+    };
+  }, [latestByKey, queues]);
 
-  function saveSettings() {
-    window.localStorage.setItem(settingsKey(companyId), JSON.stringify(settings));
-    setShowSettings(false);
-    toast.success("Configurações das mensagens salvas neste dispositivo.");
-  }
+  const visible = queues[kind].filter((item) => {
+    if (!showDone && isDone(item, latestByKey)) return false;
+    const term = search.trim().toLocaleLowerCase("pt-BR");
+    if (!term) return true;
+    return [item.client.nome, item.client.telefone, item.reservation.quarto, item.reservation.canal]
+      .some((value) => String(value ?? "").toLocaleLowerCase("pt-BR").includes(term));
+  });
 
-  function registerPrepared(item: QueueItem) {
-    const next = [
-      ...logs.filter(
-        (entry) =>
-          !(entry.reservationId === item.reservation.id && entry.kind === item.kind),
-      ),
-      {
-        reservationId: item.reservation.id,
-        kind: item.kind,
-        preparedAt: new Date().toISOString(),
-      },
-    ];
-    setLogs(next);
-    window.localStorage.setItem(logKey(companyId), JSON.stringify(next));
-  }
-
-  async function prepare(item: QueueItem) {
+  async function openWhatsApp(item: CrmItem) {
     const phone = whatsappPhone(item.client.telefone);
-    if (!phone) {
-      toast.error("O cliente está sem telefone válido.");
-      return;
-    }
+    if (!phone) return toast.error("O hóspede está sem WhatsApp válido.");
+    const message = item.kind === "checkin_confirmation"
+      ? createCheckinConfirmationMessage(item.reservation, item.client)
+      : createReviewMessage(item.reservation, item.client, "");
+    window.open(whatsappUrl(phone, message), "_blank", "noopener");
     try {
-      const message =
-        item.kind === "fnrh"
-          ? await createFnrhMessage(item.reservation, item.client)
-          : item.kind === "cobranca"
-            ? createDebtMessage(item.reservation, item.client, item.account, settings.pixKey)
-            : createReviewMessage(item.reservation, item.client, settings.reviewUrl);
-      window.open(whatsappUrl(phone, message), "_blank", "noopener");
-      registerPrepared(item);
-      toast.success("Conversa aberta com a mensagem pronta. Confirme o envio no WhatsApp.");
+      await logEvent.mutateAsync({ item, status: "opened", message });
+      toast.success("WhatsApp aberto com a mensagem pronta.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Não foi possível preparar a mensagem.");
+      toast.error(error instanceof Error ? error.message : "WhatsApp abriu, mas o histórico não foi salvo.");
+    }
+  }
+
+  async function mark(item: CrmItem, status: CrmStatus) {
+    try {
+      await logEvent.mutateAsync({ item, status });
+      toast.success(status === "confirmed" ? "Check-in confirmado no CRM." : "Mensagem marcada como enviada.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível atualizar o CRM.");
     }
   }
 
   return (
     <div className="space-y-3">
       <PageHeader
-        title="Mensagens aos hóspedes"
-        subtitle="Prepare FNRH, cobranças e avaliações usando os dados reais da hospedagem."
-        action={
-          <button className="btn-ghost flex items-center gap-2" onClick={() => setShowSettings((v) => !v)}>
-            <Settings2 className="h-4 w-4" /> Configurar
-          </button>
-        }
+        title="CRM WhatsApp"
+        subtitle="Confirmação de chegada e avaliação pós-hospedagem, organizadas por reserva."
       />
 
-      {showSettings && (
-        <section className="surface-card grid gap-3 p-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold">Chave Pix do hotel</span>
-            <input
-              className="field"
-              value={settings.pixKey}
-              onChange={(event) => setSettings((current) => ({ ...current, pixKey: event.target.value }))}
-              placeholder="CPF, CNPJ, telefone, e-mail ou chave aleatória"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold">Link externo de avaliação (opcional)</span>
-            <input
-              className="field"
-              value={settings.reviewUrl}
-              onChange={(event) =>
-                setSettings((current) => ({ ...current, reviewUrl: event.target.value }))
-              }
-              placeholder="Vazio = formulário de avaliação do sistema"
-            />
-          </label>
-          <button className="btn-primary" onClick={saveSettings}>
-            Salvar
-          </button>
-          <p className="text-xs text-muted-foreground md:col-span-3">
-            Esses dados ficam neste navegador. A mensagem nunca marca pagamento como confirmado:
-            o comprovante ainda precisa ser conferido pela recepção.
-          </p>
-        </section>
-      )}
-
-      <section className="grid gap-2 sm:grid-cols-3">
-        {(Object.keys(KIND_META) as GuestMessageKind[]).map((kind) => {
-          const meta = KIND_META[kind];
+      <section className="grid gap-2 sm:grid-cols-2">
+        {(Object.keys(KIND_META) as CrmKind[]).map((key) => {
+          const meta = KIND_META[key];
           const Icon = meta.icon;
-          const pending = queues[kind].filter(
-            (item) => !wasPrepared(logs, item.reservation.id, kind),
-          ).length;
           return (
             <button
-              key={kind}
-              onClick={() => setActiveKind(kind)}
-              className={`surface-card flex min-h-24 items-center gap-3 p-3 text-left transition ${
-                activeKind === kind ? "ring-2 ring-primary" : "hover:border-primary/40"
-              }`}
+              key={key}
+              type="button"
+              onClick={() => setKind(key)}
+              className={`surface-card flex items-center gap-3 p-4 text-left transition ${kind === key ? "ring-2 ring-primary" : "hover:border-primary/40"}`}
             >
-              <span className={`rounded-xl p-2.5 ${meta.tone}`}>
+              <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${key === "checkin_confirmation" ? "bg-primary/10 text-primary" : "bg-brass-bg text-[oklch(0.48_0.12_78)]"}`}>
                 <Icon className="h-5 w-5" />
               </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-bold">{meta.title}</span>
+              <span className="min-w-0 flex-1">
+                <strong className="block text-sm">{meta.title}</strong>
                 <span className="mt-0.5 block text-xs text-muted-foreground">{meta.description}</span>
-                <span className="mt-1 block text-xs font-semibold text-primary">
-                  {pending} pendente(s)
-                </span>
               </span>
+              <span className="rounded-full bg-primary px-2.5 py-1 text-xs font-black text-primary-foreground">{counts[key]}</span>
             </button>
           );
         })}
       </section>
 
-      <section className="surface-card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b p-3">
-          <div>
-            <h2 className="font-bold">{KIND_META[activeKind].title}</h2>
-            <p className="text-xs text-muted-foreground">
-              O sistema apenas prepara a conversa; confirme o envio no WhatsApp.
-            </p>
-          </div>
-          <button
-            className="btn-ghost flex items-center gap-1.5 text-xs"
-            onClick={() => setShowPrepared((value) => !value)}
-          >
-            {showPrepared ? <RefreshCcw className="h-3.5 w-3.5" /> : <ClipboardCheck className="h-3.5 w-3.5" />}
-            {showPrepared ? "Ocultar preparadas" : "Ver preparadas"}
+      <section className="surface-card p-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <label className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input className="field pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar hóspede, telefone ou quarto..." />
+          </label>
+          <button type="button" className="btn-ghost whitespace-nowrap" onClick={() => setShowDone((value) => !value)}>
+            {showDone ? "Ocultar concluídos" : "Ver concluídos"}
           </button>
         </div>
+      </section>
 
-        {visibleItems.length === 0 ? (
-          <EmptyState
-            text={
-              showPrepared
-                ? "Nenhuma mensagem nesta fila."
-                : "Nenhuma mensagem pendente. Os itens preparados ficam ocultos para evitar repetição."
-            }
-          />
-        ) : (
-          <div className="divide-y">
-            {visibleItems.map((item) => {
-              const prepared = wasPrepared(logs, item.reservation.id, item.kind);
-              return (
-                <article
-                  key={`${item.kind}-${item.reservation.id}`}
-                  className="grid gap-3 p-3 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] md:items-center"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <strong className="truncate">{item.client.nome}</strong>
-                      {prepared && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-sage-bg px-2 py-0.5 text-[11px] font-semibold text-pine-dark">
-                          <Check className="h-3 w-3" /> Preparada
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Quarto {item.reservation.quarto} · {fmtDate(item.reservation.checkin)} a{" "}
-                      {fmtDate(item.reservation.checkout)} · {item.client.telefone}
+      <section className="space-y-2">
+        {visible.length === 0 ? (
+          <EmptyState text={showDone ? "Nenhum hóspede nesta fila." : "Tudo em dia nesta fila do CRM."} />
+        ) : visible.map((item) => {
+          const event = latestByKey.get(`${item.reservation.id}:${item.kind}`);
+          const done = isDone(item, latestByKey);
+          return (
+            <article key={`${item.kind}-${item.reservation.id}`} className={`surface-card p-4 ${done ? "opacity-75" : ""}`}>
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <strong className="truncate text-base">{item.client.nome}</strong>
+                    <StatusBadge kind={item.kind} event={event} />
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    UH {item.reservation.quarto} · {fmtDate(item.reservation.checkin)} → {fmtDate(item.reservation.checkout)} · {item.reservation.canal || "Direto"}
+                  </p>
+                  <p className="mt-1 text-xs font-semibold text-pine-dark">{item.client.telefone}</p>
+                  {event && (
+                    <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <Clock3 className="h-3 w-3" /> Última ação: {new Date(event.occurred_at).toLocaleString("pt-BR")}
                     </p>
-                  </div>
-                  <div className="text-xs">
-                    {item.kind === "cobranca" ? (
-                      <>
-                        <strong className="block text-sm text-brick">{fmtBRL(item.account.balance)}</strong>
-                        <span className="text-muted-foreground">
-                          Hospedagem {fmtBRL(item.account.lodgingTotal - item.account.lodgingPaid)}
-                          {" · "}Consumos {fmtBRL(item.account.extrasTotal - item.account.extrasPaid)}
-                        </span>
-                      </>
-                    ) : item.kind === "fnrh" ? (
-                      <span className="text-muted-foreground">
-                        Sinal recebido: {fmtBRL(item.account.lodgingPaid)}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Conta quitada · check-out concluído</span>
-                    )}
-                  </div>
-                  <button
-                    className="btn-primary flex items-center justify-center gap-1.5 whitespace-nowrap"
-                    onClick={() => void prepare(item)}
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    {prepared ? "Abrir novamente" : "Preparar"}
-                    <ExternalLink className="h-3.5 w-3.5" />
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" className="btn-primary inline-flex items-center gap-1.5" onClick={() => void openWhatsApp(item)}>
+                    <MessageCircle className="h-4 w-4" /> Abrir WhatsApp <ExternalLink className="h-3.5 w-3.5" />
                   </button>
-                </article>
-              );
-            })}
-          </div>
-        )}
+                  {event?.status !== "sent" && event?.status !== "confirmed" && (
+                    <button type="button" className="btn-ghost inline-flex items-center gap-1.5" onClick={() => void mark(item, "sent")}>
+                      <Send className="h-4 w-4" /> Marcar enviada
+                    </button>
+                  )}
+                  {item.kind === "checkin_confirmation" && event?.status !== "confirmed" && (
+                    <button type="button" className="btn-ghost inline-flex items-center gap-1.5" onClick={() => void mark(item, "confirmed")}>
+                      <CheckCircle2 className="h-4 w-4" /> Check-in confirmado
+                    </button>
+                  )}
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="rounded-xl border border-primary/15 bg-primary/[0.04] p-3 text-xs text-muted-foreground">
+        O CRM registra o que foi aberto, enviado e confirmado. Sem a API oficial do WhatsApp, o sistema não consegue provar sozinho que o clique em “Enviar” aconteceu dentro do WhatsApp; por isso esse status continua sob controle da recepção. A próxima camada pode interpretar respostas e horários com IA sem deixar a IA conversar livremente com o hóspede.
       </section>
     </div>
   );
 }
 
-function settingsKey(companyId: string) {
-  return `hotelreal.guestMessages.settings.${companyId}`;
+function createCheckinConfirmationMessage(reservation: Reservation, client: Client) {
+  const firstName = (client.nome || reservation.cliente_nome).trim().split(/\s+/)[0] || "hóspede";
+  return [
+    `Olá, ${firstName}! Tudo bem?`,
+    `Sua reserva no Hotel Real Cruzília está prevista de ${fmtDate(reservation.checkin)} a ${fmtDate(reservation.checkout)}.`,
+    "Podemos confirmar sua chegada? Se possível, informe também o horário aproximado em que pretende chegar.",
+    "Se houver qualquer mudança, pode nos avisar por aqui. Até breve!",
+  ].join("\n\n");
 }
 
-function logKey(companyId: string) {
-  return `hotelreal.guestMessages.log.${companyId}`;
+function isDone(item: CrmItem, latest: Map<string, CrmEvent>) {
+  const event = latest.get(`${item.reservation.id}:${item.kind}`);
+  if (!event) return false;
+  if (item.kind === "checkin_confirmation") return event.status === "confirmed";
+  return event.status === "sent" || event.status === "confirmed";
 }
 
-function readSettings(companyId: string): GuestMessageSettings {
-  if (typeof window === "undefined") return { pixKey: "", reviewUrl: "" };
-  try {
-    const value = JSON.parse(window.localStorage.getItem(settingsKey(companyId)) ?? "{}");
-    return {
-      pixKey: String(value.pixKey ?? ""),
-      reviewUrl: String(value.reviewUrl ?? ""),
-    };
-  } catch {
-    return { pixKey: "", reviewUrl: "" };
-  }
-}
-
-function readLogs(companyId: string): MessageLog[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const value = JSON.parse(window.localStorage.getItem(logKey(companyId)) ?? "[]");
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-}
-
-function wasPrepared(logs: MessageLog[], reservationId: string, kind: GuestMessageKind) {
-  return logs.some((entry) => entry.reservationId === reservationId && entry.kind === kind);
+function StatusBadge({ kind, event }: { kind: CrmKind; event?: CrmEvent }) {
+  if (!event) return <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground">Pendente</span>;
+  if (event.status === "confirmed") return <span className="rounded-full bg-sage-bg px-2 py-0.5 text-[11px] font-bold text-pine-dark">Confirmado</span>;
+  if (event.status === "sent") return <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">Enviada</span>;
+  if (event.status === "replied") return <span className="rounded-full bg-sage-bg px-2 py-0.5 text-[11px] font-bold text-pine-dark">Respondeu</span>;
+  return <span className="rounded-full bg-brass-bg px-2 py-0.5 text-[11px] font-bold text-[oklch(0.45_0.09_75)]">WhatsApp aberto</span>;
 }
