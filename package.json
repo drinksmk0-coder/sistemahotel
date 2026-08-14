@@ -78,7 +78,7 @@
     "use-stick-to-bottom": "^1.5.0",
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
-    "world-atlas": "^2.0.0",
+    "world-atlas": "^2.0.2",
     "zod": "^3.24.2"
   },
   "devDependencies": {
