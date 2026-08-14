@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "node scripts/apply-final-workflow-fixes.mjs && node scripts/fix-room-actions-delete-runtime.mjs && node scripts/cleanup-reservas-build.mjs && node scripts/add-reservation-risk.mjs && node scripts/route-investment-ai.mjs && node scripts/fix-sales-date-checkin.mjs && node scripts/add-timeline-actions.mjs && vite build",
-    "build:dev": "node scripts/apply-final-workflow-fixes.mjs && node scripts/fix-room-actions-delete-runtime.mjs && node scripts/cleanup-reservas-build.mjs && node scripts/add-reservation-risk.mjs && node scripts/route-investment-ai.mjs && node scripts/fix-sales-date-checkin.mjs && node scripts/add-timeline-actions.mjs && vite build --mode development",
+    "build": "vite build",
+    "build:dev": "vite build --mode development",
     "preview": "nitro preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
