@@ -23,6 +23,19 @@ export function whatsappUrl(phone: string, message: string) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
+export function createCheckinConfirmationMessage(
+  reservation: Reservation,
+  client: Client,
+) {
+  return [
+    `Olá, ${firstName(client.nome || reservation.cliente_nome)}! Tudo bem?`,
+    `Estamos confirmando sua hospedagem no Hotel Real Cruzília com entrada em ${fmtDate(reservation.checkin)} e saída em ${fmtDate(reservation.checkout)}.`,
+    `Sua reserva está vinculada ao quarto ${reservation.quarto}.`,
+    "Pode nos confirmar se sua chegada está mantida? Se já souber aproximadamente o horário, pode informar por aqui também.",
+    "Aguardamos você!",
+  ].join("\n\n");
+}
+
 export async function createFnrhMessage(
   reservation: Reservation,
   client: Client,
@@ -49,8 +62,6 @@ export async function createFnrhMessage(
     token = created.data.public_token;
   }
 
-  // O token fica no fragmento (#), que não é enviado ao servidor HTTP.
-  // A rota ainda aceita o formato antigo ?token= por compatibilidade com links já enviados.
   const formUrl = publicAppUrl(`/checkin-online#token=${encodeURIComponent(token)}`);
   return [
     `Olá, ${firstName(client.nome || reservation.cliente_nome)}!`,
