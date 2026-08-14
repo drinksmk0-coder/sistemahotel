@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MapaQuartos } from "@/components/MapaQuartos";
+import { MapaQuartosComHistorico } from "@/components/MapaQuartosComHistorico";
 import { RoomOperationsBoard } from "@/components/RoomOperationsBoard";
 import { useRole, useSession } from "@/hooks/use-auth";
 
@@ -23,5 +23,5 @@ function MapaPorFuncao() {
     return <RoomOperationsBoard />;
   }
 
-  return <MapaQuartos />;
+  return <MapaQuartosComHistorico />;
 }
