@@ -34,6 +34,9 @@ import { getSystemSettings, type SystemSettings } from "@/lib/system-settings";
 import { buildClientInsights } from "@/lib/guest-account";
 import { ClientInsightModal, TierBadge } from "@/components/ClientInsightModal";
 import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";
+import { GuestFormScanner, type GuestScanResult } from "@/components/GuestFormScanner";
+import { isValidCPF } from "@/lib/cpf";
+import { guestPrivacyId, maskCpf } from "@/lib/privacy";
 
 export const Route = createFileRoute("/_authenticated/clientes")({
   component: Clientes,
@@ -99,9 +102,7 @@ function Clientes() {
     const created = (c.created_at || "").slice(0, 10);
     const matchesSearch =
       c.nome.toLowerCase().includes(q.toLowerCase()) ||
-      (c.telefone ?? "").includes(q) ||
-      (c.documento ?? "").includes(q) ||
-      (c.cpf ?? "").includes(q);
+      (c.telefone ?? "").includes(q);
     const matchesFrom = !createdFrom || created >= createdFrom;
     const matchesTo = !createdTo || created <= createdTo;
     const disabled = isClientDisabled(c);
@@ -210,7 +211,7 @@ function Clientes() {
         "Tipo",
         "Telefone",
         "Email",
-        "CPF",
+        "ID do hóspede",
         "Sexo",
         "Estado civil",
         "Filhos",
@@ -236,7 +237,7 @@ function Clientes() {
         c.tipo,
         c.telefone,
         (c as Client & { email?: string | null }).email ?? "",
-        c.cpf,
+        guestPrivacyId(c.id),
         c.sexo,
         c.estado_civil,
         c.tem_filhos ? (c.quantidade_filhos ?? 0) : "Não",
@@ -403,7 +404,7 @@ function Clientes() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-extrabold text-pine-dark">{c.nome}</p>
                       <p className="truncate text-[9px] text-muted-foreground">
-                        {c.cpf || c.documento || "Documento não informado"}
+                        ID do hóspede: {guestPrivacyId(c.id)}
                       </p>
                     </div>
                   </div>
@@ -571,7 +572,7 @@ function printGuestForm(client: Client, reservation?: Reservation) {
   const params = new URLSearchParams({
     tipo: "fnrh",
     nome: client.nome,
-    cpf: client.cpf ?? "",
+    cpf: maskCpf(client.cpf),
     telefone: client.telefone ?? "",
     email: client.email ?? "",
     nascimento: client.data_nascimento ? fmtDate(client.data_nascimento) : "",
@@ -652,7 +653,7 @@ function ClientForm({
   const [email, setEmail] = useState(
     (editing as (Client & { email?: string | null }) | null)?.email ?? "",
   );
-  const [cpf, setCpf] = useState(editing?.cpf ?? "");
+  const [cpf, setCpf] = useState("");
   const [nascimento, setNascimento] = useState(editing?.data_nascimento ?? "");
   const [profissao, setProfissao] = useState(editing?.profissao ?? "");
   const [sexo, setSexo] = useState(editing?.sexo ?? "");
@@ -669,6 +670,7 @@ function ClientForm({
 
   const cpfDigits = onlyDigits(cpf);
   const telefoneDigits = onlyDigits(telefone);
+  const cpfInvalido = cpfDigits.length > 0 && !isValidCPF(cpf);
   const cpfJaCadastrado =
     cpfDigits.length > 0 &&
     clients.some(
@@ -683,11 +685,38 @@ function ClientForm({
         onlyDigits(client.telefone) === telefoneDigits,
     );
 
+  function applyGuestScan(guest: GuestScanResult) {
+    if (guest.nome) setNome(guest.nome.replace(/[0-9]/g, ""));
+    if (guest.telefone) {
+      setTelefone(formatPhoneBR(guest.telefone));
+      const uf = stateFromPhone(guest.telefone);
+      if (uf) setEstado(uf);
+    }
+    if (guest.email) setEmail(guest.email);
+    if (guest.cpf) setCpf(formatCpfBR(guest.cpf));
+    if (guest.data_nascimento) setNascimento(guest.data_nascimento);
+    if (guest.profissao) setProfissao(guest.profissao);
+    if (guest.sexo) setSexo(guest.sexo);
+    if (guest.bairro) setBairro(guest.bairro);
+    if (guest.estado_civil) setEstadoCivil(guest.estado_civil);
+    if (guest.cidade) setCidade(guest.cidade);
+    if (guest.estado) setEstado(guest.estado);
+    if (guest.pais) setPais(guest.pais);
+    if (guest.cep) setCep(guest.cep);
+    if (guest.cpf && !isValidCPF(guest.cpf)) {
+      toast.warning("O CPF lido na ficha é inválido. Confira antes de salvar.");
+    }
+  }
+
   return (
     <Modal open onClose={onClose} title={editing ? "Editar cliente" : "Novo cliente"}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (cpfInvalido) {
+            toast.error("CPF inválido. Confira os números digitados.");
+            return;
+          }
           if (cpfJaCadastrado || telefoneJaCadastrado) {
             toast.error(
               cpfJaCadastrado
@@ -701,7 +730,11 @@ function ClientForm({
             toast.error("Informe o nome completo, sem números.");
             return;
           }
-          if (requiredGuestFields.cpf && cpfDigits.length !== 11) {
+          if (cpfDigits.length > 0 && cpfDigits.length !== 11) {
+            toast.error("CPF inválido. Informe os 11 dígitos ou deixe vazio para manter o CPF protegido.");
+            return;
+          }
+          if (requiredGuestFields.cpf && !editing?.cpf && cpfDigits.length !== 11) {
             toast.error("CPF obrigatório. Informe os 11 dígitos.");
             return;
           }
@@ -723,7 +756,7 @@ function ClientForm({
             telefone: formatPhoneBR(telefone) || null,
             email: email.trim() || null,
             documento: null,
-            cpf: formatCpfBR(cpf) || null,
+            cpf: editing && !cpfDigits ? editing.cpf : formatCpfBR(cpf) || null,
             data_nascimento: nascimento || null,
             profissao: profissao.trim() || null,
             sexo: sexo || null,
@@ -739,6 +772,8 @@ function ClientForm({
         }}
         className="space-y-3"
       >
+        <GuestFormScanner onResult={applyGuestScan} />
+
         <Field label="Nome">
           <input
             className="field"
@@ -789,15 +824,22 @@ function ClientForm({
           />
         </Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="CPF">
+          <Field label="CPF protegido">
             <input
               className="field"
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
               value={cpf}
+              placeholder={editing?.cpf ? "CPF protegido — deixe vazio para manter" : "Digite o CPF"}
               onChange={(e) => setCpf(formatCpfBR(e.target.value))}
               maxLength={14}
-              required={requiredGuestFields.cpf}
+              required={requiredGuestFields.cpf && !editing?.cpf}
               aria-invalid={cpfJaCadastrado}
             />
+            {editing?.cpf && !cpf && (
+              <p className="mt-1 text-xs text-muted-foreground">O CPF salvo permanece protegido e não é reexibido.</p>
+            )}
             {cpfJaCadastrado && (
               <p className="mt-1 text-xs font-semibold text-brick">Este CPF já está cadastrado.</p>
             )}

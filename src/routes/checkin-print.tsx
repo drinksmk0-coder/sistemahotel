@@ -3,6 +3,7 @@ import { Loader2, Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { clearFnrhPrintSession, loadFnrhPrintSession, type FnrhPrintData } from "@/lib/fnrh-print-session";
+import { maskCpf } from "@/lib/privacy";
 
 export const Route = createFileRoute("/checkin-print")({ ssr: false, component: CheckinPrint });
 
@@ -126,7 +127,7 @@ function CheckinPrint() {
   const expectedCompanions = Math.max(0, Number(data.adults ?? 1) + Number(data.children ?? 0) - 1);
   const companionCount = Math.max(companions.length, expectedCompanions, Number(form.acompanhantes || 0));
   const normalizedDocumentType = normalize(form.tipo_documento);
-  const cpf = form.cpf || (normalizedDocumentType === "cpf" ? form.numero_documento : "");
+  const cpf = maskCpf(form.cpf || (normalizedDocumentType === "cpf" ? form.numero_documento : ""));
   const identityNumber = normalizedDocumentType !== "cpf" ? form.numero_documento || "" : form.numero_identidade || "";
   const identityType = normalizedDocumentType !== "cpf" ? form.tipo_documento || "" : form.tipo_identidade || "";
   const issuer = form.orgao_expedidor || form.orgao_emissor || "";
