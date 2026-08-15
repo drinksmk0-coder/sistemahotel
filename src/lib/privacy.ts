@@ -5,7 +5,7 @@ export function maskCpf(value: string | null | undefined) {
 
 export function guestPrivacyId(id: string | null | undefined) {
   const compact = String(id ?? "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-  return compact ? `HSP-${compact.slice(0, 12)}` : "HSP-NÃO-GERADO";
+  return compact ? `HSP-${compact}` : "HSP-NÃO-GERADO";
 }
 
 export function isCpfExportHeader(value: unknown) {
