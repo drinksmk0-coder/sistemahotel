@@ -1,4 +1,233 @@
-.reservas-responsive-shell{min-width:0;max-width:100%;overflow-x:hidden}.reservas-responsive-shell *{min-width:0}.reservas-responsive-shell button,.reservas-responsive-shell input,.reservas-responsive-shell select{max-width:100%}.reservas-responsive-shell>div{min-width:0}.reservas-responsive-shell [class*="xl:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]"]{min-width:0}.reservas-responsive-shell aside{max-width:100%;min-width:0}.reservas-responsive-shell aside>div,.reservas-responsive-shell aside section{min-width:0}.reservas-responsive-shell aside .grid{min-width:0}.reservas-responsive-shell .field{width:100%;min-width:0}.reservas-responsive-shell article,.reservas-responsive-shell section{max-width:100%}
-@media (max-width:1279px){.reservas-responsive-shell aside{position:relative!important;top:auto!important}.reservas-responsive-shell [class*="xl:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]"]{grid-template-columns:minmax(0,1fr)!important}.reservas-responsive-shell aside [class*="xl:grid-cols-2"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
-@media (max-width:639px){.reservas-responsive-shell{padding-bottom:84px}.reservas-responsive-shell header,.reservas-responsive-shell section,.reservas-responsive-shell aside{border-radius:14px}.reservas-responsive-shell aside{padding:12px!important}.reservas-responsive-shell aside [class*="grid-cols-2"]{grid-template-columns:minmax(0,1fr)!important}.reservas-responsive-shell aside [class*="grid-cols-3"]{grid-template-columns:repeat(3,minmax(0,1fr))!important}.reservas-responsive-shell aside button{white-space:normal;overflow-wrap:anywhere}.reservas-responsive-shell aside details .grid{grid-template-columns:minmax(0,1fr)!important}.reservas-responsive-shell button.w-full{width:100%}.reservas-responsive-shell [class*="justify-between"]{min-width:0}.reservas-responsive-shell [class*="text-right"]{max-width:42%}.reservas-responsive-shell [class*="truncate"]{max-width:100%}}
-@media (min-width:1280px) and (max-width:1535px){.reservas-responsive-shell [class*="xl:grid-cols-[minmax(0,0.9fr)_minmax(420px,1.1fr)]"]{grid-template-columns:minmax(0,.95fr) minmax(360px,1.05fr)!important}.reservas-responsive-shell aside [class*="xl:grid-cols-2"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+.reservas-responsive-shell {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.reservas-responsive-shell *,
+.reservas-responsive-shell *::before,
+.reservas-responsive-shell *::after {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.reservas-responsive-shell button,
+.reservas-responsive-shell input,
+.reservas-responsive-shell select {
+  max-width: 100%;
+}
+
+.reservas-responsive-shell .field {
+  width: 100%;
+  min-width: 0;
+}
+
+.reservas-responsive-shell article,
+.reservas-responsive-shell section,
+.reservas-responsive-shell aside {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Lista + detalhe: nunca permita que a coluna de detalhe esmague a lista. */
+.reservas-responsive-shell > div > div.grid:has(> aside) {
+  min-width: 0;
+}
+
+.reservas-responsive-shell > div > div.grid:has(> aside) > section,
+.reservas-responsive-shell > div > div.grid:has(> aside) > aside {
+  min-width: 0;
+}
+
+/* Conteúdo textual dos cards pode quebrar sem alargar a viewport. */
+.reservas-responsive-shell > div > div.grid > section > button strong,
+.reservas-responsive-shell > div > div.grid > section > button span,
+.reservas-responsive-shell aside strong,
+.reservas-responsive-shell aside span,
+.reservas-responsive-shell aside div {
+  overflow-wrap: anywhere;
+}
+
+/* Notebook/tablet: detalhe funciona como painel lateral sobreposto.
+   A lista mantém toda a largura útil em vez de ficar comprimida. */
+@media (max-width: 1535px) {
+  .reservas-responsive-shell > div > div.grid:has(> aside) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .reservas-responsive-shell > div > div.grid:has(> aside) > aside {
+    position: fixed !important;
+    z-index: 45;
+    top: 64px !important;
+    right: 12px;
+    bottom: 16px;
+    width: min(560px, calc(100vw - 24px));
+    max-height: calc(100dvh - 80px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    box-shadow: 0 24px 70px rgb(15 23 42 / 0.24);
+  }
+
+  .reservas-responsive-shell aside .grid {
+    min-width: 0;
+  }
+}
+
+/* Tablet: filtros continuam em uma linha útil quando houver espaço,
+   e o painel de detalhe usa largura confortável. */
+@media (min-width: 640px) and (max-width: 1023px) {
+  .reservas-responsive-shell > div > section:first-of-type > div:first-child {
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 0.72fr) minmax(150px, 0.72fr) !important;
+  }
+
+  .reservas-responsive-shell > div > div.grid:has(> aside) > aside {
+    width: min(540px, calc(100vw - 32px));
+    right: 16px;
+  }
+}
+
+/* Celular: filtros empilhados, ações de cabeçalho acessíveis e painel de
+   detalhe em formato de sheet, sem exigir arrasto horizontal. */
+@media (max-width: 639px) {
+  .reservas-responsive-shell {
+    padding-bottom: 84px;
+  }
+
+  .reservas-responsive-shell > div > div:first-child {
+    align-items: flex-start;
+  }
+
+  .reservas-responsive-shell > div > div:first-child > div:last-child {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .reservas-responsive-shell > div > div:first-child .btn-ghost.hidden {
+    display: flex !important;
+  }
+
+  .reservas-responsive-shell > div > div:first-child .btn-ghost,
+  .reservas-responsive-shell > div > div:first-child .btn-primary {
+    width: 100%;
+    min-height: 40px;
+    justify-content: center;
+    padding-inline: 10px;
+    white-space: normal;
+    line-height: 1.15;
+  }
+
+  .reservas-responsive-shell > div > section:first-of-type {
+    padding: 10px;
+    border-radius: 14px;
+  }
+
+  .reservas-responsive-shell > div > section:first-of-type > div:first-child {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .reservas-responsive-shell > div > div.grid > section > div:first-child {
+    gap: 8px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .reservas-responsive-shell > div > div.grid > section > div:first-child button {
+    margin-left: auto;
+    white-space: normal;
+    text-align: right;
+  }
+
+  .reservas-responsive-shell > div > div.grid > section > button {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .reservas-responsive-shell > div > div.grid > section > button > div {
+    gap: 10px;
+  }
+
+  .reservas-responsive-shell > div > div.grid > section > button > div > div:last-child {
+    max-width: 44%;
+  }
+
+  .reservas-responsive-shell > div > div.grid:has(> aside) > aside {
+    top: 58px !important;
+    right: 8px;
+    bottom: 84px;
+    left: 8px;
+    width: auto;
+    max-height: calc(100dvh - 142px);
+    padding: 12px !important;
+    border-radius: 16px;
+  }
+
+  .reservas-responsive-shell aside > div,
+  .reservas-responsive-shell aside section,
+  .reservas-responsive-shell aside .grid,
+  .reservas-responsive-shell aside .field {
+    min-width: 0;
+  }
+
+  .reservas-responsive-shell aside [class*="grid-cols-2"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .reservas-responsive-shell aside [class*="grid-cols-3"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .reservas-responsive-shell aside details .grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .reservas-responsive-shell aside button {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .reservas-responsive-shell aside button.w-full {
+    width: 100%;
+  }
+}
+
+/* Celulares estreitos: financeiro e card principal deixam de competir
+   por largura fixa. */
+@media (max-width: 379px) {
+  .reservas-responsive-shell > div > div.grid > section > button > div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reservas-responsive-shell > div > div.grid > section > button > div > div:last-child {
+    max-width: none;
+    text-align: left;
+  }
+
+  .reservas-responsive-shell > div > div.grid > section > button > div > div:last-child svg {
+    margin-left: 0;
+  }
+
+  .reservas-responsive-shell aside section [class*="grid-cols-3"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+    text-align: left;
+  }
+}
+
+/* Desktop largo: aproveita a largura mantendo prioridade visual para a lista. */
+@media (min-width: 1536px) {
+  .reservas-responsive-shell > div > div.grid:has(> aside) {
+    grid-template-columns: minmax(520px, 1.2fr) minmax(420px, 0.8fr) !important;
+  }
+
+  .reservas-responsive-shell > div > div.grid:has(> aside) > aside {
+    position: sticky !important;
+    top: 8px !important;
+    width: auto;
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+  }
+}
