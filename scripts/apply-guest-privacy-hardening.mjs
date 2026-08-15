@@ -10,6 +10,16 @@ function patch(path, changes) {
   fs.writeFileSync(path, source);
 }
 
+function replaceAllExact(path, before, after, expectedMinimum, label) {
+  let source = fs.readFileSync(path, "utf8");
+  if (source.includes(after) && !source.includes(before)) return;
+  const parts = source.split(before);
+  const count = parts.length - 1;
+  if (count < expectedMinimum) throw new Error(`Falha em ${path} (${label}): esperava ao menos ${expectedMinimum}, encontrei ${count}.`);
+  source = parts.join(after);
+  fs.writeFileSync(path, source);
+}
+
 patch("src/routes/_authenticated/clientes.tsx", [
   [
     'import { ExportPeriodButton, type ExportScope } from "@/components/ExportPeriodButton";',
@@ -75,19 +85,9 @@ patch("src/routes/_authenticated/fichas-checkin.tsx", [
     "import de mascara de CPF",
   ],
   [
-    '<span>Documento: {guest.cpf || "não informado"}</span>',
-    '<span>CPF: {maskCpf(guest.cpf)}</span>',
-    "mascara CPF de hospede sincronizado",
-  ],
-  [
     '<span>Documento: {form.numero_documento || "não informado"}</span>',
     '<span>Documento: {protectDocument(form.numero_documento)}</span>',
     "protege documento do titular quando for CPF",
-  ],
-  [
-    '<span>Documento: {guest.cpf || "não informado"}</span>',
-    '<span>CPF: {maskCpf(guest.cpf)}</span>',
-    "mascara CPF de acompanhante",
   ],
   [
     'function displayFormValue(key: string, value?: string | null) {\n  if (!value?.trim()) return "Não informado";',
@@ -95,6 +95,13 @@ patch("src/routes/_authenticated/fichas-checkin.tsx", [
     "protege CPF em dados complementares",
   ],
 ]);
+replaceAllExact(
+  "src/routes/_authenticated/fichas-checkin.tsx",
+  '<span>Documento: {guest.cpf || "não informado"}</span>',
+  '<span>CPF: {maskCpf(guest.cpf)}</span>',
+  2,
+  "mascara CPF de titular e acompanhante",
+);
 
 patch("src/routes/checkin-print.tsx", [
   [
