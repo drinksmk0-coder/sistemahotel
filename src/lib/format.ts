@@ -1,3 +1,5 @@
+import { isCpfExportHeader } from "@/lib/privacy";
+
 export const HOTEL_TIME_ZONE = "America/Sao_Paulo";
 export const HOTEL_DAY_CUTOFF_HOUR = 6;
 export const DEFAULT_CHECKIN_TIME = "15:00";
@@ -87,8 +89,19 @@ function csvFilename(filename: string) {
   return normalized.replace(/\.(xlsx?|csv)$/i, "") + ".csv";
 }
 
+function removeCpfColumns(rows: (string | number | null)[][]) {
+  if (rows.length === 0) return rows;
+  const blockedIndexes = new Set<number>();
+  rows[0].forEach((header, index) => {
+    if (isCpfExportHeader(header)) blockedIndexes.add(index);
+  });
+  if (blockedIndexes.size === 0) return rows;
+  return rows.map((row) => row.filter((_, index) => !blockedIndexes.has(index)));
+}
+
 export function downloadCSV(filename: string, rows: (string | number | null)[][]) {
-  const content = rows.map((r) => r.map(csvCell).join(";")).join("\r\n");
+  const safeRows = removeCpfColumns(rows);
+  const content = safeRows.map((r) => r.map(csvCell).join(";")).join("\r\n");
   const blob = new Blob(["\uFEFF" + content], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
