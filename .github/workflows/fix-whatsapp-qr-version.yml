@@ -1,0 +1,39 @@
+name: Fix WhatsApp QR version
+on:
+  push:
+    branches: [preview/whatsapp-qr-pilot]
+    paths:
+      - scripts/fix-whatsapp-qr-version.mjs
+      - .github/workflows/fix-whatsapp-qr-version.yml
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: preview/whatsapp-qr-pilot
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Apply WA Web version fix
+        run: node scripts/fix-whatsapp-qr-version.mjs
+      - name: Install
+        run: npm ci
+      - name: Validate build
+        run: npm run build
+      - name: Commit validated fix
+        run: |
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/api/whatsapp-qr-pilot.ts
+          git commit -m "fix: atualiza versão do WhatsApp Web no piloto QR"
+          git push origin HEAD:preview/whatsapp-qr-pilot
