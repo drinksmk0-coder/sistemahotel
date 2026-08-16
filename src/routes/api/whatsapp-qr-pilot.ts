@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import makeWASocket, {
   Browsers,
   DisconnectReason,
+  fetchLatestWaWebVersion,
   useMultiFileAuthState,
   type WAMessage,
 } from "@whiskeysockets/baileys";
@@ -127,7 +128,11 @@ async function runQrPilot(args: PilotArgs) {
   let timeout: ReturnType<typeof setTimeout> | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
 
+  const { version: waVersion } = await fetchLatestWaWebVersion();
+  console.info("whatsapp-qr-pilot using WA Web version", waVersion.join("."));
+
   const sock = makeWASocket({
+    version: waVersion,
     auth: state,
     printQRInTerminal: false,
     browser: Browsers.ubuntu("HospedaMais Teste"),
