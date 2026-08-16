@@ -36,6 +36,20 @@ export function WhatsAppQrPilotCard({ companyId }: { companyId?: string }) {
   useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
+    if (!running) return;
+    const guard = window.setTimeout(() => {
+      if (!connected) {
+        abortRef.current?.abort();
+        setRunning(false);
+        setQr(null);
+        setExpiresIn(0);
+        setStatus("A conexão demorou demais. Gere um novo QR para tentar novamente.");
+      }
+    }, 90000);
+    return () => window.clearTimeout(guard);
+  }, [running, connected]);
+
+  useEffect(() => {
     if (!running || expiresIn <= 0) return;
     const timer = window.setInterval(() => setExpiresIn((value) => Math.max(0, value - 1)), 1000);
     return () => window.clearInterval(timer);
@@ -117,6 +131,11 @@ export function WhatsAppQrPilotCard({ companyId }: { companyId?: string }) {
       case "qr":
         setQr(event.qr || null);
         setStatus("Escaneie o QR no WhatsApp");
+        break;
+      case "restarting":
+        setQr(null);
+        setStatus(event.message || "QR aceito. Finalizando conexão…");
+        append("system", event.message || "QR aceito. Finalizando conexão…");
         break;
       case "connected":
         setConnected(true);

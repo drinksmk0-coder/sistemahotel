@@ -125,27 +125,34 @@ async function runQrPilot(args: PilotArgs) {
   const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
   const drafts = new Map<string, Draft>();
   let socketClosed = false;
+  let sock: ReturnType<typeof makeWASocket> | null = null;
+  let restartCount = 0;
   let timeout: ReturnType<typeof setTimeout> | null = null;
   let heartbeat: ReturnType<typeof setInterval> | null = null;
 
   const { version: waVersion } = await fetchLatestWaWebVersion();
   console.info("whatsapp-qr-pilot using WA Web version", waVersion.join("."));
 
-  const sock = makeWASocket({
-    version: waVersion,
-    auth: state,
-    printQRInTerminal: false,
-    browser: Browsers.ubuntu("HospedaMais Teste"),
-    markOnlineOnConnect: false,
-    syncFullHistory: false,
-  });
+  const createSocket = () => {
+    const activeSock = makeWASocket({
+      version: waVersion,
+      auth: state,
+      printQRInTerminal: false,
+      browser: Browsers.ubuntu("HospedaMais Teste"),
+      markOnlineOnConnect: false,
+      syncFullHistory: false,
+    });
+    sock = activeSock;
+    bindSocket(activeSock);
+    return activeSock;
+  };
 
   const cleanup = async () => {
     if (socketClosed) return;
     socketClosed = true;
     if (timeout) clearTimeout(timeout);
     if (heartbeat) clearInterval(heartbeat);
-    try { sock.end(undefined); } catch { /* best effort */ }
+    try { sock?.end(undefined); } catch { /* best effort */ }
     await rm(sessionPath, { recursive: true, force: true }).catch(() => undefined);
   };
   args.registerCleanup(cleanup);
@@ -163,8 +170,9 @@ async function runQrPilot(args: PilotArgs) {
     await args.finish();
   }, 270_000);
 
-  sock.ev.on("creds.update", saveCreds);
-  sock.ev.on("connection.update", async (update) => {
+  function bindSocket(activeSock: ReturnType<typeof makeWASocket>) {
+    activeSock.ev.on("creds.update", saveCreds);
+    activeSock.ev.on("connection.update", async (update) => {
     if (update.qr) {
       const dataUrl = await QRCode.toDataURL(update.qr, { width: 360, margin: 2 });
       args.send({ type: "qr", qr: dataUrl });
@@ -178,13 +186,18 @@ async function runQrPilot(args: PilotArgs) {
         args.send({ type: "disconnected", message: "O dispositivo foi desconectado do WhatsApp." });
         await cleanup();
         await args.finish();
+      } else if (code === 515 && restartCount < 2) {
+        restartCount += 1;
+        args.send({ type: "restarting", message: "QR aceito. Finalizando a conexão do WhatsApp…" });
+        try { activeSock.end(undefined); } catch { /* best effort */ }
+        setTimeout(() => { if (!socketClosed) createSocket(); }, 700);
       } else {
-        args.send({ type: "warning", message: "A sessão QR foi interrompida. Gere um novo QR se precisar continuar." });
+        args.send({ type: "warning", message: "A sessão QR foi interrompida. Encerre o teste e gere um novo QR." });
       }
     }
   });
 
-  sock.ev.on("messages.upsert", async ({ messages, type }) => {
+    activeSock.ev.on("messages.upsert", async ({ messages, type }) => {
     if (type !== "notify") return;
     for (const message of messages) {
       if (!message.message || message.key.fromMe) continue;
@@ -209,7 +222,7 @@ async function runQrPilot(args: PilotArgs) {
         });
         drafts.set(jid, reply.draft);
         if (reply.text) {
-          await sock.sendMessage(jid, { text: reply.text });
+          await activeSock.sendMessage(jid, { text: reply.text });
           reply.draft.history.push({ role: "assistant", text: reply.text });
           reply.draft.history = reply.draft.history.slice(-10);
           args.send({ type: "outgoing", contact: maskContact(jid), text: reply.text.slice(0, 320) });
@@ -219,11 +232,14 @@ async function runQrPilot(args: PilotArgs) {
         }
       } catch (error) {
         const fallback = "Tive uma falha ao consultar o sistema agora. Vou pedir que a recepção continue este atendimento.";
-        await sock.sendMessage(jid, { text: fallback }).catch(() => undefined);
+        await activeSock.sendMessage(jid, { text: fallback }).catch(() => undefined);
         args.send({ type: "error", message: error instanceof Error ? error.message : String(error) });
       }
     }
   });
+  }
+
+  createSocket();
 }
 
 async function handleGuestMessage({
