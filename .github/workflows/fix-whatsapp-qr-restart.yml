@@ -1,0 +1,65 @@
+name: Fix WhatsApp QR restart
+on:
+  push:
+    branches: [preview/whatsapp-qr-pilot]
+    paths: [.github/workflows/fix-whatsapp-qr-restart.yml]
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: preview/whatsapp-qr-pilot
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply restart and UI isolation fix
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p=Path('src/routes/api/whatsapp-qr-pilot.ts')
+          s=p.read_text()
+          s=s.replace('  let socketClosed = false;\n', '  let socketClosed = false;\n  let sock: ReturnType<typeof makeWASocket> | null = null;\n  let restartCount = 0;\n')
+          old='''  const sock = makeWASocket({\n    auth: state,\n    printQRInTerminal: false,\n    browser: Browsers.ubuntu("HospedaMais Teste"),\n    markOnlineOnConnect: false,\n    syncFullHistory: false,\n    version,\n  });\n'''
+          new='''  const createSocket = () => {\n    const next = makeWASocket({\n      auth: state,\n      printQRInTerminal: false,\n      browser: Browsers.ubuntu("HospedaMais Teste"),\n      markOnlineOnConnect: false,\n      syncFullHistory: false,\n      version,\n    });\n    sock = next;\n    bindSocket(next);\n    return next;\n  };\n'''
+          if old not in s:
+              raise SystemExit('socket block not found')
+          s=s.replace(old,new)
+          s=s.replace('    try { sock.end(undefined); } catch { /* best effort */ }', '    try { sock?.end(undefined); } catch { /* best effort */ }')
+          start=s.index('  sock.ev.on("creds.update", saveCreds);')
+          end=s.index('\n}\n\nasync function handleGuestMessage', start)
+          block=s[start:end]
+          block=block.replace('  sock.ev.on("creds.update", saveCreds);','  function bindSocket(activeSock: ReturnType<typeof makeWASocket>) {\n    activeSock.ev.on("creds.update", saveCreds);')
+          block=block.replace('  sock.ev.on("connection.update", async (update) => {','    activeSock.ev.on("connection.update", async (update) => {')
+          block=block.replace('  sock.ev.on("messages.upsert", async ({ messages, type }) => {','    activeSock.ev.on("messages.upsert", async ({ messages, type }) => {')
+          block=block.replace('          await sock.sendMessage(jid, { text: reply.text });','          await activeSock.sendMessage(jid, { text: reply.text });')
+          block=block.replace('        await sock.sendMessage(jid, { text: fallback }).catch(() => undefined);','        await activeSock.sendMessage(jid, { text: fallback }).catch(() => undefined);')
+          needle='''      if (code === DisconnectReason.loggedOut) {\n        args.send({ type: "disconnected", message: "O dispositivo foi desconectado do WhatsApp." });\n        await cleanup();\n        await args.finish();\n      } else {\n        args.send({ type: "warning", message: "A sessão QR foi interrompida. Gere um novo QR se precisar continuar." });\n      }'''
+          repl='''      if (code === DisconnectReason.loggedOut) {\n        args.send({ type: "disconnected", message: "O dispositivo foi desconectado do WhatsApp." });\n        await cleanup();\n        await args.finish();\n      } else if (code === 515 && restartCount < 2) {\n        restartCount += 1;\n        args.send({ type: "restarting", message: "QR aceito. Finalizando a conexão do WhatsApp…" });\n        try { activeSock.end(undefined); } catch { /* best effort */ }\n        setTimeout(() => { if (!socketClosed) createSocket(); }, 700);\n      } else {\n        args.send({ type: "warning", message: "A sessão QR foi interrompida. Encerre o teste e gere um novo QR." });\n      }'''
+          if needle not in block:
+              raise SystemExit('disconnect block not found')
+          block=block.replace(needle,repl)
+          block += '\n  }\n\n  createSocket();'
+          s=s[:start]+block+s[end:]
+          p.write_text(s)
+
+          p=Path('src/components/WhatsAppQrPilotCard.tsx')
+          s=p.read_text()
+          s=s.replace('  useEffect(() => () => abortRef.current?.abort(), []);', '  useEffect(() => () => abortRef.current?.abort(), []);\n\n  useEffect(() => {\n    if (!running) return;\n    const guard = window.setTimeout(() => {\n      if (!connected) {\n        abortRef.current?.abort();\n        setRunning(false);\n        setQr(null);\n        setExpiresIn(0);\n        setStatus("A conexão demorou demais. Gere um novo QR para tentar novamente.");\n      }\n    }, 90000);\n    return () => window.clearTimeout(guard);\n  }, [running, connected]);')
+          s=s.replace('      case "connected":', '      case "restarting":\n        setQr(null);\n        setStatus(event.message || "QR aceito. Finalizando conexão…");\n        append("system", event.message || "QR aceito. Finalizando conexão…");\n        break;\n      case "connected":')
+          p.write_text(s)
+          PY
+      - name: Install
+        run: npm ci
+      - name: Validate build
+        run: npm run build
+      - name: Commit validated fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/api/whatsapp-qr-pilot.ts src/components/WhatsAppQrPilotCard.tsx
+          git commit -m "fix: conclui pareamento QR sem travar interface" || exit 0
+          git push origin HEAD:preview/whatsapp-qr-pilot
