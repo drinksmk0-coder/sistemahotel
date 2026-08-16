@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, CheckCircle2, MessageCircle, RefreshCw, ShieldCheck, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/AppLayout";
+import { WhatsAppQrPilotCard } from "@/components/WhatsAppQrPilotCard";
 import { Badge, EmptyState } from "@/components/ui-kit";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentCompany } from "@/lib/data";
@@ -138,6 +139,8 @@ function MetaInbox() {
   return (
     <div>
       <PageHeader title="WhatsApp + CRM" subtitle="Conexão oficial com a Plataforma Comercial do WhatsApp, sem copiar token ou IDs manualmente." action={<a href="/integracoes" className="btn-ghost">Integrações</a>} />
+
+      <WhatsAppQrPilotCard companyId={companyId} />
 
       <section className="mb-5 overflow-hidden rounded-2xl border border-emerald-200 bg-card shadow-sm">
         <div className="grid gap-5 p-5 lg:grid-cols-[1.25fr_.75fr] lg:p-6">
