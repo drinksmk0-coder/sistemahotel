@@ -1,0 +1,39 @@
+name: Restore room timeline actions
+
+on:
+  push:
+    branches:
+      - preview/reservas-responsive-v2
+    paths:
+      - scripts/restore-room-timeline-actions.mjs
+      - .github/workflows/restore-room-timeline-actions.yml
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: preview/reservas-responsive-v2
+          fetch-depth: 0
+      - name: Restore timeline actions
+        run: node scripts/restore-room-timeline-actions.mjs
+      - name: Validate build
+        run: |
+          npm ci
+          npm run build
+      - name: Commit restored actions
+        run: |
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/RoomTimeline.tsx
+          git commit -m "preview: restaura troca de quarto e checkout na timeline"
+          git push origin HEAD:preview/reservas-responsive-v2
+# validation trigger

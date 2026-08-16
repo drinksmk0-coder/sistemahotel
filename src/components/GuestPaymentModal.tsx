@@ -17,6 +17,10 @@ export function GuestPaymentModal({ account, onClose }: GuestPaymentModalProps) 
   const [amount, setAmount] = useState(account.balance);
   const [method, setMethod] = useState<string>(PAYMENT_METHODS[0]);
   const [notes, setNotes] = useState("");
+  const dailySuggested = Math.min(
+    account.balance,
+    Math.max(0, Number(account.reservation.valor_diaria) || 0),
+  );
   const received = Math.min(account.balance, Math.max(0, Number(amount) || 0));
   const remaining = Math.max(0, account.balance - received);
 
@@ -74,6 +78,38 @@ export function GuestPaymentModal({ account, onClose }: GuestPaymentModalProps) 
           </div>
         )}
 
+        {account.balance > 0 && (
+          <div className="rounded-xl border border-border bg-muted/35 p-3">
+            <div className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+              Hospedagem estendida / pagamento diário
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Registre somente o valor recebido hoje. O restante continua aberto para os próximos dias.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {dailySuggested > 0 && (
+                <button
+                  type="button"
+                  className="btn-ghost text-xs"
+                  onClick={() => {
+                    setAmount(dailySuggested);
+                    if (!notes.trim()) setNotes("Pagamento parcial da hospedagem — parcela do dia");
+                  }}
+                >
+                  Receber 1 diária · {fmtBRL(dailySuggested)}
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn-ghost text-xs"
+                onClick={() => setAmount(account.balance)}
+              >
+                Usar saldo total · {fmtBRL(account.balance)}
+              </button>
+            </div>
+          </div>
+        )}
+
         <Field label="Valor recebido agora">
           <input
             type="number"
@@ -107,7 +143,7 @@ export function GuestPaymentModal({ account, onClose }: GuestPaymentModalProps) 
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
             maxLength={300}
-            placeholder="Ex.: segunda parcela recebida na recepção"
+            placeholder="Ex.: parcela diária recebida na recepção"
           />
         </Field>
 

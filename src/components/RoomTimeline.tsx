@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowRightLeft,
   Building2,
   CalendarDays,
   ChevronLeft,
@@ -22,6 +23,7 @@ import {
   roomFeatureTags,
 } from "@/components/RoomFeatures";
 import { GuestPaymentModal } from "@/components/GuestPaymentModal";
+import { Modal } from "@/components/ui-kit";
 import {
   CompanyBillingCheckoutModal,
   type CompanyBillingCheckout,
@@ -53,6 +55,7 @@ export function RoomTimeline({
 }) {
   const [daysVisible, setDaysVisible] = useState<TimelineRange>(14);
   const [paymentReservation, setPaymentReservation] = useState<Reservation | null>(null);
+  const [movingReservation, setMovingReservation] = useState<Reservation | null>(null);
   const [companyBillingReservation, setCompanyBillingReservation] = useState<Reservation | null>(null);
   const [companyBillingBusy, setCompanyBillingBusy] = useState(false);
   const [busyReservationId, setBusyReservationId] = useState<string | null>(null);
@@ -181,6 +184,41 @@ export function RoomTimeline({
         },
       },
     );
+  }
+
+  async function moveReservationToRoom(destination: Room) {
+    const reservation = movingReservation;
+    if (!reservation || destination.numero === reservation.quarto) return;
+
+    const available = roomAvailableForMove(destination, reservation, reservations);
+    if (!available) {
+      toast.error(`O quarto ${destination.numero} não está disponível para todo o período desta hospedagem.`);
+      return;
+    }
+
+    if (!window.confirm(`Trocar ${reservation.cliente_nome} do quarto ${reservation.quarto} para o quarto ${destination.numero}? O quarto atual será enviado para limpeza.`)) return;
+
+    setBusyReservationId(reservation.id);
+    try {
+      await updateReservation.mutateAsync({
+        id: reservation.id,
+        patch: { quarto: destination.numero },
+      });
+      await updateRoomSituation.mutateAsync({
+        id: destination.numero,
+        patch: { situacao: "ocupado" },
+      });
+      await updateRoomSituation.mutateAsync({
+        id: reservation.quarto,
+        patch: { situacao: "limpeza" },
+      });
+      toast.success(`Hóspede transferido do quarto ${reservation.quarto} para o quarto ${destination.numero}.`);
+      setMovingReservation(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível trocar o quarto.");
+    } finally {
+      setBusyReservationId(null);
+    }
   }
 
   function finishCheckout(reservation: Reservation) {
@@ -452,18 +490,16 @@ export function RoomTimeline({
                               <PrimaryAction icon={<LogIn className="h-3.5 w-3.5" />} label="Check-in" title={company ? "Empresa: check-in sem cobrança na recepção" : "Fazer check-in"} disabled={busy} onClick={() => handleCheckIn(reservation)} />
                             );
                           }
-                        } else if (checkoutDue && !["finalizado", "cancelado"].includes(reservation.status)) {
-                          if (account.balance > 0.009) {
-                            primaryAction = company ? (
-                              <PrimaryAction icon={<Building2 className="h-3.5 w-3.5" />} label="Faturar" title="Revisar conta, faturar empresa e concluir check-out" onClick={() => setCompanyBillingReservation(reservation)} />
-                            ) : (
-                              <PrimaryAction icon={<CircleDollarSign className="h-3.5 w-3.5" />} label="Revisar conta" title={`Há ${fmtBRL(account.balance)} pendente antes do check-out`} onClick={() => setPaymentReservation(reservation)} />
-                            );
-                          } else {
-                            primaryAction = (
-                              <PrimaryAction icon={<DoorOpen className="h-3.5 w-3.5" />} label="Check-out" title="Conta revisada e quitada: concluir check-out" disabled={busy} onClick={() => finishCheckout(reservation)} />
-                            );
-                          }
+                        } else if (checkedIn && !["finalizado", "cancelado"].includes(reservation.status)) {
+                          primaryAction = (
+                            <PrimaryAction
+                              icon={<DoorOpen className="h-3.5 w-3.5" />}
+                              label="Check-out"
+                              title={account.balance > 0.009 ? `Revisar ${fmtBRL(account.balance)} pendente e concluir check-out` : "Concluir check-out"}
+                              disabled={busy}
+                              onClick={() => finishCheckout(reservation)}
+                            />
+                          );
                         }
 
                         return (
@@ -481,6 +517,15 @@ export function RoomTimeline({
                                 </span>
                               </span>
                             </button>
+                            {checkedIn && !["finalizado", "cancelado"].includes(reservation.status) && (
+                              <PrimaryAction
+                                icon={<ArrowRightLeft className="h-3.5 w-3.5" />}
+                                label="Trocar"
+                                title="Trocar hóspede de quarto"
+                                disabled={busy}
+                                onClick={() => setMovingReservation(reservation)}
+                              />
+                            )}
                             {primaryAction}
                           </div>
                         );
@@ -493,6 +538,46 @@ export function RoomTimeline({
           </div>
         </div>
       </section>
+
+      {movingReservation && (
+        <Modal
+          open
+          onClose={() => setMovingReservation(null)}
+          title={`Trocar quarto — ${movingReservation.cliente_nome}`}
+        >
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+              <strong>Quarto atual: {movingReservation.quarto}</strong>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Escolha um quarto sem conflito no período {fmtDate(movingReservation.checkin)} → {fmtDate(movingReservation.checkout)}.
+                Depois da troca, o quarto atual vai para limpeza.
+              </p>
+            </div>
+            <div className="grid max-h-[52vh] grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
+              {rooms
+                .filter((room) => roomAvailableForMove(room, movingReservation, reservations))
+                .sort((a, b) => a.numero - b.numero)
+                .map((room) => (
+                  <button
+                    key={room.numero}
+                    type="button"
+                    disabled={busyReservationId === movingReservation.id}
+                    onClick={() => void moveReservationToRoom(room)}
+                    className="rounded-lg border border-border bg-card p-3 text-left transition hover:border-primary hover:bg-primary/5 disabled:opacity-50"
+                  >
+                    <strong className="block text-sm text-pine-dark">Quarto {room.numero}</strong>
+                    <span className="text-xs text-muted-foreground">{room.configuracao || String(room.andar) + "º andar"} · {fmtBRL(room.preco)}</span>
+                  </button>
+                ))}
+            </div>
+            {!rooms.some((room) => roomAvailableForMove(room, movingReservation, reservations)) && (
+              <div className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                Nenhum outro quarto está livre para todo o período desta hospedagem.
+              </div>
+            )}
+          </div>
+        </Modal>
+      )}
 
       {paymentAccount && <GuestPaymentModal account={paymentAccount} onClose={() => setPaymentReservation(null)} />}
 
@@ -589,4 +674,18 @@ function daysBetween(start: string, end: string) {
 
 function currentTime() {
   return new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+
+function roomAvailableForMove(room: Room, reservation: Reservation, reservations: Reservation[]) {
+  if (room.numero === reservation.quarto) return false;
+  if (["manutencao", "limpeza", "ocupado", "ausente_temporario"].includes(String(room.situacao ?? ""))) return false;
+
+  return !reservations.some((other) =>
+    other.id !== reservation.id &&
+    other.quarto === room.numero &&
+    other.status !== "cancelado" &&
+    other.checkin <= reservation.checkout &&
+    other.checkout >= reservation.checkin
+  );
 }

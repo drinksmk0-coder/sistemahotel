@@ -4,7 +4,16 @@ function patch(path, changes) {
   let source = fs.readFileSync(path, "utf8");
   for (const [before, after, label] of changes) {
     if (source.includes(after)) continue;
-    if (!source.includes(before)) throw new Error(`Falha em ${path} (${label}): padrão não encontrado.`);
+    if (!source.includes(before)) {
+      if (
+        path === "src/routes/_authenticated/clientes.tsx" &&
+        label === "mensagem de CPF inválido em Clientes" &&
+        source.includes('Field label="CPF protegido"')
+      ) {
+        continue;
+      }
+      throw new Error(`Falha em ${path} (${label}): padrão não encontrado.`);
+    }
     source = source.replace(before, after);
   }
   fs.writeFileSync(path, source);

@@ -18,6 +18,7 @@ import { useRole, useSession } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentCompany, useReservations } from "@/lib/data";
 import { fmtDate } from "@/lib/format";
+import { maskCpf } from "@/lib/privacy";
 
 export const Route = createFileRoute("/_authenticated/fichas-checkin")({
   component: FichasCheckin,
@@ -479,7 +480,7 @@ function GuestCard({ guest }: { guest: ReservationGuest }) {
         <Badge tone={guest.titular ? "sage" : "slate"}>{guest.titular ? "Titular" : guest.parentesco || "Acompanhante"}</Badge>
       </div>
       <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-        <span>Documento: {guest.cpf || "não informado"}</span>
+        <span>CPF: {maskCpf(guest.cpf)}</span>
         <span>Nascimento: {guest.data_nascimento ? fmtDate(guest.data_nascimento) : "não informado"}</span>
         <span>Telefone: {guest.telefone || "não informado"}</span>
         <span>E-mail: {guest.email || "não informado"}</span>
@@ -496,7 +497,7 @@ function FormGuestCard({ form }: { form: Record<string, string> }) {
         <Badge tone="sage">Titular</Badge>
       </div>
       <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-        <span>Documento: {form.numero_documento || "não informado"}</span>
+        <span>Documento: {protectDocument(form.numero_documento)}</span>
         <span>Nascimento: {displayFormValue("nascimento", form.nascimento)}</span>
         <span>Telefone: {form.telefone || "não informado"}</span>
         <span>E-mail: {form.email || "não informado"}</span>
@@ -513,7 +514,7 @@ function FormCompanionCard({ guest }: { guest: FormCompanion }) {
         <Badge tone="slate">{guest.parentesco || "Acompanhante"}</Badge>
       </div>
       <div className="mt-2 grid gap-1 text-xs text-muted-foreground sm:grid-cols-2">
-        <span>Documento: {guest.cpf || "não informado"}</span>
+        <span>CPF: {maskCpf(guest.cpf)}</span>
         <span>Nascimento: {guest.data_nascimento ? displayFormValue("nascimento", guest.data_nascimento) : "não informado"}</span>
         <span>Telefone: {guest.telefone || "não informado"}</span>
         <span>E-mail: {guest.email || "não informado"}</span>
@@ -537,8 +538,14 @@ function Info({ label, value }: { label: string; value: string }) {
   return <div><dt className="text-muted-foreground">{label}</dt><dd className="font-semibold text-foreground">{value}</dd></div>;
 }
 
+function protectDocument(value?: string | null) {
+  if (!value?.trim()) return "não informado";
+  return value.replace(/\D/g, "").length === 11 ? maskCpf(value) : value;
+}
+
 function displayFormValue(key: string, value?: string | null) {
   if (!value?.trim()) return "Não informado";
+  if (key === "numero_documento" && value.replace(/\D/g, "").length === 11) return maskCpf(value);
   if (key === "nascimento") {
     const [year, month, day] = value.split("-");
     if (year && month && day) return `${day}/${month}/${year}`;
