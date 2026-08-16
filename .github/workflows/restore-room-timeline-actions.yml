@@ -36,3 +36,4 @@ jobs:
           git add src/components/RoomTimeline.tsx
           git commit -m "preview: restaura troca de quarto e checkout na timeline"
           git push origin HEAD:preview/reservas-responsive-v2
+# validation trigger
