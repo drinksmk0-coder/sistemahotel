@@ -86,6 +86,9 @@ const isNoShow = (reservation: any) => n(reservation.no_show_flag) === 1 || norm
 const isValidStay = (reservation: any) => !isCanceled(reservation) && !isNoShow(reservation);
 const diffDays = (a: string, b: string) =>
   Math.max(0, Math.round((new Date(`${b}T12:00:00`).getTime() - new Date(`${a}T12:00:00`).getTime()) / 86400000));
+const stayLength = (reservation: any) =>
+  Math.max(1, n(reservation.diarias) || diffDays(reservation.checkin, reservation.checkout));
+const reservationDate = (reservation: any) => String(reservation.data_reserva || reservation.created_at || "").slice(0, 10);
 const median = (values: number[]) => {
   if (!values.length) return 0;
   const sorted = [...values].sort((a, b) => a - b);
@@ -279,9 +282,7 @@ export function ExecutiveDecisionDashboard() {
         ))}
       </nav>
 
-      {tab === "executive" && (
-        <ExecutiveTab current={current} previous={previous} channels={model.channels} forecast={model.forecast} alerts={model.alerts} />
-      )}
+      {tab === "executive" && <ExecutiveTab current={current} previous={previous} />}
       {tab === "channels" && <ChannelsTab current={current} channels={model.channels} />}
       {tab === "occupancy" && <OccupancyTab current={current} previous={previous} forecast={model.forecast} />}
       {tab === "rooms" && <RoomsTab current={current} rooms={model.roomRows} />}
@@ -291,74 +292,97 @@ export function ExecutiveDecisionDashboard() {
   );
 }
 
-function ExecutiveTab({ current, previous, channels, forecast, alerts }: { current: PeriodMetrics; previous: PeriodMetrics; channels: any[]; forecast: any[]; alerts: any[] }) {
+function ExecutiveTab({ current, previous }: { current: PeriodMetrics; previous: PeriodMetrics }) {
   const cards = [
     {
-      title: "Receita líquida*",
+      title: "Receita",
       value: fmtBRL(current.netRevenue),
       delta: compare(current.netRevenue, previous.netRevenue),
-      help: "Receita efetivamente paga de hospedagem + receitas extras registradas. Como comissão de canal não está configurada, o valor ainda não desconta comissões.",
+      description: "Soma da hospedagem paga com receitas extras registradas no período filtrado.",
+      formula: "Hospedagem paga + extras",
     },
-    { title: "Ocupação", value: pct(current.occupancy), delta: compare(current.occupancy, previous.occupancy), help: "UHs ocupadas ÷ UHs disponíveis no período. Inventário considera a situação atual dos quartos." },
-    { title: "ADR", value: fmtBRL(current.adr), delta: compare(current.adr, previous.adr), help: "Receita de hospedagem efetivamente paga ÷ diárias ocupadas." },
-    { title: "RevPAR", value: fmtBRL(current.revpar), delta: compare(current.revpar, previous.revpar), help: "Receita de hospedagem efetivamente paga ÷ UHs disponíveis no período." },
-    { title: "GOP projetado", value: fmtBRL(current.gopProjected), delta: compare(current.gopProjected, previous.gopProjected), help: "Receita realizada – despesas operacionais registradas – custos estimados pendentes." },
-    { title: "Margem GOP", value: pct(current.gopMarginProjected), delta: compare(current.gopMarginProjected, previous.gopMarginProjected), help: "GOP projetado ÷ receita realizada × 100." },
+    {
+      title: "Diária média",
+      value: fmtBRL(current.adr),
+      delta: compare(current.adr, previous.adr),
+      description: "Preço médio recebido por noite vendida, sem contar quartos cancelados ou no-show.",
+      formula: "Receita de hospedagem / noites vendidas",
+    },
+    {
+      title: "Noites vendidas",
+      value: String(current.occupiedRoomNights),
+      delta: compare(current.occupiedRoomNights, previous.occupiedRoomNights),
+      description: "Quantidade de quarto-noites usadas no recorte. Entrada às 15h e saída às 12h contam apenas as noites dormidas.",
+      formula: "Noites entre check-in e check-out",
+    },
+    {
+      title: "Ocupação",
+      value: pct(current.occupancy),
+      delta: compare(current.occupancy, previous.occupancy),
+      description: "Percentual do inventário disponível que foi ocupado por reservas válidas.",
+      formula: "Noites vendidas / noites disponíveis",
+    },
   ];
   return (
     <div className="space-y-3">
-      <section className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-        {cards.map((card) => <KpiCard key={card.title} {...card} />)}
+      <section className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {cards.map((card) => <KpiDescriptionCard key={card.title} {...card} />)}
       </section>
 
-      <AlertPanel alerts={alerts} />
-
-      <section className="grid gap-3 xl:grid-cols-[1.25fr_.75fr]">
-        <Panel title="Ocupação realizada e previsão" subtitle="Linha contínua = realizado · tracejada = previsão do modelo">
+      <section className="grid gap-3 xl:grid-cols-2">
+        <Panel title="Estadia (LOS)" subtitle={`Permanência média: ${current.averageStay.toFixed(1).replace(".", ",")} noites · mediana: ${current.medianStay.toFixed(1).replace(".", ",")} noites`}>
           <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={[...current.daily.map((row: any) => ({ label: row.label, real: row.occupancy })), ...forecast.map((row: any) => ({ label: row.label, forecast: row.occupancy }))]}>
+            <BarChart data={current.losRows}>
               <CartesianGrid stroke={COLORS.grid} vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-              <YAxis domain={[0, 100]} tickFormatter={(value) => `${value}%`} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(value: any) => pct(n(value))} />
-              <Legend />
-              <Line type="monotone" dataKey="real" name="Realizado" stroke={COLORS.navy} strokeWidth={3} dot={false} connectNulls={false} />
-              <Line type="monotone" dataKey="forecast" name="Previsto" stroke={COLORS.sky} strokeWidth={3} strokeDasharray="8 6" dot={false} connectNulls={false} />
-            </LineChart>
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+              <Tooltip formatter={(value: any) => [n(value), "Reservas"]} />
+              <Bar dataKey="value" name="Reservas" fill={COLORS.teal} radius={[6, 6, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         </Panel>
-        <Panel title="Receita líquida por canal" subtitle="Comissão não configurada: líquido equivale ao realizado">
+        <Panel title="Janela de reserva" subtitle={`Tempo médio até o check-in: ${current.leadTime.toFixed(1).replace(".", ",")} dias · mediana: ${current.medianLeadTime.toFixed(1).replace(".", ",")} dias`}>
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={channels.slice(0, 6)} layout="vertical" margin={{ left: 10, right: 10 }}>
-              <CartesianGrid stroke={COLORS.grid} horizontal={false} />
-              <XAxis type="number" tickFormatter={(value) => `R$ ${Math.round(value / 1000)}k`} tick={{ fontSize: 10 }} />
-              <YAxis type="category" dataKey="channel" width={100} tick={{ fontSize: 10 }} />
-              <Tooltip formatter={(value: any) => fmtBRL(n(value))} />
-              <Bar dataKey="netRevenue" name="Receita realizada" fill={COLORS.blue} radius={[0, 6, 6, 0]} />
+            <BarChart data={current.bookingWindowRows}>
+              <CartesianGrid stroke={COLORS.grid} vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+              <Tooltip formatter={(value: any) => [n(value), "Reservas"]} />
+              <Bar dataKey="value" name="Reservas" fill={COLORS.blue} radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Panel>
       </section>
 
-      <section className="grid gap-3 lg:grid-cols-3">
-        <DecisionCard icon={<CircleDollarSign className="h-4 w-4" />} title="Resultado operacional" rows={[
-          ["GOP realizado", fmtBRL(current.gopRealized)],
-          ["Custos estimados pendentes", fmtBRL(current.estimatedPending)],
-          ["GOP projetado", fmtBRL(current.gopProjected)],
-          ["GOPPAR projetado", fmtBRL(current.gopparProjected)],
-        ]} />
-        <DecisionCard icon={<CalendarDays className="h-4 w-4" />} title="Reservas e cancelamentos" rows={[
-          ["Reservas", String(current.bookingBase)],
-          ["Cancelamentos", `${current.canceledCount} · ${pct(current.cancellationRate)}`],
-          ["Diárias perdidas", String(current.lostNights)],
-          ["Valor perdido", fmtBRL(current.lostRevenue)],
-        ]} />
-        <DecisionCard icon={<Info className="h-4 w-4" />} title="Revenue management" rows={[
-          ["Lead time médio", `${current.leadTime.toFixed(1).replace(".", ",")} dias`],
-          ["Permanência média", `${current.averageStay.toFixed(1).replace(".", ",")} diárias`],
-          ["Pick-up 1/3/7 dias", "Dados indisponíveis"],
-          ["Booking pace", "Exige snapshots históricos"],
-        ]} />
+      <section className="grid gap-3 xl:grid-cols-2">
+        <Panel title="Pick-up" subtitle={`${current.pickupReservations} reservas criadas · ${current.pickupSoldNights} noites captadas · ${fmtBRL(current.pickupRevenue)}`}>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={current.pickupRows}>
+              <CartesianGrid stroke={COLORS.grid} vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
+              <Tooltip formatter={(value: any, name: any) => formatPickupTooltip(value, name)} />
+              <Legend />
+              <Bar dataKey="reservations" name="Reservas criadas" fill={COLORS.navy} radius={[6, 6, 0, 0]} />
+              <Bar dataKey="soldNights" name="Noites captadas" fill={COLORS.sky} radius={[6, 6, 0, 0]} />
+              <Line type="monotone" dataKey="cancellations" name="Canceladas" stroke={COLORS.red} strokeWidth={3} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </Panel>
+        <Panel title="Cancelamento" subtitle={`${current.canceledCount} cancelamentos · ${pct(current.cancellationRate)} das reservas · ${fmtBRL(current.lostRevenue)} potencial perdido`}>
+          <ResponsiveContainer width="100%" height={280}>
+            <ComposedChart data={current.cancellationRows}>
+              <CartesianGrid stroke={COLORS.grid} vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <YAxis yAxisId="count" allowDecimals={false} tick={{ fontSize: 10 }} />
+              <YAxis yAxisId="money" orientation="right" tickFormatter={(value) => `R$ ${Math.round(n(value) / 1000)}k`} tick={{ fontSize: 10 }} />
+              <Tooltip formatter={(value: any, name: any) => formatCancellationTooltip(value, name)} />
+              <Legend />
+              <Bar yAxisId="count" dataKey="cancellations" name="Cancelamentos" fill={COLORS.red} radius={[6, 6, 0, 0]} />
+              <Line yAxisId="money" type="monotone" dataKey="lostRevenue" name="Receita perdida" stroke={COLORS.amber} strokeWidth={3} dot={false} />
+            </ComposedChart>
+          </ResponsiveContainer>
+        </Panel>
       </section>
     </div>
   );
@@ -520,8 +544,8 @@ function buildPeriodMetrics(data: Source, start: string, end: string, filters: F
   const validIds = new Set(validReservations.map((reservation) => reservation.reserva_id));
   const sales = data.sales.filter((sale) => sale.data >= start && sale.data <= end && !norm(sale.status).includes("cancel") && (filters.room === "Todos" || String(sale.quarto || "") === filters.room) && (filters.channel === "Todos" || (sale.reserva_id && validIds.has(sale.reserva_id))));
 
-  const dailyMap = new Map<string, { rooms: Set<number>; paidStay: number; grossStay: number; extras: number }>();
-  days.forEach((date) => dailyMap.set(date, { rooms: new Set(), paidStay: 0, grossStay: 0, extras: 0 }));
+  const dailyMap = new Map<string, { rooms: Set<number>; paidStay: number; grossStay: number; extras: number; soldNights: number; cancellations: number; lostRevenue: number }>();
+  days.forEach((date) => dailyMap.set(date, { rooms: new Set(), paidStay: 0, grossStay: 0, extras: 0, soldNights: 0, cancellations: 0, lostRevenue: 0 }));
 
   let stayRevenuePaid = 0;
   let stayRevenueGross = 0;
@@ -540,6 +564,7 @@ function buildPeriodMetrics(data: Source, start: string, end: string, filters: F
       if (reservation.quarto != null) row.rooms.add(n(reservation.quarto));
       row.paidStay += paidPerNight;
       row.grossStay += grossPerNight;
+      row.soldNights += 1;
     });
   }
 
@@ -550,15 +575,6 @@ function buildPeriodMetrics(data: Source, start: string, end: string, filters: F
     const row = dailyMap.get(sale.data);
     if (row) row.extras += realized;
   });
-
-  const daily = [...dailyMap.entries()].map(([date, row]) => ({
-    date,
-    label: dateLabel(date),
-    occupancy: availableRoomsPerDay ? (row.rooms.size / availableRoomsPerDay) * 100 : 0,
-    paidStay: row.paidStay,
-    extras: row.extras,
-    revenue: row.paidStay + row.extras,
-  }));
 
   const netRevenue = stayRevenuePaid + extraRevenue;
   const occupancy = availableRoomNights ? (occupiedRoomNights / availableRoomNights) * 100 : 0;
@@ -580,16 +596,78 @@ function buildPeriodMetrics(data: Source, start: string, end: string, filters: F
   const bookingBase = baseReservations.length;
   const canceledRows = baseReservations.filter(isCanceled);
   const noShowRows = baseReservations.filter(isNoShow);
+  canceledRows.forEach((reservation) => {
+    const row = dailyMap.get(reservation.checkin);
+    if (!row) return;
+    row.cancellations += 1;
+    row.lostRevenue += n(reservation.valor_total);
+  });
+  const daily = [...dailyMap.entries()].map(([date, row]) => ({
+    date,
+    label: dateLabel(date),
+    occupancy: availableRoomsPerDay ? (row.rooms.size / availableRoomsPerDay) * 100 : 0,
+    paidStay: row.paidStay,
+    extras: row.extras,
+    revenue: row.paidStay + row.extras,
+    soldNights: row.soldNights,
+    adr: row.soldNights ? row.paidStay / row.soldNights : 0,
+    cancellations: row.cancellations,
+    lostRevenue: row.lostRevenue,
+  }));
   const canceledCount = canceledRows.length;
   const cancellationRate = bookingBase ? (canceledCount / bookingBase) * 100 : 0;
   const noShowCount = noShowRows.length;
   const noShowRate = bookingBase ? (noShowCount / bookingBase) * 100 : 0;
   const lostRevenue = canceledRows.reduce((sum, reservation) => sum + n(reservation.valor_total), 0);
   const lostNights = canceledRows.reduce((sum, reservation) => sum + Math.max(0, n(reservation.diarias)), 0);
-  const leadTimes = baseReservations.filter((reservation) => reservation.data_reserva && reservation.checkin).map((reservation) => diffDays(reservation.data_reserva, reservation.checkin));
+  const leadTimes = baseReservations
+    .map((reservation) => {
+      const created = reservationDate(reservation);
+      return created && reservation.checkin ? diffDays(created, reservation.checkin) : null;
+    })
+    .filter((value): value is number => value != null);
   const leadTime = leadTimes.length ? leadTimes.reduce((a, b) => a + b, 0) / leadTimes.length : 0;
-  const stayLengths = validReservations.map((reservation) => Math.max(1, n(reservation.diarias) || diffDays(reservation.checkin, reservation.checkout)));
+  const stayLengths = validReservations.map(stayLength);
   const averageStay = stayLengths.length ? stayLengths.reduce((a, b) => a + b, 0) / stayLengths.length : 0;
+  const medianLeadTime = median(leadTimes);
+  const medianStay = median(stayLengths);
+  const losRows = bucketCounts(stayLengths, [
+    ["1 diária", (value) => value === 1],
+    ["2 diárias", (value) => value === 2],
+    ["3 diárias", (value) => value === 3],
+    ["4-6 diárias", (value) => value >= 4 && value <= 6],
+    ["7+ diárias", (value) => value >= 7],
+  ]);
+  const bookingWindowRows = bucketCounts(leadTimes, [
+    ["0-1 dia", (value) => value <= 1],
+    ["2-3 dias", (value) => value >= 2 && value <= 3],
+    ["4-7 dias", (value) => value >= 4 && value <= 7],
+    ["8-14 dias", (value) => value >= 8 && value <= 14],
+    ["15-30 dias", (value) => value >= 15 && value <= 30],
+    ["31+ dias", (value) => value >= 31],
+  ]);
+  const pickupMap = new Map(days.map((date) => [date, { date, label: dateLabel(date), reservations: 0, soldNights: 0, revenue: 0, cancellations: 0 }]));
+  data.reservations
+    .filter((reservation) => matchesFilters(reservation, filters))
+    .forEach((reservation) => {
+      const created = reservationDate(reservation);
+      const row = pickupMap.get(created);
+      if (!row) return;
+      row.reservations += 1;
+      if (isCanceled(reservation)) row.cancellations += 1;
+      if (!isValidStay(reservation)) return;
+      row.soldNights += stayLength(reservation);
+      row.revenue += n(reservation.valor_pago) > 0 ? n(reservation.valor_pago) : n(reservation.valor_total);
+    });
+  const pickupRows = [...pickupMap.values()];
+  const pickupReservations = pickupRows.reduce((sum, row) => sum + row.reservations, 0);
+  const pickupSoldNights = pickupRows.reduce((sum, row) => sum + row.soldNights, 0);
+  const pickupRevenue = pickupRows.reduce((sum, row) => sum + row.revenue, 0);
+  const pickupCancellations = pickupRows.reduce((sum, row) => sum + row.cancellations, 0);
+  const cancellationRows = days.map((date) => {
+    const row = dailyMap.get(date);
+    return { date, label: dateLabel(date), cancellations: row?.cancellations || 0, lostRevenue: row?.lostRevenue || 0 };
+  });
 
   return {
     start,
@@ -627,7 +705,17 @@ function buildPeriodMetrics(data: Source, start: string, end: string, filters: F
     lostRevenue,
     lostNights,
     leadTime,
+    medianLeadTime,
     averageStay,
+    medianStay,
+    losRows,
+    bookingWindowRows,
+    pickupRows,
+    pickupReservations,
+    pickupSoldNights,
+    pickupRevenue,
+    pickupCancellations,
+    cancellationRows,
   };
 }
 
@@ -749,10 +837,23 @@ function normalizeReason(value: unknown) {
 
 function unique(values: string[]) { return [...new Set(values)].sort((a, b) => a.localeCompare(b, "pt-BR")); }
 function countRows(values: string[]) { const map = new Map<string, number>(); values.forEach((value) => map.set(value || "Não informado", (map.get(value || "Não informado") || 0) + 1)); return [...map].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value); }
+function bucketCounts(values: number[], buckets: [string, (value: number) => boolean][]) {
+  return buckets.map(([name, test]) => ({ name, value: values.filter(test).length }));
+}
+function formatPickupTooltip(value: unknown, name: unknown) {
+  const label = String(name);
+  if (label.includes("Receita")) return [fmtBRL(n(value)), label];
+  return [n(value), label];
+}
+function formatCancellationTooltip(value: unknown, name: unknown) {
+  const label = String(name);
+  if (label.includes("Receita")) return [fmtBRL(n(value)), label];
+  return [n(value), label];
+}
 function compare(current: number, previous: number) { if (!previous) return { value: 0, label: "Sem base anterior", direction: "neutral" as const }; const value = ((current - previous) / Math.abs(previous)) * 100; return { value, label: `${value >= 0 ? "+" : ""}${value.toFixed(1).replace(".",",")}% vs anterior`, direction: value > 0.5 ? "up" as const : value < -0.5 ? "down" as const : "neutral" as const }; }
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: "executive", label: "Visão executiva" },
+  { key: "executive", label: "Pulso do Hotel" },
   { key: "channels", label: "Receita e canais" },
   { key: "occupancy", label: "Ocupação e reservas" },
   { key: "rooms", label: "Operação e quartos" },
@@ -764,6 +865,24 @@ function KpiCard({ title, value, delta, help }: { title: string; value: string; 
   const favorable = delta?.direction === "up";
   const unfavorable = delta?.direction === "down";
   return <article className="rounded-2xl border border-border bg-card p-3 shadow-sm"><div className="flex items-center justify-between gap-2"><span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{title}</span>{help && <span title={help} className="text-muted-foreground"><Info className="h-3.5 w-3.5" /></span>}</div><strong className="mt-2 block text-xl font-black leading-none text-pine-dark">{value}</strong>{delta && <div className={`mt-2 flex items-center gap-1 text-[10px] font-bold ${favorable ? "text-green-700" : unfavorable ? "text-red-700" : "text-muted-foreground"}`}>{favorable ? <TrendingUp className="h-3 w-3" /> : unfavorable ? <TrendingDown className="h-3 w-3" /> : null}{delta.label}</div>}</article>;
+}
+function KpiDescriptionCard({ title, value, delta, description, formula }: { title: string; value: string; delta: ReturnType<typeof compare>; description: string; formula: string }) {
+  const favorable = delta.direction === "up";
+  const unfavorable = delta.direction === "down";
+  return (
+    <article className="flex min-h-[158px] flex-col rounded-2xl border border-border bg-card p-4 shadow-sm">
+      <span className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">{title}</span>
+      <strong className="mt-2 block text-2xl font-black leading-none text-pine-dark">{value}</strong>
+      <p className="mt-3 flex-1 text-[11px] leading-relaxed text-muted-foreground">{description}</p>
+      <div className="mt-3 border-t border-border/50 pt-2">
+        <span className="block text-[9px] font-bold uppercase tracking-wide text-muted-foreground">{formula}</span>
+        <span className={`mt-1 flex items-center gap-1 text-[10px] font-bold ${favorable ? "text-green-700" : unfavorable ? "text-red-700" : "text-muted-foreground"}`}>
+          {favorable ? <TrendingUp className="h-3 w-3" /> : unfavorable ? <TrendingDown className="h-3 w-3" /> : null}
+          {delta.label}
+        </span>
+      </div>
+    </article>
+  );
 }
 function Panel({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) { return <section className="rounded-2xl border border-border bg-card p-3 shadow-sm"><div className="mb-3"><h2 className="text-sm font-extrabold text-pine-dark">{title}</h2>{subtitle && <p className="mt-0.5 text-[10px] text-muted-foreground">{subtitle}</p>}</div>{children}</section>; }
 function Mini({ label, value, tone = "normal" }: { label: string; value: string; tone?: "normal" | "blue" | "danger" | "warn" }) { const cls = tone === "blue" ? "text-primary" : tone === "danger" ? "text-red-700" : tone === "warn" ? "text-amber-700" : "text-pine-dark"; return <div className="rounded-xl border border-border/70 bg-card px-3 py-2"><span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">{label}</span><strong className={`mt-1 block text-base ${cls}`}>{value}</strong></div>; }
