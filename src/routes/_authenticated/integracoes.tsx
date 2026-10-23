@@ -72,7 +72,7 @@ function Integracoes() {
             <h3 className="font-serif text-lg font-bold text-pine-dark">Integração Hospedin</h3>
             <p className="mt-1 text-sm text-muted-foreground">
               Cadastre as credenciais da API. O Client Secret será enviado diretamente à função segura do servidor e não ficará salvo no navegador.
-              A sincronização permanecerá desativada até confirmar os endpoints oficiais da Hospedin.
+              A integração será somente leitura: importará dados da Hospedin para o Sistema Hotel e nunca enviará alterações ao PMS. A importação só será ativada após confirmar os endpoints oficiais.
             </p>
           </div>
         </div>
