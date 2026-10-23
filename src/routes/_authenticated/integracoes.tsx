@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Building2, CalendarClock, Download, FileText, Instagram, MapPinned, Megaphone, MessageCircle, Plus, ShieldCheck, TestTube2, Webhook } from "lucide-react";
+import { Building2, CalendarClock, Download, FileText, Instagram, KeyRound, MapPinned, Megaphone, MessageCircle, Plus, Save, ShieldCheck, TestTube2, Webhook } from "lucide-react";
 import { PageHeader } from "@/components/AppLayout";
+import { supabase } from "@/integrations/supabase/client";
 import { Badge, EmptyState, Field, Modal } from "@/components/ui-kit";
 import {
   useCompanyIntegrations,
@@ -43,6 +44,9 @@ function Integracoes() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CompanyIntegration | null>(null);
   const [initialType, setInitialType] = useState("whatsapp_business");
+  const [hospedinClientId, setHospedinClientId] = useState("");
+  const [hospedinClientSecret, setHospedinClientSecret] = useState("");
+  const [savingHospedin, setSavingHospedin] = useState(false);
 
   const webhookUrl = useMemo(() => {
     const base = "https://xjdqjjfnpcnywrkxentv.supabase.co/functions/v1/integracao-reservas";
@@ -60,6 +64,66 @@ function Integracoes() {
           </button>
         }
       />
+
+      <section className="mb-5 rounded-xl border border-pine/30 bg-sage-bg/50 p-4">
+        <div className="mb-4 flex items-start gap-3">
+          <KeyRound className="mt-0.5 h-5 w-5 text-pine" />
+          <div>
+            <h3 className="font-serif text-lg font-bold text-pine-dark">Integração Hospedin</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cadastre as credenciais da API. O Client Secret será enviado diretamente à função segura do servidor e não ficará salvo no navegador.
+              A integração será somente leitura: importará dados da Hospedin para o Sistema Hotel e nunca enviará alterações ao PMS. A importação só será ativada após confirmar os endpoints oficiais.
+            </p>
+          </div>
+        </div>
+        <form
+          className="grid gap-3 md:grid-cols-2"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!current.data?.id) {
+              toast.error("Não foi possível identificar a empresa atual.");
+              return;
+            }
+            if (!hospedinClientId.trim() || !hospedinClientSecret.trim()) {
+              toast.error("Informe o Client ID e o Client Secret.");
+              return;
+            }
+            setSavingHospedin(true);
+            try {
+              const { error } = await supabase.functions.invoke("hospedin-credentials", {
+                body: {
+                  companyId: current.data.id,
+                  clientId: hospedinClientId.trim(),
+                  clientSecret: hospedinClientSecret,
+                },
+              });
+              if (error) throw error;
+              setHospedinClientSecret("");
+              toast.success("Credenciais Hospedin guardadas com proteção no servidor.");
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "Não foi possível guardar as credenciais.";
+              toast.error(message.includes("Failed to send a request") || message.includes("not found")
+                ? "A função segura ainda precisa ser publicada e configurada no Supabase."
+                : message);
+            } finally {
+              setSavingHospedin(false);
+            }
+          }}
+        >
+          <Field label="Client ID">
+            <input className="field" autoComplete="off" value={hospedinClientId} onChange={(e) => setHospedinClientId(e.target.value)} placeholder="Cole o Client ID da Hospedin" required />
+          </Field>
+          <Field label="Client Secret">
+            <input className="field" type="password" autoComplete="new-password" value={hospedinClientSecret} onChange={(e) => setHospedinClientSecret(e.target.value)} placeholder="Cole o Client Secret da Hospedin" required />
+          </Field>
+          <div className="md:col-span-2 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">Não coloque estas credenciais no GitHub, em mensagens ou em arquivos .env enviados ao repositório.</p>
+            <button type="submit" className="btn-primary inline-flex items-center gap-2" disabled={savingHospedin}>
+              <Save className="h-4 w-4" /> {savingHospedin ? "Guardando..." : "Guardar credenciais"}
+            </button>
+          </div>
+        </form>
+      </section>
 
       <section className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <IntegrationQuickStart
