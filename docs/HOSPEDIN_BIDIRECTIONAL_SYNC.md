@@ -1,38 +1,35 @@
-# Hospedin ↔ Sistema Hotel: plano de sincronização bidirecional
+# Hospedin → Sistema Hotel: importação somente leitura
 
 ## Objetivo
+Importar dados disponibilizados pela API Hospedin para consulta no Sistema Hotel. Nesta fase, a Hospedin é a fonte de verdade: o Sistema Hotel pode ler dados remotos e gravar a cópia local, mas nunca enviar alterações ao PMS.
 
-Sincronizar os dados entre o PMS Hospedin e o Sistema Hotel nos dois sentidos, usando exclusivamente recursos, campos e operações que a API oficial efetivamente disponibilizar e que as credenciais autorizarem.
+## Escopo inicial
+- Consultar reservas e os campos que a API disponibilizar para leitura.
+- Importar/atualizar cópias locais sem duplicar registros, usando o ID estável da Hospedin como chave externa.
+- Quando disponível, consultar hóspedes, quartos, tarifas e disponibilidade em modo somente leitura.
+- Exibir data/hora da última sincronização, quantidade importada e erros sem expor credenciais.
+- Registrar execução e erros para diagnóstico.
+- Respeitar paginação, limites, permissões e regras da API.
 
-## Fluxo pretendido
+## Proteções obrigatórias
+- Nenhuma chamada POST/PUT/PATCH/DELETE à API Hospedin para criar, editar ou cancelar dados.
+- Não executar operações de escrita no PMS nem configurar webhooks que enviem alterações do Sistema Hotel à Hospedin.
+- Validar autenticação e fazer primeiro uma consulta de teste sem gravar reservas.
+- Fazer upsert local com chave única composta pela empresa e pelo ID externo da reserva; não deduplicar somente por nome ou data.
+- A importação local não deve apagar reservas locais existentes. Conflitos devem ser sinalizados e tratados explicitamente.
+- Segredos ficam apenas no servidor e nunca em logs, navegador, mensagens ou GitHub.
 
-- Hospedin → Sistema Hotel: consultar alterações remotas e inserir/atualizar registros locais.
-- Sistema Hotel → Hospedin: detectar alterações locais e criar/atualizar registros remotos, apenas quando a API permitir.
-- Registrar execuções, resultados, erros e tentativas para diagnóstico e recuperação.
-- Usar o identificador externo da Hospedin como chave de correspondência; não deduplicar apenas por nome ou data.
-- Aplicar idempotência para que reprocessar a mesma alteração não crie reservas duplicadas.
-- Tratar conflitos explicitamente: não sobrescrever silenciosamente uma versão mais recente; guardar a origem, os horários de atualização e o resultado do conflito.
-- Respeitar paginação, limites de requisição, permissões, validações e regras de negócio da API.
+## Fluxo de implementação
+1. Guardar as credenciais no servidor.
+2. Confirmar o método de autenticação oficial e validar token.
+3. Executar uma consulta de leitura pequena e registrar a resposta sanitizada.
+4. Mapear campos da Hospedin para o modelo local do Sistema Hotel.
+5. Implementar importação idempotente em tabela/campos locais, preservando a origem externa.
+6. Mostrar os dados importados e o estado da última execução.
+7. Agendar consultas periódicas apenas se a API permitir e os limites forem conhecidos.
 
-## Modos de operação e segurança
+## Informações técnicas ainda necessárias
+As credenciais Client ID e Client Secret não revelam o contrato da API. Para fazer chamadas reais, ainda é necessário confirmar a URL base, autenticação/token, endpoint de listagem de reservas, campos, paginação/filtros, IDs estáveis e limites. Não inventar URLs ou formato de token.
 
-1. **Configurar credenciais**: Client ID e Client Secret armazenados criptografados no servidor.
-2. **Validar autenticação**: implementar o fluxo de token exatamente como a documentação oficial especificar.
-3. **Leitura inicial**: testar consulta e mapear campos sem enviar alterações ao PMS.
-4. **Simulação**: mostrar quais mudanças seriam enviadas, sem gravá-las remotamente.
-5. **Escrita controlada**: habilitar criação/atualização somente para endpoints confirmados e após testes.
-6. **Operação contínua**: usar webhooks quando oficialmente disponíveis; caso contrário, usar polling incremental apenas se houver endpoint/campo de atualização compatível.
-
-## Contrato da API ainda necessário
-
-Antes de ativar chamadas reais, confirmar com a documentação oficial ou OpenAPI/Swagger:
-- URL base, autenticação/token, escopos e renovação;
-- recursos/endpoints de reservas, hóspedes, quartos, tarifas e disponibilidade;
-- campos obrigatórios e formatos de datas/valores;
-- métodos de criação e atualização permitidos por recurso;
-- identificadores estáveis, paginação, filtros incrementais e webhooks;
-- limites, códigos de erro, idempotência e política de exclusão/cancelamento.
-
-## Limite atual
-
-Este documento não afirma que todos os recursos acima existem na API. A interface de credenciais e o armazenamento protegido são preparação. Até validar o contrato oficial, a sincronização bidirecional permanece desativada; não são realizadas gravações no PMS.
+## Estado atual
+O formulário de credenciais e a função de armazenamento protegido são preparação. A importação real ainda não está ativa, pois o contrato técnico da API não foi confirmado e o ambiente Supabase precisa estar configurado/deployado. Esta integração deve permanecer somente leitura; a sincronização de escrita está fora do escopo.
