@@ -1,12 +1,12 @@
 // Resumo conferido a partir de "vendas produtos(1).xlsx", aba VENDAS, em 11/11/2026.
 // Somente agregados: não publica nomes de hóspedes nem dados pessoais.
-// TOTAL da planilha não é válido (#NAME? em 49 registros), portanto não calcular receita.
+// Leitor retornou #NAME? em 49 totais; fórmulas referenciam [1]ESTOQUE. Não calcular receita sem validar no Excel.
 export const november2026Sales = {
   start: "2026-11-01",
   end: "2026-11-11",
   rows: 49,
   units: 57,
-  totalStatus: "indisponivel_formulas_invalidas",
+  totalStatus: "indisponivel_formulas_sem_validacao",
   source: "vendas produtos(1).xlsx · aba VENDAS",
   byDay: [
     ["01/11", 7, 10], ["02/11", 2, 2], ["03/11", 5, 5],
