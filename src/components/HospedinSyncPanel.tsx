@@ -132,7 +132,7 @@ export function HospedinSyncPanel() {
       <div className="mt-2 flex flex-wrap gap-2">{unmapped.map(id=><label className="text-xs" key={id}>Hospedin ID {id} <select className="field ml-1" value={roomMap[String(id)]??""} onChange={e=>mapRoom(id,Number(e.target.value))}><option value="">Selecione o quarto</option>{availableRooms.map(room=><option key={room} value={room}>UH {room}</option>)}</select></label>)}</div>
     </div>}
     {(rows.length>0||issues.length>0)&&<div className="mt-3 grid gap-2 md:grid-cols-2">
-      <div className="max-h-48 overflow-auto rounded border p-2 text-xs"><strong>Prontas para importar</strong>{rows.slice(0,100).map(r=><p className="border-b py-1" key={r.codigo_externo}>{r.cliente_nome} · UH {r.quarto} · {r.checkin} a {r.checkout} · {r.status}</p>)}</div>
+      <div className="max-h-48 overflow-auto rounded border p-2 text-xs"><strong>Prontas para importar</strong>{rows.slice(0,100).map(r=><p className="border-b py-1" key={r.codigo_externo}>{r.cliente_nome} · UH {r.quarto} · {r.checkin} a {r.checkout} · {r.status} · {r.pessoas} hóspede(s) · {r.valor_total.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} · {r.codigo_externo}</p>)}</div>
       <div className="max-h-48 overflow-auto rounded border p-2 text-xs"><strong>Pendências</strong>{issues.slice(0,100).map((s,i)=><p className="border-b py-1" key={i}>{s}</p>)}</div>
     </div>}
   </section>;
