@@ -10,7 +10,7 @@ export function NovemberSalesSnapshot() {
     <div className="mt-4 grid gap-3 sm:grid-cols-3">
       <div className="rounded-xl bg-white p-4"><div className="text-xs text-slate-600">Registros de venda</div><strong className="text-3xl">{report.rows}</strong></div>
       <div className="rounded-xl bg-white p-4"><div className="text-xs text-slate-600">Unidades registradas</div><strong className="text-3xl">{report.units}</strong></div>
-      <div className="rounded-xl bg-white p-4"><div className="text-xs text-slate-600">Faturamento validado</div><strong className="text-lg">Não disponível</strong><div className="text-xs text-red-700">49 totais com erro de fórmula na origem</div></div>
+      <div className="rounded-xl bg-white p-4"><div className="text-xs text-slate-600">Faturamento validado</div><strong className="text-lg">Não disponível</strong><div className="text-xs text-red-700">49 totais não calculados com confiança na leitura</div></div>
     </div>
     <div className="mt-4 grid gap-4 lg:grid-cols-2">
       <div className="rounded-xl bg-white p-4"><h3 className="mb-2 font-semibold">Movimento por dia</h3>
