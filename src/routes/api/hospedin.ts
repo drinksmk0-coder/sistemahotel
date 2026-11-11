@@ -63,7 +63,12 @@ export const Route = createFileRoute("/api/hospedin")({
           if (!token) return Response.json({ error: "Token Hospedin ausente." }, { status: 502 });
           const base = RESOURCES[resource as keyof typeof RESOURCES];
           const upstreamUrl = new URL(`https://pms-api.hospedin.com${base}`);
-          upstreamUrl.searchParams.set("page[size]", "20");
+          upstreamUrl.searchParams.set("page[size]", "100");
+          const cursor = url.searchParams.get("cursor");
+          if (cursor) {
+            if (cursor.length > 1024 || !/^[A-Za-z0-9_=-]+$/.test(cursor)) return Response.json({error:"Cursor inválido."}, {status:400});
+            upstreamUrl.searchParams.set("page[after]", cursor);
+          }
           // A consulta só usa endpoints GET e nunca repassa URL arbitrária.
           const upstream = await fetch(upstreamUrl, {
             method: "GET",
@@ -75,7 +80,7 @@ export const Route = createFileRoute("/api/hospedin")({
           if (!upstream.ok) {
             return Response.json({ error: "Consulta ao Hospedin indisponível.", upstreamStatus: upstream.status }, { status: 502 });
           }
-          return Response.json({ resource, source: "hospedin", readOnly: true, data: payload?.data ?? [], hasNextPage: Boolean(payload?.links?.next) }, {
+          return Response.json({ resource, source: "hospedin", readOnly: true, data: payload?.data ?? [], hasNextPage: Boolean(payload?.links?.next), nextCursor: (() => { const link = payload?.links?.next; if (typeof link !== "string") return null; try { const next = new URL(link); return next.origin === upstreamUrl.origin ? next.searchParams.get("page[after]") : null; } catch { return null; } })() }, {
             headers: { "Cache-Control": "private, no-store" },
           });
         } catch {
