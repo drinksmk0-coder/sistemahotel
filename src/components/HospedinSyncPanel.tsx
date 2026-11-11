@@ -47,6 +47,14 @@ export function HospedinSyncPanel() {
         if(seen.has(cursor) || page===99)throw new Error("Paginação incompleta. Nenhuma reserva será importada.");
         seen.add(cursor);
       }
+      const remoteRooms = await fetch("/api/hospedin?resource=rooms", {headers:{Authorization:"Bearer "+jwt,"x-company-id":companyId},cache:"no-store"});
+      const remoteBody = remoteRooms.ok ? await remoteRooms.json() : {data:[]};
+      const remoteById = new Map<number,string>();
+      for (const item of (remoteBody.data??[]) as Array<{id:string;attributes?:Record<string,unknown>}>) {
+        const fields=item.attributes??{};
+        const label=fields.number??fields.numero??fields.code??fields.title??fields.name;
+        if(label!==undefined && label!==null) remoteById.set(Number(item.id),String(label).trim());
+      }
       const [roomResult,localResult]=await Promise.all([
         supabase.from("rooms").select("numero").eq("company_id",companyId).lt("numero",900),
         supabase.from("reservations").select("codigo_externo,quarto,checkin,checkout,status").eq("company_id",companyId)
@@ -60,14 +68,16 @@ export function HospedinSyncPanel() {
       const ready:Row[]=[];const rejected:string[]=[];
       for(const book of bookings)for(const unit of book.attributes?.units??[]) {
         const code="hospedin:"+book.id+":"+String(unit.unit_id??"");
-        const quarto=Number(unit.place_id);
+        const remoteLabel=remoteById.get(Number(unit.place_id));
+        const roomCandidate=remoteLabel && /^\d+$/.test(remoteLabel) ? Number(remoteLabel) : Number(unit.place_id);
+        const quarto=roomCandidate;
         const start=day(unit.check_in??book.attributes?.check_in), end=day(unit.check_out??book.attributes?.check_out);
         const duration=Math.round((Date.parse(end+"T12:00:00Z")-Date.parse(start+"T12:00:00Z"))/86400000);
         const status=toStatus(unit.status);
         const guest=unit.guests?.find(g=>g.role==="responsible"&&g.name)?.name??unit.guests?.find(g=>g.name)?.name;
         if(unit.unit_id==null || !book.id){rejected.push(code+" — ID externo incompleto");continue;}
         if(codes.has(code)){rejected.push(code+" — já existe no PMS");continue;}
-        if(!roomIds.has(quarto)){rejected.push(code+" — mapear ID do quarto Hospedin "+String(unit.place_id));continue;}
+        if(!roomIds.has(quarto)){rejected.push(code+" — mapear quarto Hospedin ID "+String(unit.place_id)+(remoteLabel?" ("+remoteLabel+")":""));continue;}
         if(!start||!end||!(duration>0)||!status||!guest?.trim()){rejected.push(code+" — faltam dados obrigatórios");continue;}
         const row:Row={company_id:companyId,codigo_externo:code,quarto,cliente_nome:guest.trim(),cliente_id:null,checkin:start,checkout:end,diarias:duration,pessoas:Math.max(1,(unit.adults??0)+(unit.children??0)),valor_diaria:Math.max(0,(unit.daily_cents??0)/100),valor_total:Math.max(0,(unit.total_daily_cents??0)/100),valor_pago:0,desconto:0,pago:false,pagamento:"não informado",status,canal:"Hospedin",motivo_estadia:"Hospedin "+book.id+" — pagamentos não sincronizados"};
         if(occupied.some(x=>overlap(x,row))){rejected.push(code+" — quarto já reservado no período");continue;}
