@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { AlertTriangle, BedDouble, CalendarCheck, CalendarClock, ClipboardList, Wallet } from "lucide-react";
-import { useCurrentCompany, useReservations, useRooms, roomStatusToday } from "@/lib/data";
+import { useCurrentCompany, useReservations, useRooms, roomStatusToday, type Reservation } from "@/lib/data";
 import { todayISO } from "@/lib/format";
 
 export const Route = createFileRoute("/_authenticated/operacao-pms")({
@@ -78,7 +78,7 @@ function OperacaoPms() {
   );
 }
 
-type QueueReservation = { id: string; quarto: number; cliente_nome: string; checkin: string; checkout: string; valor_total: number | null; valor_pago: number | null };
+type QueueReservation = Reservation;
 function Queue({ title, items, empty, warning = false, showBalance = false }: { title: string; items: QueueReservation[]; empty: string; warning?: boolean; showBalance?: boolean }) {
   return <div className={`rounded-2xl border bg-white p-5 shadow-sm ${warning && items.length ? "border-amber-300" : "border-slate-200"}`}>
     <h2 className="mb-4 text-lg font-bold text-slate-900">{title} <span className="text-sm font-normal text-slate-500">({items.length})</span></h2>
