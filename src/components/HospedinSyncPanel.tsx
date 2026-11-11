@@ -24,10 +24,13 @@ export function HospedinSyncPanel() {
   const [busy,setBusy] = useState(false);
   const [rows,setRows] = useState<Row[]>([]);
   const [issues,setIssues] = useState<string[]>([]);
+  const [unmapped,setUnmapped] = useState<number[]>([]);
+  const [availableRooms,setAvailableRooms] = useState<number[]>([]);
+  const [roomMap,setRoomMap] = useState<Record<string,number>>({});
   const [message,setMessage] = useState("Conferir antes de importar. As alterações são feitas apenas no PMS.");
   async function review() {
     if (!companyId || busy) return;
-    setBusy(true); setRows([]);setIssues([]);setMessage("Conferindo reservas e quartos...");
+    setBusy(true); setRows([]);setIssues([]);setUnmapped([]);setMessage("Conferindo reservas e quartos...");
     try {
       const session = await supabase.auth.getSession();
       const jwt = session.data.session?.access_token;
@@ -61,7 +64,13 @@ export function HospedinSyncPanel() {
       ]);
       if(roomResult.error)throw roomResult.error;
       if(localResult.error)throw localResult.error;
-      const roomIds=new Set((roomResult.data??[]).map(x=>Number(x.numero)));
+      const localRoomNumbers=(roomResult.data??[]).map(x=>Number(x.numero));
+      setAvailableRooms(localRoomNumbers);
+      const roomIds=new Set(localRoomNumbers);
+      const key="hotelreal.hospedin.roomMap."+companyId;
+      const stored:Record<string,number>=JSON.parse(window.localStorage.getItem(key)??"{}");
+      setRoomMap(stored);
+      const missingIds=new Set<number>();
       const local=(localResult.data??[]) as Array<{codigo_externo:string|null;quarto:number;checkin:string;checkout:string;status:string}>;
       const codes=new Set(local.map(x=>x.codigo_externo).filter(Boolean));
       const occupied=[...local];
@@ -70,23 +79,30 @@ export function HospedinSyncPanel() {
         const code="hospedin:"+book.id+":"+String(unit.unit_id??"");
         const remoteLabel=remoteById.get(Number(unit.place_id));
         const roomCandidate=remoteLabel && /^\d+$/.test(remoteLabel) ? Number(remoteLabel) : Number(unit.place_id);
-        const quarto=roomCandidate;
+        const quarto=stored[String(unit.place_id)]??roomCandidate;
         const start=day(unit.check_in??book.attributes?.check_in), end=day(unit.check_out??book.attributes?.check_out);
         const duration=Math.round((Date.parse(end+"T12:00:00Z")-Date.parse(start+"T12:00:00Z"))/86400000);
         const status=toStatus(unit.status);
         const guest=unit.guests?.find(g=>g.role==="responsible"&&g.name)?.name??unit.guests?.find(g=>g.name)?.name;
         if(unit.unit_id==null || !book.id){rejected.push(code+" — ID externo incompleto");continue;}
         if(codes.has(code)){rejected.push(code+" — já existe no PMS");continue;}
-        if(!roomIds.has(quarto)){rejected.push(code+" — mapear quarto Hospedin ID "+String(unit.place_id)+(remoteLabel?" ("+remoteLabel+")":""));continue;}
+        if(!roomIds.has(quarto)){if(Number.isInteger(Number(unit.place_id)))missingIds.add(Number(unit.place_id));rejected.push(code+" — mapear quarto Hospedin ID "+String(unit.place_id)+(remoteLabel?" ("+remoteLabel+")":""));continue;}
         if(!start||!end||!(duration>0)||!status||!guest?.trim()){rejected.push(code+" — faltam dados obrigatórios");continue;}
         const row:Row={company_id:companyId,codigo_externo:code,quarto,cliente_nome:guest.trim(),cliente_id:null,checkin:start,checkout:end,diarias:duration,pessoas:Math.max(1,(unit.adults??0)+(unit.children??0)),valor_diaria:Math.max(0,(unit.daily_cents??0)/100),valor_total:Math.max(0,(unit.total_daily_cents??0)/100),valor_pago:0,desconto:0,pago:false,pagamento:"não informado",status,canal:"Hospedin",motivo_estadia:"Hospedin "+book.id+" — pagamentos não sincronizados"};
         if(occupied.some(x=>overlap(x,row))){rejected.push(code+" — quarto já reservado no período");continue;}
         ready.push(row);occupied.push(row);codes.add(code);
       }
-      setRows(ready);setIssues(rejected);
+      setRows(ready);setIssues(rejected);setUnmapped([...missingIds]);
       setMessage("Hospedin: "+bookings.length+" reservas consultadas. "+ready.length+" unidades prontas para importar; "+rejected.length+" pendentes/ignoradas. Nada foi gravado.");
     } catch(e) {setMessage(e instanceof Error?e.message:"Erro na conferência.");}
     finally {setBusy(false);}
+  }
+  function mapRoom(externalId:number, localRoom:number) {
+    if(!companyId) return;
+    const next={...roomMap,[String(externalId)]:localRoom};
+    setRoomMap(next);
+    window.localStorage.setItem("hotelreal.hospedin.roomMap."+companyId,JSON.stringify(next));
+    setRows([]);setMessage("Mapeamento salvo neste navegador. Clique em Conferir novamente antes de importar.");
   }
   async function importRows() {
     if(!companyId||busy||!rows.length)return;
@@ -110,6 +126,11 @@ export function HospedinSyncPanel() {
       <div className="flex gap-2"><button type="button" className="btn-ghost" disabled={busy} onClick={()=>void review()}>1. Conferir</button><button type="button" className="btn-primary" disabled={busy||rows.length===0} onClick={()=>void importRows()}>2. Importar ({rows.length})</button></div>
     </div>
     <p role="status" className="mt-2 text-sm">{busy?"Processando...":message}</p>
+    {unmapped.length>0 && <div className="mt-3 rounded-lg border p-3">
+      <h4 className="font-bold text-sm">Relacionar quartos Hospedin aos quartos do Hotel Real</h4>
+      <p className="text-xs text-muted-foreground">Confira os números na recepção antes de selecionar. O mapeamento é salvo apenas neste navegador.</p>
+      <div className="mt-2 flex flex-wrap gap-2">{unmapped.map(id=><label className="text-xs" key={id}>Hospedin ID {id} <select className="field ml-1" value={roomMap[String(id)]??""} onChange={e=>mapRoom(id,Number(e.target.value))}><option value="">Selecione o quarto</option>{availableRooms.map(room=><option key={room} value={room}>UH {room}</option>)}</select></label>)}</div>
+    </div>}
     {(rows.length>0||issues.length>0)&&<div className="mt-3 grid gap-2 md:grid-cols-2">
       <div className="max-h-48 overflow-auto rounded border p-2 text-xs"><strong>Prontas para importar</strong>{rows.slice(0,100).map(r=><p className="border-b py-1" key={r.codigo_externo}>{r.cliente_nome} · UH {r.quarto} · {r.checkin} a {r.checkout} · {r.status}</p>)}</div>
       <div className="max-h-48 overflow-auto rounded border p-2 text-xs"><strong>Pendências</strong>{issues.slice(0,100).map((s,i)=><p className="border-b py-1" key={i}>{s}</p>)}</div>
