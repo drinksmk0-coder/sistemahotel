@@ -45,6 +45,7 @@ import { GuestPaymentModal } from "@/components/GuestPaymentModal";
 import { CompanyBillingCheckoutModal, type CompanyBillingCheckout } from "@/components/CompanyBillingCheckoutModal";
 import { buildGuestAccount, type GuestAccount } from "@/lib/guest-account";
 import { supabase } from "@/integrations/supabase/client";
+import { HospedinSyncPanel } from "@/components/HospedinSyncPanel";
 
 type CancellationRisk = {
   probability: number;
@@ -210,6 +211,7 @@ export function ReservasModernV2() {
         </div>
       } />
 
+      <HospedinSyncPanel />
       <section className="rounded-2xl border border-border bg-card p-3 shadow-sm">
         <div className="grid gap-2 md:grid-cols-[1fr_190px_190px]">
           <label className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={(e) => setSearch(e.target.value)} className="field h-10 bg-muted/35 pl-9" placeholder="Buscar hóspede, quarto, código ou canal..." /></label>
