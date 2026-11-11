@@ -17,7 +17,7 @@ function toStatus(value?: string) {
   if (/reservation|reserved|confirmed/.test(s)) return "reservado";
   return null;
 }
-export function HospedinSyncPanel() {
+export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
   const company = useCurrentCompany();
   const companyId = company.data?.id;
   const qc = useQueryClient();
@@ -118,6 +118,7 @@ export function HospedinSyncPanel() {
     }
     setRows([]);setBusy(false);
     await qc.invalidateQueries({queryKey:["reservations"]});
+    if(done>0)onImported?.();
     setMessage(done+" unidades importadas; "+failed+" falhas. "+samples.slice(0,3).join("; "));
   }
   return <section className="rounded-2xl border bg-card p-4 shadow-sm">
