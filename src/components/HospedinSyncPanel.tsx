@@ -78,7 +78,7 @@ export function HospedinSyncPanel() {
       for(const book of bookings)for(const unit of book.attributes?.units??[]) {
         const code="hospedin:"+book.id+":"+String(unit.unit_id??"");
         const remoteLabel=remoteById.get(Number(unit.place_id));
-        const roomCandidate=remoteLabel && /^\d+$/.test(remoteLabel) ? Number(remoteLabel) : Number(unit.place_id);
+        const roomCandidate=remoteLabel && /^\d+$/.test(remoteLabel) ? Number(remoteLabel) : NaN;
         const quarto=stored[String(unit.place_id)]??roomCandidate;
         const start=day(unit.check_in??book.attributes?.check_in), end=day(unit.check_out??book.attributes?.check_out);
         const duration=Math.round((Date.parse(end+"T12:00:00Z")-Date.parse(start+"T12:00:00Z"))/86400000);
