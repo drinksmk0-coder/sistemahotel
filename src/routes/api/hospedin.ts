@@ -56,7 +56,14 @@ export const Route = createFileRoute("/api/hospedin")({
             signal: AbortSignal.timeout(12000),
           });
           if (!tokenResponse.ok) {
-            return Response.json({ error: "Falha na autenticação com Hospedin.", upstreamStatus: tokenResponse.status }, { status: 502 });
+            const upstreamStatus = tokenResponse.status;
+            const error = upstreamStatus === 401 ? "Hospedin recusou o Client ID ou Client Secret (HTTP 401). Confira as credenciais da aplicação no painel Hospedin." :
+              upstreamStatus === 400 ? "Hospedin rejeitou os parâmetros de autenticação (HTTP 400)." :
+              upstreamStatus === 403 ? "A aplicação não tem permissão para autenticar no Hospedin (HTTP 403)." :
+              upstreamStatus === 429 ? "Hospedin limitou as tentativas de autenticação (HTTP 429). Não repita até normalizar." :
+              upstreamStatus >= 500 ? "Serviço de autenticação Hospedin indisponível temporariamente (HTTP "+upstreamStatus+")." :
+              "Falha ao obter token Hospedin (HTTP "+upstreamStatus+").";
+            return Response.json({ error, upstreamStatus }, { status: 502 });
           }
           const tokenJson = await tokenResponse.json() as { meta?: { access_token?: string } };
           const token = tokenJson.meta?.access_token;
