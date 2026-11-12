@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useCurrentCompany } from "@/lib/data";
+import { useCurrentCompany, setCurrentCompanyId } from "@/lib/data";
 import { supabase } from "@/integrations/supabase/client";
 
 type Unit = { unit_id?: number; place_id?: number; status?: string; check_in?: string; check_out?: string; adults?: number; children?: number; daily_cents?: number; total_daily_cents?: number; guests?: Array<{name?: string; role?: string}> };
@@ -47,6 +47,7 @@ function mapRemoteRooms(remoteRooms: RemoteRoom[], localRoomIds: Set<number>) {
 export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
   const company = useCurrentCompany();
   const companyId = company.data?.id;
+  const [companyChoice,setCompanyChoice] = useState("");
   const qc = useQueryClient();
   const [busy,setBusy] = useState(false);
   const [rows,setRows] = useState<Row[]>([]);
@@ -162,6 +163,17 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
       <div className="flex gap-2"><button type="button" className="btn-ghost" disabled={busy} onClick={()=>void review()}>1. Conferir</button><button type="button" className="btn-primary" disabled={busy||rows.length===0} onClick={()=>void importRows()}>2. Importar ({rows.length})</button></div>
     </div>
     <p role="status" className="mt-2 text-sm">{busy?"Processando...":message}</p>
+    <div className="mt-2 rounded-lg border border-border bg-muted/30 p-3 text-xs">
+      <p><strong>Empresa selecionada:</strong> {company.data?.nome ?? "Nenhuma"} <span className="font-mono">({companyId ?? "-"})</span></p>
+      {company.companies.length > 1 && <div className="mt-2 flex flex-wrap items-center gap-2">
+        <label htmlFor="hospedin-company-choice">Alterar empresa:</label>
+        <select id="hospedin-company-choice" className="field" value={companyChoice || companyId || ""} onChange={e=>setCompanyChoice(e.target.value)}>
+          {company.companies.map(item=><option value={item.id} key={item.id}>{item.nome} - {item.id}</option>)}
+        </select>
+        <button type="button" className="btn-ghost" disabled={!companyChoice || companyChoice===companyId} onClick={()=>void (async()=>{const user=await supabase.auth.getUser();setCurrentCompanyId(user.data.user?.id,companyChoice);})()}>Selecionar</button>
+      </div>}
+      <p className="mt-1 text-muted-foreground">Se aparecer Hospedin não habilitado, confira se esta empresa corresponde à autorizada para integração.</p>
+    </div>
     {roomInfo && <p className="mt-2 text-xs text-muted-foreground">{roomInfo}</p>}
     {unmapped.length>0 && <div className="mt-3 rounded-lg border p-3">
       <h4 className="font-bold text-sm">Quartos que não puderam ser identificados automaticamente</h4>
