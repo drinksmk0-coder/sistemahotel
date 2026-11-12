@@ -1,3 +1,4 @@
+import { NovemberSalesSnapshot } from "@/components/NovemberSalesSnapshot";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
@@ -279,6 +280,7 @@ function Vendas() {
   }
 
   return <div>
+    {/hotel real/i.test(current.data?.nome ?? "") && <NovemberSalesSnapshot />}
     <PageHeader title="Vendas e estoque" subtitle="Cadastre a quantidade real de cada caixa ou pacote e acompanhe todas as entradas e saídas." action={<div className="flex flex-wrap gap-2">
       <button className="btn-ghost flex items-center gap-1.5" onClick={() => void refresh()}><RefreshCw className="h-4 w-4" /> Atualizar</button>
       <button className="btn-ghost flex items-center gap-1.5" onClick={() => setHistoryOpen(true)}><ClipboardList className="h-4 w-4" /> Movimentações</button>

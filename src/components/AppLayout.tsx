@@ -25,6 +25,7 @@ import {
   Menu,
   MessageSquare,
   MessagesSquare,
+  Target,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -54,6 +55,7 @@ type NavigationGroup = "Operação" | "Gestão" | "Relacionamento" | "Inteligên
 type NavigationItem = { to: string; label: string; icon: LucideIcon; roles: AppRole[]; group: NavigationGroup };
 const GROUPS: NavigationGroup[] = ["Operação", "Gestão", "Relacionamento", "Inteligência", "Configurações"];
 const NAV_ITEMS: NavigationItem[] = [
+  { to: "/operacao-pms", label: "Central PMS", icon: BedDouble, roles: ["dono", "recepcao"], group: "Operação" },
   { to: "/central-estrategica", label: "Pulso do Hotel", icon: ChartNoAxesCombined, roles: ["dono"], group: "Operação" },
   { to: "/painel", label: "Visão geral", icon: LayoutDashboard, roles: ["recepcao", "limpeza", "cafe"], group: "Operação" },
   { to: "/mapa", label: "Mapa de quartos", icon: BedDouble, roles: ["dono", "recepcao", "limpeza", "cafe"], group: "Operação" },
@@ -64,6 +66,7 @@ const NAV_ITEMS: NavigationItem[] = [
   { to: "/vendas", label: "Vendas", icon: DollarSign, roles: ["dono", "recepcao"], group: "Gestão" },
   { to: "/empresas-hospedes", label: "Empresas hóspedes", icon: Building2, roles: ["dono", "recepcao"], group: "Gestão" },
   { to: "/despesas", label: "Despesas", icon: FileWarning, roles: ["dono"], group: "Gestão" },
+  { to: "/crm", label: "CRM · Receita", icon: Target, roles: ["dono", "recepcao"], group: "Relacionamento" },
   { to: "/reclamacoes", label: "Reclamações", icon: MessageSquare, roles: ["dono", "recepcao"], group: "Relacionamento" },
   { to: "/avaliacoes", label: "Avaliações", icon: Star, roles: ["dono", "recepcao"], group: "Relacionamento" },
   { to: "/mensagens", label: "Mensagens", icon: MessagesSquare, roles: ["dono", "recepcao"], group: "Relacionamento" },
@@ -80,7 +83,7 @@ const MOBILE_PRIMARY_TABS = new Set(["/central-estrategica", "/painel", "/mapa",
 const ROLE_LABELS: Record<AppRole, string> = { dono: "Proprietário / Gestor", recepcao: "Recepcionista", limpeza: "Camareira / Governança", cafe: "Atendente de A&B — Café" };
 const ROLE_SUBTITLES: Record<AppRole, string> = { dono: "Gestão do hotel", recepcao: "Recepção e reservas", limpeza: "Governança hoteleira", cafe: "Alimentos e bebidas" };
 const STAFF_ALLOWED_PATHS: Record<Exclude<AppRole, "dono">, string[]> = {
-  recepcao: ["/painel", "/mapa", "/reservas", "/clientes", "/vendas", "/empresas-hospedes", "/reclamacoes", "/mensagens", "/avaliacoes", "/fichas-checkin", "/caixa-entrada-hotel", "/ajuda-sistema"],
+  recepcao: ["/operacao-pms", "/painel", "/mapa", "/reservas", "/clientes", "/vendas", "/empresas-hospedes", "/crm", "/reclamacoes", "/mensagens", "/avaliacoes", "/fichas-checkin", "/caixa-entrada-hotel", "/ajuda-sistema"],
   limpeza: ["/painel", "/mapa", "/ajuda-sistema"],
   cafe: ["/painel", "/mapa", "/ajuda-sistema"],
 };

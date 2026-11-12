@@ -1,3 +1,4 @@
+import { HospedinReadOnlyPanel } from "@/components/HospedinReadOnlyPanel";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -22,7 +23,6 @@ export const Route = createFileRoute("/_authenticated/integracoes")({
 const TYPES = [
   { value: "whatsapp_business", label: "WhatsApp Business" },
   { value: "waha", label: "WhatsApp / WAHA legado" },
-  { value: "booking", label: "Booking" },
   { value: "airbnb", label: "Airbnb" },
   { value: "google", label: "Google Hotel" },
   { value: "google_business", label: "Google Meu Negócio" },
@@ -37,7 +37,8 @@ function Integracoes() {
   const current = useCurrentCompany();
   const { data: events = [] } = useIntegrationEvents();
   const { data: sessions = [] } = useWhatsappReservationSessions();
-  const { data: integrations = [] } = useCompanyIntegrations();
+  const { data: integrationRows = [] } = useCompanyIntegrations();
+  const integrations = integrationRows.filter((item) => item.tipo !== "booking");
   const insert = useInsert("company_integrations", ["company_integrations"]);
   const update = useUpdate("company_integrations", ["company_integrations"]);
   const [open, setOpen] = useState(false);
@@ -53,7 +54,7 @@ function Integracoes() {
     <div>
       <PageHeader
         title="Integracoes"
-        subtitle="Cadastre canais externos por empresa: WhatsApp Business, Booking, Airbnb, Google e channel managers."
+        subtitle="Hospedin para consulta de reservas. A conexão direta com Booking não é mais oferecida."
         action={
           <button onClick={() => { setInitialType("whatsapp_business"); setOpen(true); }} className="btn-primary flex items-center gap-1.5">
             <Plus className="h-4 w-4" /> Canal
@@ -68,13 +69,6 @@ function Integracoes() {
           description="Recebe mensagens e cria reservas após confirmação dos dados."
           status={integrationStatus(integrations, "whatsapp_business")}
           onClick={() => openProvider("whatsapp_business", integrations, setEditing, setInitialType, setOpen)}
-        />
-        <IntegrationQuickStart
-          icon={<CalendarClock />}
-          title="Booking"
-          description="Recebe reservas pelo webhook oficial ou channel manager."
-          status={integrationStatus(integrations, "booking")}
-          onClick={() => openProvider("booking", integrations, setEditing, setInitialType, setOpen)}
         />
         <IntegrationQuickStart
           icon={<MapPinned />}
@@ -106,47 +100,7 @@ function Integracoes() {
         />
       </section>
 
-      <section className="mb-5 rounded-xl border border-pine/30 bg-sage-bg/50 p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="mt-0.5 h-5 w-5 text-pine" />
-            <div>
-              <h3 className="font-serif text-lg font-bold text-pine-dark">Conector Booking pelo Chrome</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Usa a sessão já autenticada da Extranet, mostra os dados antes do envio e nunca armazena a senha da Booking.
-              </p>
-              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                <p><strong>Endpoint:</strong> https://xjdqjjfnpcnywrkxentv.supabase.co/functions/v1/booking-browser-ingest</p>
-                <p><strong>Empresa:</strong> {current.data?.id ?? "Carregando…"}</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <a href="/booking-extension-install.html" target="_blank" rel="noreferrer" className="btn-primary inline-flex items-center gap-1.5">
-              <Download className="h-4 w-4" /> Instalar conector Booking
-            </a>
-            <a href="/booking-eventos" className="btn-ghost inline-flex items-center gap-1.5">
-              <TestTube2 className="h-4 w-4" /> Testar e conferir eventos
-            </a>
-          </div>
-        </div>
-      </section>
-
-      <section className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4">
-        <div className="flex items-start gap-3">
-          <CalendarClock className="mt-0.5 h-5 w-5 text-primary" />
-          <div>
-            <h3 className="font-serif text-lg font-bold text-pine-dark">Portal de Eventos da Booking</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Consulte cada evento por empresa, com hóspede, quarto, check-in, checkout, código Booking, status e resultado do cancelamento.
-              O portal é somente leitura e não exclui reservas, hóspedes, pagamentos ou histórico.
-            </p>
-          </div>
-        </div>
-        <a href="/booking-eventos" className="btn-primary inline-flex items-center gap-1.5">
-          Abrir
-        </a>
-      </section>
+      <HospedinReadOnlyPanel />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="card-surface p-4">
@@ -169,7 +123,7 @@ function Integracoes() {
             <h3 className="font-serif text-lg font-bold">Canais cadastrados</h3>
           </div>
           <p className="font-serif text-3xl font-bold">{integrations.length}</p>
-          <p className="text-sm text-muted-foreground">Booking, Airbnb, Google, WhatsApp e outros provedores.</p>
+          <p className="text-sm text-muted-foreground">Hospedin (consulta), WhatsApp e outros provedores.</p>
         </section>
 
         <section className="card-surface p-4">
@@ -223,23 +177,10 @@ function Integracoes() {
           <div>
             <h3 className="font-serif text-lg font-bold text-pine-dark">Credenciais protegidas</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              IDs de conta e propriedade podem ser salvos aqui. Tokens de acesso do WhatsApp, Booking, Google e Meta não são gravados
+              IDs de conta e propriedade podem ser salvos aqui. Tokens de acesso do WhatsApp, Hospedin, Google e Meta não são gravados
               no código nem enviados ao navegador; a ativação final deve usar secrets da função no servidor.
             </p>
           </div>
-        </div>
-      </section>
-
-      <section className="mt-5 card-surface overflow-x-auto">
-        <div className="grid gap-3 border-b border-border p-4 md:grid-cols-2">
-          <div>
-            <h3 className="font-serif text-lg font-bold">Webhook Booking / Channel Manager</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              A mesma URL aceita reservas estruturadas do Booking ou de um channel manager com source=booking. Envie hospede, quarto, checkin,
-              checkout, pessoas e valor total/diaria.
-            </p>
-          </div>
-          <code className="block break-all rounded-md bg-muted p-3 text-xs">{webhookUrl.replace("SEU_TOKEN", "TOKEN_DO_SUPABASE")}</code>
         </div>
       </section>
 
@@ -454,8 +395,6 @@ function IntegrationForm({
   const [ativo, setAtivo] = useState(editing?.ativo ?? true);
   const [businessAccountId, setBusinessAccountId] = useState(String(storedConfig.business_account_id ?? ""));
   const [phoneNumberId, setPhoneNumberId] = useState(String(storedConfig.phone_number_id ?? ""));
-  const [hotelId, setHotelId] = useState(String(storedConfig.hotel_id ?? ""));
-  const [partnerId, setPartnerId] = useState(String(storedConfig.partner_id ?? ""));
   const [propertyId, setPropertyId] = useState(String(storedConfig.property_id ?? ""));
   const [adAccountId, setAdAccountId] = useState(String(storedConfig.ad_account_id ?? ""));
   const [pixelId, setPixelId] = useState(String(storedConfig.pixel_id ?? ""));
@@ -481,8 +420,6 @@ function IntegrationForm({
               ...storedConfig,
               business_account_id: businessAccountId || null,
               phone_number_id: phoneNumberId || null,
-              hotel_id: hotelId || null,
-              partner_id: partnerId || null,
               property_id: propertyId || null,
               ad_account_id: adAccountId || null,
               pixel_id: pixelId || null,
@@ -517,19 +454,6 @@ function IntegrationForm({
             </Field>
             <p className="col-span-2 text-xs text-muted-foreground">
               O token de acesso e o token de verificação permanecem protegidos no servidor.
-            </p>
-          </div>
-        )}
-        {tipo === "booking" && (
-          <div className="grid grid-cols-2 gap-3 rounded-md border border-border p-3">
-            <Field label="Hotel ID no Booking">
-              <input className="field" value={hotelId} onChange={(e) => setHotelId(e.target.value)} required />
-            </Field>
-            <Field label="Partner / Connectivity ID">
-              <input className="field" value={partnerId} onChange={(e) => setPartnerId(e.target.value)} />
-            </Field>
-            <p className="col-span-2 text-xs text-muted-foreground">
-              O Booking precisa liberar a conexão ou enviar os eventos por um channel manager homologado.
             </p>
           </div>
         )}
