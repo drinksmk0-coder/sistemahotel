@@ -29,7 +29,7 @@ function roomNumberFromValue(value: unknown): number | null {
 function mapRemoteRooms(remoteRooms: RemoteRoom[], localRoomIds: Set<number>) {
   const proposed = new Map<number, number>();
   const claims = new Map<number, number[]>();
-  const labels = new Map<number, string>();
+
   for (const remote of remoteRooms) {
     const remoteId = Number(remote.id);
     if (!Number.isSafeInteger(remoteId)) continue;
@@ -38,10 +38,10 @@ function mapRemoteRooms(remoteRooms: RemoteRoom[], localRoomIds: Set<number>) {
     if (candidates.length !== 1) continue;
     proposed.set(remoteId, candidates[0]);
     claims.set(candidates[0], [...(claims.get(candidates[0])??[]), remoteId]);
-    labels.set(remoteId, String(ROOM_KEYS.map(key=>attributes[key]).find(value=>roomNumberFromValue(value)===candidates[0])??""));
+
   }
   for (const [remote,local] of proposed) if ((claims.get(local)?.length??0)!==1) proposed.delete(remote);
-  return { proposed, labels };
+  return { proposed };
 }
 
 export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
@@ -54,12 +54,14 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
   const [issues,setIssues] = useState<string[]>([]);
   const [unmapped,setUnmapped] = useState<number[]>([]);
   const [roomInfo,setRoomInfo] = useState("");
+  const [diagnostics,setDiagnostics] = useState<Array<{id:number;fields:string;values:string}>>([]);
+  const [issueCounts,setIssueCounts] = useState<Record<string,number>>({});
   const [availableRooms,setAvailableRooms] = useState<number[]>([]);
   const [roomMap,setRoomMap] = useState<Record<string,number>>({});
   const [message,setMessage] = useState("Conferir antes de importar. As alterações são feitas apenas no PMS.");
   async function review() {
     if (!companyId || busy) return;
-    setBusy(true); setRows([]);setIssues([]);setUnmapped([]);setMessage("Conferindo reservas e quartos...");
+    setBusy(true); setRows([]);setIssues([]);setUnmapped([]);setDiagnostics([]);setIssueCounts({});setMessage("Conferindo reservas e quartos...");
     try {
       const session = await supabase.auth.getSession();
       const jwt = session.data.session?.access_token;
@@ -75,7 +77,7 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
         if(!response.ok)throw new Error(body.error || "Falha no Hospedin");
         bookings.push(...(Array.isArray(body.data)?body.data:[]));
         cursor = body.nextCursor ?? null;
-        if(!cursor)break;
+        if(!cursor){if(body.hasNextPage)throw new Error("Paginação incompleta: reserva sem cursor.");break;}
         if(seen.has(cursor) || page===99)throw new Error("Paginação incompleta. Nenhuma reserva será importada.");
         seen.add(cursor);
       }
@@ -90,7 +92,7 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
         if(!response.ok)throw new Error("Não foi possível consultar os quartos do Hospedin: "+(body.error||response.status));
         remoteRooms.push(...(Array.isArray(body.data)?body.data:[]));
         roomCursor=body.nextCursor??null;
-        if(!roomCursor)break;
+        if(!roomCursor){if(body.hasNextPage)throw new Error("Paginação incompleta: quarto sem cursor.");break;}
         if(seenRoomCursors.has(roomCursor)||page===99)throw new Error("Lista de quartos incompleta. Nenhuma reserva importada.");
         seenRoomCursors.add(roomCursor);
       }
@@ -104,6 +106,10 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
       setAvailableRooms(localRoomNumbers);
       const roomIds=new Set(localRoomNumbers);
       const {proposed:automaticMapping}=mapRemoteRooms(remoteRooms,roomIds);
+      setDiagnostics(remoteRooms.slice(0,30).map(room=>{
+        const attrs=room.attributes??{};
+        return {id:Number(room.id),fields:Object.keys(attrs).join(", "),values:ROOM_KEYS.map(k=>attrs[k]).filter(v=>v!=null).map(String).join(" | ")||"(sem identificação)"};
+      }));
       const key="hotelreal.hospedin.roomMap."+companyId;
       const stored:Record<string,number>=JSON.parse(window.localStorage.getItem(key)??"{}");
       setRoomMap(stored);
@@ -113,6 +119,8 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
       const codes=new Set(local.map(x=>x.codigo_externo).filter(Boolean));
       const occupied=[...local];
       const ready:Row[]=[];const rejected:string[]=[];
+      const reasons:Record<string,number>={};
+      const reject=(code:string,reason:string,category:string)=>{rejected.push(code+" - "+reason);reasons[category]=(reasons[category]??0)+1;};
       for(const book of bookings)for(const unit of book.attributes?.units??[]) {
         const code="hospedin:"+book.id+":"+String(unit.unit_id??"");
         const quarto=automaticMapping.get(Number(unit.place_id)) ?? stored[String(unit.place_id)] ?? NaN;
@@ -120,15 +128,15 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
         const duration=Math.round((Date.parse(end+"T12:00:00Z")-Date.parse(start+"T12:00:00Z"))/86400000);
         const status=toStatus(unit.status);
         const guest=unit.guests?.find(g=>g.role==="responsible"&&g.name)?.name??unit.guests?.find(g=>g.name)?.name;
-        if(unit.unit_id==null || !book.id){rejected.push(code+" — ID externo incompleto");continue;}
-        if(codes.has(code)){rejected.push(code+" — já existe no PMS");continue;}
-        if(!roomIds.has(quarto)){if(Number.isInteger(Number(unit.place_id)))missingIds.add(Number(unit.place_id));rejected.push(code+" — associação automática não encontrada para UH Hospedin "+String(unit.place_id));continue;}
-        if(!start||!end||!(duration>0)||!status||!guest?.trim()){rejected.push(code+" — faltam dados obrigatórios");continue;}
+        if(unit.unit_id==null || !book.id){reject(code,"ID externo incompleto","Sem ID");continue;}
+        if(codes.has(code)){reject(code,"já existe no PMS","Já importadas");continue;}
+        if(!roomIds.has(quarto)){if(Number.isInteger(Number(unit.place_id)))missingIds.add(Number(unit.place_id));reject(code,"quarto Hospedin ID "+String(unit.place_id)+" não associado","Quartos não associados");continue;}
+        if(!start||!end||!(duration>0)||!status||!guest?.trim()){reject(code,"dados incompletos: "+[!(duration>0)?"datas":null,!status?"status":null,!guest?.trim()?"hóspede":null].filter(Boolean).join(", "),"Dados incompletos");continue;}
         const row:Row={company_id:companyId,codigo_externo:code,quarto,cliente_nome:guest.trim(),cliente_id:null,checkin:start,checkout:end,diarias:duration,pessoas:Math.max(1,(unit.adults??0)+(unit.children??0)),valor_diaria:Math.max(0,(unit.daily_cents??0)/100),valor_total:Math.max(0,(unit.total_daily_cents??0)/100),valor_pago:0,desconto:0,pago:false,pagamento:"não informado",status,canal:"Hospedin",motivo_estadia:"Hospedin "+book.id+" — pagamentos não sincronizados"};
-        if(occupied.some(x=>overlap(x,row))){rejected.push(code+" — quarto já reservado no período");continue;}
+        if(occupied.some(x=>overlap(x,row))){reject(code,"quarto ocupado no período","Conflitos");continue;}
         ready.push(row);occupied.push(row);codes.add(code);
       }
-      setRows(ready);setIssues(rejected);setUnmapped([...missingIds]);
+      setRows(ready);setIssues(rejected);setUnmapped([...missingIds]);setIssueCounts(reasons);
       setMessage("Hospedin: "+bookings.length+" reservas consultadas. "+ready.length+" unidades prontas para importar; "+rejected.length+" pendentes/ignoradas. Nada foi gravado.");
     } catch(e) {setMessage(e instanceof Error?e.message:"Erro na conferência.");}
     finally {setBusy(false);}
@@ -175,6 +183,8 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
       <p className="mt-1 text-muted-foreground">Se aparecer Hospedin não habilitado, confira se esta empresa corresponde à autorizada para integração.</p>
     </div>
     {roomInfo && <p className="mt-2 text-xs text-muted-foreground">{roomInfo}</p>}
+    {Object.keys(issueCounts).length>0 && <div className="mt-2 flex flex-wrap gap-2 text-xs">{Object.entries(issueCounts).map(([reason,count])=><span className="rounded border px-2 py-1" key={reason}>{reason}: {count}</span>)}</div>}
+    {diagnostics.length>0 && <details className="mt-2 rounded border p-3 text-xs"><summary className="cursor-pointer font-bold">Diagnóstico de quartos Hospedin (sem dados pessoais)</summary><div className="mt-2 max-h-40 overflow-auto">{diagnostics.map(item=><p key={item.id} className="border-b py-1">ID {item.id}: {item.values} · Campos: {item.fields}</p>)}</div></details>
     {unmapped.length>0 && <div className="mt-3 rounded-lg border p-3">
       <h4 className="font-bold text-sm">Quartos que não puderam ser identificados automaticamente</h4>
       <p className="text-xs text-muted-foreground">A associação automática usa os identificadores disponíveis no Hospedin, aceita variações como "UH 101" e exige correspondência única. Sem identificação confiável, nenhuma reserva desse quarto será importada. Mapeamento opcional abaixo apenas para exceções.</p>
