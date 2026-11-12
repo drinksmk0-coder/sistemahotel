@@ -19,11 +19,11 @@ function toStatus(value?: string) {
 }
 
 type RemoteRoom = { id: string; attributes?: Record<string,unknown> };
-const ROOM_KEYS = ["number","numero","room_number","room_no","room_code","identification","identifier","code","name","title","label","description"] as const;
+const ROOM_KEYS = ["number","numero","room_number","room_no","room_code","identification","identifier","code","name","title","label","description","identificacao","number_name","room","unit_name"] as const;
 function roomNumberFromValue(value: unknown): number | null {
   if (typeof value !== "string" && typeof value !== "number") return null;
-  const label = String(value).trim();
-  const match = label.match(/^(?:(?:quarto|apartamento|apto\.?|apt\.?|uh|unidade)\s*[-#:]?\s*)?(\d{1,4})$/i);
+  const label=String(value).trim();
+  const match=label.match(/^(?:(?:quarto|apartamento|apto|apt|uh|unidade|room|habita[cç][aã]o)\s*[-#.:]?\s*)?0*(\d{1,4})(?:(?:\s*[-–|]\s*|\s+)(?:standard|standard casal|single|duplo|triplo|duplo casal|solteiro|casal|luxo|suite|su[ií]te|premium|econ[oô]mico|executivo|familiar))?$/i);
   return match ? Number(match[1]) : null;
 }
 function mapRemoteRooms(remoteRooms: RemoteRoom[], localRoomIds: Set<number>) {
