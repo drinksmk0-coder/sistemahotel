@@ -186,7 +186,7 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
     </div>
     {roomInfo && <p className="mt-2 text-xs text-muted-foreground">{roomInfo}</p>}
     {Object.keys(issueCounts).length>0 && <div className="mt-2 flex flex-wrap gap-2 text-xs">{Object.entries(issueCounts).map(([reason,count])=><span className="rounded border px-2 py-1" key={reason}>{reason}: {count}</span>)}</div>}
-    {diagnostics.length>0 && <details className="mt-2 rounded border p-3 text-xs"><summary className="cursor-pointer font-bold">Diagnóstico de quartos Hospedin (sem dados pessoais)</summary><div className="mt-2 max-h-40 overflow-auto">{diagnostics.map(item=><p key={item.id} className="border-b py-1">ID {item.id}: {item.values} · Campos: {item.fields}</p>)}</div></details>
+    {diagnostics.length>0 && <details className="mt-2 rounded border p-3 text-xs"><summary className="cursor-pointer font-bold">Diagnóstico de quartos Hospedin (sem dados pessoais)</summary><div className="mt-2 max-h-40 overflow-auto">{diagnostics.map(item=><p key={item.id} className="border-b py-1">ID {item.id}: {item.values} · Campos: {item.fields}</p>)}</div></details>}
     {unmapped.length>0 && <div className="mt-3 rounded-lg border p-3">
       <h4 className="font-bold text-sm">Quartos que não puderam ser identificados automaticamente</h4>
       <p className="text-xs text-muted-foreground">A associação automática usa os identificadores disponíveis no Hospedin, aceita variações como "UH 101" e exige correspondência única. Sem identificação confiável, nenhuma reserva desse quarto será importada. Mapeamento opcional abaixo apenas para exceções.</p>
