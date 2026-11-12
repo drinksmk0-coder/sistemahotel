@@ -34,7 +34,9 @@ function mapRemoteRooms(remoteRooms: RemoteRoom[], localRoomIds: Set<number>) {
     const remoteId = Number(remote.id);
     if (!Number.isSafeInteger(remoteId)) continue;
     const attributes = remote.attributes ?? {};
-    const candidates = [...new Set(ROOM_KEYS.map(key => roomNumberFromValue(attributes[key])).filter((value):value is number => value !== null && localRoomIds.has(value)))];
+    const identificationKeys=["number","numero","room_number","room_no","room_code","identification","identifier","name","title","label","unit_name","number_name","identificacao","room"] as const;
+    const primary=[...new Set(identificationKeys.map(key=>roomNumberFromValue(attributes[key])).filter((value):value is number=>value!==null&&localRoomIds.has(value)))];
+    const candidates=primary.length?primary:[...new Set(["code","description"].map(key=>roomNumberFromValue(attributes[key])).filter((value):value is number=>value!==null&&localRoomIds.has(value)))];
     if (candidates.length !== 1) continue;
     proposed.set(remoteId, candidates[0]);
     claims.set(candidates[0], [...(claims.get(candidates[0])??[]), remoteId]);
