@@ -7,6 +7,57 @@ const RESOURCES = {
   channels: "/api/v3/channels",
 } as const;
 
+// Cache apenas no servidor. O token nunca vai ao navegador ou banco.
+let tokenCache: { token: string; expiresAt: number; credentialKey: string } | null = null;
+let pendingToken: Promise<string> | null = null;
+let retryAfterAt = 0;
+class HospedinTokenError extends Error {
+  constructor(message: string, readonly upstreamStatus: number, readonly retryAfterSeconds?: number) { super(message); }
+}
+async function getHospedinToken(clientId: string, clientSecret: string): Promise<string> {
+  const now=Date.now();
+  // Identificador não secreto; se as credenciais mudarem, não reutilizar token antigo.
+  const credentialKey=clientId;
+  if(tokenCache && tokenCache.credentialKey===credentialKey && tokenCache.expiresAt>now) return tokenCache.token;
+  if(retryAfterAt>now) throw new HospedinTokenError("Hospedin limitou autenticações; aguarde o desbloqueio sem repetir a consulta.",429,Math.ceil((retryAfterAt-now)/1000));
+  if(pendingToken)return pendingToken;
+  pendingToken=(async()=>{
+    const response=await fetch("https://pms-api.hospedin.com/api/v3/authentication/access_tokens",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({client_id:clientId,client_secret:clientSecret}),
+      cache:"no-store",signal:AbortSignal.timeout(12000),
+    });
+    if(!response.ok){
+      if(response.status===429){
+        const value=response.headers.get("Retry-After");
+        const seconds=value && /^\d+$/.test(value)?Number(value):null;
+        const date=value && seconds===null?Date.parse(value):NaN;
+        const retry=Math.max(60,Math.min(3600,seconds??(Number.isFinite(date)?Math.ceil((date-Date.now())/1000):600)));
+        retryAfterAt=Date.now()+retry*1000;
+        throw new HospedinTokenError("Hospedin limitou as autenticações (HTTP 429). Aguarde antes de consultar novamente.",429,retry);
+      }
+      throw new HospedinTokenError(
+        response.status===401?"Credenciais Hospedin recusadas (HTTP 401).":
+        response.status===403?"Aplicação sem permissão no Hospedin (HTTP 403).":
+        response.status>=500?"Serviço de autenticação Hospedin indisponível (HTTP "+response.status+").":
+        "Falha na autenticação Hospedin (HTTP "+response.status+").",
+        response.status
+      );
+    }
+    const body=await response.json() as {meta?:{access_token?:string;expires_in?:number;expires_at?:string}};
+    const token=body.meta?.access_token;
+    if(!token)throw new HospedinTokenError("Hospedin não devolveu token de acesso.",502);
+    const seconds=Number(body.meta?.expires_in??3600);
+    const bySeconds=Date.now()+Math.max(60,Number.isFinite(seconds)?seconds:3600)*1000;
+    const byDate=body.meta?.expires_at?Date.parse(body.meta.expires_at):bySeconds;
+    const expiresAt=Math.min(bySeconds,Number.isFinite(byDate)?byDate:bySeconds)-60_000;
+    tokenCache={token,expiresAt,credentialKey};
+    retryAfterAt=0;
+    return token;
+  })().finally(()=>{pendingToken=null;});
+  return pendingToken;
+}
+
 export const Route = createFileRoute("/api/hospedin")({
   server: {
     handlers: {
@@ -49,25 +100,7 @@ export const Route = createFileRoute("/api/hospedin")({
           if (!clientId || !clientSecret) {
             return Response.json({ configured: false, error: "Credenciais Hospedin não configuradas no servidor." }, { status: 503 });
           }
-          const tokenResponse = await fetch("https://pms-api.hospedin.com/api/v3/authentication/access_tokens", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ client_id: clientId, client_secret: clientSecret }),
-            cache: "no-store",
-            signal: AbortSignal.timeout(12000),
-          });
-          if (!tokenResponse.ok) {
-            const upstreamStatus = tokenResponse.status;
-            const error = upstreamStatus === 401 ? "Hospedin recusou o Client ID ou Client Secret (HTTP 401). Confira as credenciais da aplicação no painel Hospedin." :
-              upstreamStatus === 400 ? "Hospedin rejeitou os parâmetros de autenticação (HTTP 400)." :
-              upstreamStatus === 403 ? "A aplicação não tem permissão para autenticar no Hospedin (HTTP 403)." :
-              upstreamStatus === 429 ? "Hospedin limitou as tentativas de autenticação (HTTP 429). Não repita até normalizar." :
-              upstreamStatus >= 500 ? "Serviço de autenticação Hospedin indisponível temporariamente (HTTP "+upstreamStatus+")." :
-              "Falha ao obter token Hospedin (HTTP "+upstreamStatus+").";
-            return Response.json({ error, upstreamStatus }, { status: 502 });
-          }
-          const tokenJson = await tokenResponse.json() as { meta?: { access_token?: string } };
-          const token = tokenJson.meta?.access_token;
-          if (!token) return Response.json({ error: "Token Hospedin ausente." }, { status: 502 });
+          const token = await getHospedinToken(clientId, clientSecret);
           const base = RESOURCES[resource as keyof typeof RESOURCES];
           const upstreamUrl = new URL(`https://pms-api.hospedin.com${base}`);
           upstreamUrl.searchParams.set("page[size]", "100");
@@ -108,7 +141,13 @@ export const Route = createFileRoute("/api/hospedin")({
             paginationError: hasNextPage && !nextCursor ? "Hospedin enviou uma próxima página sem cursor utilizável." : null,
           }, {headers: {"Cache-Control": "private, no-store"}});
 
-        } catch {
+        } catch (error) {
+          if(error instanceof HospedinTokenError){
+            return Response.json({error:error.message,upstreamStatus:error.upstreamStatus,retryAfterSeconds:error.retryAfterSeconds??null},{
+              status:error.upstreamStatus===429?429:502,
+              headers:error.retryAfterSeconds?{"Retry-After":String(error.retryAfterSeconds)}:undefined
+            });
+          }
           return Response.json({ error: "Não foi possível conectar ao Hospedin." }, { status: 502 });
         }
       },
