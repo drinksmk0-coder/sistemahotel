@@ -80,9 +80,27 @@ export const Route = createFileRoute("/api/hospedin")({
           if (!upstream.ok) {
             return Response.json({ error: "Consulta ao Hospedin indisponível.", upstreamStatus: upstream.status }, { status: 502 });
           }
-          return Response.json({ resource, source: "hospedin", readOnly: true, data: payload?.data ?? [], hasNextPage: Boolean(payload?.links?.next), nextCursor: (() => { const link = payload?.links?.next; if (typeof link !== "string") return null; try { const next = new URL(link); return next.origin === upstreamUrl.origin ? next.searchParams.get("page[after]") : null; } catch { return null; } })() }, {
-            headers: { "Cache-Control": "private, no-store" },
-          });
+          // Hospedin pode devolver links.next absoluto ou relativo. Preservar
+          // somente o cursor da mesma rota, sem aceitar redirecionamentos.
+          const nextLink = payload?.links?.next;
+          let nextCursor: string | null = null;
+          if (typeof nextLink === "string" && nextLink.trim()) {
+            try {
+              const next = new URL(nextLink, upstreamUrl);
+              if (next.origin === upstreamUrl.origin && next.pathname === upstreamUrl.pathname) {
+                nextCursor = next.searchParams.get("page[after]") ?? next.searchParams.get("page%5Bafter%5D");
+              }
+            } catch {
+              // URL não reconhecida; não prosseguir com paginação insegura.
+            }
+          }
+          const hasNextPage = Boolean(nextLink);
+          return Response.json({
+            resource, source: "hospedin", readOnly: true,
+            data: payload?.data ?? [], hasNextPage, nextCursor,
+            paginationError: hasNextPage && !nextCursor ? "Hospedin enviou uma próxima página sem cursor utilizável." : null,
+          }, {headers: {"Cache-Control": "private, no-store"}});
+
         } catch {
           return Response.json({ error: "Não foi possível conectar ao Hospedin." }, { status: 502 });
         }
