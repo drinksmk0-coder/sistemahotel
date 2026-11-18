@@ -294,7 +294,8 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
     } finally {
       setBusy(false);
       if (done > 0) {
-        void qc.invalidateQueries({ queryKey: ["reservations"] });
+        void qc.invalidateQueries({ queryKey: ["reservations", companyId] });
+        void qc.invalidateQueries({ queryKey: ["operational-room-board", companyId] });
         void qc.invalidateQueries({ queryKey: ["reservation_groups"] });
         onImported?.();
       }

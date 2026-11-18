@@ -22,7 +22,7 @@ import {
   useComplaints,
   useInsert,
   useRateRules,
-  useReservations,
+  useRoomMapReservations,
   useRooms,
   useSales,
   useUpdate,
@@ -77,11 +77,10 @@ type RoomGroup = {
   rooms: Room[];
 };
 
-export function MapaQuartos() {
+export function MapaQuartos({ initialDate, initialRoom }: { initialDate?: string; initialRoom?: number }) {
   const today = todayISO();
   const { data: rooms = [] } = useRooms();
   const { data: clients = [] } = useClients();
-  const { data: reservations = [] } = useReservations();
   const { data: sales = [] } = useSales();
   const { data: complaints = [] } = useComplaints();
   const { data: rateRules = [] } = useRateRules();
@@ -92,11 +91,12 @@ export function MapaQuartos() {
 
   const [selected, setSelected] = useState<Room | null>(null);
   const [newFor, setNewFor] = useState<number | null>(null);
-  const [viewDate, setViewDate] = useState(today);
+  const [viewDate, setViewDate] = useState(initialDate ?? today);
+  const { data: reservations = [], isPending: reservationsLoading, isError: reservationsError } = useRoomMapReservations(viewDate);
   const [viewMode, setViewMode] = useState<"timeline" | "cards">("timeline");
   const [statusFilter, setStatusFilter] = useState("todos");
   const [featureFilter, setFeatureFilter] = useState("todos");
-  const [roomSearch, setRoomSearch] = useState("");
+  const [roomSearch, setRoomSearch] = useState(initialRoom == null ? "" : String(initialRoom));
 
   const filteredRooms = useMemo(
     () =>
@@ -394,7 +394,7 @@ export function MapaQuartos() {
           </label>
         </div>
 
-        <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] text-muted-foreground">
+        {!reservationsLoading && !reservationsError && <div className="mt-2 flex flex-wrap gap-1.5 text-[9px] text-muted-foreground">
           <SummaryChip label="Livres" value={summary.livres} />
           <SummaryChip label="Ocupados" value={summary.ocupados} />
           <SummaryChip label="Reservados" value={summary.reservados} />
@@ -407,12 +407,15 @@ export function MapaQuartos() {
           <span className="self-center font-semibold">
             {orderedRooms.length} de {rooms.length} quarto(s)
           </span>
-        </div>
+        </div>}
       </section>
+
+      {reservationsLoading && <p role="status" className="px-2 text-sm text-muted-foreground">Carregando reservas do período…</p>}
+      {reservationsError && <p role="alert" className="px-2 text-sm text-brick">Falha ao carregar as reservas do mapa. Atualize a página para tentar novamente.</p>}
 
       {viewMode === "timeline" ? (
         <RoomTimeline
-          rooms={orderedRooms}
+          rooms={reservationsLoading || reservationsError ? [] : orderedRooms}
           reservations={reservations}
           startDate={viewDate}
           onStartDateChange={setViewDate}
@@ -424,7 +427,7 @@ export function MapaQuartos() {
         />
       ) : (
         <section className="space-y-3">
-          {groups.map((group) => (
+          {!reservationsLoading && !reservationsError && groups.map((group) => (
             <article
               key={group.key}
               className="rounded-xl border border-border bg-card/60 p-3"
@@ -1041,7 +1044,7 @@ function roomVisualStatus(
     activeReservationForRoom(reservations, room.numero);
   if (!reservation) return base;
   const account = buildGuestAccount(reservation, sales);
-  const current = reservation.status === "ocupado" || reservation.checkin < date;
+  const current = ["ocupado", "saida_pendente"].includes(reservation.status);
   if (current) {
     return account.balance <= 0 && account.total > 0
       ? "hospedado_pago"
@@ -1057,25 +1060,20 @@ function roomStatusAtDate(
   date: string,
 ) {
   const manual = String(room.situacao ?? "");
-  if (date === todayISO()) {
-    return roomStatusToday(reservations, room.numero, date, manual);
-  }
+  const today = todayISO();
+  const maintenance = manual === "manutencao" || reservations.some(
+    (reservation) => reservation.quarto === room.numero && reservation.status === "manutencao"
+      && (date === today || (reservation.checkin <= date && reservation.checkout > date)),
+  );
+  if (maintenance) return "manutencao";
+  const stay = reservationForDate(reservations, room.numero, date);
+  if (stay) return ["ocupado", "saida_pendente"].includes(stay.status) ? "ocupado" : "reservado";
+  if (date === today) return roomStatusToday(reservations, room.numero, date, manual);
   const active = reservations.filter(
     (reservation) =>
       reservation.quarto === room.numero &&
       !["cancelado", "finalizado", "manutencao"].includes(reservation.status),
   );
-  if (active.some((reservation) => reservation.checkin === date)) {
-    return "reservado";
-  }
-  if (
-    active.some(
-      (reservation) =>
-        reservation.checkin < date && reservation.checkout > date,
-    )
-  ) {
-    return "ocupado";
-  }
   if (active.some((reservation) => reservation.checkout === date)) {
     return "limpeza";
   }
