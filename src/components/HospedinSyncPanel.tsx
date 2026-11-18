@@ -6,9 +6,100 @@ import { supabase } from "@/integrations/supabase/client";
 type Unit = { unit_id?: number; place_id?: number; status?: string; check_in?: string; check_out?: string; adults?: number; children?: number; daily_cents?: number; total_daily_cents?: number; guests?: Array<{name?: string; role?: string}> };
 type Booking = { id: string; attributes?: { check_in?: string; check_out?: string; units?: Unit[] } };
 type Row = { company_id: string; codigo_externo: string; quarto: number; cliente_nome: string; checkin: string; checkout: string; diarias: number; pessoas: number; valor_diaria: number; valor_total: number; status: string; canal: string; pagamento: string; valor_pago: number; desconto: number; pago: boolean; cliente_id: null; motivo_estadia: string };
+type LocalRow = {
+  id: string;
+  codigo_externo: string | null;
+  group_id: string | null;
+  origem_importacao: string | null;
+  quarto: number;
+  cliente_nome: string;
+  checkin: string;
+  checkout: string;
+  status: string;
+};
+
 const day = (s?: string) => s?.slice(0,10) ?? "";
 const active = (s: string) => s !== "cancelado" && s !== "finalizado";
 const overlap = (a: {quarto:number;checkin:string;checkout:string;status:string}, b:{quarto:number;checkin:string;checkout:string;status:string}) => a.quarto===b.quarto && active(a.status) && active(b.status) && a.checkin<b.checkout && a.checkout>b.checkin;
+const bookingKey = (code: string) => code.slice(0, code.lastIndexOf(":"));
+const normalized = (value?: string | null) => value?.trim().toLowerCase() ?? "";
+
+function alreadyInPms(local: LocalRow, row: Row) {
+  const code = normalized(local.codigo_externo);
+  const incoming = normalized(row.codigo_externo);
+  if (code === incoming) return true;
+  if (local.quarto !== row.quarto || local.checkin !== row.checkin || local.checkout !== row.checkout
+      || normalized(local.cliente_nome) !== normalized(row.cliente_nome)
+      || (local.status === "cancelado") !== (row.status === "cancelado")) return false;
+  if (!code) return true;
+
+  // The spreadsheet importer used the booking code for its external ID.
+  const legacyBookingCode = bookingKey(incoming).replace(/^hospedin:r_/, "");
+  return normalized(local.origem_importacao).startsWith("hospedin")
+    && /^\d+$/.test(legacyBookingCode)
+    && code === legacyBookingCode;
+}
+
+async function loadLocalReservations(companyId: string): Promise<LocalRow[]> {
+  const pageSize = 500;
+  const result: LocalRow[] = [];
+  let cursor: string | undefined;
+  for (;;) {
+    let query = supabase.from("reservations")
+      .select("id,codigo_externo,group_id,origem_importacao,quarto,cliente_nome,checkin,checkout,status")
+      .eq("company_id", companyId)
+      .order("id")
+      .limit(pageSize);
+    if (cursor) query = query.gt("id", cursor);
+    const { data, error } = await query;
+    if (error) throw error;
+    const page = (data ?? []) as unknown as LocalRow[];
+    result.push(...page);
+    if (page.length < pageSize) return result;
+    cursor = page[page.length - 1].id;
+  }
+}
+
+function planInserts(rows: Row[], local: LocalRow[]) {
+  const bookings = new Map<string, Row[]>();
+  const batches: Array<Array<Row & { origem_importacao: string; group_id: string | null }>> = [];
+  for (const row of rows) {
+    if (row.status === "cancelado") {
+      batches.push([{ ...row, origem_importacao: "Hospedin API", group_id: null }]);
+      continue;
+    }
+    const key = bookingKey(row.codigo_externo);
+    const units = bookings.get(key) ?? [];
+    units.push(row);
+    bookings.set(key, units);
+  }
+
+  for (const [key, units] of bookings) {
+    const existingGroups = new Set(
+      local
+        .filter(row => row.group_id && row.status !== "cancelado"
+          && normalized(row.codigo_externo).startsWith(key.toLowerCase() + ":"))
+        .map(row => row.group_id),
+    );
+    const distinctRooms = new Set(units.map(row => row.quarto)).size;
+    const groupId = existingGroups.size === 1
+      ? [...existingGroups][0]
+      : existingGroups.size === 0 && distinctRooms > 1 ? crypto.randomUUID() : null;
+
+    // The existing Hospedin trigger creates the referenced group inside the insert.
+    units.sort((a, b) => a.checkin.localeCompare(b.checkin) || a.quarto - b.quarto);
+    const inserts = units.map(row => ({ ...row, origem_importacao: "Hospedin API", group_id: groupId }));
+    if (groupId) batches.push(inserts);
+    else batches.push(...inserts.map(row => [row]));
+  }
+  return batches;
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return error && typeof error === "object" && "message" in error && typeof error.message === "string"
+    ? error.message : fallback;
+}
+
 function toStatus(value?: string) {
   const s = (value ?? "").toLowerCase();
   if (s.includes("cancel")) return "cancelado";
@@ -54,6 +145,7 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
   const [busy,setBusy] = useState(false);
   const [rows,setRows] = useState<Row[]>([]);
   const [issues,setIssues] = useState<string[]>([]);
+  const [importIssues,setImportIssues] = useState<string[]>([]);
   const [unmapped,setUnmapped] = useState<number[]>([]);
   const [roomInfo,setRoomInfo] = useState("");
   const [diagnostics,setDiagnostics] = useState<Array<{id:number;fields:string;values:string}>>([]);
@@ -63,7 +155,7 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
   const [message,setMessage] = useState("Conferir antes de importar. As alterações são feitas apenas no PMS.");
   async function review() {
     if (!companyId || busy) return;
-    setBusy(true); setRows([]);setIssues([]);setUnmapped([]);setDiagnostics([]);setIssueCounts({});setMessage("Conferindo reservas e quartos...");
+    setBusy(true); setRows([]);setIssues([]);setImportIssues([]);setUnmapped([]);setDiagnostics([]);setIssueCounts({});setMessage("Conferindo reservas e quartos...");
     try {
       const session = await supabase.auth.getSession();
       const jwt = session.data.session?.access_token;
@@ -98,12 +190,11 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
         if(seenRoomCursors.has(roomCursor)||page===99)throw new Error("Lista de quartos incompleta. Nenhuma reserva importada.");
         seenRoomCursors.add(roomCursor);
       }
-      const [roomResult,localResult]=await Promise.all([
+      const [roomResult, local] = await Promise.all([
         supabase.from("rooms").select("numero").eq("company_id",companyId).lt("numero",900),
-        supabase.from("reservations").select("codigo_externo,quarto,checkin,checkout,status").eq("company_id",companyId)
+        loadLocalReservations(companyId),
       ]);
       if(roomResult.error)throw roomResult.error;
-      if(localResult.error)throw localResult.error;
       const localRoomNumbers=(roomResult.data??[]).map(x=>Number(x.numero));
       setAvailableRooms(localRoomNumbers);
       const roomIds=new Set(localRoomNumbers);
@@ -117,9 +208,8 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
       setRoomMap(stored);
       const missingIds=new Set<number>();
       setRoomInfo("Acomodações Hospedin: "+remoteRooms.length+"; quartos cadastrados no PMS: "+localRoomNumbers.length+"; correspondências automáticas confirmadas: "+automaticMapping.size+".");
-      const local=(localResult.data??[]) as Array<{codigo_externo:string|null;quarto:number;checkin:string;checkout:string;status:string}>;
-      const codes=new Set(local.map(x=>x.codigo_externo).filter(Boolean));
-      const occupied=[...local];
+      const codes = new Set(local.map(x => normalized(x.codigo_externo)).filter(Boolean));
+      const occupied: Array<Pick<Row, "quarto" | "checkin" | "checkout" | "status">> = [...local];
       const ready:Row[]=[];const rejected:string[]=[];
       const reasons:Record<string,number>={};
       const reject=(code:string,reason:string,category:string)=>{rejected.push(code+" - "+reason);reasons[category]=(reasons[category]??0)+1;};
@@ -131,16 +221,20 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
         const status=toStatus(unit.status);
         const guest=unit.guests?.find(g=>g.role==="responsible"&&g.name)?.name??unit.guests?.find(g=>g.name)?.name;
         if(unit.unit_id==null || !book.id){reject(code,"ID externo incompleto","Sem ID");continue;}
-        if(codes.has(code)){reject(code,"já existe no PMS","Já importadas");continue;}
+        if(codes.has(normalized(code))){reject(code,"já existe no PMS","Já importadas");continue;}
         if(!roomIds.has(quarto)){if(Number.isInteger(Number(unit.place_id)))missingIds.add(Number(unit.place_id));reject(code,"quarto Hospedin ID "+String(unit.place_id)+" não associado","Quartos não associados");continue;}
         if(!start||!end||!(duration>0)||!status||!guest?.trim()){reject(code,"dados incompletos: "+[!(duration>0)?"datas":null,!status?"status":null,!guest?.trim()?"hóspede":null].filter(Boolean).join(", "),"Dados incompletos");continue;}
         const row:Row={company_id:companyId,codigo_externo:code,quarto,cliente_nome:guest.trim(),cliente_id:null,checkin:start,checkout:end,diarias:duration,pessoas:Math.max(1,(unit.adults??0)+(unit.children??0)),valor_diaria:Math.max(0,(unit.daily_cents??0)/100),valor_total:Math.max(0,(unit.total_daily_cents??0)/100),valor_pago:0,desconto:0,pago:false,pagamento:"não informado",status,canal:"Hospedin",motivo_estadia:"Hospedin "+book.id+" — pagamentos não sincronizados"};
-        if(occupied.some(x=>overlap(x,row))){reject(code,"quarto ocupado no período","Conflitos");continue;}
-        ready.push(row);occupied.push(row);codes.add(code);
+        if (local.some(existing => alreadyInPms(existing, row))) {
+          reject(code, "estadia correspondente já existe no PMS", "Já no PMS");
+          continue;
+        }
+        if(occupied.some(x=>overlap(x,row))){reject(code,"UH "+quarto+" ocupada entre "+start+" e "+end,"Conflitos");continue;}
+        ready.push(row);occupied.push(row);codes.add(normalized(code));
       }
       setRows(ready);setIssues(rejected);setUnmapped([...missingIds]);setIssueCounts(reasons);
       setMessage("Hospedin: "+bookings.length+" reservas consultadas. "+ready.length+" unidades prontas para importar; "+rejected.length+" pendentes/ignoradas. Nada foi gravado.");
-    } catch(e) {setMessage(e instanceof Error?e.message:"Erro na conferência.");}
+    } catch(e) {setMessage(errorMessage(e, "Erro na conferência."));}
     finally {setBusy(false);}
   }
   function mapRoom(externalId:number, localRoom:number) {
@@ -151,21 +245,60 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
     setRows([]);setMessage("Mapeamento salvo neste navegador. Clique em Conferir novamente antes de importar.");
   }
   async function importRows() {
-    if(!companyId||busy||!rows.length)return;
-    if(!window.confirm("Importar "+rows.length+" reservas/UHs para o Hotel Real? Não altera o Hospedin e não importa pagamentos."))return;
-    setBusy(true);let done=0;let failed=0;let samples:string[]=[];
-    for(const row of rows){
-      const existing=await supabase.from("reservations").select("id").eq("company_id",companyId).eq("codigo_externo",row.codigo_externo).limit(1);
-      if(existing.error||existing.data?.length){if(existing.error)failed++;continue;}
-      const check=await supabase.from("reservations").select("id").eq("company_id",companyId).eq("quarto",row.quarto).lt("checkin",row.checkout).gt("checkout",row.checkin).not("status","in",'("finalizado","cancelado")').limit(1);
-      if(check.error||check.data?.length){failed++;samples.push(row.codigo_externo+" conflito");continue;}
-      const result=await supabase.from("reservations").insert(row as never);
-      if(result.error){failed++;samples.push(result.error.message);}else done++;
+    if (!companyId || busy || !rows.length) return;
+    const reviewedRows = rows.filter(row => row.company_id === companyId);
+    if (reviewedRows.length !== rows.length) {
+      setRows([]);
+      setMessage("A empresa mudou. Clique em Conferir novamente.");
+      return;
     }
-    setRows([]);setBusy(false);
-    await qc.invalidateQueries({queryKey:["reservations"]});
-    if(done>0)onImported?.();
-    setMessage(done+" unidades importadas; "+failed+" falhas. "+samples.slice(0,3).join("; "));
+    if (!window.confirm("Importar " + reviewedRows.length + " reservas/UHs para o Hotel Real? Não altera o Hospedin e não importa pagamentos.")) return;
+
+    setBusy(true);
+    setImportIssues([]);
+    let done = 0;
+    let alreadyPresent = 0;
+    const failures: string[] = [];
+
+    try {
+      const local = await loadLocalReservations(companyId);
+      const occupied: Array<Pick<Row, "quarto" | "checkin" | "checkout" | "status">> = [...local];
+      const ready = reviewedRows.filter(row => {
+        if (local.some(existing => alreadyInPms(existing, row))) {
+          alreadyPresent++;
+          return false;
+        }
+        if (occupied.some(existing => overlap(existing, row))) {
+          failures.push(`${row.codigo_externo} · UH ${row.quarto} · quarto ocupado entre ${row.checkin} e ${row.checkout}.`);
+          return false;
+        }
+        occupied.push(row);
+        return true;
+      });
+
+      for (const batch of planInserts(ready, local)) {
+        const { error } = await supabase.from("reservations").insert(batch as never);
+        if (error) {
+          failures.push(...batch.map(row => `${row.codigo_externo} · UH ${row.quarto} · ${error.message}`));
+        } else {
+          done += batch.length;
+        }
+      }
+
+      setRows([]);
+      setImportIssues(failures);
+      setMessage(`${done} unidades importadas. ${alreadyPresent} já no PMS. ${failures.length} pendências na gravação.`);
+    } catch (error) {
+      setImportIssues(failures);
+      setMessage(`${done} unidades importadas. Importação interrompida. ${errorMessage(error, "Erro ao gravar reservas.")}`);
+    } finally {
+      setBusy(false);
+      if (done > 0) {
+        void qc.invalidateQueries({ queryKey: ["reservations"] });
+        void qc.invalidateQueries({ queryKey: ["reservation_groups"] });
+        onImported?.();
+      }
+    }
   }
   return <section className="rounded-2xl border bg-card p-4 shadow-sm">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -184,6 +317,10 @@ export function HospedinSyncPanel({onImported}:{onImported?:()=>void}) {
       </div>}
       <p className="mt-1 text-muted-foreground">Se aparecer Hospedin não habilitado, confira se esta empresa corresponde à autorizada para integração.</p>
     </div>
+    {importIssues.length > 0 && <details open className="mt-2 rounded border p-3 text-xs">
+      <summary className="cursor-pointer font-bold">Pendências na gravação ({importIssues.length})</summary>
+      <ul className="mt-2 max-h-48 overflow-auto">{importIssues.map((issue, index) => <li className="border-b py-1" key={index}>{issue}</li>)}</ul>
+    </details>}
     {roomInfo && <p className="mt-2 text-xs text-muted-foreground">{roomInfo}</p>}
     {Object.keys(issueCounts).length>0 && <div className="mt-2 flex flex-wrap gap-2 text-xs">{Object.entries(issueCounts).map(([reason,count])=><span className="rounded border px-2 py-1" key={reason}>{reason}: {count}</span>)}</div>}
     {diagnostics.length>0 && <details className="mt-2 rounded border p-3 text-xs"><summary className="cursor-pointer font-bold">Diagnóstico de quartos Hospedin (sem dados pessoais)</summary><div className="mt-2 max-h-40 overflow-auto">{diagnostics.map(item=><p key={item.id} className="border-b py-1">ID {item.id}: {item.values} · Campos: {item.fields}</p>)}</div></details>}
