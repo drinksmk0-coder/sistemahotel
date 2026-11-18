@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
-import { todayISO } from "@/lib/format";
+import { addDaysISO, todayISO } from "@/lib/format";
 
 type TenantRow = { company_id: string };
 export type Room = Tables<"rooms"> & TenantRow;
@@ -281,6 +281,43 @@ export function useClients() {
 
 export function useReservations() {
   return useTenantQuery<Reservation>("reservations", "created_at", { ascending: false });
+}
+
+export const ROOM_TIMELINE_MAX_DAYS = 60;
+
+export function useRoomMapReservations(startDate: string) {
+  const companyId = useCurrentCompany().data?.id;
+
+  return useQuery({
+    queryKey: ["reservations", companyId, "room-map", startDate],
+    enabled: !!companyId,
+    queryFn: async () => {
+      const endDate = addDaysISO(startDate, ROOM_TIMELINE_MAX_DAYS - 1);
+      const filter = `status.not.in.(finalizado,cancelado),and(checkin.lte.${endDate},checkout.gte.${startDate},status.neq.cancelado)`;
+      const pageSize = 500;
+      const reservations: Reservation[] = [];
+      let cursor: string | undefined;
+
+      for (;;) {
+        let query = supabase.from("reservations")
+          .select("*")
+          .eq("company_id", companyId!)
+          .or(filter)
+          .order("id")
+          .limit(pageSize);
+        if (cursor) query = query.gt("id", cursor);
+
+        const { data, error } = await query;
+        if (error) throw error;
+        const page = (data ?? []) as Reservation[];
+        reservations.push(...page);
+        if (page.length < pageSize) break;
+        cursor = page[page.length - 1].id;
+      }
+
+      return reservations.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    },
+  });
 }
 
 export function useSales() {

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
   BedDouble,
   Building2,
@@ -45,6 +46,7 @@ import { GuestPaymentModal } from "@/components/GuestPaymentModal";
 import { CompanyBillingCheckoutModal, type CompanyBillingCheckout } from "@/components/CompanyBillingCheckoutModal";
 import { buildGuestAccount, type GuestAccount } from "@/lib/guest-account";
 import { supabase } from "@/integrations/supabase/client";
+import { HospedinSyncPanel } from "@/components/HospedinSyncPanel";
 
 type CancellationRisk = {
   probability: number;
@@ -210,6 +212,7 @@ export function ReservasModernV2() {
         </div>
       } />
 
+      <HospedinSyncPanel onImported={() => { setFilter("ativas"); setDateFilter(""); }} />
       <section className="rounded-2xl border border-border bg-card p-3 shadow-sm">
         <div className="grid gap-2 md:grid-cols-[1fr_190px_190px]">
           <label className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><input value={search} onChange={(e) => setSearch(e.target.value)} className="field h-10 bg-muted/35 pl-9" placeholder="Buscar hóspede, quarto, código ou canal..." /></label>
@@ -291,6 +294,11 @@ function ReservationDetail({ reservation, account, risk, client, update, remove,
     {reservation.status === "reservado" && risk && <section className="mt-3 rounded-2xl border border-border bg-muted/30 p-3"><div className="text-xs font-black uppercase tracking-wide text-muted-foreground">Previsão IA</div><div className="mt-1 text-sm font-bold text-pine-dark">Risco de cancelamento: {Math.round(risk.probability * 100)}%</div><div className="mt-1 text-xs text-muted-foreground">Faixa: {risk.risk_band || "não classificada"}. Use como alerta para acompanhamento, não como certeza de cancelamento.</div></section>}
     {temporarilyAway && <section className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3"><div className="text-xs font-black uppercase tracking-wide text-amber-700">Saída temporária</div><div className="mt-1 text-sm font-bold text-amber-900">O hóspede saiu, mas informou que vai voltar.</div><div className="mt-1 text-xs text-amber-800">A hospedagem e o quarto continuam ocupados.</div></section>}
     <div className="grid grid-cols-2 gap-2 py-4 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4"><Info icon={UserRound} label="Hóspede" value={reservation.cliente_nome} /><Info icon={CalendarDays} label="Check-in" value={`${fmtDate(reservation.checkin)} ${fmtTime(reservation.horario_checkin)}`} /><Info icon={CalendarDays} label="Check-out" value={`${fmtDate(reservation.checkout)} ${fmtTime(reservation.horario_checkout)}`} /><Info icon={Building2} label="Origem" value={reservation.canal || "Direto"} /></div>
+    {reservation.status !== "cancelado" && (
+      <Link to="/mapa" search={{ date: reservation.checkin, room: reservation.quarto }} className="btn-ghost">
+        Ver no mapa
+      </Link>
+    )}
     <section className="rounded-2xl bg-muted/35 p-4"><div className="mb-3 flex items-center gap-2 text-sm font-black text-pine-dark"><CircleDollarSign className="h-4 w-4 text-primary" /> Financeiro</div><div className="grid grid-cols-3 gap-2 text-center"><Money label="Total" value={account.total} tone="text-primary" /><Money label="Pago" value={account.total - account.balance} tone="text-sage" /><Money label="Falta" value={account.balance} tone={account.balance > 0 ? "text-brick" : "text-sage"} /></div>{balance > 0 && reservation.status !== "cancelado" && <button type="button" onClick={() => setPaymentOpen(true)} className="btn-primary mt-4 w-full">Receber parcial / conta</button>}</section>
     <section className="mt-3"><div className="mb-2 text-xs font-black uppercase tracking-wide text-muted-foreground">Ações rápidas</div><div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">{reservation.status === "reservado" && <Action icon={LogIn} label="Check-in" onClick={checkin} />}{reservation.status === "ocupado" && !temporarilyAway && <Action icon={Footprints} label="Saiu, mas volta" onClick={guestOutTemporarily} />}{reservation.status === "ocupado" && temporarilyAway && <Action icon={LogIn} label="Hóspede voltou" onClick={guestReturned} />}{reservation.status === "ocupado" && <Action icon={LogOut} label="Saiu p/ checkout" onClick={guestLeft} danger />}{!done && <Action icon={Edit3} label="Editar / Estender" onClick={onEdit} />}{!done && <Action icon={MessageCircle} label="Mensagem" onClick={sendWhatsApp} />}{reservation.status === "saida_pendente" && balance <= 0 && <Action icon={BedDouble} label="Check-out" onClick={() => finishCheckout()} />}{["ocupado","saida_pendente"].includes(reservation.status) && balance > 0 && <Action icon={Building2} label="Faturar empresa" onClick={() => setBillingOpen(true)} />}</div></section>
     <details className="mt-3 rounded-xl border border-border bg-background p-3"><summary className="cursor-pointer text-sm font-bold text-pine-dark">Mais ações</summary><div className="mt-3 grid grid-cols-2 gap-2">{!done && <Action icon={Send} label="Check-in online" onClick={() => void sendOnlineCheckin(reservation, client)} compact />}{reservation.status === "ocupado" && <Action icon={Undo2} label="Desfazer check-in" onClick={undoCheckin} compact />}{reservation.status === "saida_pendente" && <Action icon={Undo2} label="Desfazer saída" onClick={undoDeparture} compact />}{reservation.status === "finalizado" && <Action icon={Undo2} label="Desfazer check-out" onClick={undoCheckout} compact />}{!done && <Action icon={XCircle} label="Cancelar reserva" danger compact onClick={() => { if (!window.confirm(`Cancelar a reserva de ${reservation.cliente_nome}?`)) return; update.mutate({ id: reservation.id, patch: { status: "cancelado" } }, { onSuccess: () => toast.success("Reserva cancelada"), onError: (e: Error) => toast.error(e.message) }); }} />}<Action icon={Trash2} label="Excluir" danger compact onClick={() => { if (!window.confirm(`Excluir definitivamente a reserva de ${reservation.cliente_nome}?`)) return; remove.mutate(reservation.id, { onSuccess: () => { toast.success("Reserva excluída"); onClose(); }, onError: (e: Error) => toast.error(e.message) }); }} /></div></details>

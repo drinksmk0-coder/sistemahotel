@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  ROOM_TIMELINE_MAX_DAYS,
   useSales,
   useUpdate,
   type Reservation,
@@ -31,7 +32,8 @@ import {
 import { buildGuestAccount } from "@/lib/guest-account";
 import { fmtBRL, fmtDate, todayISO } from "@/lib/format";
 
-type TimelineRange = 7 | 14 | 30 | 60;
+const TIMELINE_RANGES = [7, 14, 30, ROOM_TIMELINE_MAX_DAYS] as const;
+type TimelineRange = (typeof TIMELINE_RANGES)[number];
 
 type ReservationVisual = {
   className: string;
@@ -361,7 +363,7 @@ export function RoomTimeline({
                 </button>
               </div>
               <div className="flex items-center rounded-lg border border-border bg-muted/40 p-0.5 font-bold">
-                {([7, 14, 30, 60] as TimelineRange[]).map((days) => (
+                {TIMELINE_RANGES.map((days) => (
                   <button
                     key={days}
                     type="button"
